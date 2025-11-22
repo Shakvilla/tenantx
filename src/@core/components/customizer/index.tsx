@@ -25,7 +25,7 @@ import PerfectScrollbar from 'react-perfect-scrollbar'
 
 // Type Imports
 import type { Settings } from '@core/contexts/settingsContext'
-import type { Direction } from '@core/types'
+import type { Direction, SidebarType } from '@core/types'
 import type { PrimaryColorConfig } from '@configs/primaryColorConfig'
 
 // Icon Imports
@@ -337,15 +337,49 @@ const Customizer = ({ breakpoint = 'lg', dir = 'ltr', disableDirection = false }
               {settings.mode === 'dark' ||
               (settings.mode === 'system' && isSystemDark) ||
               settings.layout === 'horizontal' ? null : (
-                <div className='flex items-center justify-between'>
-                  <label className='font-medium cursor-pointer' htmlFor='customizer-semi-dark'>
-                    Semi Dark
-                  </label>
-                  <Switch
-                    id='customizer-semi-dark'
-                    checked={settings.semiDark === true}
-                    onChange={() => handleChange('semiDark', !settings.semiDark)}
-                  />
+                <div className='flex flex-col gap-2'>
+                  <p className='font-medium'>Sidebar</p>
+                  <div className='flex items-center justify-between gap-4'>
+                    <div className='flex flex-col items-start gap-0.5'>
+                      <div
+                        className={classnames(styles.itemWrapper, {
+                          [styles.active]: (settings.sidebarType || (settings.semiDark ? 'dark' : 'default')) === 'default'
+                        })}
+                        onClick={() => handleChange('sidebarType', 'default')}
+                      >
+                        <div className='is-12 bs-8 rounded' style={{ backgroundColor: 'var(--mui-palette-background-default)' }} />
+                      </div>
+                      <p className={styles.itemLabel} onClick={() => handleChange('sidebarType', 'default')}>
+                        Default
+                      </p>
+                    </div>
+                    <div className='flex flex-col items-start gap-0.5'>
+                      <div
+                        className={classnames(styles.itemWrapper, {
+                          [styles.active]: (settings.sidebarType || (settings.semiDark ? 'dark' : 'default')) === 'dark'
+                        })}
+                        onClick={() => handleChange('sidebarType', 'dark')}
+                      >
+                        <div className='is-12 bs-8 rounded' style={{ backgroundColor: '#282A42' }} />
+                      </div>
+                      <p className={styles.itemLabel} onClick={() => handleChange('sidebarType', 'dark')}>
+                        Dark
+                      </p>
+                    </div>
+                    <div className='flex flex-col items-start gap-0.5'>
+                      <div
+                        className={classnames(styles.itemWrapper, {
+                          [styles.active]: (settings.sidebarType || (settings.semiDark ? 'dark' : 'default')) === 'white'
+                        })}
+                        onClick={() => handleChange('sidebarType', 'white')}
+                      >
+                        <div className='is-12 bs-8 rounded' style={{ backgroundColor: '#FFFFFF', border: '1px solid var(--mui-palette-divider)' }} />
+                      </div>
+                      <p className={styles.itemLabel} onClick={() => handleChange('sidebarType', 'white')}>
+                        White
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

@@ -78,11 +78,37 @@ const Navigation = (props: Props) => {
 
   // Vars
   const { isCollapsed, isHovered, collapseVerticalNav, isBreakpointReached } = verticalNavOptions
-  const isSemiDark = settings.semiDark
+  
+  // Get sidebarType, with fallback to semiDark for backward compatibility
+  const sidebarType = settings.sidebarType || (settings.semiDark ? 'dark' : 'default')
 
   const currentMode = muiMode === 'system' ? muiSystemMode : muiMode || mode
 
   const isDark = currentMode === 'dark'
+
+  // Determine sidebar background color and attributes based on sidebarType
+  const getSidebarConfig = () => {
+    switch (sidebarType) {
+      case 'white':
+        return {
+          backgroundColor: '#FFFFFF',
+          dataAttributes: {}
+        }
+      case 'dark':
+        return {
+          backgroundColor: 'var(--mui-palette-background-default)',
+          dataAttributes: !isDark ? { 'data-dark': '' } : {}
+        }
+      case 'default':
+      default:
+        return {
+          backgroundColor: 'var(--mui-palette-background-default)',
+          dataAttributes: {}
+        }
+    }
+  }
+
+  const sidebarConfig = getSidebarConfig()
 
   const scrollMenu = (container: any, isPerfectScrollbar: boolean) => {
     container = isBreakpointReached || !isPerfectScrollbar ? container.target : container
@@ -114,14 +140,8 @@ const Navigation = (props: Props) => {
     <VerticalNav
       customStyles={navigationCustomStyles(verticalNavOptions, theme)}
       collapsedWidth={71}
-      backgroundColor='var(--mui-palette-background-default)'
-      // eslint-disable-next-line lines-around-comment
-      // The following condition adds the data-dark attribute to the VerticalNav component
-      // when semiDark is enabled and the mode or systemMode is light
-      {...(isSemiDark &&
-        !isDark && {
-          'data-dark': ''
-        })}
+      backgroundColor={sidebarConfig.backgroundColor}
+      {...sidebarConfig.dataAttributes}
     >
       {/* Nav Header including Logo & nav toggle icons  */}
       <NavHeader>

@@ -58,7 +58,7 @@ const menuItemStyles = (theme: Theme, iconClass: string): MenuItemStyles => ({
   },
   icon: ({ level }) => ({
     marginInlineEnd: theme.spacing(2),
-    ...(level < 2 ? { fontSize: '1.375rem' } : { fontSize: '0.5rem', color: 'var(--mui-palette-text-secondary)' }),
+    ...(level < 2 ? { fontSize: '1.125rem' } : { fontSize: '0.5rem', color: 'var(--mui-palette-text-secondary)' }),
     '& > i, & > svg': {
       fontSize: 'inherit'
     },
@@ -83,7 +83,7 @@ const menuItemStyles = (theme: Theme, iconClass: string): MenuItemStyles => ({
     zIndex: 'calc(var(--header-z-index) + 1)'
   },
   subMenuExpandIcon: {
-    fontSize: '1.375rem',
+    fontSize: '1.125rem',
     marginInlineStart: theme.spacing(2),
     '& i, & svg': {
       fontSize: 'inherit'

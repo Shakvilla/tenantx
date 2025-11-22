@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import { createContext, useMemo, useState } from 'react'
 
 // Type Imports
-import type { Mode, Skin, Layout, LayoutComponentWidth } from '@core/types'
+import type { Mode, Skin, Layout, LayoutComponentWidth, SidebarType } from '@core/types'
 
 // Config Imports
 import themeConfig from '@configs/themeConfig'
@@ -18,7 +18,8 @@ import { useObjectCookie } from '@core/hooks/useObjectCookie'
 export type Settings = {
   mode?: Mode
   skin?: Skin
-  semiDark?: boolean
+  semiDark?: boolean // Keep for backward compatibility, but use sidebarType instead
+  sidebarType?: SidebarType
   layout?: Layout
   navbarContentWidth?: LayoutComponentWidth
   contentWidth?: LayoutComponentWidth
@@ -56,6 +57,7 @@ export const SettingsProvider = (props: Props) => {
     mode: themeConfig.mode,
     skin: themeConfig.skin,
     semiDark: themeConfig.semiDark,
+    sidebarType: themeConfig.sidebarType,
     layout: themeConfig.layout,
     navbarContentWidth: themeConfig.navbar.contentWidth,
     contentWidth: themeConfig.contentWidth,

@@ -9,33 +9,45 @@ export type PrimaryColorConfig = {
 const primaryColorConfig: PrimaryColorConfig[] = [
   {
     name: 'primary-1',
-    light: '#f0f8ed',
-    main: '#65bc4b',
-    dark: '#5ba944'
+    light: '#7FD066',
+    main: '#65BC4B',
+    dark: '#4F9439'
   },
   {
     name: 'primary-2',
-    light: '#49CCB5',
-    main: '#06B999',
-    dark: '#048770'
+    light: '#4A6BA8',
+    main: '#21438D',
+    dark: '#1A3570'
   },
   {
     name: 'primary-3',
-    light: '#FFA95A',
-    main: '#FF891D',
-    dark: '#BA6415'
+    light: '#FFA04D',
+    main: '#F58120',
+    dark: '#C4651A'
   },
   {
     name: 'primary-4',
-    light: '#F07179',
-    main: '#EB3D47',
-    dark: '#AC2D34'
+    light: '#8E8F8F',
+    main: '#6C6D6D',
+    dark: '#525353'
   },
   {
     name: 'primary-5',
-    light: '#5CC5F1',
-    main: '#20AFEC',
-    dark: '#1780AC'
+    light: '#F04A51',
+    main: '#EB1E25',
+    dark: '#B0171D'
+  },
+  {
+    name: 'primary-6',
+    light: '#C96BB8',
+    main: '#B948A1',
+    dark: '#8D3879'
+  },
+  {
+    name: 'primary-7',
+    light: '#4DD4F7',
+    main: '#1CC2F2',
+    dark: '#1595B5'
   }
 ]
 

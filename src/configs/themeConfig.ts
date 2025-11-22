@@ -17,7 +17,7 @@
  */
 
 // Type Imports
-import type { Mode, Skin, Layout, LayoutComponentPosition, LayoutComponentWidth } from '@core/types'
+import type { Mode, Skin, Layout, LayoutComponentPosition, LayoutComponentWidth, SidebarType } from '@core/types'
 
 type Navbar = {
   type: LayoutComponentPosition
@@ -39,7 +39,8 @@ export type Config = {
   settingsCookieName: string
   mode: Mode
   skin: Skin
-  semiDark: boolean
+  semiDark: boolean // Keep for backward compatibility
+  sidebarType: SidebarType
   layout: Layout
   layoutPadding: number
   navbar: Navbar
@@ -55,7 +56,8 @@ const themeConfig: Config = {
   settingsCookieName: 'trustapp-1',
   mode: 'light', // 'system', 'light', 'dark'
   skin: 'default', // 'default', 'bordered'
-  semiDark: false, // true, false
+  semiDark: false, // true, false (deprecated, use sidebarType instead)
+  sidebarType: 'default', // 'default', 'dark', 'white'
   layout: 'horizontal', // 'vertical', 'collapsed', 'horizontal'
   layoutPadding: 12, // Common padding for header, content, footer layout components (in px)
   compactContentWidth: 1440, // in px

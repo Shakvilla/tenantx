@@ -11,6 +11,8 @@ export type SystemMode = 'light' | 'dark'
 
 export type Direction = 'ltr' | 'rtl'
 
+export type SidebarType = 'default' | 'dark' | 'white'
+
 export type LayoutComponentWidth = 'compact' | 'wide'
 
 export type LayoutComponentPosition = 'fixed' | 'static'

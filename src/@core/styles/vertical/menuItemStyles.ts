@@ -76,7 +76,7 @@ const menuItemStyles = (verticalNavOptions: VerticalNavState, theme: Theme): Men
     icon: ({ level }) => ({
       transition: `margin-inline-end ${transitionDuration}ms ease-in-out`,
       ...(level === 0 && {
-        fontSize: '1.375rem',
+        fontSize: '1.125rem',
         marginInlineEnd: theme.spacing(2)
       }),
       ...(level > 0 && {
@@ -117,7 +117,7 @@ const menuItemStyles = (verticalNavOptions: VerticalNavState, theme: Theme): Men
       marginInlineStart: theme.spacing(2)
     },
     subMenuExpandIcon: {
-      fontSize: '1.375rem',
+      fontSize: '1.125rem',
       marginInlineStart: theme.spacing(2),
       '& i, & svg': {
         fontSize: 'inherit'
