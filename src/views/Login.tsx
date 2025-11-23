@@ -93,7 +93,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
             autoComplete='off'
             onSubmit={e => {
               e.preventDefault()
-              router.push('/')
+              router.push('/dashboard')
             }}
             className='flex flex-col gap-5'
           >

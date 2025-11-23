@@ -116,8 +116,8 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
       {
         label: 'Monthly Balance',
         href: '/reports/monthly-balance'
-      },
-      {
+  },
+  {
         label: 'Agent Mobilization',
         href: '/reports/agent-mobilization'
       },
