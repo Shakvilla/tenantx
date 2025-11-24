@@ -8,206 +8,131 @@ const horizontalMenuData = (): HorizontalMenuDataType[] => [
     icon: 'ri-dashboard-line'
   },
   {
-    label: 'Members',
+    label: 'Properties',
+    icon: 'ri-building-line',
+    children: [
+      {
+        label: 'All Properties',
+        href: '/properties/all'
+      },
+      {
+        label: 'All Unit',
+        href: '/properties/units'
+      },
+      {
+        label: 'Own Property',
+        href: '/properties/own'
+      },
+      {
+        label: 'Lease Property',
+        href: '/properties/lease'
+      }
+    ]
+  },
+  {
+    label: 'Tenants',
     icon: 'ri-group-line',
     children: [
       {
-        label: 'Add Members',
-        href: '/members/add'
+        label: 'All Tenants',
+        href: '/tenants/all'
       },
       {
-        label: 'Customers',
-        href: '/members/customers'
-      },
-      {
-        label: 'Agents',
-        href: '/members/agents'
+        label: 'Tenant History',
+        href: '/tenants/history'
       }
     ]
   },
   {
-    label: 'Accounts',
-    icon: 'ri-wallet-line',
+    label: 'Billing Center',
+    icon: 'ri-bill-line',
     children: [
       {
-        label: 'Add Account',
-        href: '/accounts/add'
-      }
-    ]
-  },
-  {
-    label: 'Transactions',
-    icon: 'ri-exchange-line',
-    children: [
-      {
-        label: 'Deposits',
-        href: '/transactions/deposits'
+        label: 'All invoices',
+        href: '/billing/invoices'
       },
       {
-        label: 'Withdrawals',
-        href: '/transactions/withdrawals'
+        label: 'Recurring Invoice setting',
+        href: '/billing/recurring-settings'
       }
     ]
   },
   {
     label: 'Expenses',
-    icon: 'ri-money-dollar-circle-line',
+    href: '/expenses',
+    icon: 'ri-money-dollar-circle-line'
+  },
+  {
+    label: 'Documents',
+    href: '/documents',
+    icon: 'ri-file-text-line'
+  },
+  {
+    label: 'Communication',
+    href: '/communication',
+    icon: 'ri-message-3-line'
+  },
+  {
+    label: 'Maintenance',
+    icon: 'ri-tools-line',
     children: [
       {
-        label: 'All Expenses',
-        href: '/expenses/all'
+        label: 'Maintainers',
+        href: '/maintenance/maintainers'
       },
       {
-        label: 'Expense Config',
-        href: '/expenses/config'
+        label: 'Maintenance Request',
+        href: '/maintenance/requests'
       }
     ]
   },
   {
-    label: 'Approvals',
-    icon: 'ri-checkbox-circle-line',
-    children: [
-      {
-        label: 'Commissions',
-        href: '/approvals/commissions'
-      },
-      {
-        label: 'Received',
-        href: '/approvals/received'
-      },
-      {
-        label: 'Withdrawals',
-        href: '/approvals/withdrawals'
-      }
-    ]
-  },
-  {
-    label: 'Reports',
+    label: 'Report',
     icon: 'ri-file-chart-line',
     children: [
       {
-        label: 'Mobilised Funds',
-        href: '/reports/mobilised-funds'
+        label: 'Tenants',
+        href: '/reports/tenants'
       },
       {
-        label: 'Withdrawals',
-        href: '/reports/withdrawals'
+        label: 'Expenses',
+        href: '/reports/expenses'
       },
       {
-        label: 'Customer Ranking',
-        href: '/reports/customer-ranking'
+        label: 'Earning',
+        href: '/reports/earning'
       },
       {
-        label: 'Customer Filter',
-        href: '/reports/customer-filter'
-      },
-      {
-        label: 'Income Statement',
-        href: '/reports/income-statement'
-      },
-      {
-        label: 'Reconciliation History',
-        href: '/reports/reconciliation-history'
-      },
-      {
-        label: 'Trial Balance',
-        href: '/reports/trial-balance'
-      },
-      {
-        label: 'Monthly Balance',
-        href: '/reports/monthly-balance'
-  },
-  {
-        label: 'Agent Mobilization',
-        href: '/reports/agent-mobilization'
-      },
-      {
-        label: 'Customers and Balance Ranking',
-        href: '/reports/customers-balance-ranking'
-      },
-      {
-        label: 'Dormant Accounts',
-        href: '/reports/dormant-accounts'
-      },
-      {
-        label: 'Agents Commissions',
-        href: '/reports/agents-commissions'
+        label: 'Maintenance',
+        href: '/reports/maintenance'
       }
     ]
   },
   {
-    label: 'Bank Logs',
-    icon: 'ri-bank-line',
-    children: [
-      {
-        label: 'All Transactions',
-        href: '/bank-logs/all-transactions'
-      },
-      {
-        label: 'Transactions Configs',
-        href: '/bank-logs/transactions-configs'
-      }
-    ]
+    label: 'Agreement',
+    href: '/agreement',
+    icon: 'ri-file-contract-line'
   },
   {
-    label: 'Other Income',
-    icon: 'ri-money-cny-circle-line',
-    children: [
-      {
-        label: 'All Transactions',
-        href: '/other-income/all-transactions'
-      },
-      {
-        label: 'All Income Configs',
-        href: '/other-income/all-income-configs'
-      }
-    ]
-  },
-  {
-    label: 'SIF',
-    icon: 'ri-funds-line',
-    children: [
-      {
-        label: 'All Contribution',
-        href: '/sif/all-contribution'
-      }
-    ]
+    label: 'Subscription Plans',
+    href: '/subscription-plans',
+    icon: 'ri-vip-crown-line'
   },
   {
     label: 'Settings',
     icon: 'ri-settings-3-line',
     children: [
       {
-        label: 'Contribution Frequency',
-        href: '/settings/contribution-frequency'
+        label: 'Payment settings',
+        href: '/settings/payment'
       },
       {
-        label: 'Expense and Income Config',
-        href: '/settings/expense-income-config'
+        label: 'Notification settings',
+        href: '/settings/notification'
       },
       {
-        label: 'User Profile',
-        href: '/settings/user-profile'
-      },
-      {
-        label: 'User Registration',
-        href: '/settings/user-registration'
-      },
-      {
-        label: 'SMS Configs',
-        href: '/settings/sms-configs'
-      },
-      {
-        label: 'Accounts Status',
-        href: '/settings/accounts-status'
-      },
-      {
-        label: 'Permission',
-        href: '/settings/permission'
-      },
-      {
-        label: 'System Configs',
-        href: '/settings/system-configs'
+        label: 'Company Settings',
+        href: '/settings/company'
       }
     ]
   }

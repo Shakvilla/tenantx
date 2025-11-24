@@ -20,8 +20,8 @@ import '@/assets/fonts/stylesheet.css'
 import '@assets/iconify-icons/generated-icons.css'
 
 export const metadata = {
-  title: 'TrustApp',
-  description: 'TrustApp'
+  title: 'TenantX',
+  description: 'TenantX'
 }
 
 const RootLayout = async (props: ChildrenType) => {

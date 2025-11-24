@@ -51,9 +51,9 @@ export type Config = {
 }
 
 const themeConfig: Config = {
-  templateName: 'TrustApp',
+  templateName: 'TenantX',
   homePageUrl: '/dashboard',
-  settingsCookieName: 'trustapp-1',
+  settingsCookieName: 'tenantx-1',
   mode: 'light', // 'system', 'light', 'dark'
   skin: 'default', // 'default', 'bordered'
   semiDark: false, // true, false (deprecated, use sidebarType instead)
