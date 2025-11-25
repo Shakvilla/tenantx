@@ -6,13 +6,15 @@ import { useState, useMemo } from 'react'
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
+import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
-import MenuItem from '@mui/material/MenuItem'
+import Divider from '@mui/material/Divider'
 import { styled } from '@mui/material/styles'
 import TablePagination from '@mui/material/TablePagination'
+import Box from '@mui/material/Box'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -49,7 +51,7 @@ type MaintenanceRequest = {
   room: string
   tenant: string
   issue: string
-  status: 'Fixed' | 'Pending' | 'In Progress' | 'Rejected'
+  status: 'Fixed' | 'Pending' | 'In Progress' | 'Rejected' | 'New'
 }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
@@ -62,8 +64,35 @@ const statusColorMap: Record<string, 'success' | 'warning' | 'info' | 'error'> =
   Fixed: 'success',
   Pending: 'warning',
   'In Progress': 'info',
-  Rejected: 'error'
+  Rejected: 'error',
+  New: 'info'
 }
+
+// Styled Filter Button
+const FilterButton = styled(Box)<{ active?: boolean }>(({ theme, active }) => ({
+  cursor: 'pointer',
+  padding: theme.spacing(2, 3),
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: theme.spacing(0.5),
+  position: 'relative',
+  transition: 'all 0.2s ease-in-out',
+  '&:hover': {
+    backgroundColor: 'var(--mui-palette-action-hover)'
+  },
+  ...(active && {
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: '2px',
+      backgroundColor: 'var(--mui-palette-primary-main)'
+    }
+  })
+}))
 
 // Sample data
 const maintenanceData: MaintenanceRequest[] = [
@@ -71,16 +100,21 @@ const maintenanceData: MaintenanceRequest[] = [
   { id: 2, room: 'B-205', tenant: 'Jane Smith', issue: 'Broken AC', status: 'Pending' },
   { id: 3, room: 'C-301', tenant: 'Bob Johnson', issue: 'Electrical issue', status: 'In Progress' },
   { id: 4, room: 'A-102', tenant: 'Alice Brown', issue: 'Plumbing problem', status: 'Rejected' },
-  { id: 5, room: 'D-401', tenant: 'Charlie Wilson', issue: 'Door lock', status: 'Fixed' }
+  { id: 5, room: 'D-401', tenant: 'Charlie Wilson', issue: 'Door lock', status: 'Fixed' },
+  { id: 6, room: 'D-405', tenant: 'Charlie Wilson', issue: 'Door lock', status: 'Fixed' },
+  { id: 7, room: 'D-408', tenant: 'Charlie Wilson', issue: 'Door lock', status: 'New' },
+  { id: 8, room: 'E-501', tenant: 'David Lee', issue: 'Window repair', status: 'New' }
 ]
 
 const columnHelper = createColumnHelper<MaintenanceRequest>()
+
+type FilterType = 'all' | 'new' | 'pending' | 'completed'
 
 const MaintenanceRequestsTable = () => {
   const [rowSelection, setRowSelection] = useState({})
   const [data] = useState(maintenanceData)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   const columns = useMemo<ColumnDef<MaintenanceRequest, any>[]>(
     () => [
@@ -99,12 +133,7 @@ const MaintenanceRequestsTable = () => {
       columnHelper.accessor('status', {
         header: 'STATUS',
         cell: ({ row }) => (
-          <Chip
-            variant='tonal'
-            label={row.original.status}
-            color={statusColorMap[row.original.status]}
-            size='small'
-          />
+          <Chip variant='tonal' label={row.original.status} color={statusColorMap[row.original.status]} size='small' />
         )
       }),
       columnHelper.display({
@@ -116,10 +145,29 @@ const MaintenanceRequestsTable = () => {
     []
   )
 
+  // Calculate stats for each filter
+  const filterStats = useMemo(() => {
+    const all = data.length
+    const newCount = data.filter(item => item.status === 'New').length
+    const pendingCount = data.filter(item => item.status === 'Pending' || item.status === 'In Progress').length
+    const completedCount = data.filter(item => item.status === 'Fixed').length
+
+    return {
+      all,
+      new: newCount,
+      pending: pendingCount,
+      completed: completedCount
+    }
+  }, [data])
+
   const filteredData = useMemo(() => {
-    if (statusFilter === 'all') return data
-    return data.filter(item => item.status === statusFilter)
-  }, [data, statusFilter])
+    if (activeFilter === 'all') return data
+    if (activeFilter === 'new') return data.filter(item => item.status === 'New')
+    if (activeFilter === 'pending')
+      return data.filter(item => item.status === 'Pending' || item.status === 'In Progress')
+    if (activeFilter === 'completed') return data.filter(item => item.status === 'Fixed')
+    return data
+  }, [data, activeFilter])
 
   const table = useReactTable({
     data: filteredData,
@@ -148,44 +196,61 @@ const MaintenanceRequestsTable = () => {
 
   return (
     <Card>
-      <CardHeader
-        title='Maintenance Requests'
-        action={
-          <div className='flex items-center gap-2'>
-            <TextField
-              size='small'
-              placeholder='Search Maintenance'
-              value={globalFilter}
-              onChange={e => setGlobalFilter(e.target.value)}
-              className='is-[200px]'
-            />
-            <TextField
-              select
-              size='small'
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className='is-[180px]'
-            >
-              <MenuItem value='all'>All Status</MenuItem>
-              <MenuItem value='Fixed'>Fixed</MenuItem>
-              <MenuItem value='Pending'>Pending</MenuItem>
-              <MenuItem value='In Progress'>In Progress</MenuItem>
-              <MenuItem value='Rejected'>Rejected</MenuItem>
-            </TextField>
-            <Button variant='outlined' size='small'>
-              Export
-            </Button>
-          </div>
-        }
-        subheader={
-          <div className='flex items-center gap-4 mt-2'>
-            <Typography variant='body2'>230 All Requests</Typography>
-            <Typography variant='body2' color='info.main'>56 New Requests</Typography>
-            <Typography variant='body2' color='warning.main'>32 Pending Requests</Typography>
-            <Typography variant='body2' color='success.main'>124 Completed Requests</Typography>
-          </div>
-        }
-      />
+      <CardHeader title='Maintenance Requests' />
+      <CardContent className='flex flex-col gap-4'>
+        {/* Filter Component */}
+        <Box className='flex items-center border-b border-divider'>
+          <FilterButton active={activeFilter === 'all'} onClick={() => setActiveFilter('all')}>
+            <Typography variant='h6' className='font-bold' color='text.primary'>
+              {filterStats.all}
+            </Typography>
+            <Typography variant='body2' color='text.secondary'>
+              All Requests
+            </Typography>
+          </FilterButton>
+          <Divider orientation='vertical' flexItem sx={{ height: 48, borderColor: 'divider' }} />
+          <FilterButton active={activeFilter === 'new'} onClick={() => setActiveFilter('new')}>
+            <Typography variant='h6' className='font-bold' color='text.primary'>
+              {filterStats.new}
+            </Typography>
+            <Typography variant='body2' color='text.secondary'>
+              New Requests
+            </Typography>
+          </FilterButton>
+          <Divider orientation='vertical' flexItem sx={{ height: 48, borderColor: 'divider' }} />
+          <FilterButton active={activeFilter === 'pending'} onClick={() => setActiveFilter('pending')}>
+            <Typography variant='h6' className='font-bold' color='text.primary'>
+              {filterStats.pending}
+            </Typography>
+            <Typography variant='body2' color='text.secondary'>
+              Pending Requests
+            </Typography>
+          </FilterButton>
+          <Divider orientation='vertical' flexItem sx={{ height: 48, borderColor: 'divider' }} />
+          <FilterButton active={activeFilter === 'completed'} onClick={() => setActiveFilter('completed')}>
+            <Typography variant='h6' className='font-bold' color='text.primary'>
+              {filterStats.completed}
+            </Typography>
+            <Typography variant='body2' color='text.secondary'>
+              Completed Requests
+            </Typography>
+          </FilterButton>
+        </Box>
+
+        {/* Search and Export */}
+        <Box className='flex items-center justify-end gap-2'>
+          <TextField
+            size='small'
+            placeholder='Search Maintenance'
+            value={globalFilter}
+            onChange={e => setGlobalFilter(e.target.value)}
+            className='is-[200px]'
+          />
+          <Button variant='outlined' size='small'>
+            Export
+          </Button>
+        </Box>
+      </CardContent>
       <div className='overflow-x-auto'>
         <table className={tableStyles.table}>
           <thead>
@@ -246,4 +311,3 @@ const MaintenanceRequestsTable = () => {
 }
 
 export default MaintenanceRequestsTable
-

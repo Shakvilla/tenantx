@@ -90,7 +90,7 @@ const PendingPaymentCard = () => {
     <Card>
       <CardContent className='flex flex-col gap-4'>
         <div className='flex flex-col gap-1'>
-          <Typography variant='body1' className='font-semibold' color='text.primary'>
+          <Typography variant='h5' className='font-semibold' color='text.primary'>
             Pending Payment
           </Typography>
           <Typography variant='body2' color='text.secondary'>

@@ -72,10 +72,10 @@ const ExpensesOverviewCard = () => {
                 <i className={expense.icon} />
               </CustomAvatar>
               <div className='flex flex-col flex-1'>
-                <Typography variant='body1' className='font-semibold' color='text.primary'>
+                <Typography variant='subtitle1' className='font-semibold' color='text.primary'>
                   {expense.amount}
                 </Typography>
-                <Typography variant='body2' color='text.secondary'>
+                <Typography variant='subtitle2' color='text.secondary'>
                   {expense.label}
                 </Typography>
               </div>

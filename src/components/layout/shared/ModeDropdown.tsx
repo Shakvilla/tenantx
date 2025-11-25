@@ -51,7 +51,7 @@ const ModeDropdown = () => {
     if (settings.mode === 'system') {
       return 'ri-macbook-line'
     } else if (settings.mode === 'dark') {
-      return 'ri-moon-clear-line'
+      return 'ri-moon-stars-line'
     } else {
       return 'ri-sun-line'
     }
