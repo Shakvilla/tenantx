@@ -130,4 +130,3 @@ const PageBanner = ({ title, description, icon = 'ri-rocket-line', image }: Page
 }
 
 export default PageBanner
-
