@@ -2,6 +2,7 @@
 import Grid from '@mui/material/Grid2'
 
 // Component Imports
+import PageBanner from '@/components/banner/PageBanner'
 import PropertyStatsCard from '@/components/card-statistics/PropertyStatsCard'
 import RentCollectedCard from '@views/dashboards/RentCollectedCard'
 import PendingPaymentCard from '@views/dashboards/PendingPaymentCard'
@@ -13,6 +14,15 @@ import TenantsTable from '@views/dashboards/TenantsTable'
 const DashboardPage = () => {
   return (
     <Grid container spacing={6}>
+      {/* Banner */}
+      <Grid size={{ xs: 12 }}>
+        <PageBanner
+          title='Welcome to TenantX'
+          description='Manage your properties, tenants, and finances all in one place. Get insights into your rental business with real-time analytics and comprehensive reporting.'
+          icon='ri-dashboard-line'
+        />
+      </Grid>
+
       {/* Row 1: Summary Cards */}
       <Grid size={{ xs: 12, sm: 6, md: 3 }}>
         <PropertyStatsCard

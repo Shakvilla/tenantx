@@ -45,6 +45,7 @@ const StyledHeader = styled.header<StyledHeaderProps>`
     min-block-size: var(--header-height);
     padding-block: 8px;
     padding-inline: ${themeConfig.layoutPadding}px;
+    background-color: var(--mui-palette-background-paper);
   }
 
   ${({ overrideStyles }) => overrideStyles}

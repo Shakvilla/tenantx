@@ -169,7 +169,9 @@ const StyledHeader = styled.header<StyledHeaderProps>`
   .${verticalLayoutClasses.navbar} {
     position: relative;
     padding-block: 12px;
+    padding-inline: ${themeConfig.layoutPadding}px;
     inline-size: 100%;
+    background-color: var(--mui-palette-background-paper);
   }
 
   ${({ overrideStyles }) => overrideStyles}
