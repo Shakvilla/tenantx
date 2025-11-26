@@ -31,9 +31,9 @@ const Timeline = styled(MuiTimeline)<TimelineProps>({
 
 const RecentActivity = () => {
   return (
-    <Card>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardHeader title='Recent Activity' />
-      <CardContent>
+      <CardContent sx={{ flex: 1 }}>
         <Timeline>
           <TimelineItem>
             <TimelineSeparator>

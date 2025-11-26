@@ -87,7 +87,7 @@ const PendingPaymentCard = () => {
   }
 
   return (
-    <Card>
+    <Card sx={{ height: '100%' }}>
       <CardContent className='flex flex-col gap-4'>
         <div className='flex flex-col gap-1'>
           <Typography variant='h5' className='font-semibold' color='text.primary'>

@@ -32,7 +32,7 @@ const shortcuts: ShortcutsType[] = [
     subtitle: 'Overview'
   },
   {
-    url: '/properties/all',
+    url: '/properties',
     icon: 'ri-building-line',
     title: 'Properties',
     subtitle: 'Manage Properties'

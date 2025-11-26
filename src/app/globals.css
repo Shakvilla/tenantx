@@ -5,6 +5,7 @@
 :root {
   --border-radius: var(--mui-shape-borderRadius);
   --border-color: var(--mui-palette-divider);
+
   --primary-color: var(--mui-palette-primary-main);
   --background-color: var(--mui-palette-background-default);
   --background-color-rgb: var(--mui-palette-background-paperChannel);

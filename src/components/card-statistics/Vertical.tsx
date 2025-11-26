@@ -25,17 +25,17 @@ const CardStatVertical = (props: CardStatsVerticalProps) => {
           <i className={avatarIcon} />
         </CustomAvatar>
         {trendNumber && (
-          <div className='flex items-center'>
-            <Typography color={trend === 'negative' ? 'error.main' : 'success.main'}>
-              {`${trend === 'negative' ? '-' : '+'}${trendNumber}`}
-            </Typography>
-            <i
-              className={classnames(
-                'text-lg',
-                trend === 'negative' ? 'ri-arrow-down-s-line text-error' : 'ri-arrow-up-s-line text-success'
-              )}
-            ></i>
-          </div>
+        <div className='flex items-center'>
+          <Typography color={trend === 'negative' ? 'error.main' : 'success.main'}>
+            {`${trend === 'negative' ? '-' : '+'}${trendNumber}`}
+          </Typography>
+          <i
+            className={classnames(
+              'text-lg',
+              trend === 'negative' ? 'ri-arrow-down-s-line text-error' : 'ri-arrow-up-s-line text-success'
+            )}
+          ></i>
+        </div>
         )}
       </CardContent>
       <CardContent className='flex flex-col items-start gap-4'>

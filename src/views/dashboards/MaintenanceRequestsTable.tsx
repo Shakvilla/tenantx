@@ -36,6 +36,7 @@ import OptionMenu from '@core/components/option-menu'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+import MenuItem from '@mui/material/MenuItem'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -69,7 +70,9 @@ const statusColorMap: Record<string, 'success' | 'warning' | 'info' | 'error'> =
 }
 
 // Styled Filter Button
-const FilterButton = styled(Box)<{ active?: boolean }>(({ theme, active }) => ({
+const FilterButton = styled(Box, {
+  shouldForwardProp: prop => prop !== 'active'
+})<{ active?: boolean }>(({ theme, active }) => ({
   cursor: 'pointer',
   padding: theme.spacing(2, 3),
   display: 'flex',
@@ -195,11 +198,11 @@ const MaintenanceRequestsTable = () => {
   })
 
   return (
-    <Card>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardHeader title='Maintenance Requests' />
       <CardContent className='flex flex-col gap-4'>
         {/* Filter Component */}
-        <Box className='flex items-center border-b border-divider'>
+        <Box className='flex items-center'>
           <FilterButton active={activeFilter === 'all'} onClick={() => setActiveFilter('all')}>
             <Typography variant='h6' className='font-bold' color='text.primary'>
               {filterStats.all}
@@ -238,7 +241,7 @@ const MaintenanceRequestsTable = () => {
         </Box>
 
         {/* Search and Export */}
-        <Box className='flex items-center justify-end gap-2'>
+        <Box className='flex items-center justify-between gap-2'>
           <TextField
             size='small'
             placeholder='Search Maintenance'
@@ -246,12 +249,31 @@ const MaintenanceRequestsTable = () => {
             onChange={e => setGlobalFilter(e.target.value)}
             className='is-[200px]'
           />
-          <Button variant='outlined' size='small'>
-            Export
-          </Button>
+          <div className='flex items-center gap-2'>
+            <TextField
+              select
+              size='small'
+              value={activeFilter}
+              onChange={e => setActiveFilter(e.target.value as FilterType)}
+              className='is-[160px]'
+              sx={{ minWidth: 240 }}
+              label='Status'
+            >
+              {/* <MenuItem value=''>Maintenance Status</MenuItem> */}
+              <MenuItem value='all'>All</MenuItem>
+              <MenuItem value='new'>New</MenuItem>
+              <MenuItem value='pending'>Pending</MenuItem>
+              <MenuItem value='completed'>Completed</MenuItem>
+            </TextField>
+            <Button variant='outlined' size='small' className='flex items-center gap-1'>
+              <i className='ri-upload-2-line mr-1 text-sm ' />
+              Export
+            </Button>
+          </div>
         </Box>
       </CardContent>
-      <div className='overflow-x-auto'>
+      <Box sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+        <div className='overflow-x-auto'>
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
@@ -296,7 +318,8 @@ const MaintenanceRequestsTable = () => {
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+      </Box>
       <TablePagination
         component='div'
         count={table.getFilteredRowModel().rows.length}

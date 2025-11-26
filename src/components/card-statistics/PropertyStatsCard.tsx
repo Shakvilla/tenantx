@@ -19,7 +19,7 @@ type PropertyStatsCardProps = {
 
 const PropertyStatsCard = ({ title, value, description, icon, iconColor }: PropertyStatsCardProps) => {
   return (
-    <Card>
+    <Card sx={{ height: '100%' }}>
       <CardContent className='flex flex-col gap-3'>
         <div className='flex items-start justify-between'>
           <Typography variant='body2' color='text.secondary' className='font-medium'>

@@ -46,7 +46,7 @@ const ExpensesOverviewCard = () => {
   ]
 
   return (
-    <Card>
+    <Card sx={{ height: '100%' }}>
       <CardHeader
         title={
           <div className='flex flex-col items-start gap-2'>
@@ -66,11 +66,11 @@ const ExpensesOverviewCard = () => {
         }
         action={<OptionMenu options={['Refresh', 'Share', 'Update']} />}
       />
-      <CardContent className='flex flex-col gap-4'>
+      <CardContent className='flex flex-col gap-4 flex-1'>
         <div className='flex items-center gap-2'></div>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3'>
           {expenses.map((expense, index) => (
-            <div key={index} className='flex items-center gap-3'>
+            <div key={index} className='flex items-center gap-x-3 gap-y-6'>
               <CustomAvatar variant='rounded' skin='light' color={expense.iconColor} size={40}>
                 <i className={expense.icon} />
               </CustomAvatar>
