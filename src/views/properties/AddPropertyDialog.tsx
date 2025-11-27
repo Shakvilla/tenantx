@@ -24,7 +24,10 @@ import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
 import CardMedia from '@mui/material/CardMedia'
+import Chip from '@mui/material/Chip'
+import Divider from '@mui/material/Divider'
 import { styled } from '@mui/material/styles'
 
 // Third-party Imports
@@ -33,11 +36,33 @@ import classnames from 'classnames'
 // Styled Component Imports
 import StepperWrapper from '@core/styles/stepper'
 
+type PropertyEditData = {
+  id?: string
+  name?: string
+  type?: string
+  condition?: string
+  region?: string
+  district?: string
+  city?: string
+  gpsCode?: string
+  description?: string
+  bedrooms?: number | string
+  bathrooms?: number | string
+  rooms?: number | string
+  amenities?: Record<string, boolean>
+  images?: string[] // URLs for existing images
+  thumbnailIndex?: number | null
+  price?: string
+  address?: string
+}
+
 type Props = {
   open: boolean
   handleClose: () => void
   propertyData?: any[]
   setData: (data: any[]) => void
+  editData?: PropertyEditData | null
+  mode?: 'add' | 'edit'
 }
 
 type StepProps = {
@@ -223,11 +248,38 @@ const ImagePreviewCard = styled(Card, {
   }
 }))
 
-const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) => {
+const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData, mode = 'add' }: Props) => {
   // States
   const [activeStep, setActiveStep] = useState(0)
-  const [formData, setFormData] = useState<FormDataType>(() => {
-    // Ensure amenities and images are always initialized
+
+  // Initialize form data based on mode
+  const getInitialFormData = (): FormDataType => {
+    if (mode === 'edit' && editData) {
+      return {
+        propertyName: editData.name || '',
+        propertyType: editData.type || '',
+        condition: editData.condition || '',
+        region: editData.region || '',
+        district: editData.district || '',
+        city: editData.city || '',
+        gpsCode: editData.gpsCode || '',
+        description: editData.description || '',
+        bedrooms: editData.bedrooms?.toString() || '',
+        bathrooms: editData.bathrooms?.toString() || '',
+        rooms: editData.rooms?.toString() || '',
+        amenities:
+          editData.amenities ||
+          amenitiesList.reduce(
+            (acc, amenity) => {
+              acc[amenity.id] = false
+              return acc
+            },
+            {} as Record<string, boolean>
+          ),
+        images: [], // Will be handled separately for existing images
+        thumbnailIndex: editData.thumbnailIndex ?? null
+      }
+    }
     return {
       ...initialData,
       amenities:
@@ -242,8 +294,23 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
       images: initialData.images || [],
       thumbnailIndex: initialData.thumbnailIndex ?? null
     }
-  })
+  }
+
+  const [formData, setFormData] = useState<FormDataType>(getInitialFormData)
+  const [existingImages, setExistingImages] = useState<string[]>(editData?.images || [])
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+
+  // Reset form when dialog opens/closes or editData changes
+  useEffect(() => {
+    if (open) {
+      const newFormData = getInitialFormData()
+      setFormData(newFormData)
+      setExistingImages(editData?.images || [])
+      setActiveStep(0)
+      setErrors({})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editData, mode])
 
   // Vars
   const isLastStep = activeStep === steps.length - 1
@@ -411,19 +478,9 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
       })
     }
     handleClose()
-    const resetData: FormDataType = {
-      ...initialData,
-      amenities: amenitiesList.reduce(
-        (acc, amenity) => {
-          acc[amenity.id] = false
-          return acc
-        },
-        {} as Record<string, boolean>
-      ),
-      images: [],
-      thumbnailIndex: null
-    }
+    const resetData = getInitialFormData()
     setFormData(resetData)
+    setExistingImages(editData?.images || [])
     setActiveStep(0)
     setErrors({})
   }
@@ -769,18 +826,97 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
               </div>
             </UploadArea>
 
+            {/* Existing Images (from edit mode) */}
+            {existingImages && existingImages.length > 0 && (
+              <div className='flex flex-col gap-4'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex flex-col gap-1'>
+                    <Typography variant='body1' className='font-medium' color='text.primary'>
+                      Existing Images ({existingImages.length})
+                    </Typography>
+                    <Typography variant='caption' color='text.secondary'>
+                      Current property images
+                    </Typography>
+                  </div>
+                </div>
+                <Grid container spacing={3}>
+                  {existingImages.map((imageUrl, index) => {
+                    const totalIndex = index // Existing images come first
+                    const isThumbnail =
+                      formData.thumbnailIndex === totalIndex && formData.thumbnailIndex < existingImages.length
+                    return (
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`existing-${index}`}>
+                        <ImagePreviewCard isThumbnail={isThumbnail}>
+                          <CardMedia
+                            component='img'
+                            image={imageUrl}
+                            alt={`Existing property image ${index + 1}`}
+                            sx={{
+                              height: 200,
+                              objectFit: 'cover'
+                            }}
+                          />
+                          <IconButton
+                            className='thumbnail-button'
+                            size='small'
+                            onClick={() => handleSetThumbnail(totalIndex)}
+                            aria-label={isThumbnail ? 'Thumbnail selected' : 'Set as thumbnail'}
+                            title={isThumbnail ? 'Thumbnail selected' : 'Click to set as thumbnail'}
+                            sx={{
+                              backgroundColor: isThumbnail ? 'var(--mui-palette-primary-main)' : 'rgba(0, 0, 0, 0.6)',
+                              color: 'white',
+                              '&:hover': {
+                                backgroundColor: isThumbnail ? 'var(--mui-palette-primary-dark)' : 'rgba(0, 0, 0, 0.8)'
+                              }
+                            }}
+                          >
+                            <i className={isThumbnail ? 'ri-check-line' : 'ri-image-line'} />
+                          </IconButton>
+                          <IconButton
+                            className='remove-button'
+                            size='small'
+                            onClick={() => {
+                              // Remove from existing images
+                              const newExisting = existingImages.filter((_, i) => i !== index)
+                              setExistingImages(newExisting)
+                              // Adjust thumbnail index if needed
+                              if (formData.thumbnailIndex === totalIndex) {
+                                setFormData(prev => ({ ...prev, thumbnailIndex: null }))
+                              } else if (formData.thumbnailIndex !== null && formData.thumbnailIndex > totalIndex) {
+                                setFormData(prev => ({ ...prev, thumbnailIndex: prev.thumbnailIndex! - 1 }))
+                              }
+                            }}
+                            aria-label='Remove image'
+                          >
+                            <i className='ri-close-line' />
+                          </IconButton>
+                          {isThumbnail && (
+                            <div className='thumbnail-badge'>
+                              <i className='ri-star-fill' />
+                              Thumbnail
+                            </div>
+                          )}
+                        </ImagePreviewCard>
+                      </Grid>
+                    )
+                  })}
+                </Grid>
+              </div>
+            )}
+
+            {/* New Uploaded Images */}
             {formData.images && formData.images.length > 0 && (
               <div className='flex flex-col gap-4'>
                 <div className='flex items-center justify-between'>
                   <div className='flex flex-col gap-1'>
                     <Typography variant='body1' className='font-medium' color='text.primary'>
-                      Uploaded Images ({formData.images.length})
+                      New Uploaded Images ({formData.images.length})
                     </Typography>
                     <Typography variant='caption' color='text.secondary'>
                       Click the image icon on any photo to set it as the thumbnail
                     </Typography>
                   </div>
-                  {formData.thumbnailIndex !== null && (
+                  {formData.thumbnailIndex !== null && formData.thumbnailIndex >= (existingImages?.length || 0) && (
                     <Typography variant='body2' color='primary' className='font-medium'>
                       <i className='ri-image-line mr-1' />
                       Thumbnail selected
@@ -790,7 +926,8 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
                 <Grid container spacing={3}>
                   {formData.images.map((image, index) => {
                     const imageUrl = URL.createObjectURL(image)
-                    const isThumbnail = formData.thumbnailIndex === index
+                    const totalIndex = (existingImages?.length || 0) + index
+                    const isThumbnail = formData.thumbnailIndex === totalIndex
                     return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
@@ -806,7 +943,7 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
                           <IconButton
                             className='thumbnail-button'
                             size='small'
-                            onClick={() => handleSetThumbnail(index)}
+                            onClick={() => handleSetThumbnail(totalIndex)}
                             aria-label={isThumbnail ? 'Thumbnail selected' : 'Set as thumbnail'}
                             title={isThumbnail ? 'Thumbnail selected' : 'Click to set as thumbnail'}
                             sx={{
@@ -824,8 +961,10 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
                             size='small'
                             onClick={() => {
                               // If removing thumbnail, reset thumbnail index
-                              if (formData.thumbnailIndex === index) {
+                              if (formData.thumbnailIndex === totalIndex) {
                                 setFormData(prev => ({ ...prev, thumbnailIndex: null }))
+                              } else if (formData.thumbnailIndex !== null && formData.thumbnailIndex > totalIndex) {
+                                setFormData(prev => ({ ...prev, thumbnailIndex: prev.thumbnailIndex! - 1 }))
                               }
                               handleRemoveImage(index)
                             }}
@@ -857,19 +996,292 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
           </div>
         )
       case 3:
+        const selectedAmenities = amenitiesList.filter(amenity => formData.amenities[amenity.id])
         return (
-          <div className='flex flex-col gap-4'>
-            <Typography variant='body1' color='text.secondary'>
-              Payment Details form will be implemented here
-            </Typography>
-          </div>
-        )
-      case 4:
-        return (
-          <div className='flex flex-col gap-4'>
-            <Typography variant='body1' color='text.secondary'>
-              Review and submit your property information
-            </Typography>
+          <div className='flex flex-col gap-6'>
+            <div className='flex flex-col gap-2'>
+              <Typography variant='h6' className='font-semibold' color='text.primary'>
+                Review Your Property Information
+              </Typography>
+              <Typography variant='body2' color='text.secondary'>
+                Please review all the details before submitting
+              </Typography>
+            </div>
+
+            {/* Step 1: Basic Information */}
+            <Card variant='outlined'>
+              <CardContent>
+                <div className='flex items-center gap-2 mbe-4'>
+                  <Avatar
+                    variant='rounded'
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      backgroundColor: 'var(--mui-palette-primary-lightOpacity)',
+                      color: 'var(--mui-palette-primary-main)'
+                    }}
+                  >
+                    <i className='ri-home-line' />
+                  </Avatar>
+                  <Typography variant='h6' className='font-semibold' color='text.primary'>
+                    Basic Information
+                  </Typography>
+                </div>
+                <Divider className='mbe-4' />
+                <Grid container spacing={3}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Property Name
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.propertyName || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Property Type
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.propertyType || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Condition
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.condition || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        GPS Code
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.gpsCode || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Region
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.region || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        District
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.district || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        City
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.city || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  {formData.description && (
+                    <Grid size={{ xs: 12 }}>
+                      <div className='flex flex-col gap-1'>
+                        <Typography variant='caption' color='text.secondary'>
+                          Description
+                        </Typography>
+                        <Typography variant='body1' color='text.primary'>
+                          {formData.description}
+                        </Typography>
+                      </div>
+                    </Grid>
+                  )}
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Step 2: Property Features */}
+            <Card variant='outlined'>
+              <CardContent>
+                <div className='flex items-center gap-2 mbe-4'>
+                  <Avatar
+                    variant='rounded'
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      backgroundColor: 'var(--mui-palette-primary-lightOpacity)',
+                      color: 'var(--mui-palette-primary-main)'
+                    }}
+                  >
+                    <i className='ri-home-line' />
+                  </Avatar>
+                  <Typography variant='h6' className='font-semibold' color='text.primary'>
+                    Property Features
+                  </Typography>
+                </div>
+                <Divider className='mbe-4' />
+                <Grid container spacing={3}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Bedrooms
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.bedrooms || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Bathrooms
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.bathrooms || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Rooms
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.rooms || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  {selectedAmenities.length > 0 && (
+                    <Grid size={{ xs: 12 }}>
+                      <div className='flex flex-col gap-2'>
+                        <Typography variant='caption' color='text.secondary'>
+                          Amenities
+                        </Typography>
+                        <div className='flex flex-wrap gap-2'>
+                          {selectedAmenities.map(amenity => (
+                            <Chip
+                              key={amenity.id}
+                              label={amenity.name}
+                              size='small'
+                              variant='tonal'
+                              color='primary'
+                              icon={<i className='ri-check-line' />}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </Grid>
+                  )}
+                </Grid>
+              </CardContent>
+            </Card>
+
+            {/* Step 3: Uploaded Images */}
+            {formData.images && formData.images.length > 0 && (
+              <Card variant='outlined'>
+                <CardContent>
+                  <div className='flex items-center gap-2 mbe-4'>
+                    <Avatar
+                      variant='rounded'
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        backgroundColor: 'var(--mui-palette-primary-lightOpacity)',
+                        color: 'var(--mui-palette-primary-main)'
+                      }}
+                    >
+                      <i className='ri-image-line' />
+                    </Avatar>
+                    <Typography variant='h6' className='font-semibold' color='text.primary'>
+                      Uploaded Images
+                    </Typography>
+                  </div>
+                  <Divider className='mbe-4' />
+                  <div className='flex flex-col gap-2'>
+                    <Typography variant='body2' color='text.secondary'>
+                      Total Images: {formData.images.length}
+                      {formData.thumbnailIndex !== null && (
+                        <span className='text-primary ml-2'>
+                          <i className='ri-check-line mr-1' />
+                          Thumbnail selected
+                        </span>
+                      )}
+                    </Typography>
+                    <Grid container spacing={2}>
+                      {formData.images.slice(0, 6).map((image, index) => {
+                        const imageUrl = URL.createObjectURL(image)
+                        const isThumbnail = formData.thumbnailIndex === index
+                        return (
+                          <Grid size={{ xs: 6, sm: 4, md: 3 }} key={index}>
+                            <Box
+                              sx={{
+                                position: 'relative',
+                                border: isThumbnail ? '2px solid' : '1px solid',
+                                borderColor: isThumbnail
+                                  ? 'var(--mui-palette-primary-main)'
+                                  : 'var(--mui-palette-divider)',
+                                borderRadius: 1,
+                                overflow: 'hidden'
+                              }}
+                            >
+                              <CardMedia
+                                component='img'
+                                image={imageUrl}
+                                alt={`Property image ${index + 1}`}
+                                sx={{
+                                  height: 100,
+                                  objectFit: 'cover'
+                                }}
+                              />
+                              {isThumbnail && (
+                                <Box
+                                  sx={{
+                                    position: 'absolute',
+                                    top: 4,
+                                    right: 4,
+                                    backgroundColor: 'var(--mui-palette-primary-main)',
+                                    color: 'white',
+                                    borderRadius: '50%',
+                                    width: 24,
+                                    height: 24,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '0.75rem'
+                                  }}
+                                >
+                                  <i className='ri-star-fill' />
+                                </Box>
+                              )}
+                            </Box>
+                          </Grid>
+                        )
+                      })}
+                    </Grid>
+                    {formData.images.length > 6 && (
+                      <Typography variant='caption' color='text.secondary' className='mts-2'>
+                        + {formData.images.length - 6} more images
+                      </Typography>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )
       default:
@@ -900,10 +1312,12 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData }: Props) 
         <div className='flex items-center justify-center'>
           <div className='flex flex-col items-center justify-center gap-1'>
             <Typography variant='h4' className='font-semibold'>
-              Add Property
+              {mode === 'edit' ? 'Edit Property' : 'Add Property'}
             </Typography>
             <Typography variant='body2' color='text.secondary'>
-              Provide accurate information about this property. Take Images as well.
+              {mode === 'edit'
+                ? 'Update the property information below.'
+                : 'Provide accurate information about this property. Take Images as well.'}
             </Typography>
           </div>
         </div>

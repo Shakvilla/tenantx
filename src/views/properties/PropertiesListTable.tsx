@@ -181,6 +181,8 @@ const PropertiesListTable = () => {
   const [bedroom, setBedroom] = useState('')
   const [bathroom, setBathroom] = useState('')
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
+  const [editPropertyOpen, setEditPropertyOpen] = useState(false)
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -306,7 +308,29 @@ const PropertiesListTable = () => {
       columnHelper.display({
         id: 'actions',
         header: 'ACTIONS',
-        cell: () => <OptionMenu iconButtonProps={{ size: 'small' }} options={['View', 'Edit', 'Delete']} />
+        cell: ({ row }) => (
+          <OptionMenu
+            iconButtonProps={{ size: 'small' }}
+            options={[
+              {
+                text: 'View',
+                icon: 'ri-eye-line',
+                href: `/properties/${row.original.id}`
+              },
+              {
+                text: 'Edit',
+                icon: 'ri-pencil-line',
+                menuItemProps: {
+                  onClick: () => {
+                    setSelectedProperty(row.original)
+                    setEditPropertyOpen(true)
+                  }
+                }
+              },
+              { text: 'Delete', icon: 'ri-delete-bin-line' }
+            ]}
+          />
+        )
       })
     ],
     []
@@ -548,6 +572,30 @@ const PropertiesListTable = () => {
         handleClose={() => setAddPropertyOpen(false)}
         propertyData={data}
         setData={setData}
+        mode='add'
+      />
+      <AddPropertyDialog
+        open={editPropertyOpen}
+        handleClose={() => {
+          setEditPropertyOpen(false)
+          setSelectedProperty(null)
+        }}
+        propertyData={data}
+        setData={setData}
+        mode='edit'
+        editData={
+          selectedProperty
+            ? {
+                id: selectedProperty.id.toString(),
+                name: selectedProperty.name,
+                type: selectedProperty.type,
+                address: selectedProperty.address,
+                price: selectedProperty.price,
+                bedrooms: selectedProperty.bedroom,
+                bathrooms: selectedProperty.bathroom
+              }
+            : null
+        }
       />
     </>
   )
