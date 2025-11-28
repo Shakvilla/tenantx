@@ -273,7 +273,7 @@ const MaintenanceRequestsTable = () => {
         </Box>
       </CardContent>
       <Box sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
-        <div className='overflow-x-auto'>
+      <div className='overflow-x-auto'>
         <table className={tableStyles.table}>
           <thead>
             {table.getHeaderGroups().map(headerGroup => (
@@ -318,7 +318,7 @@ const MaintenanceRequestsTable = () => {
             )}
           </tbody>
         </table>
-        </div>
+      </div>
       </Box>
       <TablePagination
         component='div'

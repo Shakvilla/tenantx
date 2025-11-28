@@ -20,14 +20,16 @@ type ConfirmationType =
   | 'delete-order'
   | 'delete-customer'
   | 'delete-property'
+  | 'delete-unit'
 
 type ConfirmationDialogProps = {
   open: boolean
   setOpen: (open: boolean) => void
   type: ConfirmationType
+  onConfirm?: () => void
 }
 
-const ConfirmationDialog = ({ open, setOpen, type }: ConfirmationDialogProps) => {
+const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDialogProps) => {
   // States
   const [secondDialog, setSecondDialog] = useState(false)
   const [userInput, setUserInput] = useState(false)
@@ -38,6 +40,9 @@ const ConfirmationDialog = ({ open, setOpen, type }: ConfirmationDialogProps) =>
   const handleSecondDialogClose = () => {
     setSecondDialog(false)
     setOpen(false)
+    if (userInput && onConfirm) {
+      onConfirm()
+    }
   }
 
   const handleConfirmation = (value: boolean) => {
@@ -63,6 +68,7 @@ const ConfirmationDialog = ({ open, setOpen, type }: ConfirmationDialogProps) =>
               {type === 'delete-order' && 'Are you sure?'}
               {type === 'delete-customer' && 'Are you sure?'}
               {type === 'delete-property' && 'Are you sure?'}
+              {type === 'delete-unit' && 'Are you sure?'}
             </Typography>
             {type === 'suspend-account' && (
               <Typography color='text.primary'>You won&#39;t be able to revert user!</Typography>
@@ -76,6 +82,9 @@ const ConfirmationDialog = ({ open, setOpen, type }: ConfirmationDialogProps) =>
             {type === 'delete-property' && (
               <Typography color='text.primary'>You won&#39;t be able to revert property!</Typography>
             )}
+            {type === 'delete-unit' && (
+              <Typography color='text.primary'>You won&#39;t be able to revert unit!</Typography>
+            )}
           </Wrapper>
         </DialogContent>
         <DialogActions className='justify-center pbs-0 sm:pbe-16 sm:pli-16'>
@@ -88,7 +97,9 @@ const ConfirmationDialog = ({ open, setOpen, type }: ConfirmationDialogProps) =>
                   ? 'Yes, Delete Customer!'
                   : type === 'delete-property'
                     ? 'Yes, Delete Property!'
-                    : 'Yes'}
+                    : type === 'delete-unit'
+                      ? 'Yes, Delete Unit!'
+                      : 'Yes'}
           </Button>
           <Button
             variant='outlined'
@@ -127,6 +138,7 @@ const ConfirmationDialog = ({ open, setOpen, type }: ConfirmationDialogProps) =>
                 {type === 'delete-order' && 'Your order deleted successfully.'}
                 {type === 'delete-customer' && 'Your customer removed successfully.'}
                 {type === 'delete-property' && 'Property deleted successfully.'}
+                {type === 'delete-unit' && 'Unit deleted successfully.'}
               </>
             ) : (
               <>
@@ -136,6 +148,7 @@ const ConfirmationDialog = ({ open, setOpen, type }: ConfirmationDialogProps) =>
                 {type === 'delete-order' && 'Order Deletion Cancelled'}
                 {type === 'delete-customer' && 'Customer Deletion Cancelled'}
                 {type === 'delete-property' && 'Property Deletion Cancelled'}
+                {type === 'delete-unit' && 'Unit Deletion Cancelled'}
               </>
             )}
           </Typography>

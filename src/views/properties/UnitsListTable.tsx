@@ -11,12 +11,10 @@ import Divider from '@mui/material/Divider'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import Switch from '@mui/material/Switch'
 import MenuItem from '@mui/material/MenuItem'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
-import Checkbox from '@mui/material/Checkbox'
-import Avatar from '@mui/material/Avatar'
+import Chip from '@mui/material/Chip'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -33,15 +31,12 @@ import {
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
-// Type Imports
-import type { ThemeColor } from '@core/types'
-
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
 import PageBanner from '@components/banner/PageBanner'
-import PropertiesStatsCard from './PropertiesStatsCard'
+import UnitsStatsCard from './UnitsStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
-import AddPropertyDialog from './AddPropertyDialog'
+import AddUnitDialog from './AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // Style Imports
@@ -56,29 +51,17 @@ declare module '@tanstack/table-core' {
   }
 }
 
-type Property = {
-  id: number
-  name: string
-  location: string
-  image?: string
-  type: string
-  stock: boolean
-  address: string
-  price: string
-  bedroom: number
-  bathroom: number
-  facilities: string[]
-}
-
-type PropertyWithAction = Property & {
-  action?: string
-}
-
-type PropertyTypeObj = {
-  [key: string]: {
-    icon: string
-    color: ThemeColor
-  }
+type Unit = {
+  id: string
+  unitNumber: string
+  propertyName: string
+  propertyId: string
+  tenantName: string | null
+  status: 'occupied' | 'vacant' | 'maintenance'
+  rent: string
+  bedrooms: number
+  bathrooms: number
+  size: string
 }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
@@ -88,224 +71,232 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
 }
 
 // Vars
-const propertyTypeObj: PropertyTypeObj = {
-  House: { icon: 'ri-home-line', color: 'primary' },
-  Apartment: { icon: 'ri-building-line', color: 'info' }
+const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
+  occupied: 'success',
+  vacant: 'warning',
+  maintenance: 'error'
 }
 
 // Sample data
-const sampleProperties: Property[] = [
+const sampleUnits: Unit[] = [
   {
-    id: 1,
-    name: 'Xorla House',
-    location: 'Adenta',
-    type: 'House',
-    stock: true,
-    image:
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    address: 'GD-081-0392',
-    price: '₵92500',
-    bedroom: 4,
-    bathroom: 3,
-    facilities: ['wifi', 'bed', 'light']
+    id: '1',
+    unitNumber: 'Unit 101',
+    propertyName: 'Xorla House',
+    propertyId: '1',
+    tenantName: 'John Doe',
+    status: 'occupied',
+    rent: '₵1,200',
+    bedrooms: 2,
+    bathrooms: 1,
+    size: '850 sqft'
   },
   {
-    id: 2,
-    name: 'Xorla House',
-    location: 'Adenta',
-    type: 'House',
-    stock: true,
-    address: 'GD-081-0392',
-    price: '₵1500',
-    image:
-      'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-
-    bedroom: 4,
-    bathroom: 3,
-    facilities: ['wifi', 'bed', 'light']
+    id: '2',
+    unitNumber: 'Unit 102',
+    propertyName: 'Xorla House',
+    propertyId: '1',
+    tenantName: 'Jane Smith',
+    status: 'occupied',
+    rent: '₵1,500',
+    bedrooms: 3,
+    bathrooms: 2,
+    size: '1,200 sqft'
   },
   {
-    id: 3,
-    name: 'Xorla House',
-    location: 'Adenta',
-    type: 'House',
-    stock: true,
-
-    address: 'GD-081-0392',
-    price: '₵67500',
-    bedroom: 4,
-    image:
-      'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    bathroom: 3,
-    facilities: ['wifi', 'bed', 'light']
+    id: '3',
+    unitNumber: 'Unit 201',
+    propertyName: 'Xorla House',
+    propertyId: '1',
+    tenantName: null,
+    status: 'vacant',
+    rent: '₵1,300',
+    bedrooms: 2,
+    bathrooms: 1,
+    size: '900 sqft'
   },
   {
-    id: 4,
-    name: 'Xorla House',
-    location: 'Adenta',
-    type: 'House',
-    stock: true,
-    address: 'GD-081-0392',
-    price: '₵45900',
-    bedroom: 4,
-    image:
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?q=80&w=3870&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    bathroom: 3,
-    facilities: ['wifi', 'bed', 'light']
+    id: '4',
+    unitNumber: 'Unit 202',
+    propertyName: 'Xorla House',
+    propertyId: '1',
+    tenantName: 'Mike Johnson',
+    status: 'occupied',
+    rent: '₵1,800',
+    bedrooms: 3,
+    bathrooms: 2,
+    size: '1,350 sqft'
   },
   {
-    id: 5,
-    name: 'Xorla House',
-    location: 'Adenta',
-    type: 'Apartment',
-    stock: true,
-    image:
-      'https://images.unsplash.com/photo-1523217582562-09d0def993a6?q=80&w=1760&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    address: 'GD-081-0392',
-    price: '₵12500',
-    bedroom: 4,
-    bathroom: 3,
-    facilities: ['wifi', 'bed', 'light']
+    id: '5',
+    unitNumber: 'Unit 301',
+    propertyName: 'Xorla House',
+    propertyId: '1',
+    tenantName: null,
+    status: 'maintenance',
+    rent: '₵1,400',
+    bedrooms: 2,
+    bathrooms: 1,
+    size: '950 sqft'
+  },
+  {
+    id: '6',
+    unitNumber: 'Unit 401',
+    propertyName: 'Sunset Apartments',
+    propertyId: '2',
+    tenantName: 'Sarah Williams',
+    status: 'occupied',
+    rent: '₵2,000',
+    bedrooms: 4,
+    bathrooms: 3,
+    size: '1,500 sqft'
+  },
+  {
+    id: '7',
+    unitNumber: 'Unit 402',
+    propertyName: 'Sunset Apartments',
+    propertyId: '2',
+    tenantName: null,
+    status: 'vacant',
+    rent: '₵1,900',
+    bedrooms: 3,
+    bathrooms: 2,
+    size: '1,300 sqft'
   }
 ]
 
-const columnHelper = createColumnHelper<PropertyWithAction>()
+const columnHelper = createColumnHelper<Unit>()
 
-const PropertiesListTable = () => {
+// Sample properties for unit assignment
+const sampleProperties = [
+  { id: 1, name: 'Xorla House' },
+  { id: 2, name: 'Sunset Apartments' },
+  { id: 3, name: 'Green Valley' },
+  { id: 4, name: 'Ocean View' },
+  { id: 5, name: 'Mountain Heights' }
+]
+
+const UnitsListTable = () => {
   // States
-  const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(sampleProperties)
+  const [data, setData] = useState(sampleUnits)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [propertyType, setPropertyType] = useState('')
-  const [facilities, setFacilities] = useState('')
-  const [stock, setStock] = useState('')
+  const [status, setStatus] = useState('')
+  const [property, setProperty] = useState('')
   const [bedroom, setBedroom] = useState('')
   const [bathroom, setBathroom] = useState('')
-  const [addPropertyOpen, setAddPropertyOpen] = useState(false)
-  const [editPropertyOpen, setEditPropertyOpen] = useState(false)
-  const [deletePropertyOpen, setDeletePropertyOpen] = useState(false)
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
+  const [addUnitOpen, setAddUnitOpen] = useState(false)
+  const [editUnitOpen, setEditUnitOpen] = useState(false)
+  const [deleteUnitOpen, setDeleteUnitOpen] = useState(false)
+  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null)
 
   // Calculate stats
   const stats = useMemo(() => {
     return {
-      allProperties: data.length,
-      occupiedUnits: data.filter(p => p.stock).length,
-      vacantUnits: data.filter(p => !p.stock).length,
-      damagedUnits: 0
+      allUnits: data.length,
+      occupiedUnits: data.filter(u => u.status === 'occupied').length,
+      vacantUnits: data.filter(u => u.status === 'vacant').length,
+      maintenanceUnits: data.filter(u => u.status === 'maintenance').length
     }
+  }, [data])
+
+  // Get unique properties for filter
+  const uniqueProperties = useMemo(() => {
+    const properties = Array.from(new Set(data.map(u => u.propertyName)))
+    return properties
   }, [data])
 
   // Filter data
   const filteredData = useMemo(() => {
     let filtered = data
 
-    if (propertyType) {
-      filtered = filtered.filter(p => p.type === propertyType)
+    if (status) {
+      filtered = filtered.filter(u => u.status === status)
     }
-    if (stock !== '') {
-      filtered = filtered.filter(p => p.stock === (stock === 'true'))
+    if (property) {
+      filtered = filtered.filter(u => u.propertyName === property)
     }
     if (bedroom) {
-      filtered = filtered.filter(p => p.bedroom === Number(bedroom))
+      filtered = filtered.filter(u => u.bedrooms === Number(bedroom))
     }
     if (bathroom) {
-      filtered = filtered.filter(p => p.bathroom === Number(bathroom))
+      filtered = filtered.filter(u => u.bathrooms === Number(bathroom))
     }
 
     return filtered
-  }, [data, propertyType, stock, bedroom, bathroom])
+  }, [data, status, property, bedroom, bathroom])
 
-  const columns = useMemo<ColumnDef<PropertyWithAction, any>[]>(
+  const columns = useMemo<ColumnDef<Unit, any>[]>(
     () => [
-      columnHelper.display({
-        id: 'select',
-        header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllRowsSelected()}
-            indeterminate={table.getIsSomeRowsSelected()}
-            onChange={table.getToggleAllRowsSelectedHandler()}
-          />
-        ),
-        cell: ({ row }) => <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+      columnHelper.accessor('unitNumber', {
+        header: 'UNIT NUMBER',
+        cell: ({ row }) => (
+          <Typography color='text.primary' className='font-medium'>
+            {row.original.unitNumber}
+          </Typography>
+        )
       }),
-      columnHelper.accessor('name', {
-        header: 'PROPERTY NAME',
+      columnHelper.accessor('propertyName', {
+        header: 'PROPERTY',
+        cell: ({ row }) => (
+          <Typography color='text.primary' className='font-medium'>
+            {row.original.propertyName}
+          </Typography>
+        )
+      }),
+      columnHelper.accessor('tenantName', {
+        header: 'TENANT',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar variant='rounded' sx={{ width: 30, height: 30 }} src={row.original.image} />
-            <div className='flex flex-col'>
-              <Typography color='text.primary' className='font-medium'>
-                {row.original.name}
-              </Typography>
-              <Typography variant='body2' color='text.secondary'>
-                {row.original.location}
-              </Typography>
-            </div>
+            {row.original.tenantName ? (
+              <>
+                <CustomAvatar skin='light' color='primary' size={34}>
+                  {row.original.tenantName
+                    .split(' ')
+                    .map(n => n[0])
+                    .join('')
+                    .toUpperCase()}
+                </CustomAvatar>
+                <Typography color='text.primary' className='font-medium'>
+                  {row.original.tenantName}
+                </Typography>
+              </>
+            ) : (
+              <Typography color='text.secondary'>-</Typography>
+            )}
           </div>
         )
       }),
-      columnHelper.accessor('type', {
-        header: 'PROPERTY TYPE',
-        cell: ({ row }) => {
-          const propertyType = propertyTypeObj[row.original.type] || {
-            icon: 'ri-building-line',
-            color: 'secondary' as ThemeColor
-          }
-          return (
-            <div className='flex items-center gap-3'>
-              <CustomAvatar skin='light' color={propertyType.color} size={30}>
-                <i className={classnames(propertyType.icon, 'text-lg')} />
-              </CustomAvatar>
-              <Typography color='text.primary'>{row.original.type}</Typography>
-            </div>
-          )
-        }
-      }),
-      columnHelper.accessor('stock', {
-        header: 'STOCK',
+      columnHelper.accessor('status', {
+        header: 'STATUS',
         cell: ({ row }) => (
-          <Switch
-            checked={row.original.stock}
+          <Chip
+            variant='tonal'
+            label={row.original.status}
             size='small'
-            onChange={e => {
-              const updatedData = data.map(property =>
-                property.id === row.original.id ? { ...property, stock: e.target.checked } : property
-              )
-              setData(updatedData)
-            }}
+            color={unitStatusObj[row.original.status]}
+            className='capitalize'
           />
-        ),
-        enableSorting: false
-      }),
-      columnHelper.accessor('address', {
-        header: 'ADDRESS',
-        cell: ({ row }) => <Typography>{row.original.address}</Typography>
-      }),
-      columnHelper.accessor('price', {
-        header: 'PRICE',
-        cell: ({ row }) => <Typography className='font-medium'>{row.original.price}</Typography>
-      }),
-      columnHelper.accessor('bedroom', {
-        header: 'BEDROOM',
-        cell: ({ row }) => <Typography>{row.original.bedroom}</Typography>
-      }),
-      columnHelper.accessor('bathroom', {
-        header: 'BATHROOM',
-        cell: ({ row }) => <Typography>{row.original.bathroom}</Typography>
-      }),
-      columnHelper.accessor('facilities', {
-        header: 'FACILITIES',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            {row.original.facilities.map((facility, idx) => (
-              <i
-                key={idx}
-                className={`ri-${facility === 'wifi' ? 'wifi' : facility === 'bed' ? 'bed' : 'lightbulb'}-line`}
-              />
-            ))}
-          </div>
         )
+      }),
+      columnHelper.accessor('rent', {
+        header: 'RENT',
+        cell: ({ row }) => (
+          <Typography color='text.primary' className='font-medium'>
+            {row.original.rent}
+          </Typography>
+        )
+      }),
+      columnHelper.accessor('bedrooms', {
+        header: 'BEDROOMS',
+        cell: ({ row }) => <Typography>{row.original.bedrooms}</Typography>
+      }),
+      columnHelper.accessor('bathrooms', {
+        header: 'BATHROOMS',
+        cell: ({ row }) => <Typography>{row.original.bathrooms}</Typography>
+      }),
+      columnHelper.accessor('size', {
+        header: 'SIZE',
+        cell: ({ row }) => <Typography color='text.secondary'>{row.original.size}</Typography>
       }),
       columnHelper.display({
         id: 'actions',
@@ -317,15 +308,15 @@ const PropertiesListTable = () => {
               {
                 text: 'View',
                 icon: 'ri-eye-line',
-                href: `/properties/${row.original.id}`
+                href: `/properties/units/${row.original.id}`
               },
               {
                 text: 'Edit',
                 icon: 'ri-pencil-line',
                 menuItemProps: {
                   onClick: () => {
-                    setSelectedProperty(row.original)
-                    setEditPropertyOpen(true)
+                    setSelectedUnit(row.original)
+                    setEditUnitOpen(true)
                   }
                 }
               },
@@ -334,8 +325,8 @@ const PropertiesListTable = () => {
                 icon: 'ri-delete-bin-line',
                 menuItemProps: {
                   onClick: () => {
-                    setSelectedProperty(row.original)
-                    setDeletePropertyOpen(true)
+                    setSelectedUnit(row.original)
+                    setDeleteUnitOpen(true)
                   }
                 }
               }
@@ -354,7 +345,6 @@ const PropertiesListTable = () => {
       fuzzy: fuzzyFilter
     },
     state: {
-      rowSelection,
       globalFilter
     },
     initialState: {
@@ -362,9 +352,7 @@ const PropertiesListTable = () => {
         pageSize: 10
       }
     },
-    enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
-    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
@@ -375,19 +363,19 @@ const PropertiesListTable = () => {
   return (
     <>
       <PageBanner
-        title='Properties Overview'
-        description='Manage and view all your properties in one place'
-        icon='ri-building-line'
+        title='Units Overview'
+        description='Manage and view all units across your properties'
+        icon='ri-home-line'
       />
-      <PropertiesStatsCard
-        allProperties={stats.allProperties}
+      <UnitsStatsCard
+        allUnits={stats.allUnits}
         occupiedUnits={stats.occupiedUnits}
         vacantUnits={stats.vacantUnits}
-        damagedUnits={stats.damagedUnits}
+        maintenanceUnits={stats.maintenanceUnits}
       />
       <Card className='mbs-6'>
         <CardHeader
-          title='Properties List'
+          title='Units List'
           action={
             <div className='flex items-center gap-2'>
               <OptionMenu options={['Refresh', 'Share']} />
@@ -401,39 +389,30 @@ const PropertiesListTable = () => {
               <TextField
                 select
                 size='small'
-                label='Select Property Type'
-                value={propertyType}
-                onChange={e => setPropertyType(e.target.value)}
+                label='Select Property'
+                value={property}
+                onChange={e => setProperty(e.target.value)}
                 sx={{ minWidth: 180 }}
               >
-                <MenuItem value=''>All Types</MenuItem>
-                <MenuItem value='House'>House</MenuItem>
-                <MenuItem value='Apartment'>Apartment</MenuItem>
+                <MenuItem value=''>All Properties</MenuItem>
+                {uniqueProperties.map(prop => (
+                  <MenuItem key={prop} value={prop}>
+                    {prop}
+                  </MenuItem>
+                ))}
               </TextField>
               <TextField
                 select
                 size='small'
-                label='Facilities'
-                value={facilities}
-                onChange={e => setFacilities(e.target.value)}
+                label='Status'
+                value={status}
+                onChange={e => setStatus(e.target.value)}
                 sx={{ minWidth: 150 }}
               >
-                <MenuItem value=''>All Facilities</MenuItem>
-                <MenuItem value='wifi'>WiFi</MenuItem>
-                <MenuItem value='bed'>Bed</MenuItem>
-                <MenuItem value='light'>Light</MenuItem>
-              </TextField>
-              <TextField
-                select
-                size='small'
-                label='Stock'
-                value={stock}
-                onChange={e => setStock(e.target.value)}
-                sx={{ minWidth: 120 }}
-              >
-                <MenuItem value=''>All</MenuItem>
-                <MenuItem value='true'>In Stock</MenuItem>
-                <MenuItem value='false'>Out of Stock</MenuItem>
+                <MenuItem value=''>All Status</MenuItem>
+                <MenuItem value='occupied'>Occupied</MenuItem>
+                <MenuItem value='vacant'>Vacant</MenuItem>
+                <MenuItem value='maintenance'>Maintenance</MenuItem>
               </TextField>
               <TextField
                 select
@@ -499,9 +478,9 @@ const PropertiesListTable = () => {
                   color='primary'
                   size='small'
                   startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddPropertyOpen(true)}
+                  onClick={() => setAddUnitOpen(true)}
                 >
-                  Add Property
+                  Add Unit
                 </Button>
               </div>
             </div>
@@ -550,7 +529,7 @@ const PropertiesListTable = () => {
                     .rows.slice(0, table.getState().pagination.pageSize)
                     .map(row => {
                       return (
-                        <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                        <tr key={row.id}>
                           {row.getVisibleCells().map(cell => (
                             <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
                           ))}
@@ -578,44 +557,49 @@ const PropertiesListTable = () => {
           />
         </CardContent>
       </Card>
-      <AddPropertyDialog
-        open={addPropertyOpen}
-        handleClose={() => setAddPropertyOpen(false)}
-        propertyData={data}
+      <AddUnitDialog
+        open={addUnitOpen}
+        handleClose={() => setAddUnitOpen(false)}
+        properties={sampleProperties}
+        unitsData={data}
         setData={setData}
         mode='add'
       />
-      <AddPropertyDialog
-        open={editPropertyOpen}
+      <AddUnitDialog
+        open={editUnitOpen}
         handleClose={() => {
-          setEditPropertyOpen(false)
-          setSelectedProperty(null)
+          setEditUnitOpen(false)
+          setSelectedUnit(null)
         }}
-        propertyData={data}
+        properties={sampleProperties}
+        unitsData={data}
         setData={setData}
         mode='edit'
         editData={
-          selectedProperty
+          selectedUnit
             ? {
-                id: selectedProperty.id.toString(),
-                name: selectedProperty.name,
-                type: selectedProperty.type,
-                address: selectedProperty.address,
-                price: selectedProperty.price,
-                bedrooms: selectedProperty.bedroom,
-                bathrooms: selectedProperty.bathroom
+                id: selectedUnit.id,
+                unitNumber: selectedUnit.unitNumber,
+                propertyId: selectedUnit.propertyId,
+                propertyName: selectedUnit.propertyName,
+                status: selectedUnit.status,
+                rent: selectedUnit.rent,
+                bedrooms: selectedUnit.bedrooms,
+                bathrooms: selectedUnit.bathrooms,
+                size: selectedUnit.size,
+                tenantName: selectedUnit.tenantName
               }
             : null
         }
       />
       <ConfirmationDialog
-        open={deletePropertyOpen}
-        setOpen={setDeletePropertyOpen}
-        type='delete-property'
+        open={deleteUnitOpen}
+        setOpen={setDeleteUnitOpen}
+        type='delete-unit'
         onConfirm={() => {
-          if (selectedProperty) {
-            setData(data.filter(property => property.id !== selectedProperty.id))
-            setSelectedProperty(null)
+          if (selectedUnit) {
+            setData(data.filter(unit => unit.id !== selectedUnit.id))
+            setSelectedUnit(null)
           }
         }}
       />
@@ -623,4 +607,4 @@ const PropertiesListTable = () => {
   )
 }
 
-export default PropertiesListTable
+export default UnitsListTable

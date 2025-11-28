@@ -2,6 +2,7 @@
 
 // React Imports
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 // MUI Imports
 import Button from '@mui/material/Button'
@@ -14,7 +15,6 @@ import type { ThemeColor } from '@core/types'
 
 // Component Imports
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
-import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementClick'
 import AddPropertyDialog from '../AddPropertyDialog'
 
 type PropertyData = {
@@ -47,6 +47,8 @@ const PropertyDetailHeader = ({
 }) => {
   // States
   const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const router = useRouter()
 
   // Vars
   const buttonProps = (children: string, color: ThemeColor, variant: ButtonProps['variant']): ButtonProps => ({
@@ -81,6 +83,12 @@ const PropertyDetailHeader = ({
       }
     : null
 
+  const handleDelete = () => {
+    // TODO: Implement API call to delete property
+    // For now, just navigate back to properties list
+    router.push('/properties')
+  }
+
   return (
     <>
       <div className='flex flex-wrap justify-between sm:items-center max-sm:flex-col gap-y-4'>
@@ -106,12 +114,14 @@ const PropertyDetailHeader = ({
           >
             Edit Property
           </Button>
-          <OpenDialogOnElementClick
-            element={Button}
-            elementProps={buttonProps('Delete Property', 'error', 'outlined')}
-            dialog={ConfirmationDialog}
-            dialogProps={{ type: 'delete-property' }}
-          />
+          <Button
+            variant='outlined'
+            color='error'
+            startIcon={<i className='ri-delete-bin-line' />}
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            Delete Property
+          </Button>
         </div>
       </div>
       <AddPropertyDialog
@@ -121,6 +131,12 @@ const PropertyDetailHeader = ({
         mode='edit'
         propertyData={[]}
         setData={() => {}}
+      />
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        setOpen={setDeleteDialogOpen}
+        type='delete-property'
+        onConfirm={handleDelete}
       />
     </>
   )
