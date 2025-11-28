@@ -34,7 +34,7 @@ const shortcuts: ShortcutsType[] = [
     subtitle: 'Manage Properties'
   },
   {
-    url: '/tenants/all',
+    url: '/tenants',
     icon: 'ri-group-line',
     title: 'Tenants',
     subtitle: 'Manage Tenants'

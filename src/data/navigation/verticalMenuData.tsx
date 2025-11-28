@@ -35,7 +35,7 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     children: [
       {
         label: 'All Tenants',
-        href: '/tenants/all'
+        href: '/tenants'
       },
       {
         label: 'Tenant History',
@@ -62,12 +62,12 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     href: '/expenses',
     icon: 'ri-money-dollar-circle-line'
   },
-      {
+  {
     label: 'Documents',
     href: '/documents',
     icon: 'ri-file-text-line'
-      },
-      {
+  },
+  {
     label: 'Communication',
     href: '/communication',
     icon: 'ri-message-3-line'
@@ -101,8 +101,8 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
       {
         label: 'Earning',
         href: '/reports/earning'
-  },
-  {
+      },
+      {
         label: 'Maintenance',
         href: '/reports/maintenance'
       }
@@ -113,7 +113,7 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     href: '/agreement',
     icon: 'ri-file-contract-line'
   },
-      {
+  {
     label: 'Subscription Plans',
     href: '/subscription-plans',
     icon: 'ri-vip-crown-line'
