@@ -13,10 +13,8 @@ import TabPanel from '@mui/lab/TabPanel'
 // Component Imports
 import TenantDetailHeader from './TenantDetailHeader'
 import CustomTabList from '@core/components/mui/TabList'
-import ProfileInformationTab from './ProfileInformationTab'
-import HomeDetailsTab from './HomeDetailsTab'
+import ActivityTimelineTab from './ActivityTimelineTab'
 import PaymentHistoryTab from './PaymentHistoryTab'
-import DocumentationTab from './DocumentationTab'
 
 type TenantData = {
   id: string
@@ -31,36 +29,11 @@ type TenantData = {
   totalAmount: string
   status: 'active' | 'inactive'
   avatar?: string
-  age?: number
-  familyMembers?: number
-  job?: string
-  previousAddress?: {
-    address: string
-    city: string
-    state: string
-    zipCode: string
-    country: string
-  }
-  permanentAddress?: {
-    address: string
-    city: string
-    state: string
-    zipCode: string
-    country: string
-  }
-  propertyImage?: string
-  propertyAddress?: string
-  unitName?: string
-  securityDeposit?: string
-  lateFee?: string
-  rentType?: string
-  receipt?: string
-  paymentDueDate?: string
 }
 
-const TenantDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tenantId: string }) => {
+const TenantHistoryDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tenantId: string }) => {
   // States
-  const [activeTab, setActiveTab] = useState('profile')
+  const [activeTab, setActiveTab] = useState('activity')
 
   const handleChange = (event: SyntheticEvent, value: string) => {
     setActiveTab(value)
@@ -68,10 +41,8 @@ const TenantDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tena
 
   // Tab content list
   const tabContentList: { [key: string]: ReactElement } = {
-    profile: <ProfileInformationTab tenantData={tenantData} />,
-    home: <HomeDetailsTab tenantData={tenantData} />,
-    payment: <PaymentHistoryTab />,
-    documentation: <DocumentationTab />
+    activity: <ActivityTimelineTab tenantId={tenantId} />,
+    payment: <PaymentHistoryTab />
   }
 
   return (
@@ -83,22 +54,15 @@ const TenantDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tena
         <TabContext value={activeTab}>
           <CustomTabList onChange={handleChange} variant='scrollable' pill='true'>
             <Tab
-              icon={<i className='ri-user-3-line' />}
-              value='profile'
-              label='Profile Information'
+              icon={<i className='ri-time-line' />}
+              value='activity'
+              label='Activity Timeline'
               iconPosition='start'
             />
-            <Tab icon={<i className='ri-home-line' />} value='home' label='Home Details' iconPosition='start' />
             <Tab
               icon={<i className='ri-money-dollar-circle-line' />}
               value='payment'
               label='Payment History'
-              iconPosition='start'
-            />
-            <Tab
-              icon={<i className='ri-file-text-line' />}
-              value='documentation'
-              label='Documentation'
               iconPosition='start'
             />
           </CustomTabList>
@@ -112,4 +76,5 @@ const TenantDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tena
   )
 }
 
-export default TenantDetails
+export default TenantHistoryDetails
+

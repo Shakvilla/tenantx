@@ -36,11 +36,7 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
 import PageBanner from '@components/banner/PageBanner'
-import TenantsStatsCard from './TenantsStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
-import AddTenantDialog from './AddTenantDialog'
-import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
-import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementClick'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -107,7 +103,7 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   return itemRank.passed
 }
 
-// Sample data
+// Sample data - includes both active and inactive tenants
 const sampleTenants: Tenant[] = [
   {
     id: 1,
@@ -183,42 +179,64 @@ const sampleTenants: Tenant[] = [
     status: 'inactive',
     avatar:
       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
+  },
+  {
+    id: 6,
+    name: 'Emily Davis',
+    email: 'emily.davis@example.com',
+    phone: '+233 24 678 9012',
+    roomNo: 'Unit 103',
+    propertyName: 'Xorla House',
+    numberOfUnits: 1,
+    costPerMonth: '₵1,100',
+    leasePeriod: '12 months',
+    totalAmount: '₵13,200',
+    status: 'inactive',
+    avatar:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
+  },
+  {
+    id: 7,
+    name: 'Robert Wilson',
+    email: 'robert.wilson@example.com',
+    phone: '+233 24 789 0123',
+    roomNo: 'Unit 302',
+    propertyName: 'Sunset Apartments',
+    numberOfUnits: 1,
+    costPerMonth: '₵2,000',
+    leasePeriod: '6 months',
+    totalAmount: '₵12,000',
+    status: 'inactive',
+    avatar:
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
+  },
+  {
+    id: 8,
+    name: 'Lisa Anderson',
+    email: 'lisa.anderson@example.com',
+    phone: '+233 24 890 1234',
+    roomNo: 'Unit 203',
+    propertyName: 'Xorla House',
+    numberOfUnits: 1,
+    costPerMonth: '₵1,400',
+    leasePeriod: '12 months',
+    totalAmount: '₵16,800',
+    status: 'inactive',
+    avatar:
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
   }
 ]
 
 const columnHelper = createColumnHelper<TenantWithAction>()
 
-const TenantsListTable = () => {
+const TenantsHistoryTable = () => {
   // States
   const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(sampleTenants)
+  const [data] = useState(sampleTenants)
   const [globalFilter, setGlobalFilter] = useState('')
   const [status, setStatus] = useState('')
   const [property, setProperty] = useState('')
   const [unit, setUnit] = useState('')
-  const [addTenantOpen, setAddTenantOpen] = useState(false)
-  const [editTenantOpen, setEditTenantOpen] = useState(false)
-  const [deleteTenantOpen, setDeleteTenantOpen] = useState(false)
-  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null)
-
-  // Calculate stats
-  const stats = useMemo(() => {
-    const activeTenants = data.filter(t => t.status === 'active').length
-    const inactiveTenants = data.filter(t => t.status === 'inactive').length
-    const totalRevenue = data
-      .filter(t => t.status === 'active' && t.costPerMonth)
-      .reduce((sum, tenant) => {
-        const amount = parseFloat((tenant.costPerMonth || '0').replace(/[₵,]/g, ''))
-        return sum + amount
-      }, 0)
-
-    return {
-      allTenants: data.length,
-      activeTenants,
-      inactiveTenants,
-      totalRevenue: `₵${totalRevenue.toLocaleString()}`
-    }
-  }, [data])
 
   // Get unique properties for filter
   const uniqueProperties = useMemo(() => {
@@ -231,95 +249,6 @@ const TenantsListTable = () => {
     const units = Array.from(new Set(data.map(t => t.roomNo)))
     return units
   }, [data])
-
-  // Sample properties and units data (in a real app, these would come from API)
-  const properties = useMemo(
-    () => [
-      { id: 1, name: 'Xorla House' },
-      { id: 2, name: 'Sunset Apartments' },
-      { id: 3, name: 'Beautiful modern style luxury home exterior at sunset' }
-    ],
-    []
-  )
-
-  const units = useMemo(
-    () => [
-      { id: '1', unitNumber: 'Unit 101', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '2', unitNumber: 'Unit 102', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '3', unitNumber: 'Unit 201', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '4', unitNumber: 'Unit 202', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '5', unitNumber: 'Unit 301', propertyId: '2', propertyName: 'Sunset Apartments' },
-      { id: '6', unitNumber: 'Unit 401', propertyId: '2', propertyName: 'Sunset Apartments' },
-      {
-        id: '7',
-        unitNumber: 'Unite 4',
-        propertyId: '3',
-        propertyName: 'Beautiful modern style luxury home exterior at sunset'
-      }
-    ],
-    []
-  )
-
-  const handleDeleteTenant = (tenantId: number) => {
-    setData(data.filter(t => t.id !== tenantId))
-    setDeleteTenantOpen(false)
-    setSelectedTenant(null)
-  }
-
-  const handleEditTenant = (tenant: Tenant) => {
-    setSelectedTenant(tenant)
-    setEditTenantOpen(true)
-  }
-
-  // Convert Tenant to TenantEditData format
-  const getTenantEditData = (tenant: Tenant | null) => {
-    if (!tenant) return null
-
-    // Find propertyId from propertyName if not set
-    const propertyId = tenant.propertyId || properties.find(p => p.name === tenant.propertyName)?.id.toString() || ''
-
-    // Find unitId from roomNo
-    const unit = units.find(u => u.unitNumber === tenant.roomNo)
-    const unitId = unit?.id.toString() || ''
-
-    // Split name into firstName and lastName if not already split
-    let firstName = tenant.firstName || ''
-    let lastName = tenant.lastName || ''
-    if (!firstName && !lastName && tenant.name) {
-      const nameParts = tenant.name.split(' ')
-      firstName = nameParts[0] || ''
-      lastName = nameParts.slice(1).join(' ') || ''
-    }
-
-    return {
-      id: tenant.id,
-      firstName,
-      lastName,
-      name: tenant.name,
-      email: tenant.email,
-      phone: tenant.phone,
-      occupation: tenant.occupation || '',
-      age: tenant.age,
-      familyMembers: tenant.familyMembers,
-      password: tenant.password || '',
-      roomNo: tenant.roomNo,
-      propertyName: tenant.propertyName,
-      propertyId,
-      unitId,
-      numberOfUnits: tenant.numberOfUnits,
-      costPerMonth: tenant.costPerMonth || '',
-      leasePeriod: tenant.leasePeriod || '',
-      totalAmount: tenant.totalAmount || '',
-      status: tenant.status,
-      avatar: tenant.avatar,
-      previousAddress: tenant.previousAddress,
-      permanentAddress: tenant.permanentAddress,
-      leaseStartDate: tenant.leaseStartDate || '',
-      leaseEndDate: tenant.leaseEndDate || '',
-      ghanaCardFront: tenant.ghanaCardFront,
-      ghanaCardBack: tenant.ghanaCardBack
-    }
-  }
 
   // Filter data
   const filteredData = useMemo(() => {
@@ -393,13 +322,13 @@ const TenantsListTable = () => {
         header: 'COST/MONTH',
         cell: ({ row }) => (
           <Typography color='text.primary' className='font-medium'>
-            {row.original.costPerMonth}
+            {row.original.costPerMonth || '-'}
           </Typography>
         )
       }),
       columnHelper.accessor('leasePeriod', {
         header: 'LEASE PERIOD',
-        cell: ({ row }) => <Typography>{row.original.leasePeriod}</Typography>
+        cell: ({ row }) => <Typography>{row.original.leasePeriod || '-'}</Typography>
       }),
       columnHelper.accessor('status', {
         header: 'STATUS',
@@ -421,26 +350,14 @@ const TenantsListTable = () => {
             iconButtonProps={{ size: 'small' }}
             options={[
               {
-                text: 'View',
+                text: 'View Details',
                 icon: 'ri-eye-line',
                 href: `/tenants/${row.original.id}`
               },
               {
-                text: 'Edit',
-                icon: 'ri-pencil-line',
-                menuItemProps: {
-                  onClick: () => handleEditTenant(row.original)
-                }
-              },
-              {
-                text: 'Delete',
-                icon: 'ri-delete-bin-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedTenant(row.original)
-                    setDeleteTenantOpen(true)
-                  }
-                }
+                text: 'View History',
+                icon: 'ri-history-line',
+                href: `/tenants/history/${row.original.id}`
               }
             ]}
           />
@@ -478,29 +395,23 @@ const TenantsListTable = () => {
   return (
     <>
       <PageBanner
-        title='Tenants Overview'
-        description='Manage and view all your tenants in one place'
-        icon='ri-group-line'
-      />
-      <TenantsStatsCard
-        allTenants={stats.allTenants}
-        activeTenants={stats.activeTenants}
-        inactiveTenants={stats.inactiveTenants}
-        totalRevenue={stats.totalRevenue}
+        title='Tenants History'
+        description='View all tenants - both active and past tenants'
+        icon='ri-history-line'
       />
       <Card className='mbs-6'>
         <CardHeader
-          title='Tenants List'
+          title='All Tenants'
           action={
             <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <OptionMenu options={['Refresh', 'Export']} />
             </div>
           }
         />
         <CardContent className='flex flex-col gap-4'>
           {/* Filters Section */}
-          <Box className='flex flex-col gap-4 p-4  rounded-lg'>
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center gap-2 '>
+          <Box className='flex flex-col gap-4 p-4 rounded-lg'>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center gap-2'>
               <TextField
                 select
                 size='small'
@@ -546,7 +457,7 @@ const TenantsListTable = () => {
             </div>
             <Divider />
 
-            <div className='flex items-center  justify-between gap-2'>
+            <div className='flex items-center justify-between gap-2'>
               <div>
                 <TextField
                   size='small'
@@ -571,15 +482,6 @@ const TenantsListTable = () => {
                 </TextField>
                 <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
                   Export
-                </Button>
-                <Button
-                  variant='contained'
-                  color='primary'
-                  size='small'
-                  startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddTenantOpen(true)}
-                >
-                  Add Tenant
                 </Button>
               </div>
             </div>
@@ -617,7 +519,7 @@ const TenantsListTable = () => {
                 <tbody>
                   <tr>
                     <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
+                      No tenants found
                     </td>
                   </tr>
                 </tbody>
@@ -656,46 +558,8 @@ const TenantsListTable = () => {
           />
         </CardContent>
       </Card>
-
-      {/* Add Tenant Dialog */}
-      <AddTenantDialog
-        open={addTenantOpen}
-        handleClose={() => setAddTenantOpen(false)}
-        properties={properties}
-        units={units}
-        tenantsData={data}
-        setData={setData}
-        mode='add'
-      />
-
-      {/* Edit Tenant Dialog */}
-      <AddTenantDialog
-        open={editTenantOpen}
-        handleClose={() => {
-          setEditTenantOpen(false)
-          setSelectedTenant(null)
-        }}
-        properties={properties}
-        units={units}
-        tenantsData={data}
-        setData={setData}
-        editData={getTenantEditData(selectedTenant)}
-        mode='edit'
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        open={deleteTenantOpen}
-        setOpen={setDeleteTenantOpen}
-        type='delete-tenant'
-        onConfirm={() => {
-          if (selectedTenant) {
-            handleDeleteTenant(selectedTenant.id)
-          }
-        }}
-      />
     </>
   )
 }
 
-export default TenantsListTable
+export default TenantsHistoryTable
