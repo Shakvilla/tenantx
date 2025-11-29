@@ -21,7 +21,7 @@ const ExpenseStatsCard = ({ totalExpenses }: Props) => {
                 Total Expense
               </Typography>
               <Typography variant='h4' color='text.primary' className='font-semibold'>
-                GH₵ {totalExpenses.toFixed(2)}
+                ₵{totalExpenses.toFixed(2)}
               </Typography>
             </div>
           </Grid>

@@ -50,10 +50,6 @@ const horizontalMenuData = (): HorizontalMenuDataType[] => [
       {
         label: 'All invoices',
         href: '/billing/invoices'
-      },
-      {
-        label: 'Recurring Invoice setting',
-        href: '/billing/recurring-settings'
       }
     ]
   },
@@ -133,6 +129,10 @@ const horizontalMenuData = (): HorizontalMenuDataType[] => [
       {
         label: 'Company Settings',
         href: '/settings/company'
+      },
+      {
+        label: 'Recurring Invoice Settings',
+        href: '/settings/recurring-invoice'
       }
     ]
   }

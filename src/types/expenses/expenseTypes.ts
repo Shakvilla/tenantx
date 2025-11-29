@@ -4,5 +4,9 @@ export type ExpenseType = {
   amount: number
   date: string
   comment: string
+  propertyName?: string
+  propertyImage?: string
+  unitNo?: string
+  responsibility?: 'Owner' | 'Tenant'
 }
 
