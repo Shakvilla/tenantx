@@ -22,6 +22,7 @@ type ConfirmationType =
   | 'delete-property'
   | 'delete-unit'
   | 'delete-tenant'
+  | 'delete-expense'
 
 type ConfirmationDialogProps = {
   open: boolean
@@ -71,6 +72,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
               {type === 'delete-property' && 'Are you sure?'}
               {type === 'delete-unit' && 'Are you sure?'}
               {type === 'delete-tenant' && 'Are you sure?'}
+              {type === 'delete-expense' && 'Are you sure?'}
             </Typography>
             {type === 'suspend-account' && (
               <Typography color='text.primary'>You won&#39;t be able to revert user!</Typography>
@@ -90,6 +92,9 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
             {type === 'delete-tenant' && (
               <Typography color='text.primary'>You won&#39;t be able to revert tenant!</Typography>
             )}
+            {type === 'delete-expense' && (
+              <Typography color='text.primary'>You won&#39;t be able to revert expense!</Typography>
+            )}
           </Wrapper>
         </DialogContent>
         <DialogActions className='justify-center pbs-0 sm:pbe-16 sm:pli-16'>
@@ -106,7 +111,9 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
                       ? 'Yes, Delete Unit!'
                       : type === 'delete-tenant'
                         ? 'Yes, Delete Tenant!'
-                        : 'Yes'}
+                        : type === 'delete-expense'
+                          ? 'Yes, Delete Expense!'
+                          : 'Yes'}
           </Button>
           <Button
             variant='outlined'
@@ -133,7 +140,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
           />
           <Typography variant='h4' className='mbe-2'>
             {userInput
-              ? `${type === 'delete-account' ? 'Deactivated' : type === 'unsubscribe' ? 'Unsubscribed' : type === 'delete-order' || type === 'delete-customer' || type === 'delete-property' || type === 'delete-unit' || type === 'delete-tenant' ? 'Deleted' : 'Suspended!'}`
+              ? `${type === 'delete-account' ? 'Deactivated' : type === 'unsubscribe' ? 'Unsubscribed' : type === 'delete-order' || type === 'delete-customer' || type === 'delete-property' || type === 'delete-unit' || type === 'delete-tenant' || type === 'delete-expense' ? 'Deleted' : 'Suspended!'}`
               : 'Cancelled'}
           </Typography>
           <Typography color='text.primary'>
@@ -147,6 +154,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
                 {type === 'delete-property' && 'Property deleted successfully.'}
                 {type === 'delete-unit' && 'Unit deleted successfully.'}
                 {type === 'delete-tenant' && 'Tenant deleted successfully.'}
+                {type === 'delete-expense' && 'Expense deleted successfully.'}
               </>
             ) : (
               <>
@@ -158,6 +166,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
                 {type === 'delete-property' && 'Property Deletion Cancelled'}
                 {type === 'delete-unit' && 'Unit Deletion Cancelled'}
                 {type === 'delete-tenant' && 'Tenant Deletion Cancelled'}
+                {type === 'delete-expense' && 'Expense Deletion Cancelled'}
               </>
             )}
           </Typography>

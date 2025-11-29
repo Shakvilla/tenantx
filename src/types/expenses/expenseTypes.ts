@@ -8,5 +8,6 @@ export type ExpenseType = {
   propertyImage?: string
   unitNo?: string
   responsibility?: 'Owner' | 'Tenant'
+  status?: 'paid' | 'unpaid' | 'pending'
 }
 

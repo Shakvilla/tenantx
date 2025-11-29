@@ -34,11 +34,25 @@ type Unit = {
   propertyName: string
 }
 
+type ExpenseEditData = {
+  id?: number
+  expenseName?: string
+  propertyId?: string
+  unitId?: string
+  date?: string
+  responsibility?: string
+  amount?: string
+  image?: string
+  description?: string
+}
+
 type Props = {
   open: boolean
   handleClose: () => void
   expenseData?: ExpenseType[]
   setData: (data: ExpenseType[]) => void
+  editData?: ExpenseEditData | null
+  mode?: 'add' | 'edit'
 }
 
 type FormDataType = {
@@ -91,25 +105,61 @@ const sampleUnits: Unit[] = [
 
 const AddExpenseDrawer = (props: Props) => {
   // Props
-  const { open, handleClose, expenseData, setData } = props
+  const { open, handleClose, expenseData, setData, editData, mode = 'add' } = props
 
   // States
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
-  // Reset form when dialog opens/closes
+  // Get initial form data based on mode
+  const getInitialFormData = (): FormDataType => {
+    if (mode === 'edit' && editData) {
+      // Find property and unit IDs from editData
+      const property = editData.propertyId
+        ? sampleProperties.find(p => p.id.toString() === editData.propertyId)
+        : null
+      const unit = editData.unitId
+        ? sampleUnits.find(u => u.id.toString() === editData.unitId)
+        : null
+
+      return {
+        expenseName: editData.expenseName || '',
+        propertyId: property?.id.toString() || editData.propertyId || '',
+        unitId: unit?.id.toString() || editData.unitId || '',
+        date: editData.date || '',
+        responsibility: editData.responsibility || '',
+        amount: editData.amount || '',
+        image: null, // File input, will use preview for existing image
+        description: editData.description || ''
+      }
+    }
+    return initialData
+  }
+
+  // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
-      setFormData(initialData)
+      const newFormData = getInitialFormData()
+      setFormData(newFormData)
       setErrors({})
-      setImagePreview(null)
-      // Set default date to today
-      const today = new Date()
-      const formattedDate = `${today.getDate()} ${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`
-      setFormData(prev => ({ ...prev, date: formattedDate }))
+      
+      // Set default date to today if in add mode
+      if (mode === 'add') {
+        const today = new Date()
+        const formattedDate = `${today.getDate()} ${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`
+        setFormData(prev => ({ ...prev, date: formattedDate }))
+      }
+      
+      // Set image preview if editing and image exists
+      if (mode === 'edit' && editData?.image) {
+        setImagePreview(editData.image)
+      } else {
+        setImagePreview(null)
+      }
     }
-  }, [open])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editData, mode])
 
   // Filter units based on selected property
   const filteredUnits = useMemo(() => {
@@ -147,8 +197,10 @@ const AddExpenseDrawer = (props: Props) => {
       newErrors.amount = true
     }
 
-    // Validate image is selected
-    if (!formData.image) {
+    // Validate image is selected (only required in add mode, or if no existing image in edit mode)
+    if (mode === 'add' && !formData.image) {
+      newErrors.image = true
+    } else if (mode === 'edit' && !formData.image && !imagePreview) {
       newErrors.image = true
     }
 
@@ -268,7 +320,7 @@ const AddExpenseDrawer = (props: Props) => {
       }}
     >
       <DialogTitle className='flex items-center justify-between pbe-4'>
-        <span className='font-medium'>Create New Expense</span>
+        <span className='font-medium'>{mode === 'edit' ? 'Edit Expense' : 'Create New Expense'}</span>
         <IconButton size='small' onClick={handleReset} sx={{ color: 'warning.main' }}>
           <i className='ri-close-line text-2xl' />
         </IconButton>

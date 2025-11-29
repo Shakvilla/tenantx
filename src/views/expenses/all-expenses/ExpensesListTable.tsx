@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -13,6 +13,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import Avatar from '@mui/material/Avatar'
 import Checkbox from '@mui/material/Checkbox'
+import Chip from '@mui/material/Chip'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
@@ -43,6 +44,7 @@ import OptionMenu from '@core/components/option-menu'
 import PageBanner from '@components/banner/PageBanner'
 import ExpenseStatsCard from './ExpenseStatsCard'
 import AddExpenseDrawer from './AddExpenseDrawer'
+import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -109,146 +111,203 @@ const sampleExpenses: ExpenseType[] = [
     id: 1,
     item: 'Electricity water gas',
     amount: 800.0,
-    date: '2024-07-11',
+    date: '2024-06-15',
     comment: 'Monthly utility bill',
     propertyName: 'A living room with mexican mansion blue',
     propertyImage:
       'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 3',
-    responsibility: 'Tenant'
+    responsibility: 'Tenant',
+    status: 'unpaid'
   },
   {
     id: 2,
     item: 'Plumbing repairs',
     amount: 200.0,
-    date: '2024-07-11',
+    date: '2024-05-20',
     comment: 'Fixed leaky faucet',
     propertyName: 'Rendering of a modern villa',
     propertyImage:
       'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 6',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'paid'
   },
   {
     id: 3,
     item: 'Legal/professional fees',
     amount: 150.0,
-    date: '2024-07-11',
+    date: '2024-06-10',
     comment: 'Legal consultation',
     propertyName: 'Beautiful modern style luxury home exterior sunset',
     propertyImage:
       'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 2',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'paid'
   },
   {
     id: 4,
     item: 'Property management',
     amount: 350.0,
-    date: '2024-07-11',
+    date: '2024-08-15',
     comment: 'Monthly management fee',
     propertyName: 'A house with a lot of windows and a lot of plants',
     propertyImage:
       'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 4',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'pending'
   },
   {
     id: 5,
     item: 'Appraisal fees',
     amount: 410.0,
-    date: '2024-07-11',
+    date: '2024-05-05',
     comment: 'Property appraisal',
     propertyName: 'Design of a modern house as mansion blue couch',
     propertyImage:
       'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 1',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'paid'
   },
   {
     id: 6,
     item: 'Depreciation expense',
     amount: 188.0,
-    date: '2024-07-11',
+    date: '2024-07-01',
     comment: 'Monthly depreciation',
     propertyName: 'Depending on the location and design',
     propertyImage:
       'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 8',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'unpaid'
   },
   {
     id: 7,
     item: 'Window repairs',
     amount: 600.0,
-    date: '2024-07-11',
+    date: '2024-06-25',
     comment: 'Fixed broken window',
     propertyName: 'A living room with mexican mansion blue',
     propertyImage:
       'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 9',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'paid'
   },
   {
     id: 8,
     item: 'Pest control',
     amount: 411.0,
-    date: '2024-07-11',
+    date: '2024-08-20',
     comment: 'Monthly pest control service',
     propertyName: 'Rendering of a modern villa',
     propertyImage:
       'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 5',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'pending'
   },
   {
     id: 9,
     item: 'Maintenance',
     amount: 209.0,
-    date: '2024-07-11',
+    date: '2024-05-30',
     comment: 'General maintenance',
     propertyName: 'Beautiful modern style luxury home exterior sunset',
     propertyImage:
       'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 7',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'paid'
   },
   {
     id: 10,
     item: 'Cleaning services',
     amount: 388.0,
-    date: '2024-07-11',
+    date: '2024-07-05',
     comment: 'Monthly cleaning',
     propertyName: 'A house with a lot of windows and a lot of plants',
     propertyImage:
       'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 10',
-    responsibility: 'Tenant'
+    responsibility: 'Tenant',
+    status: 'unpaid'
   },
   {
     id: 11,
     item: 'Insurance',
     amount: 500.0,
-    date: '2024-07-11',
+    date: '2024-09-01',
     comment: 'Property insurance',
     propertyName: 'Design of a modern house as mansion blue couch',
     propertyImage:
       'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 11',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'pending'
   },
   {
     id: 12,
     item: 'Taxes',
     amount: 300.0,
-    date: '2024-07-11',
+    date: '2024-04-15',
     comment: 'Property taxes',
     propertyName: 'Depending on the location and design',
     propertyImage:
       'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 12',
-    responsibility: 'Owner'
+    responsibility: 'Owner',
+    status: 'unpaid'
   }
+]
+
+// Sample properties and units for edit data mapping
+const sampleProperties = [
+  { id: 1, name: 'A living room with mexican mansion blue' },
+  { id: 2, name: 'Rendering of a modern villa' },
+  { id: 3, name: 'Beautiful modern style luxury home exterior sunset' },
+  { id: 4, name: 'A house with a lot of windows and a lot of plants' },
+  { id: 5, name: 'Design of a modern house as mansion blue couch' },
+  { id: 6, name: 'Depending on the location and design' }
+]
+
+const sampleUnits = [
+  { id: 1, unitNumber: 'Unit no 1', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
+  {
+    id: 2,
+    unitNumber: 'Unit no 2',
+    propertyId: '3',
+    propertyName: 'Beautiful modern style luxury home exterior sunset'
+  },
+  { id: 3, unitNumber: 'Unit no 3', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
+  {
+    id: 4,
+    unitNumber: 'Unit no 4',
+    propertyId: '4',
+    propertyName: 'A house with a lot of windows and a lot of plants'
+  },
+  { id: 5, unitNumber: 'Unit no 5', propertyId: '2', propertyName: 'Rendering of a modern villa' },
+  { id: 6, unitNumber: 'Unit no 6', propertyId: '2', propertyName: 'Rendering of a modern villa' },
+  {
+    id: 7,
+    unitNumber: 'Unit no 7',
+    propertyId: '3',
+    propertyName: 'Beautiful modern style luxury home exterior sunset'
+  },
+  { id: 8, unitNumber: 'Unit no 8', propertyId: '6', propertyName: 'Depending on the location and design' },
+  { id: 9, unitNumber: 'Unit no 9', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
+  {
+    id: 10,
+    unitNumber: 'Unit no 10',
+    propertyId: '4',
+    propertyName: 'A house with a lot of windows and a lot of plants'
+  },
+  { id: 11, unitNumber: 'Unit no 11', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
+  { id: 12, unitNumber: 'Unit no 12', propertyId: '6', propertyName: 'Depending on the location and design' }
 ]
 
 const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
@@ -260,6 +319,10 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
   const [addExpenseOpen, setAddExpenseOpen] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<string>('')
   const [selectedUnit, setSelectedUnit] = useState<string>('')
+  const [deleteExpenseOpen, setDeleteExpenseOpen] = useState(false)
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseType | null>(null)
+  const [editExpenseOpen, setEditExpenseOpen] = useState(false)
+  const [selectedExpenseForEdit, setSelectedExpenseForEdit] = useState<ExpenseType | null>(null)
 
   // Get unique properties and units
   const uniqueProperties = useMemo(() => {
@@ -296,12 +359,92 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
     setFilteredData(filtered)
   }, [data, globalFilter, selectedProperty, selectedUnit])
 
-  // Calculate total expenses
-  const totalExpenses = useMemo(() => {
-    return filteredData.reduce((sum, expense) => sum + expense.amount, 0)
+  // Calculate expense statistics
+  const expenseStats = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    let total = 0
+    let upcoming = 0
+    let unfulfilled = 0
+    let paid = 0
+
+    filteredData.forEach(expense => {
+      const expenseDate = new Date(expense.date)
+      expenseDate.setHours(0, 0, 0, 0)
+      const amount = expense.amount
+
+      total += amount
+
+      // Check status first if available
+      if (expense.status === 'paid') {
+        paid += amount
+      } else if (expense.status === 'unpaid' || expense.status === 'pending') {
+        if (expenseDate > today) {
+          // Upcoming expenses (future dates)
+          upcoming += amount
+        } else {
+          // Unfulfilled expenses (past or today's dates - overdue/debt)
+          unfulfilled += amount
+        }
+      } else {
+        // No status field - use date-based logic
+        if (expenseDate > today) {
+          // Upcoming expenses (future dates)
+          upcoming += amount
+        } else if (expenseDate < today) {
+          // Unfulfilled expenses (past dates - overdue/debt)
+          unfulfilled += amount
+        } else {
+          // Today's expenses - consider as unpaid for now
+          unfulfilled += amount
+        }
+      }
+    })
+
+    return { total, upcoming, unfulfilled, paid }
   }, [filteredData])
 
+  // Handle delete expense
+  const handleDeleteExpense = (expenseId: number) => {
+    setData(data.filter(expense => expense.id !== expenseId))
+    setDeleteExpenseOpen(false)
+    setSelectedExpense(null)
+  }
+
+  // Get expense edit data
+  const getExpenseEditData = useCallback((expense: ExpenseType | null) => {
+    if (!expense) return null
+
+    // Find property and unit IDs from names
+    const property = sampleProperties.find(p => p.name === expense.propertyName)
+    const unit = sampleUnits.find(u => u.unitNumber === expense.unitNo)
+
+    return {
+      id: expense.id,
+      expenseName: expense.item,
+      propertyId: property?.id.toString() || '',
+      unitId: unit?.id.toString() || '',
+      date: expense.date,
+      responsibility: expense.responsibility || '',
+      amount: expense.amount.toString(),
+      image: expense.propertyImage || '',
+      description: expense.comment
+    }
+  }, [])
+
   const columnHelper = createColumnHelper<ExpenseTypeWithAction>()
+
+  // Status color mapping
+  const expenseStatusObj: {
+    [key: string]: {
+      color: 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'
+    }
+  } = {
+    paid: { color: 'success' },
+    unpaid: { color: 'error' },
+    pending: { color: 'warning' }
+  }
 
   const columns = useMemo<ColumnDef<ExpenseTypeWithAction, any>[]>(
     () => [
@@ -360,9 +503,7 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
       }),
       columnHelper.accessor('unitNo', {
         header: 'Unit No',
-        cell: ({ row }) => (
-          <Typography color='text.primary'>{row.original.unitNo || '-'}</Typography>
-        )
+        cell: ({ row }) => <Typography color='text.primary'>{row.original.unitNo || '-'}</Typography>
       }),
       columnHelper.accessor('date', {
         header: 'Date',
@@ -378,9 +519,16 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
       }),
       columnHelper.accessor('responsibility', {
         header: 'Responsibility',
-        cell: ({ row }) => (
-          <Typography color='text.primary'>{row.original.responsibility || '-'}</Typography>
-        )
+        cell: ({ row }) => <Typography color='text.primary'>{row.original.responsibility || '-'}</Typography>
+      }),
+      columnHelper.accessor('status', {
+        header: 'Status',
+        cell: ({ row }) => {
+          const status = row.original.status || 'pending'
+          const statusConfig = expenseStatusObj[status] || { color: 'secondary' }
+
+          return <Chip variant='tonal' label={status} size='small' color={statusConfig.color} className='capitalize' />
+        }
       }),
       columnHelper.display({
         id: 'action',
@@ -394,8 +542,8 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
                 icon: 'ri-pencil-line',
                 menuItemProps: {
                   onClick: () => {
-                    // TODO: Handle edit expense
-                    console.log('Edit expense', row.original.id)
+                    setSelectedExpenseForEdit(row.original)
+                    setEditExpenseOpen(true)
                   }
                 }
               },
@@ -404,8 +552,8 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
                 icon: 'ri-delete-bin-line',
                 menuItemProps: {
                   onClick: () => {
-                    // TODO: Handle delete expense
-                    console.log('Delete expense', row.original.id)
+                    setSelectedExpense(row.original)
+                    setDeleteExpenseOpen(true)
                   }
                 }
               }
@@ -451,7 +599,12 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
         description='View and manage all expenses for your properties'
         icon='ri-money-dollar-circle-line'
       />
-      <ExpenseStatsCard totalExpenses={totalExpenses} />
+      <ExpenseStatsCard
+        totalExpenses={expenseStats.total}
+        upcomingExpenses={expenseStats.upcoming}
+        unfulfilledExpenses={expenseStats.unfulfilled}
+        paidExpenses={expenseStats.paid}
+      />
       <Card className='mbs-6'>
         <CardHeader
           title='Expenses List'
@@ -491,11 +644,7 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
               </FormControl>
               <FormControl size='small' sx={{ minWidth: 150 }}>
                 <InputLabel>Select Unit No</InputLabel>
-                <Select
-                  value={selectedUnit}
-                  onChange={e => setSelectedUnit(e.target.value)}
-                  label='Select Unit No'
-                >
+                <Select value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)} label='Select Unit No'>
                   <MenuItem value=''>All Units</MenuItem>
                   {uniqueUnits.map(unit => (
                     <MenuItem key={unit} value={unit}>
@@ -581,11 +730,38 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
           />
         </CardContent>
       </Card>
+      {/* Add Expense Dialog */}
       <AddExpenseDrawer
         open={addExpenseOpen}
         handleClose={() => setAddExpenseOpen(false)}
         expenseData={data}
         setData={setData}
+        mode='add'
+      />
+
+      {/* Edit Expense Dialog */}
+      <AddExpenseDrawer
+        open={editExpenseOpen}
+        handleClose={() => {
+          setEditExpenseOpen(false)
+          setSelectedExpenseForEdit(null)
+        }}
+        expenseData={data}
+        setData={setData}
+        editData={getExpenseEditData(selectedExpenseForEdit)}
+        mode='edit'
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteExpenseOpen}
+        setOpen={setDeleteExpenseOpen}
+        type='delete-expense'
+        onConfirm={() => {
+          if (selectedExpense) {
+            handleDeleteExpense(selectedExpense.id)
+          }
+        }}
       />
     </>
   )
