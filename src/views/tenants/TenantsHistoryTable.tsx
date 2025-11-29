@@ -349,14 +349,14 @@ const TenantsHistoryTable = () => {
           <OptionMenu
             iconButtonProps={{ size: 'small' }}
             options={[
-              {
-                text: 'View Details',
-                icon: 'ri-eye-line',
-                href: `/tenants/${row.original.id}`
-              },
+              // {
+              //   text: 'View Details',
+              //   icon: 'ri-eye-line',
+              //   href: `/tenants/${row.original.id}`
+              // },
               {
                 text: 'View History',
-                icon: 'ri-history-line',
+                icon: 'ri-time-line',
                 href: `/tenants/history/${row.original.id}`
               }
             ]}
