@@ -83,26 +83,9 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     ]
   },
   {
-    label: 'Report',
-    icon: 'ri-file-chart-line',
-    children: [
-      {
-        label: 'Tenants',
-        href: '/reports/tenants'
-      },
-      {
-        label: 'Expenses',
-        href: '/reports/expenses'
-      },
-      {
-        label: 'Earning',
-        href: '/reports/earning'
-      },
-      {
-        label: 'Maintenance',
-        href: '/reports/maintenance'
-      }
-    ]
+    label: 'Reports',
+    href: '/reports',
+    icon: 'ri-file-chart-line'
   },
   {
     label: 'Agreement',

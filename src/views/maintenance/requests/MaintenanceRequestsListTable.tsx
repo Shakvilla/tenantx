@@ -44,6 +44,7 @@ import PageBanner from '@components/banner/PageBanner'
 import CustomAvatar from '@core/components/mui/Avatar'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import AddMaintenanceRequestDialog from './AddMaintenanceRequestDialog'
+import ViewMaintenanceRequestDialog from './ViewMaintenanceRequestDialog'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -260,7 +261,9 @@ const MaintenanceRequestsListTable = ({
   const [selectedRequest, setSelectedRequest] = useState<MaintenanceRequestType | null>(null)
   const [addRequestOpen, setAddRequestOpen] = useState(false)
   const [editRequestOpen, setEditRequestOpen] = useState(false)
+  const [viewRequestOpen, setViewRequestOpen] = useState(false)
   const [requestToEdit, setRequestToEdit] = useState<MaintenanceRequestType | null>(null)
+  const [requestToView, setRequestToView] = useState<MaintenanceRequestType | null>(null)
 
   // Filter data
   useEffect(() => {
@@ -467,8 +470,8 @@ const MaintenanceRequestsListTable = ({
                   icon: 'ri-eye-line',
                   menuItemProps: {
                     onClick: () => {
-                      // TODO: Handle view request
-                      console.log('View request', row.original.id)
+                      setRequestToView(row.original)
+                      setViewRequestOpen(true)
                     }
                   }
                 },
@@ -694,6 +697,18 @@ const MaintenanceRequestsListTable = ({
         setData={setData}
         editData={requestToEdit}
         mode='edit'
+      />
+
+      {/* View Request Dialog */}
+      <ViewMaintenanceRequestDialog
+        open={viewRequestOpen}
+        setOpen={setViewRequestOpen}
+        request={requestToView}
+        onEdit={() => {
+          setViewRequestOpen(false)
+          setRequestToEdit(requestToView)
+          setEditRequestOpen(true)
+        }}
       />
 
       {/* Delete Confirmation Dialog */}
