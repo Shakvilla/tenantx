@@ -90,7 +90,7 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
   {
     label: 'Agreement',
     href: '/agreement',
-    icon: 'ri-file-contract-line'
+    icon: 'ri-album-line'
   },
   {
     label: 'Subscription Plans',

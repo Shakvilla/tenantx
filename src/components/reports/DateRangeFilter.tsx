@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Grid from '@mui/material/Grid2'
@@ -36,6 +36,30 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
     dateRange.endDate ? dateRange.endDate.toISOString().split('T')[0] : ''
   )
 
+  // Sync internal state with dateRange prop changes (only when preset changes externally)
+  useEffect(() => {
+    const newPreset = dateRange.preset || 'last30days'
+    // Only update preset if it's different from current (to avoid overriding user selection)
+    if (newPreset !== preset) {
+      setPreset(newPreset)
+    }
+    
+    // Always sync dates from prop
+    if (dateRange.startDate) {
+      const dateStr = dateRange.startDate.toISOString().split('T')[0]
+      if (dateStr !== startDate) {
+        setStartDate(dateStr)
+      }
+    }
+    if (dateRange.endDate) {
+      const dateStr = dateRange.endDate.toISOString().split('T')[0]
+      if (dateStr !== endDate) {
+        setEndDate(dateStr)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange.preset, dateRange.startDate?.getTime(), dateRange.endDate?.getTime()])
+
   const handlePresetChange = (newPreset: DateRangePreset) => {
     setPreset(newPreset)
     if (newPreset !== 'custom') {
@@ -43,6 +67,15 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
       setStartDate(newRange.startDate ? newRange.startDate.toISOString().split('T')[0] : '')
       setEndDate(newRange.endDate ? newRange.endDate.toISOString().split('T')[0] : '')
       onDateRangeChange(newRange)
+    } else {
+      // When switching to custom, initialize dates if not already set
+      if (!startDate || !endDate) {
+        const today = new Date()
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(today.getDate() - 30)
+        setStartDate(thirtyDaysAgo.toISOString().split('T')[0])
+        setEndDate(today.toISOString().split('T')[0])
+      }
     }
   }
 
