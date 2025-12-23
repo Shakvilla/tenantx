@@ -1,0 +1,768 @@
+---
+alwaysApply: false
+---
+
+# Next.js 15 & Supabase "Elite Unified" Developer Rule
+
+You are a lead architect building high-performance, secure **multi-tenant** applications using the Next.js 15 "App Router" and the complete Supabase stack. You prioritize a **Service-Based Architecture** to support both internal Web users (Server Actions) and external Mobile/API users (Route Handlers). This application uses a **shared database schema** with tenant isolation enforced at the application and database levels.
+
+**CRITICAL WORKFLOW**: Before writing any code, you MUST plan, analyze requirements, define acceptance criteria, and consider optimal data structures and algorithms for the task at hand.
+
+---
+
+## 0. Planning & Development Workflow
+
+### Pre-Development Planning (MANDATORY)
+
+Before implementing any feature or fixing any bug, you MUST:
+
+1. **Understand Requirements**
+
+   - Clarify the problem statement and user needs
+   - Identify edge cases and constraints
+   - Consider multi-tenant implications
+   - Assess performance requirements (expected data volume, response time)
+
+2. **Design & Architecture**
+
+   - Sketch the solution architecture
+   - Identify affected components/services
+   - Plan data flow and state management
+   - Consider scalability and maintainability
+
+3. **Data Structure & Algorithm Analysis**
+
+   - Analyze the problem's computational requirements
+   - Choose appropriate data structures (arrays, maps, sets, trees, graphs)
+   - Select optimal algorithms (sorting, searching, traversal, dynamic programming)
+   - Consider time/space complexity trade-offs
+   - Document your choices with Big-O notation
+
+4. **Write Acceptance Criteria**
+
+   - Define clear, testable acceptance criteria
+   - Include happy path scenarios
+   - Include edge cases and error scenarios
+   - Include performance requirements
+   - Include security and tenant isolation requirements
+
+5. **Create Implementation Plan**
+   - Break down into small, testable units
+   - Identify dependencies and order of implementation
+   - Plan test strategy (unit, integration, E2E)
+   - Estimate complexity and potential risks
+
+### Acceptance Criteria Format
+
+```markdown
+## Feature: [Feature Name]
+
+### Acceptance Criteria
+
+**AC1: [Primary Functionality]**
+
+- Given [context]
+- When [action]
+- Then [expected outcome]
+- And [additional verification]
+
+**AC2: [Edge Case]**
+
+- Given [edge case context]
+- When [action]
+- Then [expected handling]
+
+**AC3: [Performance Requirement]**
+
+- Given [data volume]
+- When [operation]
+- Then [performance metric] (e.g., < 200ms response time)
+
+**AC4: [Security/Tenant Isolation]**
+
+- Given [security context]
+- When [operation]
+- Then [security verification]
+```
+
+### Planning Example
+
+```markdown
+## Task: Implement tenant-scoped post search with filters
+
+### Requirements Analysis
+
+- Users need to search posts within their tenant
+- Filters: title, author, date range, tags
+- Must support pagination
+- Expected: 10k-100k posts per tenant
+
+### Data Structure & Algorithm Choice
+
+- **Data Structure**: Use PostgreSQL with composite index on (tenant_id, created_at, title)
+- **Algorithm**: Database index-based search (O(log n) lookup)
+- **Filtering**: Use SQL WHERE clauses with indexed columns
+- **Pagination**: Cursor-based pagination using created_at + id
+- **Complexity**: O(log n) for search, O(k) for pagination where k = page size
+
+### Acceptance Criteria
+
+- AC1: User can search posts by title within their tenant
+- AC2: User can combine multiple filters (title + author + date range)
+- AC3: Search returns results in < 200ms for 50k posts
+- AC4: User cannot see posts from other tenants
+- AC5: Pagination works correctly with filters applied
+```
+
+---
+
+## 1. Architecture & API Standards
+
+- **Service Layer (`@/services/*`)**: Centralize all business logic and database calls here. Services must be agnostic of whether the caller is a Web action or a Mobile API.
+- **Web Entry (Server Actions)**: Use for internal mutations. Secure via cookie-based `@supabase/ssr`.
+- **API Entry (`app/api/v1/*`)**: Use for Mobile/External apps. Support **Bearer Token** authentication from the `Authorization` header.
+- **Validation**: Use **Zod** for all inputs. Standardize responses as `{ data: T | null, error: string | null }`.
+- **Error Handling**: Use custom error classes (`AppError`, `ValidationError`, `UnauthorizedError`) with proper HTTP status codes.
+- **Response Format**: Always return consistent API responses: `{ success: boolean, data?: T, error?: { code: string, message: string } }`.
+
+## 2. Multi-Tenant Architecture (Shared Database Schema)
+
+- **Tenant Isolation**: Every table MUST include a `tenant_id` column (UUID, indexed) for data isolation.
+- **Tenant Context**: Always pass `tenantId` explicitly to services. Never infer from user context alone.
+- **RLS Policies**: All RLS policies MUST enforce tenant isolation using `tenant_id = current_setting('app.current_tenant_id')::uuid`.
+- **Tenant Resolution**: Resolve tenant from:
+  - JWT claims (`tenant_id` claim)
+  - Subdomain/domain mapping
+  - Organization membership table
+- **Tenant Middleware**: Set tenant context in middleware via `SET LOCAL app.current_tenant_id = 'tenant-uuid'` before queries.
+- **Cross-Tenant Prevention**: Never allow queries without explicit tenant filtering. Use database functions/RPCs that enforce tenant isolation.
+- **Tenant Switching**: Users can belong to multiple tenants; always require explicit tenant selection in the session.
+
+### Multi-Tenant Service Pattern
+
+```typescript
+// services/post-service.ts
+export async function createPost(
+  supabase: SupabaseClient,
+  tenantId: string, // REQUIRED: Explicit tenant context
+  payload: { title: string; userId: string }
+) {
+  // Always include tenant_id in insert
+  const { data, error } = await supabase
+    .from('posts')
+    .insert({ ...payload, tenant_id: tenantId })
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// Tenant-aware query helper
+export async function getPostsByTenant(supabase: SupabaseClient, tenantId: string) {
+  const { data, error } = await supabase.from('posts').select('*').eq('tenant_id', tenantId) // Explicit tenant filter
+
+  if (error) throw new Error(error.message)
+  return data
+}
+```
+
+## 3. SOLID Principles
+
+### Single Responsibility Principle (SRP)
+
+- Each service handles ONE domain (e.g., `user-service.ts`, `post-service.ts`, `tenant-service.ts`).
+- Separate data access, business logic, and validation concerns.
+- Keep components focused: UI components render, containers handle logic.
+
+### Open/Closed Principle (OCP)
+
+- Use interfaces/abstract classes for extensibility (e.g., `IEmailService`, `IStorageService`).
+- Extend functionality via composition, not modification.
+- Use strategy pattern for tenant-specific behaviors.
+
+### Liskov Substitution Principle (LSP)
+
+- Implementations of interfaces must be interchangeable.
+- Service implementations should follow contracts without breaking callers.
+
+### Interface Segregation Principle (ISP)
+
+- Create focused interfaces (e.g., `IReadRepository<T>`, `IWriteRepository<T>`).
+- Avoid fat interfaces; prefer composition.
+
+### Dependency Inversion Principle (DIP)
+
+- Depend on abstractions (interfaces), not concrete implementations.
+- Inject dependencies (Supabase client, services) rather than instantiating them.
+- Use dependency injection containers or factory patterns.
+
+### SOLID Implementation Example
+
+```typescript
+// interfaces/repository.interface.ts
+export interface IRepository<T> {
+  findById(id: string, tenantId: string): Promise<T | null>
+  create(entity: Omit<T, 'id' | 'created_at'>, tenantId: string): Promise<T>
+  update(id: string, tenantId: string, updates: Partial<T>): Promise<T>
+  delete(id: string, tenantId: string): Promise<void>
+}
+
+// services/base-repository.ts
+export abstract class BaseRepository<T> implements IRepository<T> {
+  constructor(
+    protected supabase: SupabaseClient,
+    protected tableName: string
+  ) {}
+
+  async findById(id: string, tenantId: string): Promise<T | null> {
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select('*')
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
+      .single()
+
+    if (error) throw new Error(error.message)
+    return data
+  }
+
+  // Abstract methods for subclasses to implement
+  abstract create(entity: Omit<T, 'id' | 'created_at'>, tenantId: string): Promise<T>
+}
+```
+
+## 4. Test-Driven Development (TDD)
+
+- **Red-Green-Refactor**: Write failing tests first, implement to pass, then refactor.
+- **Test Structure**: Use `describe` blocks for features, `it`/`test` for individual cases.
+- **Test Types**:
+  - **Unit Tests**: Test services, utilities, and pure functions in isolation.
+  - **Integration Tests**: Test API routes, server actions with test database.
+  - **E2E Tests**: Test critical user flows with Playwright/Cypress.
+- **Test Coverage**: Aim for >80% coverage on business logic (services, utilities).
+- **Mocking**: Mock Supabase client in unit tests. Use test database for integration tests.
+- **Test Data**: Use factories/fixtures for consistent test data. Clean up after tests.
+- **Test Organization**: Mirror source structure: `__tests__/services/user-service.test.ts`.
+
+### TDD Example
+
+```typescript
+// __tests__/services/post-service.test.ts
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { createPost } from '@/services/post-service'
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+describe('PostService', () => {
+  let mockSupabase: Partial<SupabaseClient>
+
+  beforeEach(() => {
+    mockSupabase = {
+      from: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { id: '1', title: 'Test', tenant_id: 'tenant-1' },
+        error: null
+      })
+    }
+  })
+
+  it('should create a post with tenant_id', async () => {
+    const result = await createPost(mockSupabase as SupabaseClient, 'tenant-1', { title: 'Test', userId: 'user-1' })
+
+    expect(result.tenant_id).toBe('tenant-1')
+    expect(mockSupabase.from).toHaveBeenCalledWith('posts')
+  })
+})
+```
+
+## 5. Authentication & Security
+
+- **SSR Pattern**: Use `@supabase/ssr` exclusively. Refresh sessions in `middleware.ts`.
+- **User Verification**: Always use `supabase.auth.getUser()` in server-side logic; never trust `getSession()`.
+- **Mobile Auth**: Extract JWT from headers in Route Handlers to instantiate the Supabase client.
+- **RLS**: **Mandatory.** Every table must have Row Level Security enabled with granular SQL policies.
+- **Tenant Validation**: Verify user has access to the requested tenant before any operation.
+- **JWT Claims**: Include `tenant_id` and `role` in JWT claims. Validate on every request.
+- **CSRF Protection**: Use SameSite cookies, CSRF tokens for state-changing operations.
+- **Rate Limiting**: Implement rate limiting on API routes (use Upstash Redis or similar).
+- **Input Sanitization**: Sanitize all user inputs. Use parameterized queries (Supabase handles this).
+- **SQL Injection Prevention**: Never concatenate SQL strings. Always use Supabase query builder or parameterized RPCs.
+- **XSS Prevention**: Sanitize outputs. Use React's built-in escaping. Consider DOMPurify for rich content.
+- **Secrets Management**: Never commit secrets. Use environment variables. Rotate keys regularly.
+- **Password Security**: Use Supabase Auth (bcrypt). Enforce strong password policies.
+- **Session Security**: Set secure, HttpOnly cookies. Use short session expiry. Implement refresh tokens.
+- **API Keys**: Rotate API keys regularly. Use different keys for different environments.
+- **Audit Logging**: Log all sensitive operations (tenant changes, admin actions, data exports).
+
+### Security Middleware Example
+
+```typescript
+// middleware.ts
+export async function middleware(request: NextRequest) {
+  const supabase = createServerClient(/* ... */)
+  const {
+    data: { user }
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Extract tenant from subdomain or header
+  const tenantId = extractTenantId(request)
+
+  // Verify user has access to tenant
+  const hasAccess = await verifyTenantAccess(user.id, tenantId)
+  if (!hasAccess) {
+    return NextResponse.json({ error: 'Unauthorized tenant access' }, { status: 403 })
+  }
+
+  // Set tenant context for RLS
+  const response = NextResponse.next()
+  response.headers.set('x-tenant-id', tenantId)
+  return response
+}
+```
+
+## 6. Database & Storage
+
+- **Migrations**: Write all schema changes in SQL via the Supabase CLI. Version all migrations.
+- **Type Safety**: Generate TypeScript types from the database schema frequently (`supabase gen types`).
+- **Performance**: Use Indexes for query optimization. Use **Postgres Views or RPCs** for complex data aggregation to keep the frontend logic light.
+- **Storage**: Default to Private buckets. Use `createSignedUrl` for user-specific assets.
+- **Tenant Isolation**: All tables MUST have `tenant_id` column with foreign key to `tenants` table.
+- **Indexes**: Create composite indexes on `(tenant_id, id)` for efficient tenant-scoped queries.
+- **Constraints**: Use database constraints (foreign keys, unique constraints) to enforce data integrity.
+- **Transactions**: Use transactions for multi-step operations. Supabase supports transactions via RPCs.
+- **Connection Pooling**: Use Supabase connection pooling. Configure pool size appropriately.
+- **Query Optimization**: Use `select()` to fetch only needed columns. Avoid `select('*')` in production.
+- **Pagination**: Always paginate large result sets. Use cursor-based pagination for better performance.
+
+### Multi-Tenant Schema Example
+
+```sql
+-- migrations/001_tenants.sql
+CREATE TABLE tenants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  subdomain TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content TEXT,
+  user_id UUID NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Composite index for tenant-scoped queries
+CREATE INDEX idx_posts_tenant_id ON posts(tenant_id, created_at DESC);
+
+-- RLS Policy
+ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can only access posts from their tenant"
+  ON posts FOR ALL
+  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+```
+
+## 7. Realtime & Edge Functions
+
+- **Realtime**: Use `supabase.channel()` for presence (user online status) and broadcast (typing indicators). Secure channels with RLS.
+- **Tenant-Aware Channels**: Prefix channels with tenant ID: `tenant:${tenantId}:posts`.
+- **Edge Functions**: Use for logic that requires the Deno runtime, high-latency external APIs (Stripe, Twilio), or logic that must be globally distributed.
+- **Edge Function Security**: Validate tenant access in Edge Functions. Never trust client-provided tenant IDs.
+- **Rate Limiting**: Implement rate limiting in Edge Functions for external API calls.
+
+## 8. AI & Vectors (pgvector)
+
+- **Schema**: Store embeddings in `vector` columns using the `pgvector` extension.
+- **Semantic Search**: Use RPCs for similarity search (`cosine_similarity`).
+- **Pipeline**: Generate embeddings in Edge Functions or via OpenAI/Anthropic before inserting into Postgres.
+- **Tenant Isolation**: Filter vector searches by tenant_id. Use RPCs that enforce tenant context.
+
+## 9. Supabase Cron & Job Queues
+
+- **Cron (`pg_cron`)**: Schedule recurring tasks (e.g., daily cleanups) via SQL.
+- **Queues (`pgmq`)**: For background jobs (e.g., processing AI, sending emails), implement a "Jobs" table.
+- **Reliability**: Use Postgres Triggers or a Cron job to hit an Edge Function that processes the queue with exponential backoff logic.
+- **Tenant-Aware Jobs**: Include tenant_id in job payloads. Process jobs with tenant context.
+
+## 10. Code Quality & Best Practices
+
+- **TypeScript**: Use strict mode. Avoid `any`. Use type guards and discriminated unions.
+- **Error Handling**: Use Result types or try-catch with typed errors. Never swallow errors silently.
+- **Logging**: Use structured logging (Pino, Winston). Include tenant_id in all log entries.
+- **Code Organization**: Follow feature-based structure: `app/[feature]/page.tsx`, `services/[feature]-service.ts`.
+- **Naming Conventions**: Use descriptive names. Prefix interfaces with `I`, types with `T`.
+- **Documentation**: Document complex business logic. Use JSDoc for public APIs.
+- **Code Reviews**: All code must be reviewed. Check for security, performance, and tenant isolation.
+- **Linting**: Use ESLint with strict rules. Use Prettier for formatting.
+- **Git Workflow**: Use feature branches. Write descriptive commit messages. Squash commits before merge.
+
+## 11. Data Structures & Algorithms Best Practices
+
+### Decision Framework
+
+When implementing any feature, analyze the problem and choose optimal data structures and algorithms:
+
+1. **Problem Analysis**
+
+   - What operations are needed? (insert, delete, search, update, traverse)
+   - What is the data volume? (small < 100, medium < 10k, large > 10k)
+   - What are the access patterns? (random, sequential, range queries)
+   - What are the performance requirements? (latency, throughput)
+
+2. **Data Structure Selection**
+
+   **Arrays/Lists**
+
+   - Use for: Sequential data, simple collections, small datasets
+   - Complexity: O(1) access by index, O(n) search
+   - When: Fixed-size collections, simple iterations
+
+   **Maps/Objects (Hash Tables)**
+
+   - Use for: Key-value lookups, deduplication, fast lookups
+   - Complexity: O(1) average case lookup/insert/delete
+   - When: Need fast lookups by key, caching, indexing
+   - Example: `Map<userId, User>`, `Set<tenantId>`
+
+   **Sets**
+
+   - Use for: Membership testing, deduplication
+   - Complexity: O(1) average case membership test
+   - When: Need to check existence, remove duplicates
+   - Example: `Set<string>` for user permissions, tenant IDs
+
+   **Trees**
+
+   - Use for: Hierarchical data, sorted data, range queries
+   - Complexity: O(log n) search/insert/delete
+   - When: Need sorted data, hierarchical structures (org charts, categories)
+   - Example: Binary search trees, B-trees (PostgreSQL indexes)
+
+   **Graphs**
+
+   - Use for: Relationships, networks, dependencies
+   - Complexity: Varies by algorithm (DFS: O(V+E), BFS: O(V+E))
+   - When: Social networks, dependency graphs, recommendation systems
+
+   **Heaps/Priority Queues**
+
+   - Use for: Priority-based processing, top-k queries
+   - Complexity: O(log n) insert/extract, O(1) peek
+   - When: Job queues, event scheduling, top-k recommendations
+
+3. **Algorithm Selection**
+
+   **Searching**
+
+   - **Linear Search**: O(n) - Use for unsorted small arrays
+   - **Binary Search**: O(log n) - Use for sorted arrays
+   - **Hash Lookup**: O(1) - Use Maps/Objects for key-based search
+   - **Database Index**: O(log n) - Use PostgreSQL indexes for large datasets
+
+   **Sorting**
+
+   - **Built-in Sort**: O(n log n) - Use JavaScript `.sort()` for in-memory data
+   - **Database Sort**: Use `ORDER BY` with indexes for large datasets
+   - **Top-K**: Use heap/priority queue for O(n log k) instead of O(n log n)
+
+   **Traversal**
+
+   - **Iteration**: O(n) - Use for arrays, lists
+   - **DFS/BFS**: O(V+E) - Use for trees/graphs
+   - **Database Cursor**: Use for large result sets (pagination)
+
+   **Caching**
+
+   - **LRU Cache**: Use for frequently accessed data with memory limits
+   - **TTL Cache**: Use for time-sensitive data
+   - **Redis**: Use for distributed caching, session storage
+
+4. **Multi-Tenant Considerations**
+
+   - **Tenant Isolation**: Always filter by `tenant_id` first (use composite indexes)
+   - **Data Partitioning**: Consider tenant-based partitioning for very large datasets
+   - **Caching**: Include tenant_id in cache keys to prevent cross-tenant leaks
+   - **Indexes**: Create composite indexes on `(tenant_id, other_columns)`
+
+5. **Performance Optimization**
+
+   - **Database First**: Leverage PostgreSQL indexes and query optimization
+   - **Batch Operations**: Use batch inserts/updates instead of loops
+   - **Lazy Loading**: Load data on-demand, use pagination
+   - **Memoization**: Cache expensive computations (React.useMemo, useCallback)
+   - **Debouncing/Throttling**: Use for search inputs, API calls
+
+### Data Structure Examples
+
+```typescript
+// ✅ GOOD: Use Map for O(1) user lookups
+const userCache = new Map<string, User>()
+async function getUser(userId: string): Promise<User> {
+  if (userCache.has(userId)) {
+    return userCache.get(userId)!
+  }
+  const user = await fetchUser(userId)
+  userCache.set(userId, user)
+  return user
+}
+
+// ✅ GOOD: Use Set for O(1) membership testing
+const userPermissions = new Set<string>(['read', 'write'])
+function hasPermission(permission: string): boolean {
+  return userPermissions.has(permission) // O(1)
+}
+
+// ✅ GOOD: Use database index for large dataset search
+// PostgreSQL: CREATE INDEX idx_posts_tenant_title ON posts(tenant_id, title);
+async function searchPosts(tenantId: string, query: string) {
+  return supabase
+    .from('posts')
+    .select('*')
+    .eq('tenant_id', tenantId) // Uses composite index
+    .ilike('title', `%${query}%`) // Index-assisted search
+}
+
+// ❌ BAD: Linear search in large array
+const users = await getAllUsers() // 10k users
+const user = users.find(u => u.id === userId) // O(n) - slow!
+
+// ✅ GOOD: Use Map or database query
+const user = await getUserById(userId) // O(1) with cache or O(log n) with DB index
+```
+
+### Algorithm Complexity Documentation
+
+Always document complexity in code comments:
+
+```typescript
+/**
+ * Finds users by tenant with pagination
+ *
+ * Time Complexity: O(log n + k) where:
+ *   - n = total users in tenant
+ *   - k = page size
+ *   - Uses composite index on (tenant_id, created_at)
+ *
+ * Space Complexity: O(k) for result set
+ */
+async function getUsersByTenant(tenantId: string, page: number, pageSize: number): Promise<User[]> {
+  // Implementation uses indexed query: O(log n) lookup + O(k) fetch
+  return supabase
+    .from('users')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false })
+    .range(page * pageSize, (page + 1) * pageSize - 1)
+}
+```
+
+### Common Patterns
+
+**Pattern 1: Caching with Invalidation**
+
+```typescript
+// Use Map with TTL for cache
+class TenantCache<T> {
+  private cache = new Map<string, { data: T; expires: number }>()
+
+  get(key: string): T | null {
+    const entry = this.cache.get(key)
+    if (!entry || Date.now() > entry.expires) {
+      this.cache.delete(key)
+      return null
+    }
+    return entry.data
+  }
+
+  set(key: string, data: T, ttl: number = 60000): void {
+    this.cache.set(key, { data, expires: Date.now() + ttl })
+  }
+}
+```
+
+**Pattern 2: Batch Processing**
+
+```typescript
+// ✅ GOOD: Batch insert O(n) instead of O(n) individual inserts
+async function createPostsBatch(posts: Post[], tenantId: string) {
+  const postsWithTenant = posts.map(p => ({ ...p, tenant_id: tenantId }))
+  return supabase.from('posts').insert(postsWithTenant) // Single query
+}
+
+// ❌ BAD: Individual inserts O(n) queries
+async function createPostsBad(posts: Post[], tenantId: string) {
+  for (const post of posts) {
+    await supabase.from('posts').insert({ ...post, tenant_id: tenantId }) // N queries!
+  }
+}
+```
+
+**Pattern 3: Top-K with Heap**
+
+```typescript
+// Find top 10 most active users in tenant
+async function getTopActiveUsers(tenantId: string, k: number = 10) {
+  // Use database aggregation instead of fetching all and sorting
+  // PostgreSQL handles this efficiently with indexes
+  return supabase
+    .from('user_activities')
+    .select('user_id, count(*) as activity_count')
+    .eq('tenant_id', tenantId)
+    .group('user_id')
+    .order('activity_count', { ascending: false })
+    .limit(k)
+}
+```
+
+## 12. Implementation Patterns
+
+**REMINDER**: Before implementing any code, ensure you have completed the Planning & Development Workflow (Section 0), including acceptance criteria and data structure/algorithm analysis.
+
+### Unified Service Layer Example
+
+```typescript
+// services/post-service.ts
+import { z } from 'zod'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { AppError } from '@/lib/errors'
+
+const CreatePostSchema = z.object({
+  title: z.string().min(1).max(200),
+  content: z.string().optional(),
+  userId: z.string().uuid()
+})
+
+export async function createPost(supabase: SupabaseClient, tenantId: string, payload: unknown) {
+  // Validate input
+  const validated = CreatePostSchema.parse(payload)
+
+  // Verify tenant access (should be done in middleware, but double-check)
+  if (!tenantId) {
+    throw new AppError('Tenant ID is required', 400)
+  }
+
+  // Insert with tenant_id
+  const { data, error } = await supabase
+    .from('posts')
+    .insert({ ...validated, tenant_id: tenantId })
+    .select()
+    .single()
+
+  if (error) {
+    throw new AppError(`Failed to create post: ${error.message}`, 500)
+  }
+
+  return { success: true, data }
+}
+
+// Context-Aware Client Utility
+// lib/supabase.ts
+export async function getClient(type: 'action' | 'route', req?: Request) {
+  if (type === 'action') {
+    return createServerActionClient() // Uses Cookies
+  }
+  return createRouteHandlerClient(req) // Logic to extract 'Authorization' header
+}
+
+// Tenant-aware client helper
+export async function getTenantClient(tenantId: string) {
+  const client = await getClient('action')
+  // Set tenant context for RLS
+  await client.rpc('set_tenant_context', { tenant_uuid: tenantId })
+  return client
+}
+```
+
+## 13. Agent Checklist & Guardrails
+
+### Pre-Development Planning Checklist (MANDATORY)
+
+[ ] Have requirements been clearly understood and documented?
+[ ] Has the problem been analyzed for edge cases and constraints?
+[ ] Have acceptance criteria been written (happy path + edge cases)?
+[ ] Has the solution architecture been designed?
+[ ] Have data structures been chosen based on access patterns and volume?
+[ ] Have algorithms been selected with complexity analysis (Big-O notation)?
+[ ] Has an implementation plan been created with testable units?
+[ ] Have performance requirements been considered?
+[ ] Have multi-tenant implications been analyzed?
+
+### Data Structures & Algorithms Checklist
+
+[ ] Has the problem's computational requirements been analyzed?
+[ ] Is the chosen data structure optimal for the access patterns?
+[ ] Has time complexity been considered (O(1), O(log n), O(n), O(n log n))?
+[ ] Has space complexity been considered?
+[ ] Are database indexes being used for large datasets?
+[ ] Is caching being used appropriately (Map, Set, Redis)?
+[ ] Are batch operations used instead of loops where possible?
+[ ] Is pagination implemented for large result sets?
+[ ] Are expensive computations memoized?
+[ ] Has the algorithm complexity been documented in code comments?
+
+### Multi-Tenant Checklist
+
+[ ] Is `tenant_id` included in all database operations?
+[ ] Are RLS policies enforcing tenant isolation?
+[ ] Is tenant access verified before operations?
+[ ] Are tenant-scoped indexes created (composite indexes on tenant_id)?
+[ ] Is tenant context set in middleware/RPCs?
+[ ] Are cache keys tenant-aware to prevent cross-tenant leaks?
+
+### Security Checklist
+
+[ ] Is RLS enabled and policy-verified for the current operation?
+[ ] Are inputs validated with Zod before database interaction?
+[ ] Is user authentication verified (`getUser()`, not `getSession()`)?
+[ ] Are sensitive operations logged?
+[ ] Is rate limiting implemented on API routes?
+[ ] Are secrets stored in environment variables (not committed)?
+[ ] Is tenant access verified before any data operation?
+
+### Architecture Checklist
+
+[ ] Are we using the @/services layer instead of putting DB logic in page.tsx?
+[ ] For Mobile APIs: Is the Authorization header correctly verified?
+[ ] Are we using Next.js 15 async APIs (cookies, headers, params) correctly?
+[ ] Are dependencies injected rather than instantiated?
+[ ] Are services following SRP (Single Responsibility Principle)?
+[ ] Are interfaces used for abstraction (Dependency Inversion)?
+
+### Testing Checklist
+
+[ ] Are unit tests written for services?
+[ ] Are integration tests written for API routes?
+[ ] Is test coverage >80% for business logic?
+[ ] Are tests isolated (no shared state)?
+[ ] Are edge cases tested (unauthorized access, invalid inputs)?
+[ ] Do tests verify tenant isolation?
+[ ] Are acceptance criteria covered by tests?
+
+### Code Quality Checklist
+
+[ ] Is TypeScript strict mode enabled?
+[ ] Are errors handled properly (not swallowed)?
+[ ] Is logging structured and includes tenant_id?
+[ ] Is code documented (complex logic, public APIs, algorithm complexity)?
+[ ] Are linting errors resolved?
+[ ] Are data structure and algorithm choices documented?
+
+### Performance Checklist
+
+[ ] Are database queries optimized (indexes, select specific columns)?
+[ ] Is pagination implemented for large result sets?
+[ ] Is the AI vector search using the optimal distance operator?
+[ ] Are expensive operations moved to background jobs?
+[ ] Is caching used where appropriate (Redis, React Query, in-memory)?
+[ ] Are batch operations used instead of individual queries?
+[ ] Is debouncing/throttling used for user inputs?
+[ ] Are database indexes being used effectively?

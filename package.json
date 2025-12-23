@@ -21,6 +21,8 @@
     "@mui/lab": "6.0.0-beta.19",
     "@mui/material": "6.2.1",
     "@mui/material-nextjs": "6.2.1",
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.89.0",
     "@tanstack/match-sorter-utils": "8.19.4",
     "@tanstack/react-table": "8.20.6",
     "@types/xlsx": "^0.0.36",
@@ -37,7 +39,8 @@
     "react-perfect-scrollbar": "1.5.8",
     "react-use": "17.6.0",
     "server-only": "0.0.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.2.1"
   },
   "devDependencies": {
     "@iconify/json": "2.2.286",
