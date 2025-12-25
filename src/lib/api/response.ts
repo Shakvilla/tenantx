@@ -18,6 +18,7 @@ export interface PaginationMeta {
  */
 export interface SuccessResponse<T> {
   success: true
+  message?: string
   data: T
   meta?: {
     pagination?: PaginationMeta
@@ -56,12 +57,14 @@ export type APIResponse<T> = SuccessResponse<T> | ErrorResponse
  */
 export function successResponse<T>(
   data: T,
+  message?: string,
   status: number = 200,
   meta?: SuccessResponse<T>['meta']
 ): NextResponse<SuccessResponse<T>> {
   return NextResponse.json(
     {
       success: true as const,
+      message,
       data,
       ...(meta && { meta }),
     },
@@ -91,6 +94,7 @@ export function listResponse<T>(
   
   return NextResponse.json({
     success: true as const,
+    message: 'Success',
     data,
     meta: {
       pagination: {
@@ -125,6 +129,7 @@ export function errorResponse(
   return NextResponse.json(
     {
       success: false as const,
+      message,
       data: null,
       error: {
         code,
@@ -148,5 +153,5 @@ export function noContentResponse(): NextResponse {
  * Creates a 201 Created response.
  */
 export function createdResponse<T>(data: T): NextResponse<SuccessResponse<T>> {
-  return successResponse(data, 201)
+  return successResponse(data, 'Successful', 201)
 }

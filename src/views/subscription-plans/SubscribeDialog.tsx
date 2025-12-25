@@ -171,7 +171,7 @@ const SubscribeDialog = ({ open, handleClose, plan, billingCycle: initialBilling
                 </Typography>
                 {plan.trialPeriod > 0 && (
                   <Chip
-                    label={`${plan.trialPeriod}-day free trial`
+                    label={`${plan.trialPeriod}-day free trial`}
                     size='small'
                     color='success'
                     variant='tonal'

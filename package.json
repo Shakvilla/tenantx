@@ -11,7 +11,12 @@
     "lint:fix": "next lint --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx}\"",
     "build:icons": "tsx src/assets/iconify-icons/bundle-icons-css.ts",
-    "postinstall": "npm run build:icons"
+    "postinstall": "npm run build:icons",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/cache": "11.14.0",
@@ -47,17 +52,22 @@
     "@iconify/tools": "4.1.1",
     "@iconify/types": "2.0.0",
     "@iconify/utils": "2.2.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@typescript-eslint/eslint-plugin": "7.18.0",
     "@typescript-eslint/parser": "7.18.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/coverage-v8": "^4.0.16",
     "autoprefixer": "10.4.20",
     "eslint": "8.57.1",
     "eslint-config-next": "15.1.2",
     "eslint-config-prettier": "9.1.0",
     "eslint-import-resolver-typescript": "3.7.0",
     "eslint-plugin-import": "2.31.0",
+    "happy-dom": "^20.0.11",
     "postcss": "8.4.49",
     "postcss-styled-syntax": "0.7.0",
     "prettier": "3.4.2",
@@ -68,7 +78,8 @@
     "tailwindcss": "3.4.17",
     "tailwindcss-logical": "3.0.1",
     "tsx": "4.19.2",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "^4.0.16"
   },
   "resolutions": {
     "rimraf": "^5.0.7"

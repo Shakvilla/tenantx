@@ -1,4 +1,5 @@
 // MUI Imports
+'use client'
 import Grid from '@mui/material/Grid2'
 
 // Component Imports
@@ -10,18 +11,25 @@ import ExpensesOverviewCard from '@views/dashboards/ExpensesOverviewCard'
 import MaintenanceRequestsTable from '@views/dashboards/MaintenanceRequestsTable'
 import RecentActivity from '@views/dashboards/RecentActivity'
 import TenantsTable from '@views/dashboards/TenantsTable'
+import { useAuth } from '@/contexts/AuthContext'
 
 const DashboardPage = () => {
+  const { tenant } = useAuth()
+
+  // Use tenant name or fallback to default
+  const welcomeTitle = tenant?.name ? `Welcome to ${tenant.name}` : 'Welcome to TenantX'
+  
   return (
     <Grid container spacing={6}>
       {/* Banner */}
       <Grid size={{ xs: 12 }}>
         <PageBanner
-          title='Welcome to TenantX'
+          title={welcomeTitle}
           description='Manage your properties, tenants, and finances all in one place. Get insights into your rental business with real-time analytics and comprehensive reporting.'
           icon='ri-dashboard-line'
         />
       </Grid>
+
 
       {/* Row 1: Summary Cards */}
       <Grid size={{ xs: 12, sm: 6, md: 3 }}>

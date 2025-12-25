@@ -16,13 +16,18 @@ export class ValidationError extends AppError {
 
   /**
    * Creates a ValidationError from a Zod error.
+   * Note: Zod v4 uses .issues, but we also check .errors for backwards compatibility
    */
   static fromZodError(zodError: ZodError): ValidationError {
-    const firstError = zodError.errors[0]
+    // Zod v4 uses .issues, older versions use .errors
+    const issues = (zodError as unknown as { issues?: Array<{ path: (string | number)[]; message: string; code: string }> }).issues || 
+                   (zodError as unknown as { errors?: Array<{ path: (string | number)[]; message: string; code: string }> }).errors || 
+                   []
+    const firstError = issues[0]
     const field = firstError?.path?.join('.') || undefined
     const message = firstError?.message || 'Validation failed'
     
-    const details = zodError.errors.map((err) => ({
+    const details = issues.map((err) => ({
       field: err.path.join('.'),
       message: err.message,
       code: err.code,

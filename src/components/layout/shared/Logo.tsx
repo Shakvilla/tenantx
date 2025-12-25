@@ -19,6 +19,7 @@ import themeConfig from '@configs/themeConfig'
 // Hook Imports
 import useVerticalNav from '@menu/hooks/useVerticalNav'
 import { useSettings } from '@core/hooks/useSettings'
+import { useAuth } from '@/contexts/AuthContext'
 
 type LogoTextProps = {
   isHovered?: VerticalNavContextProps['isHovered']
@@ -52,9 +53,13 @@ const Logo = ({ color }: { color?: CSSProperties['color'] }) => {
   // Hooks
   const { isHovered, transitionDuration, isBreakpointReached } = useVerticalNav()
   const { settings } = useSettings()
+  const { tenant, isAuthenticated } = useAuth()
 
   // Vars
   const { layout } = settings
+  
+  // Use tenant name if authenticated, otherwise use default template name
+  const displayName = isAuthenticated && tenant?.name ? tenant.name : themeConfig.templateName
 
   useEffect(() => {
     if (layout !== 'collapsed') {
@@ -82,10 +87,11 @@ const Logo = ({ color }: { color?: CSSProperties['color'] }) => {
         transitionDuration={transitionDuration}
         isBreakpointReached={isBreakpointReached}
       >
-        {themeConfig.templateName}
+        {displayName}
       </LogoText>
     </div>
   )
 }
 
 export default Logo
+

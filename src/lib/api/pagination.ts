@@ -44,12 +44,17 @@ export const MAX_PAGE_SIZE = 100
 export function parsePaginationParams(
   searchParams: URLSearchParams
 ): Required<PaginationOptions> {
-  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
-  const requestedPageSize = parseInt(
+  const parsedPage = parseInt(searchParams.get('page') || '1', 10)
+  const page = Number.isNaN(parsedPage) ? 1 : Math.max(1, parsedPage)
+  
+  const parsedPageSize = parseInt(
     searchParams.get('pageSize') || String(DEFAULT_PAGE_SIZE),
     10
   )
-  const pageSize = Math.min(Math.max(1, requestedPageSize), MAX_PAGE_SIZE)
+  const pageSize = Number.isNaN(parsedPageSize) 
+    ? DEFAULT_PAGE_SIZE 
+    : Math.min(Math.max(1, parsedPageSize), MAX_PAGE_SIZE)
+  
   const cursor = searchParams.get('cursor') || undefined
 
   return { 

@@ -23,6 +23,7 @@ import Button from '@mui/material/Button'
 
 // Hook Imports
 import { useSettings } from '@core/hooks/useSettings'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Styled component for badge content
 const BadgeContentSpan = styled('span')({
@@ -43,8 +44,8 @@ const UserDropdown = () => {
 
   // Hooks
   const router = useRouter()
-
   const { settings } = useSettings()
+  const { user, logout } = useAuth()
 
   const handleDropdownOpen = () => {
     !open ? setOpen(true) : setOpen(false)
@@ -63,9 +64,14 @@ const UserDropdown = () => {
   }
 
   const handleUserLogout = async () => {
-    // Redirect to login page
-    router.push('/login')
+    await logout()
   }
+
+  // Use user data or fallback to defaults
+  const userName = user?.name || 'Guest'
+  const userEmail = user?.email || ''
+  const userAvatar = user?.avatarUrl || '/images/avatars/1.png'
+  const userRole = user?.role || 'user'
 
   return (
     <>
@@ -78,8 +84,8 @@ const UserDropdown = () => {
       >
         <Avatar
           ref={anchorRef}
-          alt='John Doe'
-          src='/images/avatars/1.png'
+          alt={userName}
+          src={userAvatar}
           onClick={handleDropdownOpen}
           className='cursor-pointer bs-[38px] is-[38px]'
         />
@@ -106,12 +112,15 @@ const UserDropdown = () => {
               <ClickAwayListener onClickAway={e => handleDropdownClose(e as MouseEvent | TouchEvent)}>
                 <MenuList>
                   <div className='flex items-center plb-2 pli-4 gap-2' tabIndex={-1}>
-                    <Avatar alt='John Doe' src='/images/avatars/1.png' />
+                    <Avatar alt={userName} src={userAvatar} />
                     <div className='flex items-start flex-col'>
                       <Typography variant='body2' className='font-medium' color='text.primary'>
-                        John Doe
+                        {userName}
                       </Typography>
-                      <Typography variant='caption'>admin@materialize.com</Typography>
+                      <Typography variant='caption'>{userEmail}</Typography>
+                      <Typography variant='caption' className='capitalize text-textSecondary'>
+                        {userRole}
+                      </Typography>
                     </div>
                   </div>
                   <Divider className='mlb-1' />
