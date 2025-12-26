@@ -3,6 +3,8 @@
 // React Imports
 import { useState } from 'react'
 
+import type { Dispatch, SetStateAction } from 'react'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -44,8 +46,9 @@ type Props = {
   units?: Array<{ id: number | string; unitNumber: string; propertyId: string; propertyName: string }>
   tenants?: Array<{ id: number; name: string; email: string; roomNo: string; propertyName: string; avatar?: string }>
   invoicesData?: InvoiceData[]
-  setData?: (data: InvoiceData[]) => void
+  setData?: Dispatch<SetStateAction<InvoiceData[]>>
 }
+
 
 const ViewInvoiceActions = ({
   invoiceId,
@@ -70,9 +73,11 @@ const ViewInvoiceActions = ({
   const handleDownload = () => {
     // Create a printable version of the invoice
     const printWindow = window.open('', '_blank')
+
     if (!printWindow) return
 
     const invoiceContent = document.querySelector('.previewCard')
+
     if (!invoiceContent || !invoiceData) return
 
     // Get computed styles for better rendering
@@ -340,7 +345,9 @@ const ViewInvoiceActions = ({
       const day = String(date.getDate()).padStart(2, '0')
       const month = String(date.getMonth() + 1).padStart(2, '0')
       const year = date.getFullYear()
-      return `${day}/${month}/${year}`
+
+      
+return `${day}/${month}/${year}`
     }
 
     const tenantInitials = invoiceData.tenantName
@@ -440,7 +447,9 @@ const ViewInvoiceActions = ({
               <tbody>
                 ${invoiceData.invoiceItems.map((item, index) => {
                   const itemTotal = item.quantity * item.price
-                  return `
+
+                  
+return `
                     <tr>
                       <td>Item ${index + 1}</td>
                       <td>${item.description}</td>

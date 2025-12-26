@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
 import {
   createMockSupabaseClient,
   setMockResult,
@@ -129,6 +130,7 @@ describe('auth-service', () => {
         email: 'user@example.com',
         password: 'Password123',
         name: 'User',
+
         // No tenantName or inviteCode
       }
 
@@ -251,6 +253,7 @@ describe('auth-service', () => {
     // AC6: Multi-tenant login
     it('AC6: should use specified tenantId when provided', async () => {
       const specificTenantId = '550e8400-e29b-41d4-a716-446655440000'
+
       const multiTenantLogin = {
         ...validCredentials,
         tenantId: specificTenantId,
@@ -368,6 +371,7 @@ describe('auth-service', () => {
       }
 
       const mockUser = createMockAuthUser()
+
       mockSupabase.auth.getUser = vi.fn().mockResolvedValue({
         data: { user: mockUser },
         error: null,

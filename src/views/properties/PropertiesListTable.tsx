@@ -83,8 +83,10 @@ type PropertyTypeObj = {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 // Vars
@@ -203,12 +205,15 @@ const PropertiesListTable = () => {
     if (propertyType) {
       filtered = filtered.filter(p => p.type === propertyType)
     }
+
     if (stock !== '') {
       filtered = filtered.filter(p => p.stock === (stock === 'true'))
     }
+
     if (bedroom) {
       filtered = filtered.filter(p => p.bedroom === Number(bedroom))
     }
+
     if (bathroom) {
       filtered = filtered.filter(p => p.bathroom === Number(bathroom))
     }
@@ -252,7 +257,9 @@ const PropertiesListTable = () => {
             icon: 'ri-building-line',
             color: 'secondary' as ThemeColor
           }
-          return (
+
+          
+return (
             <div className='flex items-center gap-3'>
               <CustomAvatar skin='light' color={propertyType.color} size={30}>
                 <i className={classnames(propertyType.icon, 'text-lg')} />
@@ -272,6 +279,7 @@ const PropertiesListTable = () => {
               const updatedData = data.map(property =>
                 property.id === row.original.id ? { ...property, stock: e.target.checked } : property
               )
+
               setData(updatedData)
             }}
           />

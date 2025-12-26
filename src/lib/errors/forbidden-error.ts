@@ -18,6 +18,8 @@ export class ForbiddenError extends AppError {
     const message = tenantId
       ? `Access denied for tenant: ${tenantId}`
       : 'Access denied for this tenant'
-    return new ForbiddenError(message, ErrorCode.TENANT_ACCESS_DENIED)
+
+    
+return new ForbiddenError(message, ErrorCode.TENANT_ACCESS_DENIED)
   }
 }

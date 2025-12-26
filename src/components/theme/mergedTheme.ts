@@ -30,6 +30,7 @@ const mergedTheme = (settings: Settings, mode: SystemMode, direction: Theme['dir
     typography: {
       // Default font family (used as fallback)
       fontFamily: bodyFontFamily,
+
       // Headings use Neo Sans Std
       h1: {
         fontFamily: headingFontFamily,
@@ -55,6 +56,7 @@ const mergedTheme = (settings: Settings, mode: SystemMode, direction: Theme['dir
         fontFamily: headingFontFamily,
         fontWeight: 'bold',
       },
+
       // Subheadings use Neo Sans Std
       subtitle1: {
         fontFamily: headingFontFamily,
@@ -64,6 +66,7 @@ const mergedTheme = (settings: Settings, mode: SystemMode, direction: Theme['dir
         fontFamily: headingFontFamily,
         fontWeight: 'bold',
       },
+
       // Body text uses Proxima Nova Rg
       body1: {
         fontFamily: bodyFontFamily,
@@ -71,10 +74,12 @@ const mergedTheme = (settings: Settings, mode: SystemMode, direction: Theme['dir
       body2: {
         fontFamily: bodyFontFamily,
       },
+
       // Button text uses Proxima Nova Rg
       button: {
         fontFamily: bodyFontFamily,
       },
+
       // Caption and overline use Proxima Nova Rg
       caption: {
         fontFamily: bodyFontFamily,

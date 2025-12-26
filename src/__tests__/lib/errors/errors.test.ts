@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { ZodError, z } from 'zod'
+import type { ZodError} from 'zod';
+import { z } from 'zod'
+
 import {
   AppError,
   ErrorCode,

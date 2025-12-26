@@ -7,9 +7,9 @@ import dynamic from 'next/dynamic'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
-import Typography from '@mui/material/Typography'
-import { useTheme } from '@mui/material/styles'
-import { styled } from '@mui/material/styles'
+
+// import Typography from '@mui/material/Typography'
+import { useTheme , styled } from '@mui/material/styles'
 
 // Third-party Imports
 import type { ApexOptions } from 'apexcharts'
@@ -24,7 +24,7 @@ const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexChart
 const lineSeries = [{ data: [0, 20, 5, 30, 15, 45] }]
 const donutSeries = [100]
 
-const StyledCard = styled(Card)(({ theme }) => ({
+const StyledCard = styled(Card)(() => ({
   position: 'relative',
   overflow: 'hidden',
   '&::before': {
@@ -41,7 +41,7 @@ const StyledCard = styled(Card)(({ theme }) => ({
 
 const RevenueGeneration = () => {
   // Hooks
-  const theme = useTheme()
+  // const theme = useTheme()
 
   // Line Chart Options
   const lineOptions: ApexOptions = {

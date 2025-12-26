@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
 import { createMockSupabaseClient, createMockAuthUser } from '@/__tests__/utils'
 import type { MockSupabaseClient } from '@/__tests__/utils/mock-supabase'
 
@@ -78,6 +79,8 @@ describe('authenticate utilities', () => {
   describe('optionalAuth', () => {
     it('should return null when not authenticated', async () => {
       const result = await optionalAuth()
+
+
       // When not authenticated, should return null not throw
       expect(result).toBeNull()
     })
@@ -233,16 +236,19 @@ describe('authorize utilities', () => {
   describe('isAdmin and isSuperAdmin', () => {
     it('isAdmin should return true for admin role', () => {
       const auth = { user: {} as any, tenantId: '', role: 'admin' }
+
       expect(isAdmin(auth)).toBe(true)
     })
 
     it('isAdmin should return true for super_admin role', () => {
       const auth = { user: {} as any, tenantId: '', role: 'super_admin' }
+
       expect(isAdmin(auth)).toBe(true)
     })
 
     it('isAdmin should return false for user role', () => {
       const auth = { user: {} as any, tenantId: '', role: 'user' }
+
       expect(isAdmin(auth)).toBe(false)
     })
 

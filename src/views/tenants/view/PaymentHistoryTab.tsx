@@ -67,8 +67,10 @@ type PaymentRecord = {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 // Sample payment history data
@@ -318,7 +320,9 @@ const PaymentHistoryTab = () => {
   // Get unique months for filter
   const uniqueMonths = useMemo(() => {
     const months = Array.from(new Set(data.map(p => p.month)))
-    return months.sort()
+
+    
+return months.sort()
   }, [data])
 
   // Get available status options based on current status
@@ -346,6 +350,7 @@ const PaymentHistoryTab = () => {
   const handleEditClick = (payment: PaymentRecord) => {
     setSelectedPayment(payment)
     const availableStatuses = getAvailableStatuses(payment.status)
+
     if (availableStatuses.length > 0) {
       setNewStatus(availableStatuses[0])
       setUpdateDialogOpen(true)

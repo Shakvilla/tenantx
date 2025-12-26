@@ -2,6 +2,7 @@
 
 // React Imports
 import { useState } from 'react'
+
 import { useParams } from 'next/navigation'
 
 // MUI Imports
@@ -17,8 +18,33 @@ const ViewInvoicePage = () => {
   const params = useParams()
   const invoiceId = params.id as string
 
+  // Type for invoice data - matches ViewInvoiceActions
+  type InvoiceData = {
+    id: number
+    invoiceNumber: string
+    tenantName: string
+    tenantEmail: string
+    tenantAvatar?: string
+    propertyName: string
+    unitName: string
+    amount: string
+    issuedDate: string
+    dueDate: string
+    status: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
+    balance: string
+    invoiceMonth?: string
+    invoiceType?: string
+    description?: string
+    invoiceItems?: Array<{
+      id: number
+      description: string
+      quantity: number
+      price: number
+    }>
+  }
+
   // Sample data - TODO: Fetch from API
-  const [invoicesData, setInvoicesData] = useState([
+  const [invoicesData, setInvoicesData] = useState<InvoiceData[]>([
     {
       id: parseInt(invoiceId),
       invoiceNumber: 'INV-2024-001',
@@ -30,7 +56,7 @@ const ViewInvoicePage = () => {
       amount: '₵1,450',
       issuedDate: '2024-01-15',
       dueDate: '2024-02-15',
-      status: 'pending' as const,
+      status: 'pending',
       balance: '₵1,450',
       invoiceMonth: '01/2024',
       invoiceType: 'Rent',

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+
 import {
   RegisterSchema,
   LoginSchema,
@@ -22,6 +23,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
@@ -34,6 +36,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
@@ -45,6 +48,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -57,6 +61,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -69,6 +74,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -81,6 +87,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -93,6 +100,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -105,6 +113,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -117,6 +126,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = RegisterSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
   })
@@ -132,6 +142,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = LoginSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
@@ -143,6 +154,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = LoginSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
@@ -153,6 +165,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = LoginSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -163,6 +176,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = LoginSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -174,6 +188,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = LoginSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
   })
@@ -186,11 +201,13 @@ describe('auth validation schemas', () => {
       const result = ForgotPasswordSchema.safeParse({
         email: 'user@example.com',
       })
+
       expect(result.success).toBe(true)
     })
 
     it('should fail with invalid email', () => {
       const result = ForgotPasswordSchema.safeParse({ email: 'invalid' })
+
       expect(result.success).toBe(false)
     })
   })
@@ -207,6 +224,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = ResetPasswordSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
@@ -218,6 +236,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = ResetPasswordSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -229,6 +248,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = ResetPasswordSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
   })
@@ -244,11 +264,13 @@ describe('auth validation schemas', () => {
       }
 
       const result = UpdateProfileSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
     it('should pass with empty object (all fields optional)', () => {
       const result = UpdateProfileSchema.safeParse({})
+
       expect(result.success).toBe(true)
     })
 
@@ -258,6 +280,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = UpdateProfileSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
@@ -267,6 +290,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = UpdateProfileSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
   })
@@ -283,6 +307,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = ChangePasswordSchema.safeParse(validData)
+
       expect(result.success).toBe(true)
     })
 
@@ -294,6 +319,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = ChangePasswordSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
 
@@ -305,6 +331,7 @@ describe('auth validation schemas', () => {
       }
 
       const result = ChangePasswordSchema.safeParse(invalidData)
+
       expect(result.success).toBe(false)
     })
   })

@@ -126,17 +126,25 @@ export function errorResponse(
   details?: unknown,
   field?: string
 ): NextResponse<ErrorResponse> {
+  const errorObj: ErrorResponse['error'] = {
+    code,
+    message,
+  }
+
+  if (details !== undefined) {
+    errorObj.details = details
+  }
+
+  if (field !== undefined) {
+    errorObj.field = field
+  }
+
   return NextResponse.json(
     {
       success: false as const,
       message,
       data: null,
-      error: {
-        code,
-        message,
-        ...(details && { details }),
-        ...(field && { field }),
-      },
+      error: errorObj,
     },
     { status }
   )

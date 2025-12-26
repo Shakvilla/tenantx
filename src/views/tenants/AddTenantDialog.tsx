@@ -61,9 +61,48 @@ type TenantEditData = {
   }
   propertyId?: string
   unitId?: string
+  roomNo?: string
+  propertyName?: string
   leaseStartDate?: string
   leaseEndDate?: string
   avatar?: string
+  ghanaCardFront?: string
+  ghanaCardBack?: string
+}
+
+type Tenant = {
+  id: number | string
+  name: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  occupation: string
+  age: number
+  familyMembers: number
+  password: string
+  roomNo: string
+  propertyName: string
+  propertyId: string
+  numberOfUnits: number
+  status: 'active' | 'inactive'
+  avatar?: string
+  previousAddress?: {
+    country: string
+    state: string
+    city: string
+    zipCode: string
+    address: string
+  }
+  permanentAddress?: {
+    country: string
+    state: string
+    city: string
+    zipCode: string
+    address: string
+  }
+  leaseStartDate?: string
+  leaseEndDate?: string
   ghanaCardFront?: string
   ghanaCardBack?: string
 }
@@ -157,6 +196,7 @@ const AddTenantDialog = ({
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [expanded, setExpanded] = useState<string | false>('tenant-info')
+
   const [previewImages, setPreviewImages] = useState<{
     tenantPicture: string | null
     ghanaCardFront: string | null
@@ -221,13 +261,16 @@ const AddTenantDialog = ({
         ghanaCardBack: null
       }
     }
-    return initialData
+
+    
+return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
       const newFormData = getInitialFormData()
+
       setFormData(newFormData)
       setErrors({})
       setExpanded('tenant-info')
@@ -253,9 +296,11 @@ const AddTenantDialog = ({
       if (previewImages.tenantPicture && previewImages.tenantPicture.startsWith('blob:')) {
         URL.revokeObjectURL(previewImages.tenantPicture)
       }
+
       if (previewImages.ghanaCardFront && previewImages.ghanaCardFront.startsWith('blob:')) {
         URL.revokeObjectURL(previewImages.ghanaCardFront)
       }
+
       if (previewImages.ghanaCardBack && previewImages.ghanaCardBack.startsWith('blob:')) {
         URL.revokeObjectURL(previewImages.ghanaCardBack)
       }
@@ -268,6 +313,7 @@ const AddTenantDialog = ({
 
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -289,8 +335,10 @@ const AddTenantDialog = ({
 
   const handleFileChange = (type: 'tenantPicture' | 'ghanaCardFront' | 'ghanaCardBack', file: File | null) => {
     setFormData(prev => ({ ...prev, [type]: file }))
+
     if (file) {
       const previewUrl = URL.createObjectURL(file)
+
       setPreviewImages(prev => ({ ...prev, [type]: previewUrl }))
     } else {
       setPreviewImages(prev => ({ ...prev, [type]: null }))
@@ -315,12 +363,14 @@ const AddTenantDialog = ({
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
     if (formData.email && !emailRegex.test(formData.email)) {
       newErrors.email = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = () => {
@@ -545,7 +595,10 @@ const AddTenantDialog = ({
                     style={{ display: 'none' }}
                     onChange={e => {
                       const file = e.target.files?.[0] || null
+
                       handleFileChange('tenantPicture', file)
+
+
                       // Reset input to allow selecting the same file again
                       if (e.target) {
                         e.target.value = ''
@@ -609,7 +662,9 @@ const AddTenantDialog = ({
                     style={{ display: 'none' }}
                     onChange={e => {
                       const file = e.target.files?.[0] || null
+
                       handleFileChange('ghanaCardFront', file)
+
                       if (e.target) {
                         e.target.value = ''
                       }
@@ -679,7 +734,9 @@ const AddTenantDialog = ({
                     style={{ display: 'none' }}
                     onChange={e => {
                       const file = e.target.files?.[0] || null
+
                       handleFileChange('ghanaCardBack', file)
+
                       if (e.target) {
                         e.target.value = ''
                       }

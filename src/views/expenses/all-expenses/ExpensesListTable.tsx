@@ -64,8 +64,10 @@ type ExpenseTypeWithAction = ExpenseType & {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -102,7 +104,9 @@ const formatDate = (dateString: string) => {
   const day = date.getDate()
   const month = date.toLocaleString('en-US', { month: 'long' })
   const year = date.getFullYear()
-  return `${day} ${month} ${year}`
+
+  
+return `${day} ${month} ${year}`
 }
 
 // Sample data with property, unit, and responsibility
@@ -327,12 +331,16 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
   // Get unique properties and units
   const uniqueProperties = useMemo(() => {
     const props = Array.from(new Set(data.map(e => e.propertyName).filter(Boolean)))
-    return props as string[]
+
+    
+return props as string[]
   }, [data])
 
   const uniqueUnits = useMemo(() => {
     const units = Array.from(new Set(data.map(e => e.unitNo).filter(Boolean)))
-    return units as string[]
+
+    
+return units as string[]
   }, [data])
 
   // Filter data
@@ -362,6 +370,7 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
   // Calculate expense statistics
   const expenseStats = useMemo(() => {
     const today = new Date()
+
     today.setHours(0, 0, 0, 0)
 
     let total = 0
@@ -371,6 +380,7 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
 
     filteredData.forEach(expense => {
       const expenseDate = new Date(expense.date)
+
       expenseDate.setHours(0, 0, 0, 0)
       const amount = expense.amount
 
@@ -472,7 +482,9 @@ const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
         cell: ({ row, table }) => {
           const pageIndex = table.getState().pagination.pageIndex
           const pageSize = table.getState().pagination.pageSize
-          return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+          
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
         }
       }),
       columnHelper.accessor('item', {

@@ -27,6 +27,7 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
     if (isJson) {
       try {
         const error = await response.json()
+
         errorMessage = error.message || errorMessage
       } catch {
         // If JSON parsing fails, use default message
@@ -35,6 +36,7 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
       // If response is HTML (like 404 page), read as text to get better error
       try {
         const text = await response.text()
+
         if (text.includes('<!DOCTYPE')) {
           errorMessage = `API endpoint not found: ${endpoint}. Please ensure the backend API is running and the endpoint exists.`
         } else {

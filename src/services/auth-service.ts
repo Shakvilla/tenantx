@@ -6,6 +6,7 @@
  */
 
 import type { SupabaseClient, User } from '@supabase/supabase-js'
+
 import type { Database } from '@/types/database/database.types'
 import { 
   RegisterSchema, 
@@ -99,6 +100,7 @@ export async function registerUser(
 ): Promise<AuthResponse> {
   // Validate input
   const validation = RegisterSchema.safeParse(payload)
+
   if (!validation.success) {
     throw ValidationError.fromZodError(validation.error)
   }
@@ -153,6 +155,7 @@ export async function registerUser(
     if (!authData.user) {
       throw new Error('Registration failed: No user data returned')
     }
+
     authUserId = authData.user.id
   }
 
@@ -224,6 +227,7 @@ export async function registerUser(
 
   if (updateAuthError) {
     console.error('Failed to update auth user metadata:', updateAuthError)
+
     // We don't necessarily want to fail here if the record was already created,
     // but for registration safety we should probably know about it.
   }
@@ -267,6 +271,7 @@ export async function loginUser(
 ): Promise<AuthResponse> {
   // Validate input
   const validation = LoginSchema.safeParse(payload)
+
   if (!validation.success) {
     throw ValidationError.fromZodError(validation.error)
   }
@@ -346,6 +351,7 @@ export async function logoutUser(
   supabase: SupabaseClient<Database>
 ): Promise<void> {
   const { error } = await supabase.auth.signOut()
+
   if (error) {
     throw new Error(error.message)
   }
@@ -431,6 +437,7 @@ export async function updateUserProfile(
 ): Promise<{ id: string; name: string; phone?: string; avatarUrl?: string }> {
   // Validate input
   const validation = UpdateProfileSchema.safeParse(payload)
+
   if (!validation.success) {
     throw ValidationError.fromZodError(validation.error)
   }
@@ -443,6 +450,7 @@ export async function updateUserProfile(
   }
 
   const updateData: Record<string, unknown> = {}
+
   if (payload.name !== undefined) updateData.name = payload.name
   if (payload.phone !== undefined) updateData.phone = payload.phone
   if (payload.avatarUrl !== undefined) updateData.avatar_url = payload.avatarUrl

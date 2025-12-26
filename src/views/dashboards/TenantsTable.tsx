@@ -9,7 +9,8 @@ import CardHeader from '@mui/material/CardHeader'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
-import { styled } from '@mui/material/styles'
+
+// import { styled } from '@mui/material/styles'
 import TablePagination from '@mui/material/TablePagination'
 
 // Third-party Imports
@@ -60,8 +61,10 @@ type Tenant = {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 // Sample data

@@ -113,6 +113,7 @@ const AddAgentDrawer = (props: Props) => {
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormValidateType, boolean>> = {}
+
     const requiredFields: (keyof FormValidateType)[] = [
       'name',
       'gender',
@@ -136,11 +137,13 @@ const AddAgentDrawer = (props: Props) => {
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0 && files.length > 0
+    
+return Object.keys(newErrors).length === 0 && files.length > 0
   }
 
   const handleInputChange = (field: keyof FormValidateType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -184,11 +187,13 @@ const AddAgentDrawer = (props: Props) => {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateForm()) {
       return
     }
 
     const data = formData
+
     const newAgent: AgentType = {
       id: (agentData?.length && agentData?.length + 1) || 1,
       name: data.name,
@@ -400,15 +405,20 @@ const AddAgentDrawer = (props: Props) => {
                     e.preventDefault()
                     e.stopPropagation()
                     const input = document.createElement('input')
+
                     input.type = 'file'
+
                     input.onchange = (event: Event) => {
                       const target = event.target as HTMLInputElement
+
                       if (target.files && target.files.length > 0) {
                         const fileArray = Array.from(target.files)
+
                         setFiles(fileArray.map((file: File) => Object.assign(file)))
                         setFileError(false)
                       }
                     }
+
                     input.click()
                   }}
                 >

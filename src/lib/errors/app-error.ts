@@ -3,6 +3,7 @@
  * These are returned in API responses for frontend error handling.
  */
 export enum ErrorCode {
+
   // Validation errors (400)
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   INVALID_INPUT = 'INVALID_INPUT',
@@ -76,11 +77,24 @@ export class AppError extends Error {
    * Converts error to JSON format for API responses.
    */
   toJSON() {
-    return {
+    const result: {
+      code: ErrorCode
+      message: string
+      details?: unknown
+      field?: string
+    } = {
       code: this.code,
       message: this.message,
-      ...(this.details && { details: this.details }),
-      ...(this.field && { field: this.field }),
     }
+
+    if (this.details !== undefined) {
+      result.details = this.details
+    }
+
+    if (this.field !== undefined) {
+      result.field = this.field
+    }
+
+    return result
   }
 }

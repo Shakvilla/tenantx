@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
+
 import type { Database } from '@/types/database/database.types'
 
 /**
@@ -69,6 +70,7 @@ export function createMockSupabaseClient(overrides?: Partial<MockChainResult>) {
         createSignedUrl: vi.fn(),
       })),
     },
+
     // Expose chain methods for test assertions
     _chain: chainMethods,
   }
@@ -84,6 +86,7 @@ export function setMockResult(
   result: MockChainResult
 ) {
   const chain = (mockClient as unknown as { _chain: MockChain })._chain
+
   chain.single.mockResolvedValueOnce(result)
   chain.maybeSingle.mockResolvedValueOnce(result)
   chain.then.mockImplementationOnce((resolve: (value: MockChainResult) => void) => resolve(result))

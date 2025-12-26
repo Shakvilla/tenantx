@@ -297,15 +297,22 @@ CREATE TRIGGER update_subscriptions_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- Update tenant's subscription_id when subscription changes
-CREATE OR REPLACE FUNCTION update_tenant_subscription()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.update_tenant_subscription()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
 BEGIN
   IF NEW.status = 'active' THEN
-    UPDATE tenants SET subscription_id = NEW.id WHERE id = NEW.tenant_id;
+    UPDATE public.tenants t
+    SET subscription_id = NEW.id
+    WHERE t.id = NEW.tenant_id;
   END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
 
 CREATE TRIGGER set_tenant_subscription
   AFTER INSERT OR UPDATE ON subscriptions

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+
 import type { Database } from '@/types/database/database.types'
 import type { QueryOptions, PaginatedResult } from '@/types/api/response.types'
 import { calculateRange } from '@/lib/api/pagination'
@@ -148,6 +149,7 @@ export abstract class BaseRepository<T, TInsert, TUpdate>
       if (error.code === 'PGRST116') {
         return null
       }
+
       throw error
     }
 
@@ -286,6 +288,8 @@ export abstract class BaseRepository<T, TInsert, TUpdate>
         query = query.eq(key, value)
       }
     }
-    return query
+
+    
+return query
   }
 }

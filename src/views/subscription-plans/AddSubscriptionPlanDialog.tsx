@@ -91,13 +91,16 @@ const AddSubscriptionPlanDialog = ({ open, handleClose, plansData, setData, edit
         isPopular: editData.isPopular || false
       }
     }
-    return initialData
+
+    
+return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
       const newFormData = getInitialFormData()
+
       setFormData(newFormData)
       setErrors({})
       setExpanded('basic-info')
@@ -115,6 +118,7 @@ const AddSubscriptionPlanDialog = ({ open, handleClose, plansData, setData, edit
     value: string | PlanTier | PlanStatus | BillingCycle | boolean | string[]
   ) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -141,8 +145,11 @@ const AddSubscriptionPlanDialog = ({ open, handleClose, plansData, setData, edit
     if (value.toLowerCase() === 'unlimited' || value === '-1') {
       return -1
     }
+
     const num = parseInt(value, 10)
-    return isNaN(num) ? 0 : num
+
+    
+return isNaN(num) ? 0 : num
   }
 
   const validateForm = (): boolean => {
@@ -153,7 +160,8 @@ const AddSubscriptionPlanDialog = ({ open, handleClose, plansData, setData, edit
     if (!formData.description.trim()) newErrors.description = true
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = () => {

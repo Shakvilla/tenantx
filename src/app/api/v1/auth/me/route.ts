@@ -3,7 +3,8 @@
  * PATCH /api/v1/auth/me - Update current user profile
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 import { createClient } from '@/lib/supabase/server'
 import { getCurrentUser, updateUserProfile } from '@/services/auth-service'
 import { successResponse } from '@/lib/api/response'

@@ -52,6 +52,7 @@ const AddPaymentDrawer = ({ open, handleClose, invoiceData }: Props) => {
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
     // TODO: Implement add payment functionality
     console.log('Adding payment:', formData)
     handleClose()

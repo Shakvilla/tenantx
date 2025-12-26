@@ -22,14 +22,16 @@ import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { CurrencySymbolPosition } from '@/types/settings/paymentTypes'
 
 // Utils Imports
 import { paymentSettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const CURRENCIES = [
   { code: 'GHS', name: 'Ghana Cedi', symbol: '₵' },
@@ -46,6 +48,7 @@ const CurrencySettings = () => {
   const [symbolPosition, setSymbolPosition] = useState<CurrencySymbolPosition>('before')
   const [decimalPlaces, setDecimalPlaces] = useState(2)
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -60,6 +63,7 @@ const CurrencySettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const currencySettings = {
         defaultCurrency,

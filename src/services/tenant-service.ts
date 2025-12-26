@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+
 import type { Database } from '@/types/database/database.types'
 import type { QueryOptions, PaginatedResult } from '@/types/api/response.types'
 import { 
@@ -126,6 +127,7 @@ export async function updateTenantRecord(
   if (validated.unitNo !== undefined) updateData.unit_no = validated.unitNo
   if (validated.moveInDate !== undefined) updateData.move_in_date = validated.moveInDate
   if (validated.moveOutDate !== undefined) updateData.move_out_date = validated.moveOutDate
+
   if (validated.emergencyContact !== undefined) {
     updateData.emergency_contact = validated.emergencyContact 
       ? JSON.parse(JSON.stringify(validated.emergencyContact))

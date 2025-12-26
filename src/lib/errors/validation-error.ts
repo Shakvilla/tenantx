@@ -1,5 +1,6 @@
-import { AppError, ErrorCode } from './app-error'
 import type { ZodError } from 'zod'
+
+import { AppError, ErrorCode } from './app-error'
 
 /**
  * Error thrown when input validation fails.
@@ -23,6 +24,7 @@ export class ValidationError extends AppError {
     const issues = (zodError as unknown as { issues?: Array<{ path: (string | number)[]; message: string; code: string }> }).issues || 
                    (zodError as unknown as { errors?: Array<{ path: (string | number)[]; message: string; code: string }> }).errors || 
                    []
+
     const firstError = issues[0]
     const field = firstError?.path?.join('.') || undefined
     const message = firstError?.message || 'Validation failed'

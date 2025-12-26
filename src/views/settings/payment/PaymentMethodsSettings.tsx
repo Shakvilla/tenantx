@@ -21,14 +21,16 @@ import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { PaymentGateway, MobileMoneyProvider } from '@/types/settings/paymentTypes'
 
 // Utils Imports
 import { paymentSettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const PaymentMethodsSettings = () => {
   // States
@@ -38,13 +40,16 @@ const PaymentMethodsSettings = () => {
   const [bankTransferGateways, setBankTransferGateways] = useState<PaymentGateway[]>(['redde', 'paystack'])
   const [mobileMoneyEnabled, setMobileMoneyEnabled] = useState(true)
   const [mobileMoneyGateways, setMobileMoneyGateways] = useState<PaymentGateway[]>(['redde', 'hubtel'])
+
   const [mobileMoneyProviders, setMobileMoneyProviders] = useState<MobileMoneyProvider[]>([
     'mtn',
     'vodafone',
     'airteltigo'
   ])
+
   const [cashEnabled, setCashEnabled] = useState(true)
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -67,6 +72,7 @@ const PaymentMethodsSettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const paymentMethods = [
         ...cardGateways.map(gateway => ({

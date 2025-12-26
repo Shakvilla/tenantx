@@ -66,8 +66,10 @@ type Unit = {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 // Vars
@@ -202,7 +204,9 @@ const UnitsListTable = () => {
   // Get unique properties for filter
   const uniqueProperties = useMemo(() => {
     const properties = Array.from(new Set(data.map(u => u.propertyName)))
-    return properties
+
+    
+return properties
   }, [data])
 
   // Filter data
@@ -212,12 +216,15 @@ const UnitsListTable = () => {
     if (status) {
       filtered = filtered.filter(u => u.status === status)
     }
+
     if (property) {
       filtered = filtered.filter(u => u.propertyName === property)
     }
+
     if (bedroom) {
       filtered = filtered.filter(u => u.bedrooms === Number(bedroom))
     }
+
     if (bathroom) {
       filtered = filtered.filter(u => u.bathrooms === Number(bathroom))
     }

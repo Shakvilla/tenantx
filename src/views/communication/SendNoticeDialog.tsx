@@ -140,16 +140,20 @@ const SendNoticeDialog = ({
   // Filtered units and tenants based on property/unit selection
   const filteredUnits = useMemo(() => {
     if (!formData.propertyId) return []
-    return units.filter(unit => unit.propertyId === formData.propertyId)
+    
+return units.filter(unit => unit.propertyId === formData.propertyId)
   }, [formData.propertyId, units])
 
   const filteredTenants = useMemo(() => {
     if (formData.sendToAll) return tenants
     if (!formData.propertyId && !formData.unitId) return []
+
     if (formData.unitId) {
       return tenants.filter(tenant => tenant.unitId === formData.unitId)
     }
-    return tenants.filter(tenant => tenant.propertyId === formData.propertyId)
+
+    
+return tenants.filter(tenant => tenant.propertyId === formData.propertyId)
   }, [formData.propertyId, formData.unitId, formData.sendToAll, tenants])
 
   // Reset form when dialog opens/closes
@@ -167,6 +171,7 @@ const SendNoticeDialog = ({
   // Handle input change
   const handleInputChange = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -175,9 +180,11 @@ const SendNoticeDialog = ({
     if (field === 'propertyId') {
       setFormData(prev => ({ ...prev, unitId: '', tenantIds: [] }))
     }
+
     if (field === 'unitId') {
       setFormData(prev => ({ ...prev, tenantIds: [] }))
     }
+
     if (field === 'sendToAll') {
       setFormData(prev => ({ ...prev, propertyId: '', unitId: '', tenantIds: [] }))
     }
@@ -189,7 +196,9 @@ const SendNoticeDialog = ({
       const newTenantIds = prev.tenantIds.includes(tenantId)
         ? prev.tenantIds.filter(id => id !== tenantId)
         : [...prev.tenantIds, tenantId]
-      return { ...prev, tenantIds: newTenantIds }
+
+      
+return { ...prev, tenantIds: newTenantIds }
     })
   }
 
@@ -200,15 +209,18 @@ const SendNoticeDialog = ({
     if (!formData.subject.trim()) {
       newErrors.subject = true
     }
+
     if (!formData.notice.trim()) {
       newErrors.notice = true
     }
+
     if (!formData.sendToAll && !formData.propertyId && formData.tenantIds.length === 0) {
       newErrors.tenantIds = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   // Handle submit

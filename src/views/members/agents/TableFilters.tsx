@@ -37,12 +37,14 @@ const TableFilters = ({
 
         if (startDate) {
           const start = new Date(startDate)
+
           start.setHours(0, 0, 0, 0)
           if (registrationDate < start) return false
         }
 
         if (endDate) {
           const end = new Date(endDate)
+
           end.setHours(23, 59, 59, 999)
           if (registrationDate > end) return false
         }

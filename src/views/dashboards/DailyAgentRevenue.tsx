@@ -1,19 +1,20 @@
 'use client'
 
 // Next Imports
-import dynamic from 'next/dynamic'
 import { useState, useMemo } from 'react'
+
+import dynamic from 'next/dynamic'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
-import Typography from '@mui/material/Typography'
+
+// import Typography from '@mui/material/Typography'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
-import { styled } from '@mui/material/styles'
-import { useTheme } from '@mui/material/styles'
+import { styled , useTheme } from '@mui/material/styles'
 
 // Third-party Imports
 import type { ApexOptions } from 'apexcharts'
@@ -24,7 +25,7 @@ import OptionMenu from '@core/components/option-menu'
 // Styled Component Imports
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
 
-const StyledCard = styled(Card)(({ theme }) => ({
+const StyledCard = styled(Card)(() => ({
   position: 'relative',
   overflow: 'hidden',
   '&::before': {
@@ -42,7 +43,9 @@ const StyledCard = styled(Card)(({ theme }) => ({
 // Helper function to get days in a month
 const getDaysInMonth = (month: string) => {
   const monthIndex = new Date(Date.parse(`${month} 1, 2024`)).getMonth()
-  return new Date(2024, monthIndex + 1, 0).getDate()
+
+  
+return new Date(2024, monthIndex + 1, 0).getDate()
 }
 
 // Generate daily data for a month
@@ -70,7 +73,7 @@ const generateDailyData = (month: string) => {
 
 const DailyAgentRevenue = () => {
   // Hooks
-  const theme = useTheme()
+  // const theme = useTheme()
   const [selectedMonth, setSelectedMonth] = useState('January')
 
   // Generate data based on selected month (memoized)

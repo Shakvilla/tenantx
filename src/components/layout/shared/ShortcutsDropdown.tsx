@@ -78,6 +78,7 @@ const ShortcutsDropdown = ({ shortcuts }: { shortcuts: ShortcutsType[] }) => {
     const adjustPopoverHeight = () => {
       if (ref.current) {
         const availableHeight = window.innerHeight - 100
+
         ref.current.style.height = `${Math.min(availableHeight, 550)}px`
       }
     }

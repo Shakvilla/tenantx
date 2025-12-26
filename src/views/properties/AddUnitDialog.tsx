@@ -87,13 +87,16 @@ const AddUnitDialog = ({ open, handleClose, properties, unitsData, setData, edit
         tenantName: editData.tenantName || ''
       }
     }
-    return initialData
+
+    
+return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
       const newFormData = getInitialFormData()
+
       setFormData(newFormData)
       setErrors({})
     }
@@ -102,6 +105,7 @@ const AddUnitDialog = ({ open, handleClose, properties, unitsData, setData, edit
 
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -117,12 +121,14 @@ const AddUnitDialog = ({ open, handleClose, properties, unitsData, setData, edit
     if (!formData.bedrooms) newErrors.bedrooms = true
     if (!formData.bathrooms) newErrors.bathrooms = true
     if (!formData.size.trim()) newErrors.size = true
+
     if (formData.status === 'occupied' && !formData.tenantName.trim()) {
       newErrors.tenantName = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = () => {

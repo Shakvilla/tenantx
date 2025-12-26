@@ -24,7 +24,7 @@ type FinancialMetricCardProps = {
   }
 }
 
-const StyledCard = styled(Card)(({ theme }) => ({
+const StyledCard = styled(Card)(() => ({
   position: 'relative',
   overflow: 'visible',
   transition: 'all 0.3s ease-in-out',

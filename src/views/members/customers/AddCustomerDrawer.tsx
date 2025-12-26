@@ -90,6 +90,7 @@ const AddCustomerDrawer = (props: Props) => {
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormValidateType, boolean>> = {}
+
     const requiredFields: (keyof FormValidateType)[] = [
       'name',
       'gender',
@@ -112,11 +113,13 @@ const AddCustomerDrawer = (props: Props) => {
     })
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleInputChange = (field: keyof FormValidateType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -124,11 +127,13 @@ const AddCustomerDrawer = (props: Props) => {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateForm()) {
       return
     }
 
     const data = formData
+
     const newCustomer: CustomerType = {
       id: (customerData?.length && customerData?.length + 1) || 1,
       name: data.name,

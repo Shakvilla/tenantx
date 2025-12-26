@@ -103,8 +103,10 @@ type TenantWithAction = Tenant & {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 // Sample data
@@ -205,11 +207,14 @@ const TenantsListTable = () => {
   const stats = useMemo(() => {
     const activeTenants = data.filter(t => t.status === 'active').length
     const inactiveTenants = data.filter(t => t.status === 'inactive').length
+
     const totalRevenue = data
       .filter(t => t.status === 'active' && t.costPerMonth)
       .reduce((sum, tenant) => {
         const amount = parseFloat((tenant.costPerMonth || '0').replace(/[₵,]/g, ''))
-        return sum + amount
+
+        
+return sum + amount
       }, 0)
 
     return {
@@ -223,13 +228,17 @@ const TenantsListTable = () => {
   // Get unique properties for filter
   const uniqueProperties = useMemo(() => {
     const properties = Array.from(new Set(data.map(t => t.propertyName)))
-    return properties
+
+    
+return properties
   }, [data])
 
   // Get unique units for filter
   const uniqueUnits = useMemo(() => {
     const units = Array.from(new Set(data.map(t => t.roomNo)))
-    return units
+
+    
+return units
   }, [data])
 
   // Sample properties and units data (in a real app, these would come from API)
@@ -285,8 +294,10 @@ const TenantsListTable = () => {
     // Split name into firstName and lastName if not already split
     let firstName = tenant.firstName || ''
     let lastName = tenant.lastName || ''
+
     if (!firstName && !lastName && tenant.name) {
       const nameParts = tenant.name.split(' ')
+
       firstName = nameParts[0] || ''
       lastName = nameParts.slice(1).join(' ') || ''
     }
@@ -328,9 +339,11 @@ const TenantsListTable = () => {
     if (status) {
       filtered = filtered.filter(t => t.status === status)
     }
+
     if (property) {
       filtered = filtered.filter(t => t.propertyName === property)
     }
+
     if (unit) {
       filtered = filtered.filter(t => t.roomNo === unit)
     }

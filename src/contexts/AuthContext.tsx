@@ -1,7 +1,9 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+
 import { useRouter } from 'next/navigation'
+
 import {
   loginUser as apiLogin,
   registerUser as apiRegister,
@@ -39,6 +41,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 // Provider
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
+
   const [state, setState] = useState<AuthState>({
     user: null,
     tenant: null,
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check auth on mount
   const refreshUser = useCallback(async () => {
     const token = getStoredToken()
+
     if (!token) {
       setState({
         user: null,
@@ -56,11 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: false,
         isLoading: false,
       })
-      return
+      
+return
     }
 
     try {
       const response = await getCurrentUser()
+
       if (response.success && response.data) {
         setState({
           user: response.data.user,
@@ -107,11 +113,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isAuthenticated: true,
           isLoading: false,
         })
-        return { success: true }
+        
+return { success: true }
       }
 
       setState(prev => ({ ...prev, isLoading: false }))
-      return {
+      
+return {
         success: false,
         error: response.error?.message || 'Login failed',
       }
@@ -139,11 +147,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isAuthenticated: true,
           isLoading: false,
         })
-        return { success: true }
+        
+return { success: true }
       }
 
       setState(prev => ({ ...prev, isLoading: false }))
-      return {
+      
+return {
         success: false,
         error: response.error?.message || 'Registration failed',
       }
@@ -181,10 +191,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 // Hook
 export function useAuth() {
   const context = useContext(AuthContext)
+
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider')
   }
-  return context
+
+  
+return context
 }
 
 // Optional: Hook for requiring authentication

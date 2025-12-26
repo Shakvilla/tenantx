@@ -176,7 +176,8 @@ const initialData: FormDataType = {
   amenities: amenitiesList.reduce(
     (acc, amenity) => {
       acc[amenity.id] = false
-      return acc
+      
+return acc
     },
     {} as Record<string, boolean>
   ),
@@ -272,7 +273,8 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
           amenitiesList.reduce(
             (acc, amenity) => {
               acc[amenity.id] = false
-              return acc
+              
+return acc
             },
             {} as Record<string, boolean>
           ),
@@ -280,14 +282,17 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
         thumbnailIndex: editData.thumbnailIndex ?? null
       }
     }
-    return {
+
+    
+return {
       ...initialData,
       amenities:
         initialData.amenities ||
         amenitiesList.reduce(
           (acc, amenity) => {
             acc[amenity.id] = false
-            return acc
+            
+return acc
           },
           {} as Record<string, boolean>
         ),
@@ -304,6 +309,7 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
   useEffect(() => {
     if (open) {
       const newFormData = getInitialFormData()
+
       setFormData(newFormData)
       setExistingImages(editData?.images || [])
       setActiveStep(0)
@@ -318,18 +324,24 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
+
+
       // Ensure amenities is always defined
       if (!updated.amenities) {
         updated.amenities = amenitiesList.reduce(
           (acc, amenity) => {
             acc[amenity.id] = false
-            return acc
+            
+return acc
           },
           {} as Record<string, boolean>
         )
       }
-      return updated
+
+      
+return updated
     })
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -337,8 +349,10 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
+
     if (files) {
       const fileArray = Array.from(files)
+
       setFormData(prev => ({
         ...prev,
         images: [...prev.images, ...fileArray]
@@ -373,8 +387,10 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     const files = e.dataTransfer.files
+
     if (files) {
       const fileArray = Array.from(files).filter(file => file.type.startsWith('image/'))
+
       setFormData(prev => ({
         ...prev,
         images: [...(prev.images || []), ...fileArray]
@@ -412,7 +428,8 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleNext = () => {
@@ -441,25 +458,31 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
   const handleSubmit = () => {
     // TODO: Implement submit logic
     console.log('Form submitted:', formData)
+
+
     // Clean up object URLs
     if (formData.images && formData.images.length > 0) {
       formData.images.forEach(image => {
         URL.revokeObjectURL(URL.createObjectURL(image))
       })
     }
+
     handleClose()
+
     const resetData: FormDataType = {
       ...initialData,
       amenities: amenitiesList.reduce(
         (acc, amenity) => {
           acc[amenity.id] = false
-          return acc
+          
+return acc
         },
         {} as Record<string, boolean>
       ),
       images: [],
       thumbnailIndex: null
     }
+
     setFormData(resetData)
     setActiveStep(0)
     setErrors({})
@@ -477,8 +500,10 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
         URL.revokeObjectURL(URL.createObjectURL(image))
       })
     }
+
     handleClose()
     const resetData = getInitialFormData()
+
     setFormData(resetData)
     setExistingImages(editData?.images || [])
     setActiveStep(0)
@@ -842,9 +867,12 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
                 <Grid container spacing={3}>
                   {existingImages.map((imageUrl, index) => {
                     const totalIndex = index // Existing images come first
+
                     const isThumbnail =
                       formData.thumbnailIndex === totalIndex && formData.thumbnailIndex < existingImages.length
-                    return (
+
+                    
+return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`existing-${index}`}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
@@ -878,7 +906,10 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
                             onClick={() => {
                               // Remove from existing images
                               const newExisting = existingImages.filter((_, i) => i !== index)
+
                               setExistingImages(newExisting)
+
+
                               // Adjust thumbnail index if needed
                               if (formData.thumbnailIndex === totalIndex) {
                                 setFormData(prev => ({ ...prev, thumbnailIndex: null }))
@@ -928,7 +959,9 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
                     const imageUrl = URL.createObjectURL(image)
                     const totalIndex = (existingImages?.length || 0) + index
                     const isThumbnail = formData.thumbnailIndex === totalIndex
-                    return (
+
+                    
+return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
@@ -966,6 +999,7 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
                               } else if (formData.thumbnailIndex !== null && formData.thumbnailIndex > totalIndex) {
                                 setFormData(prev => ({ ...prev, thumbnailIndex: prev.thumbnailIndex! - 1 }))
                               }
+
                               handleRemoveImage(index)
                             }}
                             aria-label='Remove image'
@@ -997,7 +1031,9 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
         )
       case 3:
         const selectedAmenities = amenitiesList.filter(amenity => formData.amenities[amenity.id])
-        return (
+
+        
+return (
           <div className='flex flex-col gap-6'>
             <div className='flex flex-col gap-2'>
               <Typography variant='h6' className='font-semibold' color='text.primary'>
@@ -1226,7 +1262,9 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
                       {formData.images.slice(0, 6).map((image, index) => {
                         const imageUrl = URL.createObjectURL(image)
                         const isThumbnail = formData.thumbnailIndex === index
-                        return (
+
+                        
+return (
                           <Grid size={{ xs: 6, sm: 4, md: 3 }} key={index}>
                             <Box
                               sx={{

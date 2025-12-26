@@ -60,11 +60,13 @@ const AddExpenseConfigDrawer = (props: Props) => {
     })
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleInputChange = (field: keyof FormValidateType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -72,11 +74,13 @@ const AddExpenseConfigDrawer = (props: Props) => {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateForm()) {
       return
     }
 
     const data = formData
+
     const newExpenseConfig: ExpenseConfigType = {
       id: (expenseConfigData?.length && expenseConfigData?.length + 1) || 1,
       item: data.item,

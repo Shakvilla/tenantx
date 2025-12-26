@@ -51,6 +51,7 @@ export function parsePaginationParams(
     searchParams.get('pageSize') || String(DEFAULT_PAGE_SIZE),
     10
   )
+
   const pageSize = Number.isNaN(parsedPageSize) 
     ? DEFAULT_PAGE_SIZE 
     : Math.min(Math.max(1, parsedPageSize), MAX_PAGE_SIZE)
@@ -118,8 +119,10 @@ export function parseQueryOptions(
 
   // Parse allowed filters
   const filters: Record<string, unknown> = {}
+
   allowedFilters.forEach((key) => {
     const value = searchParams.get(key)
+
     if (value !== null) {
       filters[key] = value
     }

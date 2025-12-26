@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
 import {
   createMockSupabaseClient,
   setMockResult,
@@ -32,6 +33,7 @@ describe('tenant-service', () => {
   describe('getTenantRecords', () => {
     it('should return paginated tenant records', async () => {
       const mockRecords = createMockTenantRecordList(5)
+
       setMockListResult(mockSupabase, mockRecords, 5)
 
       const result = await getTenantRecords(mockSupabase, tenantId, {
@@ -47,6 +49,7 @@ describe('tenant-service', () => {
 
     it('should apply filters when provided', async () => {
       const activeRecords = createMockTenantRecordList(3, { status: 'active' })
+
       setMockListResult(mockSupabase, activeRecords, 3)
 
       const result = await getTenantRecords(mockSupabase, tenantId, {
@@ -73,6 +76,7 @@ describe('tenant-service', () => {
   describe('getTenantRecordById', () => {
     it('should return tenant record when found', async () => {
       const mockRecord = createMockTenantRecord()
+
       setMockResult(mockSupabase, { data: mockRecord, error: null, count: null })
 
       const result = await getTenantRecordById(mockSupabase, tenantId, 'tr-123')
@@ -111,6 +115,7 @@ describe('tenant-service', () => {
 
       // First call: check for existing email (findByEmail)
       setMockResult(mockSupabase, { data: null, error: { message: 'Not found', code: 'PGRST116' }, count: null })
+
       // Second call: create record
       setMockResult(mockSupabase, { data: createdRecord, error: null, count: null })
 
@@ -122,6 +127,7 @@ describe('tenant-service', () => {
 
     it('should throw ConflictError when email already exists', async () => {
       const existingRecord = createMockTenantRecord({ email: validPayload.email })
+
       setMockResult(mockSupabase, { data: existingRecord, error: null, count: null })
 
       await expect(
@@ -143,6 +149,7 @@ describe('tenant-service', () => {
     it('should throw ValidationError for missing required fields', async () => {
       const incompletePayload = {
         firstName: 'Jane',
+
         // Missing lastName, email, phone
       }
 
@@ -162,6 +169,7 @@ describe('tenant-service', () => {
 
       // First call: findByIdOrThrow
       setMockResult(mockSupabase, { data: existingRecord, error: null, count: null })
+
       // Second call: update
       setMockResult(mockSupabase, { data: updatedRecord, error: null, count: null })
 
@@ -197,6 +205,7 @@ describe('tenant-service', () => {
       
       // First call: findByIdOrThrow
       setMockResult(mockSupabase, { data: existingRecord, error: null, count: null })
+
       // Second call: delete
       setMockResult(mockSupabase, { data: null, error: null, count: null })
 
@@ -221,11 +230,13 @@ describe('tenant-service', () => {
     it('should return correct statistics', async () => {
       // Mock 4 count queries (total, active, inactive, pending)
       const chain = (mockSupabase as any)._chain
+
       chain.then
-        .mockImplementationOnce((resolve: Function) => resolve({ data: null, error: null, count: 10 }))
-        .mockImplementationOnce((resolve: Function) => resolve({ data: null, error: null, count: 6 }))
-        .mockImplementationOnce((resolve: Function) => resolve({ data: null, error: null, count: 2 }))
-        .mockImplementationOnce((resolve: Function) => resolve({ data: null, error: null, count: 2 }))
+        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: null, error: null, count: 10 }))
+        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: null, error: null, count: 6 }))
+        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: null, error: null, count: 2 }))
+        .mockImplementationOnce((resolve: (value: unknown) => void) => resolve({ data: null, error: null, count: 2 }))
+
 
       const stats = await getTenantRecordStats(mockSupabase, tenantId)
 

@@ -44,7 +44,8 @@ const REFRESH_TOKEN_KEY = 'refresh_token'
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null
-  return localStorage.getItem(TOKEN_KEY)
+  
+return localStorage.getItem(TOKEN_KEY)
 }
 
 export function setStoredTokens(token: string, refreshToken: string): void {
@@ -61,7 +62,9 @@ export function clearStoredTokens(): void {
 
 function getAuthHeaders(): HeadersInit {
   const token = getStoredToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
+
+  
+return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 // API Functions
@@ -126,11 +129,14 @@ export async function logoutUser(): Promise<ApiResponse<null>> {
 
     // If there's an error response, try to parse it
     const data = await res.json()
-    return data
+
+    
+return data
   } catch {
     // Even if the API call fails, clear local tokens
     clearStoredTokens()
-    return { success: true, data: null }
+    
+return { success: true, data: null }
   }
 }
 
@@ -139,6 +145,7 @@ export async function getCurrentUser(): Promise<
   ApiResponse<{ user: AuthUser; tenant: AuthTenant }>
 > {
   const token = getStoredToken()
+
   if (!token) {
     return { success: false, data: null, error: { code: 'NO_TOKEN', message: 'Not authenticated' } }
   }

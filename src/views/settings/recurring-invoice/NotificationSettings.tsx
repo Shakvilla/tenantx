@@ -58,7 +58,7 @@ const NotificationSettings = () => {
             <div className='flex flex-col'>
               <Typography className='font-medium'>Send on Generation</Typography>
               <Typography variant='body2' color='text.secondary'>
-                Send invoice immediately when it's generated
+                Send invoice immediately when it&apos;s generated
               </Typography>
             </div>
           }

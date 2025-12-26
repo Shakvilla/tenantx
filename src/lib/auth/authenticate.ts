@@ -1,7 +1,9 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
+import type { User, SupabaseClient } from '@supabase/supabase-js'
+
 import { createClient } from '@/lib/supabase/server'
 import { UnauthorizedError } from '@/lib/errors'
-import type { User, SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database/database.types'
 
 /**
@@ -31,6 +33,7 @@ export async function authenticateServerAction(): Promise<AuthContext> {
   
   // Extract tenant_id from user metadata
   const tenantId = user.user_metadata?.tenant_id
+
   if (!tenantId) {
     throw new UnauthorizedError('No tenant context found')
   }

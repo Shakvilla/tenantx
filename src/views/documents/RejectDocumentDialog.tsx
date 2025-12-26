@@ -24,11 +24,11 @@ import type { DocumentType } from '@/types/documents/documentTypes'
 type RejectDocumentDialogProps = {
   open: boolean
   setOpen: (open: boolean) => void
-  document: DocumentType | null
+  documentData: DocumentType | null
   onConfirm: (rejectReason: string) => void
 }
 
-const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocumentDialogProps) => {
+const RejectDocumentDialog = ({ open, setOpen, documentData, onConfirm }: RejectDocumentDialogProps) => {
   // States
   const [rejectReason, setRejectReason] = useState('')
   const [error, setError] = useState(false)
@@ -42,8 +42,10 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
   const handleConfirm = () => {
     if (!rejectReason.trim()) {
       setError(true)
-      return
+      
+return
     }
+
     onConfirm(rejectReason)
     handleClose()
   }
@@ -51,8 +53,9 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
   const handleDownload = (imageUrl?: string) => {
     if (imageUrl) {
       const link = document.createElement('a')
+
       link.href = imageUrl
-      link.download = `document-${document?.id || 'download'}`
+      link.download = `document-${documentData?.id || 'download'}`
       link.target = '_blank'
       document.body.appendChild(link)
       link.click()
@@ -60,7 +63,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
     }
   }
 
-  if (!document) return null
+  if (!documentData) return null
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth='lg' fullWidth>
@@ -78,8 +81,8 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
               <Box className='relative'>
                 <Avatar
                   variant='rounded'
-                  src={document.documentImage}
-                  alt={document.documentType}
+                  src={documentData.documentImage}
+                  alt={documentData.documentType}
                   sx={{
                     width: '100%',
                     height: 400,
@@ -98,7 +101,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
                     boxShadow: 2
                   }}
                   size='small'
-                  onClick={() => handleDownload(document.documentImage)}
+                  onClick={() => handleDownload(documentData.documentImage)}
                 >
                   <i className='ri-download-line' />
                 </IconButton>
@@ -110,7 +113,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
               <Box className='relative'>
                 <Avatar
                   variant='rounded'
-                  src={document.tenantAvatar || document.documentImage}
+                  src={documentData.tenantAvatar || documentData.documentImage}
                   alt='Additional Document'
                   sx={{
                     width: '100%',
@@ -130,7 +133,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
                     boxShadow: 2
                   }}
                   size='small'
-                  onClick={() => handleDownload(document.tenantAvatar || document.documentImage)}
+                  onClick={() => handleDownload(documentData.tenantAvatar || documentData.documentImage)}
                 >
                   <i className='ri-download-line' />
                 </IconButton>
@@ -148,7 +151,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
                   SL
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.id}
+                  {documentData.id}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -156,7 +159,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
                   Document Type
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.documentType}
+                  {documentData.documentType}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12 }}>
@@ -164,7 +167,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
                   Property
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.propertyName}
+                  {documentData.propertyName}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -172,7 +175,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
                   Unit
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.unitNo}
+                  {documentData.unitNo}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -180,7 +183,7 @@ const RejectDocumentDialog = ({ open, setOpen, document, onConfirm }: RejectDocu
                   Tenant Name
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.tenantName}
+                  {documentData.tenantName}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12 }}>

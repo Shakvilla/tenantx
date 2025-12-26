@@ -69,8 +69,10 @@ type DocumentTypeWithAction = DocumentType & {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -293,12 +295,16 @@ const DocumentsListTable = ({ tableData }: { tableData?: DocumentType[] }) => {
   // Get unique properties and units
   const uniqueProperties = useMemo(() => {
     const props = Array.from(new Set(data.map(d => d.propertyName).filter(Boolean)))
-    return props as string[]
+
+    
+return props as string[]
   }, [data])
 
   const uniqueUnits = useMemo(() => {
     const units = Array.from(new Set(data.map(d => d.unitNo).filter(Boolean)))
-    return units as string[]
+
+    
+return units as string[]
   }, [data])
 
   // Filter data
@@ -397,7 +403,9 @@ const DocumentsListTable = ({ tableData }: { tableData?: DocumentType[] }) => {
         cell: ({ row, table }) => {
           const pageIndex = table.getState().pagination.pageIndex
           const pageSize = table.getState().pagination.pageSize
-          return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+          
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
         }
       }),
       columnHelper.accessor('propertyName', {
@@ -684,7 +692,7 @@ const DocumentsListTable = ({ tableData }: { tableData?: DocumentType[] }) => {
       <ViewDocumentDialog
         open={viewDocumentOpen}
         setOpen={setViewDocumentOpen}
-        document={documentToView}
+        documentData={documentToView}
         onAccept={() => {
           if (documentToView) {
             setDocumentToAccept(documentToView)
@@ -712,7 +720,7 @@ const DocumentsListTable = ({ tableData }: { tableData?: DocumentType[] }) => {
       <RejectDocumentDialog
         open={rejectDocumentOpen}
         setOpen={setRejectDocumentOpen}
-        document={documentToReject}
+        documentData={documentToReject}
         onConfirm={handleRejectDocument}
       />
 

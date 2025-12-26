@@ -47,10 +47,12 @@ const PlansComparisonView = ({ plans, currentPlanId, onSubscribe }: Props) => {
   // Get all unique features across all plans
   const allFeatures = useMemo(() => {
     const featureSet = new Set<string>()
+
     activePlans.forEach(plan => {
       plan.features.forEach(feature => featureSet.add(feature))
     })
-    return Array.from(featureSet)
+    
+return Array.from(featureSet)
   }, [activePlans])
 
   const handleSubscribe = (plan: SubscriptionPlan) => {
@@ -61,11 +63,13 @@ const PlansComparisonView = ({ plans, currentPlanId, onSubscribe }: Props) => {
   const formatLimit = (limit: number): string => {
     if (limit === -1) return 'Unlimited'
     if (limit === 0) return 'None'
-    return limit.toString()
+    
+return limit.toString()
   }
 
   const calculatePrice = (plan: SubscriptionPlan, cycle: BillingCycle): number => {
     const basePrice = parseFloat(plan.price) || 0
+
     if (plan.billingCycle === cycle) return basePrice
 
     // Convert to selected billing cycle

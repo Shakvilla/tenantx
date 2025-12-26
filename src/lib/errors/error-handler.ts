@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+
 import { ZodError } from 'zod'
+
 import { AppError, ErrorCode } from './app-error'
 import { ValidationError } from './validation-error'
 
@@ -24,7 +26,9 @@ export function handleError(error: unknown): NextResponse {
   // Handle Zod validation errors
   if (error instanceof ZodError) {
     const validationError = ValidationError.fromZodError(error)
-    return NextResponse.json(
+
+    
+return NextResponse.json(
       {
         success: false,
         data: null,
@@ -49,7 +53,9 @@ export function handleError(error: unknown): NextResponse {
   // Handle Supabase errors
   if (isSupabaseError(error)) {
     const statusCode = getSupabaseErrorStatusCode(error)
-    return NextResponse.json(
+
+    
+return NextResponse.json(
       {
         success: false,
         data: null,

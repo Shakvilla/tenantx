@@ -58,6 +58,7 @@ const BasicInformationSettings = () => {
   const [timezone, setTimezone] = useState('Africa/Accra')
   const [logo, setLogo] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -66,17 +67,21 @@ const BasicInformationSettings = () => {
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
+
     if (file) {
       const reader = new FileReader()
+
       reader.onloadend = () => {
         setLogo(reader.result as string)
       }
+
       reader.readAsDataURL(file)
     }
   }
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const basicInfo = {
         companyName,

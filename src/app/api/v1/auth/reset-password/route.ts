@@ -4,7 +4,8 @@
  * Reset password using reset token.
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 import { createClient } from '@/lib/supabase/server'
 import { resetPassword } from '@/services/auth-service'
 import { successResponse } from '@/lib/api/response'
@@ -17,6 +18,7 @@ export async function POST(request: NextRequest) {
     
     // Validate input
     const validation = ResetPasswordSchema.safeParse(body)
+
     if (!validation.success) {
       throw ValidationError.fromZodError(validation.error)
     }

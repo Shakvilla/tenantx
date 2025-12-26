@@ -1,4 +1,5 @@
 import { type NextRequest } from 'next/server'
+
 import { createClient } from '@/lib/supabase/server'
 import { authenticateRequest } from '@/lib/auth/authenticate'
 import { handleError } from '@/lib/errors'

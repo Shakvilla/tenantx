@@ -46,6 +46,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
   const handleSecondDialogClose = () => {
     setSecondDialog(false)
     setOpen(false)
+
     if (userInput && onConfirm) {
       onConfirm()
     }

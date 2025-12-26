@@ -37,18 +37,22 @@ const CurrentSubscriptionCard = ({ subscription, usage, onUpgrade, onDowngrade, 
 
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
+    
+return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
   const calculateUsagePercentage = (used: number, limit: number): number => {
     if (limit === -1) return 0 // Unlimited
     if (limit === 0) return 0
-    return Math.min((used / limit) * 100, 100)
+    
+return Math.min((used / limit) * 100, 100)
   }
 
   const formatLimit = (limit: number): string => {
     if (limit === -1) return 'Unlimited'
-    return limit.toString()
+    
+return limit.toString()
   }
 
   if (!subscription) {

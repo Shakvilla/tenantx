@@ -67,8 +67,10 @@ type MaintenanceRequestTypeWithAction = MaintenanceRequestType & {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -105,7 +107,9 @@ const formatDate = (dateString: string) => {
   const day = date.getDate()
   const month = date.toLocaleString('en-US', { month: 'long' })
   const year = date.getFullYear()
-  return `${day} ${month} ${year}`
+
+  
+return `${day} ${month} ${year}`
 }
 
 // Sample data
@@ -352,7 +356,9 @@ const MaintenanceRequestsListTable = ({
         cell: ({ row, table }) => {
           const pageIndex = table.getState().pagination.pageIndex
           const pageSize = table.getState().pagination.pageSize
-          return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+          
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
         }
       }),
       columnHelper.accessor('propertyName', {
@@ -448,7 +454,9 @@ const MaintenanceRequestsListTable = ({
               </div>
             )
           }
-          return <Typography color='text.secondary'>-</Typography>
+
+          
+return <Typography color='text.secondary'>-</Typography>
         }
       }),
       columnHelper.accessor('requestedDate', {
@@ -552,6 +560,7 @@ const MaintenanceRequestsListTable = ({
                     const selectedIds = Object.keys(rowSelection)
                       .map(key => filteredData[parseInt(key)]?.id)
                       .filter(Boolean) as number[]
+
                     if (selectedIds.length > 0) {
                       setSelectedRequest({ id: selectedIds[0] } as MaintenanceRequestType)
                       setDeleteRequestOpen(true)
@@ -728,6 +737,7 @@ const MaintenanceRequestsListTable = ({
               setData(data.filter(request => !selectedIds.includes(request.id)))
               setRowSelection({})
             }
+
             setDeleteRequestOpen(false)
             setSelectedRequest(null)
           }

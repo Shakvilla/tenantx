@@ -119,6 +119,7 @@ const AddExpenseDrawer = (props: Props) => {
       const property = editData.propertyId
         ? sampleProperties.find(p => p.id.toString() === editData.propertyId)
         : null
+
       const unit = editData.unitId
         ? sampleUnits.find(u => u.id.toString() === editData.unitId)
         : null
@@ -134,13 +135,16 @@ const AddExpenseDrawer = (props: Props) => {
         description: editData.description || ''
       }
     }
-    return initialData
+
+    
+return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
       const newFormData = getInitialFormData()
+
       setFormData(newFormData)
       setErrors({})
       
@@ -148,6 +152,7 @@ const AddExpenseDrawer = (props: Props) => {
       if (mode === 'add') {
         const today = new Date()
         const formattedDate = `${today.getDate()} ${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`
+
         setFormData(prev => ({ ...prev, date: formattedDate }))
       }
       
@@ -164,7 +169,8 @@ const AddExpenseDrawer = (props: Props) => {
   // Filter units based on selected property
   const filteredUnits = useMemo(() => {
     if (!formData.propertyId) return []
-    return sampleUnits.filter(unit => unit.propertyId === formData.propertyId)
+    
+return sampleUnits.filter(unit => unit.propertyId === formData.propertyId)
   }, [formData.propertyId])
 
   // Reset unit when property changes
@@ -176,6 +182,7 @@ const AddExpenseDrawer = (props: Props) => {
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FormDataType, boolean>> = {}
+
     const requiredFields: (keyof FormDataType)[] = [
       'expenseName',
       'propertyId',
@@ -205,11 +212,13 @@ const AddExpenseDrawer = (props: Props) => {
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleInputChange = (field: keyof FormDataType, value: string | File | null) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -217,13 +226,17 @@ const AddExpenseDrawer = (props: Props) => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+
     if (file) {
       setFormData(prev => ({ ...prev, image: file }))
       const reader = new FileReader()
+
       reader.onloadend = () => {
         setImagePreview(reader.result as string)
       }
+
       reader.readAsDataURL(file)
+
       if (errors.image) {
         setErrors(prev => ({ ...prev, image: false }))
       }
@@ -232,15 +245,18 @@ const AddExpenseDrawer = (props: Props) => {
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const dateValue = e.target.value
+
     if (dateValue) {
       const date = new Date(dateValue)
       const formattedDate = `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
+
       handleInputChange('date', formattedDate)
     }
   }
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
     if (!validateForm()) {
       return
     }
@@ -278,8 +294,10 @@ const AddExpenseDrawer = (props: Props) => {
   // Convert formatted date back to input format for date picker
   const getDateInputValue = () => {
     if (!formData.date) return ''
+
     try {
       const parts = formData.date.split(' ')
+
       const monthNames = [
         'January',
         'February',
@@ -294,17 +312,23 @@ const AddExpenseDrawer = (props: Props) => {
         'November',
         'December'
       ]
+
       const month = monthNames.indexOf(parts[1])
       const day = parseInt(parts[0])
       const year = parseInt(parts[2])
+
       if (month !== -1 && day && year) {
         const date = new Date(year, month, day)
-        return date.toISOString().split('T')[0]
+
+        
+return date.toISOString().split('T')[0]
       }
     } catch {
       // If parsing fails, return empty
     }
-    return ''
+
+    
+return ''
   }
 
   return (
@@ -349,7 +373,6 @@ const AddExpenseDrawer = (props: Props) => {
                   label='Property Name *'
                   value={formData.propertyId}
                   onChange={e => handleInputChange('propertyId', e.target.value)}
-                  placeholder='Name here'
                 >
                   <MenuItem value=''>Select Property</MenuItem>
                   {sampleProperties.map(property => (

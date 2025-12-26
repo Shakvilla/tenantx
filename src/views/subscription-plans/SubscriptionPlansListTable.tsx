@@ -65,8 +65,10 @@ declare module '@tanstack/table-core' {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const columnHelper = createColumnHelper<SubscriptionPlanWithAction>()
@@ -183,14 +185,18 @@ const SubscriptionPlansListTable = () => {
   // Calculate stats
   const stats = useMemo(() => {
     const activePlans = data.filter(p => p.status === 'active').length
+
     // Mock subscription counts (in real app, these would come from API)
     const totalSubscriptions = 45
     const activeSubscriptions = 38
+
     const monthlyRevenue = data
       .filter(p => p.status === 'active' && p.tier !== 'free')
       .reduce((sum, p) => {
         const price = parseFloat(p.price) || 0
-        return sum + price * 10 // Mock: assume 10 subscriptions per paid plan
+
+        
+return sum + price * 10 // Mock: assume 10 subscriptions per paid plan
       }, 0)
 
     return {
@@ -229,9 +235,11 @@ const SubscriptionPlansListTable = () => {
     if (status) {
       filtered = filtered.filter(p => p.status === status)
     }
+
     if (tier) {
       filtered = filtered.filter(p => p.tier === tier)
     }
+
     if (billingCycle) {
       filtered = filtered.filter(p => p.billingCycle === billingCycle)
     }
@@ -274,7 +282,9 @@ const SubscriptionPlansListTable = () => {
             pro: 'success',
             enterprise: 'warning'
           }
-          return (
+
+          
+return (
             <Chip
               variant='tonal'
               label={row.original.tier}
@@ -313,7 +323,9 @@ const SubscriptionPlansListTable = () => {
             inactive: 'warning',
             archived: 'error'
           }
-          return (
+
+          
+return (
             <Chip
               variant='tonal'
               label={row.original.status}

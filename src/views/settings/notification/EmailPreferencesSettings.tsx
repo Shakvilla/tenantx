@@ -24,14 +24,16 @@ import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { NotificationType } from '@/types/settings/notificationTypes'
 
 // Utils Imports
 import { notificationSettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const NOTIFICATION_TYPES: { value: NotificationType; label: string; description: string }[] = [
   {
@@ -70,11 +72,13 @@ const EmailPreferencesSettings = () => {
     tenant_welcome: true,
     maintenance_request: true
   })
+
   const [frequency, setFrequency] = useState<'immediate' | 'daily' | 'weekly'>('immediate')
   const [recipients, setRecipients] = useState<string>('')
   const [bccEmails, setBccEmails] = useState<string>('')
   const [ccEmails, setCcEmails] = useState<string>('')
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -90,6 +94,7 @@ const EmailPreferencesSettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const emailPreferences = Object.entries(notifications).map(([type, enabled]) => ({
         type: type as NotificationType,
@@ -101,6 +106,7 @@ const EmailPreferencesSettings = () => {
       await notificationSettingsApi.update({
         emailPreferences
       })
+
       // Note: emailRecipients, emailBcc, emailCc would be stored separately or in a different structure
       // This is a placeholder - adjust based on actual API structure
       setSnackbar({ open: true, message: 'Email preferences saved successfully', severity: 'success' })

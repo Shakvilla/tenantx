@@ -64,8 +64,10 @@ declare module '@tanstack/table-core' {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 // Sample data
@@ -193,11 +195,14 @@ const AgreementsListTable = () => {
     const activeAgreements = data.filter(a => a.status === 'active').length
     const expiredAgreements = data.filter(a => a.status === 'expired').length
     const pendingAgreements = data.filter(a => a.status === 'pending').length
+
     const totalRevenue = data
       .filter(a => a.status === 'active' && a.amount)
       .reduce((sum, agreement) => {
         const amount = parseFloat((agreement.amount || '0').replace(/[₵,]/g, ''))
-        return sum + amount
+
+        
+return sum + amount
       }, 0)
 
     return {
@@ -212,7 +217,9 @@ const AgreementsListTable = () => {
   // Get unique values for filters
   const uniqueProperties = useMemo(() => {
     const properties = Array.from(new Set(data.map(a => a.propertyName)))
-    return properties
+
+    
+return properties
   }, [data])
 
   // Sample properties, units, and tenants data (in a real app, these would come from API)
@@ -269,9 +276,11 @@ const AgreementsListTable = () => {
     if (status) {
       filtered = filtered.filter(a => a.status === status)
     }
+
     if (type) {
       filtered = filtered.filter(a => a.type === type)
     }
+
     if (property) {
       filtered = filtered.filter(a => a.propertyName === property)
     }
@@ -351,7 +360,9 @@ const AgreementsListTable = () => {
             pending: 'info',
             terminated: 'error'
           }
-          return (
+
+          
+return (
             <Chip
               variant='tonal'
               label={row.original.status}
@@ -366,14 +377,18 @@ const AgreementsListTable = () => {
         header: 'START DATE',
         cell: ({ row }) => {
           const date = new Date(row.original.startDate)
-          return <Typography>{date.toLocaleDateString()}</Typography>
+
+          
+return <Typography>{date.toLocaleDateString()}</Typography>
         }
       }),
       columnHelper.accessor('endDate', {
         header: 'END DATE',
         cell: ({ row }) => {
           const date = new Date(row.original.endDate)
-          return <Typography>{date.toLocaleDateString()}</Typography>
+
+          
+return <Typography>{date.toLocaleDateString()}</Typography>
         }
       }),
       columnHelper.accessor('amount', {

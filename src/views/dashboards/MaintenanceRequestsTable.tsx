@@ -32,11 +32,12 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 // Component Imports
+import MenuItem from '@mui/material/MenuItem'
+
 import OptionMenu from '@core/components/option-menu'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
-import MenuItem from '@mui/material/MenuItem'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -57,8 +58,10 @@ type MaintenanceRequest = {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const statusColorMap: Record<string, 'success' | 'warning' | 'info' | 'error'> = {
@@ -169,7 +172,8 @@ const MaintenanceRequestsTable = () => {
     if (activeFilter === 'pending')
       return data.filter(item => item.status === 'Pending' || item.status === 'In Progress')
     if (activeFilter === 'completed') return data.filter(item => item.status === 'Fixed')
-    return data
+    
+return data
   }, [data, activeFilter])
 
   const table = useReactTable({

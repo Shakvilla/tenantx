@@ -18,7 +18,9 @@ export class ConflictError extends AppError {
     const message = field
       ? `${resource} with this ${field} already exists`
       : `${resource} already exists`
-    return new ConflictError(message)
+
+    
+return new ConflictError(message)
   }
 }
 

@@ -10,24 +10,48 @@
 -- -----------------------------------------------------------------------------
 
 -- Function to set the current tenant context
-CREATE OR REPLACE FUNCTION set_tenant_context(tenant_id UUID)
-RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION set_tenant_context(p_tenant_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
 BEGIN
-  PERFORM set_config('app.current_tenant_id', tenant_id::TEXT, TRUE);
+  PERFORM pg_catalog.set_config(
+    'app.current_tenant_id',
+    p_tenant_id::text,
+    true
+  );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
 
 -- Function to clear the tenant context
 CREATE OR REPLACE FUNCTION clear_tenant_context()
-RETURNS VOID AS $$
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog
+AS $$
 BEGIN
-  PERFORM set_config('app.current_tenant_id', '', TRUE);
+  PERFORM pg_catalog.set_config(
+    'app.current_tenant_id',
+    '',
+    true
+  );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
 
 -- Function to get the current tenant ID (for RLS policies)
 CREATE OR REPLACE FUNCTION get_current_tenant_id()
-RETURNS UUID AS $$
+RETURNS UUID 
+LANGUAGE plpgsql 
+STABLE 
+SECURITY DEFINER
+-- This line fixes the linting error and secures the function
+SET search_path = public, pg_temp 
+AS $$
 DECLARE
   tenant_id TEXT;
 BEGIN
@@ -40,7 +64,7 @@ EXCEPTION
   WHEN OTHERS THEN
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 2. TENANTS TABLE (Platform Tenants / Organizations)
@@ -158,14 +182,17 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 -- 4. UPDATED_AT TRIGGER FUNCTION
 -- Automatically updates the updated_at column
 -- -----------------------------------------------------------------------------
-
 CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
 
 -- Apply trigger to tenants
 CREATE TRIGGER update_tenants_updated_at

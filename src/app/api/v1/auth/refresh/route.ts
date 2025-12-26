@@ -4,7 +4,8 @@
  * Refresh access token using refresh token.
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 import { createClient } from '@/lib/supabase/server'
 import { refreshToken } from '@/services/auth-service'
 import { successResponse } from '@/lib/api/response'

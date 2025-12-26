@@ -119,16 +119,25 @@ $$ LANGUAGE plpgsql;
 
 -- Invoice number generator
 CREATE OR REPLACE FUNCTION generate_invoice_number(p_tenant_id UUID)
-RETURNS TEXT AS $$
+RETURNS TEXT 
+LANGUAGE plpgsql
+-- Fixes the lint issue and ensures the function only looks in the public schema
+SET search_path = public, pg_temp
+AS $$
 DECLARE
   next_num INTEGER;
   prefix TEXT;
-  settings_data JSONB;
 BEGIN
-  -- Get prefix from settings, default to 'INV'
-  SELECT invoice->>'prefix' INTO prefix FROM settings WHERE tenant_id = p_tenant_id;
+  -- 1. Get prefix from settings, default to 'INV'
+  -- This ensures the invoice number matches the landlord's preferences
+  SELECT invoice->>'prefix' INTO prefix 
+  FROM settings 
+  WHERE tenant_id = p_tenant_id;
+  
   prefix := COALESCE(prefix, 'INV');
   
+  -- 2. Calculate the next number
+  -- It strips the prefix and increments the highest existing number
   SELECT COALESCE(MAX(CAST(SUBSTRING(invoice_number FROM LENGTH(prefix) + 2) AS INTEGER)), 0) + 1
   INTO next_num
   FROM invoices
@@ -136,7 +145,7 @@ BEGIN
   
   RETURN prefix || '-' || LPAD(next_num::TEXT, 5, '0');
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Maintenance request number generator
 CREATE OR REPLACE FUNCTION generate_maintenance_number(p_tenant_id UUID)

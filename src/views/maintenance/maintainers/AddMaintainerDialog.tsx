@@ -98,12 +98,14 @@ const AddMaintainerDialog = ({ open, handleClose, maintainerData, setData, editD
         setFormData(initialData)
         setAvatarPreview(null)
       }
+
       setErrors({})
     } else {
       // Clean up preview URL when dialog closes
       if (avatarPreview && avatarPreview.startsWith('blob:')) {
         URL.revokeObjectURL(avatarPreview)
       }
+
       setFormData(initialData)
       setErrors({})
       setAvatarPreview(null)
@@ -123,6 +125,7 @@ const AddMaintainerDialog = ({ open, handleClose, maintainerData, setData, editD
   // Handle input change
   const handleInputChange = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -131,18 +134,24 @@ const AddMaintainerDialog = ({ open, handleClose, maintainerData, setData, editD
   // Handle avatar upload
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
         // 5MB limit
         setErrors(prev => ({ ...prev, avatar: true }))
-        return
+        
+return
       }
+
+
       // Clean up previous preview URL
       if (avatarPreview && avatarPreview.startsWith('blob:')) {
         URL.revokeObjectURL(avatarPreview)
       }
+
       setFormData(prev => ({ ...prev, avatar: file }))
       setAvatarPreview(URL.createObjectURL(file))
+
       if (errors.avatar) {
         setErrors(prev => ({ ...prev, avatar: false }))
       }
@@ -155,8 +164,10 @@ const AddMaintainerDialog = ({ open, handleClose, maintainerData, setData, editD
     if (avatarPreview && avatarPreview.startsWith('blob:')) {
       URL.revokeObjectURL(avatarPreview)
     }
+
     setFormData(prev => ({ ...prev, avatar: null }))
     setAvatarPreview(null)
+
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -169,20 +180,24 @@ const AddMaintainerDialog = ({ open, handleClose, maintainerData, setData, editD
     if (!formData.name.trim()) {
       newErrors.name = true
     }
+
     if (!formData.email.trim()) {
       newErrors.email = true
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = true
     }
+
     if (!formData.phone.trim()) {
       newErrors.phone = true
     }
+
     if (!formData.specialization.trim()) {
       newErrors.specialization = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   // Handle submit
@@ -237,9 +252,11 @@ const AddMaintainerDialog = ({ open, handleClose, maintainerData, setData, editD
     setFormData(initialData)
     setErrors({})
     setAvatarPreview(null)
+
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+
     handleClose()
   }
 

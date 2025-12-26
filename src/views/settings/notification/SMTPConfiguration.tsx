@@ -22,14 +22,16 @@ import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { EncryptionType } from '@/types/settings/notificationTypes'
 
 // Utils Imports
 import { notificationSettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const SMTPConfiguration = () => {
   // States
@@ -43,6 +45,7 @@ const SMTPConfiguration = () => {
   const [fromName, setFromName] = useState('')
   const [loading, setLoading] = useState(false)
   const [testingEmail, setTestingEmail] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -52,10 +55,12 @@ const SMTPConfiguration = () => {
   const handleTestEmail = async () => {
     if (!fromEmail) {
       setSnackbar({ open: true, message: 'Please enter a from email address', severity: 'error' })
-      return
+      
+return
     }
 
     setTestingEmail(true)
+
     try {
       await notificationSettingsApi.testEmail(fromEmail)
       setSnackbar({ open: true, message: 'Test email sent successfully', severity: 'success' })
@@ -73,6 +78,7 @@ const SMTPConfiguration = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const smtpConfig = {
         host,

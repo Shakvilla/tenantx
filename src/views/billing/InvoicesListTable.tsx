@@ -59,7 +59,9 @@ const formatDate = (dateString: string): string => {
   const day = String(date.getDate()).padStart(2, '0')
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const year = date.getFullYear()
-  return `${day}/${month}/${year}`
+
+  
+return `${day}/${month}/${year}`
 }
 
 declare module '@tanstack/table-core' {
@@ -99,8 +101,10 @@ type InvoiceStatusObj = {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -250,6 +254,7 @@ const InvoicesListTable = () => {
     (invoice: Invoice) => {
       setSelectedInvoice(invoice)
       const availableStatuses = getAvailableStatuses(invoice.status)
+
       if (availableStatuses.length > 0) {
         setNewStatus(availableStatuses[0])
         setUpdateDialogOpen(true)
@@ -442,7 +447,8 @@ const InvoicesListTable = () => {
   // Filter by status
   const filteredData = useMemo(() => {
     if (!status) return data
-    return data.filter(invoice => invoice.status === status)
+    
+return data.filter(invoice => invoice.status === status)
   }, [status, data])
 
   const table = useReactTable({

@@ -22,14 +22,16 @@ import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { TaxDisplayOption } from '@/types/settings/paymentTypes'
 
 // Utils Imports
 import { paymentSettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const TaxSettings = () => {
   // States
@@ -40,6 +42,7 @@ const TaxSettings = () => {
   const [vatEnabled, setVatEnabled] = useState(true)
   const [gstEnabled, setGstEnabled] = useState(false)
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -48,6 +51,7 @@ const TaxSettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const taxSettings = {
         enabled: taxEnabled,

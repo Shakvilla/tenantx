@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 export const exportToExcel = (data: any[], filename: string) => {
   const worksheet = XLSX.utils.json_to_sheet(data)
   const workbook = XLSX.utils.book_new()
+
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Report')
   XLSX.writeFile(workbook, `${filename}.xlsx`)
 }
@@ -15,6 +16,7 @@ export const exportToCSV = (data: any[], filename: string) => {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   const url = URL.createObjectURL(blob)
+
   link.setAttribute('href', url)
   link.setAttribute('download', `${filename}.csv`)
   link.style.visibility = 'hidden'
@@ -25,9 +27,11 @@ export const exportToCSV = (data: any[], filename: string) => {
 
 export const exportToPDF = async (title: string, content: HTMLElement, filename: string) => {
   const { default: jsPDF } = await import('jspdf')
+
   await import('jspdf-autotable')
 
   const doc = new jsPDF()
+
   doc.text(title, 14, 20)
 
   // For now, we'll export tables. Charts would need to be converted to images first
@@ -49,9 +53,11 @@ export const exportToPDF = async (title: string, content: HTMLElement, filename:
 
     table.querySelectorAll('tbody tr').forEach((tr) => {
       const row: any[] = []
+
       tr.querySelectorAll('td').forEach((td) => {
         row.push(td.textContent || '')
       })
+
       if (row.length > 0) {
         rows.push(row)
       }

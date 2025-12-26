@@ -306,28 +306,55 @@ CREATE TRIGGER update_maintenance_requests_updated_at
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION update_maintainer_stats()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_new_maintainer_id uuid;
+  v_old_maintainer_id uuid;
 BEGIN
-  IF NEW.maintainer_id IS NOT NULL THEN
-    UPDATE maintainers
-    SET 
-      total_jobs = (SELECT COUNT(*) FROM maintenance_requests WHERE maintainer_id = NEW.maintainer_id),
-      completed_jobs = (SELECT COUNT(*) FROM maintenance_requests WHERE maintainer_id = NEW.maintainer_id AND status = 'completed')
-    WHERE id = NEW.maintainer_id;
+  v_new_maintainer_id := NEW.maintainer_id;
+  v_old_maintainer_id := OLD.maintainer_id;
+
+  -- Update new maintainer stats
+  IF v_new_maintainer_id IS NOT NULL THEN
+    UPDATE public.maintainers m
+    SET
+      total_jobs = s.total_jobs,
+      completed_jobs = s.completed_jobs
+    FROM (
+      SELECT
+        COUNT(*) AS total_jobs,
+        COUNT(*) FILTER (WHERE r.status = 'completed') AS completed_jobs
+      FROM public.maintenance_requests r
+      WHERE r.maintainer_id = v_new_maintainer_id
+    ) s
+    WHERE m.id = v_new_maintainer_id;
   END IF;
-  
-  -- Also update old maintainer if changed
-  IF OLD.maintainer_id IS NOT NULL AND OLD.maintainer_id != NEW.maintainer_id THEN
-    UPDATE maintainers
-    SET 
-      total_jobs = (SELECT COUNT(*) FROM maintenance_requests WHERE maintainer_id = OLD.maintainer_id),
-      completed_jobs = (SELECT COUNT(*) FROM maintenance_requests WHERE maintainer_id = OLD.maintainer_id AND status = 'completed')
-    WHERE id = OLD.maintainer_id;
+
+  -- Update old maintainer stats if reassigned
+  IF v_old_maintainer_id IS NOT NULL
+     AND v_old_maintainer_id IS DISTINCT FROM v_new_maintainer_id THEN
+
+    UPDATE public.maintainers m
+    SET
+      total_jobs = s.total_jobs,
+      completed_jobs = s.completed_jobs
+    FROM (
+      SELECT
+        COUNT(*) AS total_jobs,
+        COUNT(*) FILTER (WHERE r.status = 'completed') AS completed_jobs
+      FROM public.maintenance_requests r
+      WHERE r.maintainer_id = v_old_maintainer_id
+    ) s
+    WHERE m.id = v_old_maintainer_id;
   END IF;
-  
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
 
 CREATE TRIGGER update_maintainer_on_request_change
   AFTER INSERT OR UPDATE ON maintenance_requests

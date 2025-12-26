@@ -57,6 +57,7 @@ const ReplyDialog = ({ open, setOpen, communication, communicationData, setData 
       const replySubject = communication.subject.startsWith('Re:')
         ? communication.subject
         : `Re: ${communication.subject}`
+
       setFormData({
         subject: replySubject,
         message: ''
@@ -68,6 +69,7 @@ const ReplyDialog = ({ open, setOpen, communication, communicationData, setData 
   // Handle input change
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -80,12 +82,14 @@ const ReplyDialog = ({ open, setOpen, communication, communicationData, setData 
     if (!formData.subject.trim()) {
       newErrors.subject = true
     }
+
     if (!formData.message.trim()) {
       newErrors.message = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   // Handle submit

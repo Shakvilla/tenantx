@@ -42,7 +42,7 @@ const EarningsReport = ({ dateRange, onDateRangeChange }: Props) => {
       while (currentDate <= endDate && iterationCount < maxIterations) {
         trends.push({
           date: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          amount: Math.floor(Math.random() * 10000) + 5000
+          value: Math.floor(Math.random() * 10000) + 5000
         })
         currentDate.setDate(currentDate.getDate() + 7)
         iterationCount++
@@ -53,7 +53,7 @@ const EarningsReport = ({ dateRange, onDateRangeChange }: Props) => {
     if (trends.length === 0) {
       trends.push({
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        amount: 10000
+        value: 10000
       })
     }
 

@@ -40,6 +40,7 @@ const SMSSettings = () => {
   const [status, setStatus] = useState<'connected' | 'disconnected'>('disconnected')
   const [apiEndpoint, setApiEndpoint] = useState('')
   const [testPhoneNumber, setTestPhoneNumber] = useState('')
+
   const [smsNotifications, setSmsNotifications] = useState<Record<NotificationType, boolean>>({
     invoice_sent: false,
     payment_received: false,
@@ -47,17 +48,21 @@ const SMSSettings = () => {
     tenant_welcome: false,
     maintenance_request: false
   })
+
   const [loading, setLoading] = useState(false)
 
   // Load SMS configuration from backend
   useEffect(() => {
     const loadSMSConfig = async () => {
       setLoading(true)
+
       try {
         const data = await smsSettingsApi.get()
+
         setSmsEnabled(data?.enabled ?? false)
         setStatus(data?.status ?? 'disconnected')
         setApiEndpoint(data?.apiEndpoint ?? '')
+
         const prefs: Record<NotificationType, boolean> = {
           invoice_sent: false,
           payment_received: false,
@@ -65,6 +70,8 @@ const SMSSettings = () => {
           tenant_welcome: false,
           maintenance_request: false
         }
+
+
         // Check if notificationPreferences exists and is an array
         if (data?.notificationPreferences && Array.isArray(data.notificationPreferences)) {
           data.notificationPreferences.forEach(pref => {
@@ -73,6 +80,7 @@ const SMSSettings = () => {
             }
           })
         }
+
         setSmsNotifications(prefs)
         setLoading(false)
       } catch (error) {
@@ -94,12 +102,15 @@ const SMSSettings = () => {
   const handleTestSMS = async () => {
     if (!testPhoneNumber) {
       alert('Please enter a test phone number')
-      return
+      
+return
     }
 
     setLoading(true)
+
     try {
       const result = await smsSettingsApi.test(testPhoneNumber)
+
       alert(result.message || `Test SMS sent to ${testPhoneNumber}`)
       setLoading(false)
     } catch (error) {
@@ -111,6 +122,7 @@ const SMSSettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const notificationPreferences = Object.entries(smsNotifications).map(([type, enabled]) => ({
         type: type as NotificationType,

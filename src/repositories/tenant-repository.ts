@@ -1,6 +1,7 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+
 import { BaseRepository } from './base-repository'
 import type { Database, Tables, TablesInsert, TablesUpdate } from '@/types/database/database.types'
-import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Tenant record type from database.
@@ -74,6 +75,7 @@ class TenantRecordRepositoryClass extends BaseRepository<
       if (error.code === 'PGRST116') {
         return null
       }
+
       throw error
     }
 
@@ -99,6 +101,7 @@ class TenantRecordRepositoryClass extends BaseRepository<
       if (error.code === 'PGRST116') {
         return null
       }
+
       throw error
     }
 

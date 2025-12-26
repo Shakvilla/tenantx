@@ -37,6 +37,7 @@ const getInitialData = (invoiceData?: Props['invoiceData']): FormDataType => {
   const defaultFrom = 'landlord@example.com'
   const defaultTo = invoiceData?.tenantEmail || ''
   const defaultSubject = `Invoice ${invoiceData?.invoiceNumber || ''} - Payment Due`
+
   const defaultMessage = invoiceData
     ? `Dear ${invoiceData.tenantName},
 
@@ -66,6 +67,7 @@ const SendInvoiceDrawer = ({ open, handleClose, invoiceData }: Props) => {
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+
     // TODO: Implement send invoice functionality
     console.log('Sending invoice:', formData)
     handleClose()

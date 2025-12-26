@@ -57,7 +57,9 @@ const formatDate = (dateString: string) => {
   const day = date.getDate()
   const month = date.toLocaleString('en-US', { month: 'long' })
   const year = date.getFullYear()
-  return `${day} ${month} ${year}`
+
+  
+return `${day} ${month} ${year}`
 }
 
 // Style Imports
@@ -78,8 +80,10 @@ type CommunicationTypeWithAction = CommunicationType & {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -362,6 +366,7 @@ const CommunicationsListTable = ({ tableData }: { tableData?: CommunicationType[
   // Handle bulk delete
   const handleBulkDelete = () => {
     const selectedIds = Object.keys(rowSelection).map(key => filteredData[parseInt(key)]?.id).filter(Boolean) as number[]
+
     if (selectedIds.length > 0) {
       setData(data.filter(communication => !selectedIds.includes(communication.id)))
       setRowSelection({})
@@ -420,7 +425,9 @@ const CommunicationsListTable = ({ tableData }: { tableData?: CommunicationType[
         cell: ({ row, table }) => {
           const pageIndex = table.getState().pagination.pageIndex
           const pageSize = table.getState().pagination.pageSize
-          return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+          
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
         }
       }),
       columnHelper.accessor('subject', {
@@ -611,6 +618,7 @@ const CommunicationsListTable = ({ tableData }: { tableData?: CommunicationType[
                     const selectedIds = Object.keys(rowSelection)
                       .map(key => filteredData[parseInt(key)]?.id)
                       .filter(Boolean) as number[]
+
                     if (selectedIds.length > 0) {
                       setSelectedCommunication({ id: selectedIds[0] } as CommunicationType)
                       setDeleteCommunicationOpen(true)
@@ -809,6 +817,7 @@ const CommunicationsListTable = ({ tableData }: { tableData?: CommunicationType[
               setData(data.filter(communication => !selectedIds.includes(communication.id)))
               setRowSelection({})
             }
+
             setDeleteCommunicationOpen(false)
             setSelectedCommunication(null)
           }

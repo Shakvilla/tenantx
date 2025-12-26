@@ -11,6 +11,7 @@ export class NotFoundError extends AppError {
     const message = id
       ? `${resource} with ID '${id}' not found`
       : `${resource} not found`
+
     super(message, ErrorCode.RESOURCE_NOT_FOUND, 404)
   }
 

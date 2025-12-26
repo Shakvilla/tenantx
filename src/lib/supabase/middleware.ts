@@ -1,5 +1,7 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+
+import { createServerClient } from '@supabase/ssr'
+
 import type { Database } from '@/types/database/database.types'
 
 /**
@@ -65,6 +67,7 @@ export function resolveTenantId(
 
   // 2. Try X-Tenant-ID header (for API clients)
   const headerTenantId = request.headers.get('X-Tenant-ID')
+
   if (headerTenantId) {
     return headerTenantId
   }
@@ -72,6 +75,7 @@ export function resolveTenantId(
   // 3. Try subdomain extraction
   const host = request.headers.get('host') || ''
   const subdomain = extractSubdomain(host)
+
   if (subdomain) {
     // TODO: Look up tenant_id from subdomain in database
     // For now, return subdomain as tenant identifier

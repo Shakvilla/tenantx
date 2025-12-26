@@ -58,6 +58,7 @@ const DocumentationTab = () => {
   const handleDownload = (document: Document) => {
     // In a real app, this would trigger the download
     console.log('Downloading:', document.name)
+
     if (document.url) {
       window.open(document.url, '_blank')
     }

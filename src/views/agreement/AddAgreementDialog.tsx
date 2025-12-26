@@ -132,13 +132,16 @@ const AddAgreementDialog = ({
         documentFile: null
       }
     }
-    return initialData
+
+    
+return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
       const newFormData = getInitialFormData()
+
       setFormData(newFormData)
       setErrors({})
       setExpanded('basic-info')
@@ -152,9 +155,12 @@ const AddAgreementDialog = ({
   useEffect(() => {
     if (formData.propertyId !== previousPropertyIdRef.current) {
       previousPropertyIdRef.current = formData.propertyId
+
+
       // Only reset if current unitId doesn't exist in new filtered units
       if (formData.unitId) {
         const currentUnitExists = filteredUnits.find(u => u.id.toString() === formData.unitId)
+
         if (!currentUnitExists) {
           setFormData(prev => ({ ...prev, unitId: '' }))
         }
@@ -177,6 +183,7 @@ const AddAgreementDialog = ({
 
   const handleInputChange = (field: keyof AgreementFormDataType, value: string | AgreementType | AgreementStatus | PaymentFrequency) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -184,8 +191,10 @@ const AddAgreementDialog = ({
 
   const handleFileChange = (file: File | null) => {
     setFormData(prev => ({ ...prev, documentFile: file }))
+
     if (file) {
       const previewUrl = URL.createObjectURL(file)
+
       setPreviewDocument(previewUrl)
     } else {
       setPreviewDocument(null)
@@ -204,7 +213,8 @@ const AddAgreementDialog = ({
     if (!formData.amount.trim()) newErrors.amount = true
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = () => {
@@ -655,7 +665,9 @@ const AddAgreementDialog = ({
                     style={{ display: 'none' }}
                     onChange={e => {
                       const file = e.target.files?.[0] || null
+
                       handleFileChange(file)
+
                       if (e.target) {
                         e.target.value = ''
                       }

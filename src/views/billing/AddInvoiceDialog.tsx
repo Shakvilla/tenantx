@@ -142,17 +142,22 @@ const AddInvoiceDialog = ({
   // Generate invoice number
   const generateInvoiceNumber = (): string => {
     const year = new Date().getFullYear()
+
     const lastInvoice = invoicesData
       .filter(inv => inv.invoiceNumber.startsWith(`INV-${year}-`))
       .sort((a, b) => {
         const numA = parseInt(a.invoiceNumber.split('-')[2] || '0')
         const numB = parseInt(b.invoiceNumber.split('-')[2] || '0')
-        return numB - numA
+
+        
+return numB - numA
       })[0]
 
     let nextNumber = 1
+
     if (lastInvoice) {
       const lastNum = parseInt(lastInvoice.invoiceNumber.split('-')[2] || '0')
+
       nextNumber = lastNum + 1
     }
 
@@ -162,7 +167,8 @@ const AddInvoiceDialog = ({
   // Filter units by property
   const filteredUnits = useMemo(() => {
     if (!formData.propertyId) return []
-    return units.filter(unit => unit.propertyId === formData.propertyId)
+    
+return units.filter(unit => unit.propertyId === formData.propertyId)
   }, [units, formData.propertyId])
 
   // Filter tenants by property and unit
@@ -173,6 +179,7 @@ const AddInvoiceDialog = ({
 
     if (formData.propertyId) {
       const property = properties.find(p => p.id.toString() === formData.propertyId)
+
       if (property) {
         filtered = filtered.filter(t => t.propertyName === property.name)
       }
@@ -180,6 +187,7 @@ const AddInvoiceDialog = ({
 
     if (formData.unitId) {
       const unit = units.find(u => u.id.toString() === formData.unitId)
+
       if (unit) {
         filtered = filtered.filter(t => t.roomNo === unit.unitNumber)
       }
@@ -194,6 +202,7 @@ const AddInvoiceDialog = ({
       // Find property, unit, and tenant from editData
       const property = properties.find(p => p.name === editData.propertyName)
       const unit = units.find(u => u.unitNumber === editData.unitName)
+
       const tenant = tenants.find(
         t => t.name === editData.tenantName && t.email === editData.tenantEmail
       )
@@ -216,7 +225,9 @@ const AddInvoiceDialog = ({
         invoiceItems: []
       }
     }
-    return initialData
+
+    
+return initialData
   }
 
   // Reset form when dialog opens
@@ -226,6 +237,7 @@ const AddInvoiceDialog = ({
         const invoiceNumber = generateInvoiceNumber()
         const today = new Date()
         const invoiceMonth = `${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`
+
         setFormData({
           ...initialData,
           invoiceNumber,
@@ -234,8 +246,10 @@ const AddInvoiceDialog = ({
         })
       } else {
         const newFormData = getInitialFormData()
+
         setFormData(newFormData)
       }
+
       setErrors({})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -243,6 +257,7 @@ const AddInvoiceDialog = ({
 
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -251,6 +266,7 @@ const AddInvoiceDialog = ({
     if (field === 'propertyId') {
       setFormData(prev => ({ ...prev, unitId: '', tenantId: '' }))
     }
+
     if (field === 'unitId') {
       setFormData(prev => ({ ...prev, tenantId: '' }))
     }
@@ -262,18 +278,23 @@ const AddInvoiceDialog = ({
     if (!formData.invoiceNumber.trim()) {
       newErrors.invoiceNumber = true
     }
+
     if (!formData.propertyId) {
       newErrors.propertyId = true
     }
+
     if (!formData.unitId) {
       newErrors.unitId = true
     }
+
     if (!formData.tenantId) {
       newErrors.tenantId = true
     }
+
     if (!formData.invoiceMonth) {
       newErrors.invoiceMonth = true
     }
+
     if (!formData.endDate) {
       newErrors.endDate = true
     }
@@ -293,6 +314,7 @@ const AddInvoiceDialog = ({
       const hasInvalidItems = formData.invoiceItems.some(
         item => !item.description.trim() || item.quantity <= 0 || item.price <= 0
       )
+
       if (hasInvalidItems) {
         newErrors.invoiceItems = true
       }
@@ -301,12 +323,14 @@ const AddInvoiceDialog = ({
     if (!formData.invoiceType.trim()) {
       newErrors.invoiceType = true
     }
+
     if (!formData.description.trim()) {
       newErrors.description = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = () => {
@@ -323,6 +347,7 @@ const AddInvoiceDialog = ({
       formData.invoiceItems.length > 0
         ? calculateTotalAmount
         : parseFloat(formData.amount.replace(/[₵,]/g, '')) || 0
+
     const formattedAmount = `₵${amountValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
     // Calculate balance based on status
@@ -378,7 +403,9 @@ const AddInvoiceDialog = ({
     const total = formData.invoiceItems.reduce((sum, item) => {
       return sum + item.quantity * item.price
     }, 0)
-    return total
+
+    
+return total
   }, [formData.invoiceItems])
 
   const handleAddInvoiceItem = () => {
@@ -388,6 +415,7 @@ const AddInvoiceDialog = ({
       quantity: 1,
       price: 0
     }
+
     setFormData(prev => ({
       ...prev,
       invoiceItems: [...prev.invoiceItems, newItem]
@@ -430,6 +458,7 @@ const AddInvoiceDialog = ({
 
   const handleMonthChange = (value: string) => {
     const formatted = formatMonthInput(value)
+
     if (formatted.length <= 7) {
       handleInputChange('invoiceMonth', formatted)
     }
@@ -615,6 +644,7 @@ const AddInvoiceDialog = ({
                 value={formData.invoiceItems.length > 0 ? `₵${calculateTotalAmount.toFixed(2)}` : formData.amount}
                 onChange={e => {
                   const value = e.target.value.replace(/[₵,]/g, '')
+
                   handleInputChange('amount', value)
                 }}
                 error={Boolean(errors.amount)}

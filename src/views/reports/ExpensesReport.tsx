@@ -42,7 +42,7 @@ const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
       while (currentDate <= endDate && iterationCount < maxIterations) {
         trends.push({
           date: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          amount: Math.floor(Math.random() * 5000) + 2000
+          value: Math.floor(Math.random() * 5000) + 2000
         })
         currentDate.setDate(currentDate.getDate() + 7)
         iterationCount++
@@ -53,7 +53,7 @@ const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
     if (trends.length === 0) {
       trends.push({
         date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        amount: 5000
+        value: 5000
       })
     }
 
@@ -70,12 +70,12 @@ const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
         { label: 'Other', value: 20000 }
       ],
       monthlyComparison: [
-        { month: 'Jan', amount: 12000 },
-        { month: 'Feb', amount: 15000 },
-        { month: 'Mar', amount: 18000 },
-        { month: 'Apr', amount: 14000 },
-        { month: 'May', amount: 16000 },
-        { month: 'Jun', amount: 20000 }
+        { label: 'Jan', value: 12000 },
+        { label: 'Feb', value: 15000 },
+        { label: 'Mar', value: 18000 },
+        { label: 'Apr', value: 14000 },
+        { label: 'May', value: 16000 },
+        { label: 'Jun', value: 20000 }
       ]
     }
   }, [dateRange])

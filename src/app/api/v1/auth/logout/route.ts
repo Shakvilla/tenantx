@@ -4,7 +4,8 @@
  * Logout and invalidate the current session.
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 import { createClient } from '@/lib/supabase/server'
 import { logoutUser } from '@/services/auth-service'
 import { noContentResponse } from '@/lib/api/response'

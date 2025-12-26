@@ -4,7 +4,8 @@
  * Register a new user and optionally create a new tenant.
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { registerUser } from '@/services/auth-service'
 import { successResponse, createdResponse } from '@/lib/api/response'

@@ -263,16 +263,20 @@ const AddMaintenanceRequestDialog = ({
   // Filter units and tenants based on property selection
   const filteredUnits = useMemo(() => {
     if (!formData.propertyId) return []
-    return units.filter(unit => unit.propertyId === formData.propertyId)
+    
+return units.filter(unit => unit.propertyId === formData.propertyId)
   }, [formData.propertyId, units])
 
   const filteredTenants = useMemo(() => {
     if (!formData.propertyId && !formData.unitId) return []
-    return tenants.filter(tenant => {
+    
+return tenants.filter(tenant => {
       if (formData.unitId) {
         return tenant.unitId === formData.unitId
       }
-      return tenant.propertyId === formData.propertyId
+
+      
+return tenant.propertyId === formData.propertyId
     })
   }, [formData.propertyId, formData.unitId, tenants])
 
@@ -302,6 +306,7 @@ const AddMaintenanceRequestDialog = ({
         setFormData(initialData)
         setImagePreviews([])
       }
+
       setErrors({})
     } else {
       // Clean up preview URLs
@@ -313,6 +318,7 @@ const AddMaintenanceRequestDialog = ({
       setFormData(initialData)
       setErrors({})
       setImagePreviews([])
+
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -334,6 +340,7 @@ const AddMaintenanceRequestDialog = ({
   // Handle input change
   const handleInputChange = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -342,6 +349,7 @@ const AddMaintenanceRequestDialog = ({
     if (field === 'propertyId') {
       setFormData(prev => ({ ...prev, unitId: '', tenantId: '' }))
     }
+
     if (field === 'unitId') {
       setFormData(prev => ({ ...prev, tenantId: '' }))
     }
@@ -350,20 +358,26 @@ const AddMaintenanceRequestDialog = ({
   // Handle image upload
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
+
     if (files.length === 0) return
 
     const validFiles = files.filter(file => {
       if (file.size > 5 * 1024 * 1024) {
         // 5MB limit
         setErrors(prev => ({ ...prev, images: true }))
-        return false
+        
+return false
       }
-      return true
+
+      
+return true
     })
 
     const newPreviews = validFiles.map(file => URL.createObjectURL(file))
+
     setImagePreviews(prev => [...prev, ...newPreviews])
     setFormData(prev => ({ ...prev, images: [...prev.images, ...validFiles] }))
+
     if (errors.images) {
       setErrors(prev => ({ ...prev, images: false }))
     }
@@ -372,9 +386,11 @@ const AddMaintenanceRequestDialog = ({
   // Handle remove image
   const handleRemoveImage = (index: number) => {
     const previewToRemove = imagePreviews[index]
+
     if (previewToRemove.startsWith('blob:')) {
       URL.revokeObjectURL(previewToRemove)
     }
+
     setImagePreviews(prev => prev.filter((_, i) => i !== index))
     setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }))
   }
@@ -386,21 +402,26 @@ const AddMaintenanceRequestDialog = ({
     if (!formData.propertyId.trim()) {
       newErrors.propertyId = true
     }
+
     if (!formData.unitId.trim()) {
       newErrors.unitId = true
     }
+
     if (!formData.tenantId.trim()) {
       newErrors.tenantId = true
     }
+
     if (!formData.issue.trim()) {
       newErrors.issue = true
     }
+
     if (!formData.requestedDate.trim()) {
       newErrors.requestedDate = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   // Handle submit
@@ -474,9 +495,11 @@ const AddMaintenanceRequestDialog = ({
     setFormData(initialData)
     setErrors({})
     setImagePreviews([])
+
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+
     handleClose()
   }
 

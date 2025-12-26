@@ -232,18 +232,36 @@ ALTER TABLE tenant_records
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION update_property_unit_counts()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_property_id uuid;
+  v_total_units integer;
+  v_occupied_units integer;
 BEGIN
-  -- Update the property's unit counts
-  UPDATE properties
-  SET 
-    total_units = (SELECT COUNT(*) FROM units WHERE property_id = COALESCE(NEW.property_id, OLD.property_id)),
-    occupied_units = (SELECT COUNT(*) FROM units WHERE property_id = COALESCE(NEW.property_id, OLD.property_id) AND status = 'occupied')
-  WHERE id = COALESCE(NEW.property_id, OLD.property_id);
-  
+  v_property_id := COALESCE(NEW.property_id, OLD.property_id);
+
+  SELECT
+    COUNT(*),
+    COUNT(*) FILTER (WHERE u.status = 'occupied')
+  INTO
+    v_total_units,
+    v_occupied_units
+  FROM public.units u
+  WHERE u.property_id = v_property_id;
+
+  UPDATE public.properties p
+  SET
+    total_units = v_total_units,
+    occupied_units = v_occupied_units
+  WHERE p.id = v_property_id;
+
   RETURN COALESCE(NEW, OLD);
 END;
-$$ LANGUAGE plpgsql;
+$$;
+
 
 CREATE TRIGGER update_property_counts_on_unit_change
   AFTER INSERT OR UPDATE OR DELETE ON units

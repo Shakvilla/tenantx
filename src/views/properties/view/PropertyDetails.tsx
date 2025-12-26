@@ -19,6 +19,7 @@ type PropertyData = {
   price: string
   bedroom: number
   bathroom: number
+  rooms: number
   facilities: string[]
   condition: string
   region: string

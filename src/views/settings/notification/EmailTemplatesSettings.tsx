@@ -23,14 +23,16 @@ import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { EmailTemplateType } from '@/types/settings/notificationTypes'
 
 // Utils Imports
 import { notificationSettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const TEMPLATE_TYPES: { value: EmailTemplateType; label: string }[] = [
   { value: 'invoice_sent', label: 'Invoice Sent' },
@@ -61,10 +63,13 @@ const EmailTemplatesSettings = () => {
   // States
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplateType>('invoice_sent')
   const [subject, setSubject] = useState('Invoice #{{invoice_number}} - Payment Due')
+
   const [body, setBody] = useState(
     'Dear {{tenant_name}},\n\nYour invoice #{{invoice_number}} for {{property_name}} is due on {{due_date}}.\n\nAmount: {{amount}}\n\nThank you,\n{{company_name}}'
   )
+
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -73,6 +78,7 @@ const EmailTemplatesSettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const template = {
         id: selectedTemplate,
@@ -104,6 +110,7 @@ const EmailTemplatesSettings = () => {
 
   const handleReset = async () => {
     setLoading(true)
+
     try {
       // Load default template from API
       const settings = await notificationSettingsApi.get()
@@ -123,6 +130,7 @@ const EmailTemplatesSettings = () => {
       }
     } catch (error) {
       console.error('Error loading default template:', error)
+
       // Fallback to hardcoded default
       setSubject('Invoice #{{invoice_number}} - Payment Due')
       setBody(

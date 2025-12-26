@@ -25,14 +25,16 @@ import Tab from '@mui/material/Tab'
 import Box from '@mui/material/Box'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { PaymentGateway } from '@/types/settings/paymentTypes'
 
 // Utils Imports
 import { paymentSettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const PaymentGatewaySettings = () => {
   // States
@@ -61,6 +63,7 @@ const PaymentGatewaySettings = () => {
   const [hubtelWebhookUrl, setHubtelWebhookUrl] = useState('')
   const [hubtelPriority, setHubtelPriority] = useState(3)
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -73,6 +76,7 @@ const PaymentGatewaySettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const gatewaySettings = {
         redde: {

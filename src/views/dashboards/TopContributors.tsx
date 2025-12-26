@@ -1,18 +1,18 @@
 'use client'
 
 // Next Imports
+import { useMemo } from 'react'
+
 import dynamic from 'next/dynamic'
 
 // React Imports
-import { useMemo } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
 import Typography from '@mui/material/Typography'
-import { useTheme } from '@mui/material/styles'
-import { styled } from '@mui/material/styles'
+import { useTheme , styled } from '@mui/material/styles'
 import Chip from '@mui/material/Chip'
 
 // Third-party Imports
@@ -23,7 +23,9 @@ import {
   getCoreRowModel,
   useReactTable
 } from '@tanstack/react-table'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef, FilterFn } from '@tanstack/react-table'
+import { rankItem } from '@tanstack/match-sorter-utils'
+import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 // Type Imports
 import type { ContributorData } from '@/types/dashboards/dashboardTypes'
@@ -40,6 +42,24 @@ const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexChart
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+
+declare module '@tanstack/table-core' {
+  interface FilterFns {
+    fuzzy: FilterFn<unknown>
+  }
+  interface FilterMeta {
+    itemRank: RankingInfo
+  }
+}
+
+const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
+  const itemRank = rankItem(row.getValue(columnId), value)
+
+  addMeta({ itemRank })
+
+  return itemRank.passed
+}
+
 
 // Vars
 const barSeries = [
@@ -58,7 +78,7 @@ const contributorsData: ContributorData[] = [
   { name: 'Wiredu Kwabena', agent: '', contribution: 1300.0 }
 ]
 
-const StyledCard = styled(Card)(({ theme }) => ({
+const StyledCard = styled(Card)(() => ({
   position: 'relative',
   overflow: 'hidden',
   '&::before': {
@@ -75,7 +95,7 @@ const StyledCard = styled(Card)(({ theme }) => ({
 
 const TopContributors = () => {
   // Hooks
-  const theme = useTheme()
+  // const theme = useTheme()
 
   // Bar Chart Options
   const barOptions: ApexOptions = {
@@ -174,6 +194,9 @@ const TopContributors = () => {
   const table = useReactTable({
     data: contributorsData,
     columns,
+    filterFns: {
+      fuzzy: fuzzyFilter
+    },
     getCoreRowModel: getCoreRowModel()
   })
 

@@ -68,8 +68,10 @@ type MaintainerTypeWithAction = MaintainerType & {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -291,7 +293,9 @@ const MaintainersListTable = ({ tableData }: { tableData?: MaintainerType[] }) =
   // Get unique specializations
   const uniqueSpecializations = useMemo(() => {
     const specs = Array.from(new Set(data.map(m => m.specialization).filter(Boolean)))
-    return specs as string[]
+
+    
+return specs as string[]
   }, [data])
 
   // Filter data
@@ -366,7 +370,9 @@ const MaintainersListTable = ({ tableData }: { tableData?: MaintainerType[] }) =
         cell: ({ row, table }) => {
           const pageIndex = table.getState().pagination.pageIndex
           const pageSize = table.getState().pagination.pageSize
-          return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+          
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
         }
       }),
       columnHelper.accessor('name', {
@@ -519,6 +525,7 @@ const MaintainersListTable = ({ tableData }: { tableData?: MaintainerType[] }) =
                     const selectedIds = Object.keys(rowSelection)
                       .map(key => filteredData[parseInt(key)]?.id)
                       .filter(Boolean) as number[]
+
                     if (selectedIds.length > 0) {
                       setSelectedMaintainer({ id: selectedIds[0] } as MaintainerType)
                       setDeleteMaintainerOpen(true)
@@ -698,6 +705,7 @@ const MaintainersListTable = ({ tableData }: { tableData?: MaintainerType[] }) =
               setData(data.filter(maintainer => !selectedIds.includes(maintainer.id)))
               setRowSelection({})
             }
+
             setDeleteMaintainerOpen(false)
             setSelectedMaintainer(null)
           }

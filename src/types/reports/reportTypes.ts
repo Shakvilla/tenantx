@@ -16,7 +16,7 @@ export type ReportSummary = {
   change?: number
   changeType?: 'increase' | 'decrease'
   icon?: string
-  color?: 'success' | 'error' | 'warning' | 'info'
+  color?: 'success' | 'error' | 'warning' | 'info' | 'primary'
 }
 
 export type TenantsReportData = {
@@ -47,15 +47,15 @@ export type ExpensesReportData = {
   averageExpense: number
   trends: {
     date: string
-    amount: number
+    value: number
   }[]
   byCategory: {
     label: string
     value: number
   }[]
   monthlyComparison: {
-    month: string
-    amount: number
+    label: string
+    value: number
   }[]
 }
 
@@ -66,7 +66,7 @@ export type EarningsReportData = {
   averageRevenue: number
   trends: {
     date: string
-    amount: number
+    value: number
   }[]
   byProperty: {
     label: string

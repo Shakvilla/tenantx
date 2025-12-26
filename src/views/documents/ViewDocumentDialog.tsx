@@ -30,12 +30,12 @@ import type { DocumentType } from '@/types/documents/documentTypes'
 type ViewDocumentDialogProps = {
   open: boolean
   setOpen: (open: boolean) => void
-  document: DocumentType | null
+  documentData: DocumentType | null
   onAccept?: () => void
   onReject?: () => void
 }
 
-const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: ViewDocumentDialogProps) => {
+const ViewDocumentDialog = ({ open, setOpen, documentData, onAccept, onReject }: ViewDocumentDialogProps) => {
   // Status color mapping
   const documentStatusObj: {
     [key: string]: {
@@ -51,8 +51,9 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
   const handleDownload = (imageUrl?: string) => {
     if (imageUrl) {
       const link = document.createElement('a')
+
       link.href = imageUrl
-      link.download = `document-${document?.id || 'download'}`
+      link.download = `document-${documentData?.id || 'download'}`
       link.target = '_blank'
       document.body.appendChild(link)
       link.click()
@@ -60,9 +61,9 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
     }
   }
 
-  if (!document) return null
+  if (!documentData) return null
 
-  const statusConfig = documentStatusObj[document.status] || { color: 'secondary' }
+  const statusConfig = documentStatusObj[documentData.status] || { color: 'secondary' }
 
   return (
     <Dialog open={open} onClose={() => setOpen(false)} maxWidth='lg' fullWidth>
@@ -80,8 +81,8 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
               <Box className='relative'>
                 <Avatar
                   variant='rounded'
-                  src={document.documentImage}
-                  alt={document.documentType}
+                  src={documentData.documentImage}
+                  alt={documentData.documentType}
                   sx={{
                     width: '100%',
                     height: 400,
@@ -100,7 +101,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                     boxShadow: 2
                   }}
                   size='small'
-                  onClick={() => handleDownload(document.documentImage)}
+                  onClick={() => handleDownload(documentData.documentImage)}
                 >
                   <i className='ri-download-line' />
                 </IconButton>
@@ -112,7 +113,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
               <Box className='relative'>
                 <Avatar
                   variant='rounded'
-                  src={document.tenantAvatar || document.documentImage}
+                  src={documentData.tenantAvatar || documentData.documentImage}
                   alt='Additional Document'
                   sx={{
                     width: '100%',
@@ -132,7 +133,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                     boxShadow: 2
                   }}
                   size='small'
-                  onClick={() => handleDownload(document.tenantAvatar || document.documentImage)}
+                  onClick={() => handleDownload(documentData.tenantAvatar || documentData.documentImage)}
                 >
                   <i className='ri-download-line' />
                 </IconButton>
@@ -150,7 +151,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                   SL
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.id}
+                  {documentData.id}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -158,7 +159,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                   Document Type
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.documentType}
+                  {documentData.documentType}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12 }}>
@@ -166,7 +167,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                   Property
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.propertyName}
+                  {documentData.propertyName}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -174,7 +175,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                   Unit
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.unitNo}
+                  {documentData.unitNo}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -182,7 +183,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                   Tenant Name
                 </Typography>
                 <Typography variant='body1' className='font-medium'>
-                  {document.tenantName}
+                  {documentData.tenantName}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12 }}>
@@ -194,7 +195,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
                   className='font-medium capitalize'
                   sx={{ color: statusConfig.textColor || 'inherit' }}
                 >
-                  {document.status}
+                  {documentData.status}
                 </Typography>
               </Grid>
             </Grid>
@@ -205,7 +206,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
         <Button variant='outlined' color='secondary' onClick={() => setOpen(false)}>
           Close
         </Button>
-        {document.status !== 'accepted' && onAccept && (
+        {documentData.status !== 'accepted' && onAccept && (
           <Button
             variant='contained'
             color='primary'
@@ -218,7 +219,7 @@ const ViewDocumentDialog = ({ open, setOpen, document, onAccept, onReject }: Vie
             Accept
           </Button>
         )}
-        {document.status !== 'rejected' && onReject && (
+        {documentData.status !== 'rejected' && onReject && (
           <Button
             variant='outlined'
             color='warning'

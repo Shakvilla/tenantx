@@ -30,9 +30,11 @@ type Props = {
 const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
   const initialPreset = dateRange.preset || 'last30days'
   const [preset, setPreset] = useState<DateRangePreset>(initialPreset)
+
   const [startDate, setStartDate] = useState<string>(
     dateRange.startDate ? dateRange.startDate.toISOString().split('T')[0] : ''
   )
+
   const [endDate, setEndDate] = useState<string>(
     dateRange.endDate ? dateRange.endDate.toISOString().split('T')[0] : ''
   )
@@ -40,6 +42,8 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
   // Sync internal state with dateRange prop changes (only when preset changes externally)
   useEffect(() => {
     const newPreset = dateRange.preset || 'last30days'
+
+
     // Only update preset if it's different from current (to avoid overriding user selection)
     if (newPreset !== preset) {
       setPreset(newPreset)
@@ -48,12 +52,15 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
     // Always sync dates from prop
     if (dateRange.startDate) {
       const dateStr = dateRange.startDate.toISOString().split('T')[0]
+
       if (dateStr !== startDate) {
         setStartDate(dateStr)
       }
     }
+
     if (dateRange.endDate) {
       const dateStr = dateRange.endDate.toISOString().split('T')[0]
+
       if (dateStr !== endDate) {
         setEndDate(dateStr)
       }
@@ -63,8 +70,10 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
 
   const handlePresetChange = (newPreset: DateRangePreset) => {
     setPreset(newPreset)
+
     if (newPreset !== 'custom') {
       const newRange = getDateRangeFromPreset(newPreset)
+
       setStartDate(newRange.startDate ? newRange.startDate.toISOString().split('T')[0] : '')
       setEndDate(newRange.endDate ? newRange.endDate.toISOString().split('T')[0] : '')
       onDateRangeChange(newRange)
@@ -73,6 +82,7 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
       if (!startDate || !endDate) {
         const today = new Date()
         const thirtyDaysAgo = new Date()
+
         thirtyDaysAgo.setDate(today.getDate() - 30)
         setStartDate(thirtyDaysAgo.toISOString().split('T')[0])
         setEndDate(today.toISOString().split('T')[0])
@@ -84,6 +94,7 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
     if (startDate && endDate) {
       const start = new Date(startDate)
       const end = new Date(endDate)
+
       start.setHours(0, 0, 0, 0)
       end.setHours(23, 59, 59, 999)
 

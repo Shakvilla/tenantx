@@ -36,6 +36,7 @@ import { useAuth } from '@/contexts/AuthContext'
 const Register = ({ mode }: { mode: Mode }) => {
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -44,6 +45,7 @@ const Register = ({ mode }: { mode: Mode }) => {
     tenantName: '',
     phone: '',
   })
+
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -82,12 +84,14 @@ const Register = ({ mode }: { mode: Mode }) => {
     // Validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
-      return
+      
+return
     }
 
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters')
-      return
+      
+return
     }
 
     setIsSubmitting(true)

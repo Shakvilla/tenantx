@@ -4,7 +4,8 @@
  * Request password reset email.
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { forgotPassword } from '@/services/auth-service'
 import { successResponse } from '@/lib/api/response'
@@ -17,6 +18,7 @@ export async function POST(request: NextRequest) {
     
     // Validate input
     const validation = ForgotPasswordSchema.safeParse(body)
+
     if (!validation.success) {
       throw ValidationError.fromZodError(validation.error)
     }
@@ -38,7 +40,8 @@ export async function POST(request: NextRequest) {
     
     // Log the error but return success to prevent enumeration
     console.error('Forgot password error:', error)
-    return successResponse(
+    
+return successResponse(
       { message: 'If an account exists with this email, a password reset link has been sent.' },
       'Password reset email sent'
     )

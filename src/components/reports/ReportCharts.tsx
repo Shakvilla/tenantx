@@ -10,8 +10,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
 import Typography from '@mui/material/Typography'
-import { useTheme } from '@mui/material/styles'
-import { styled } from '@mui/material/styles'
+import { useTheme , styled } from '@mui/material/styles'
 
 // Third-party Imports
 import type { ApexOptions } from 'apexcharts'
@@ -53,7 +52,9 @@ export const LineChart = ({ title, data, dataKey, color = 'primary' }: LineChart
         }
       ]
     }
-    return [
+
+    
+return [
       {
         name: dataKey,
         data: data.map(d => d.value || 0)
@@ -142,7 +143,9 @@ export const BarChart = ({ title, data, color = 'primary' }: BarChartProps) => {
         }
       ]
     }
-    return [
+
+    
+return [
       {
         name: 'Value',
         data: data.map(d => d.value || 0)
@@ -227,7 +230,9 @@ export const DonutChart = ({ title, data }: DonutChartProps) => {
     if (!data || data.length === 0) {
       return []
     }
-    return data.map(d => d.value || 0)
+
+    
+return data.map(d => d.value || 0)
   }, [data])
 
   const options: ApexOptions = useMemo(

@@ -99,8 +99,10 @@ type TenantWithAction = Tenant & {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 // Sample data - includes both active and inactive tenants
@@ -241,13 +243,17 @@ const TenantsHistoryTable = () => {
   // Get unique properties for filter
   const uniqueProperties = useMemo(() => {
     const properties = Array.from(new Set(data.map(t => t.propertyName)))
-    return properties
+
+    
+return properties
   }, [data])
 
   // Get unique units for filter
   const uniqueUnits = useMemo(() => {
     const units = Array.from(new Set(data.map(t => t.roomNo)))
-    return units
+
+    
+return units
   }, [data])
 
   // Filter data
@@ -257,9 +263,11 @@ const TenantsHistoryTable = () => {
     if (status) {
       filtered = filtered.filter(t => t.status === status)
     }
+
     if (property) {
       filtered = filtered.filter(t => t.propertyName === property)
     }
+
     if (unit) {
       filtered = filtered.filter(t => t.roomNo === unit)
     }

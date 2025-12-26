@@ -22,14 +22,16 @@ import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 
 // Type Imports
+import Snackbar from '@mui/material/Snackbar'
+
+import Alert from '@mui/material/Alert'
+
 import type { LegalEntityType } from '@/types/settings/companyTypes'
 
 // Utils Imports
 import { companySettingsApi } from '@/utils/settings/api'
 
 // MUI Imports
-import Snackbar from '@mui/material/Snackbar'
-import Alert from '@mui/material/Alert'
 
 const LEGAL_ENTITY_TYPES: { value: LegalEntityType; label: string }[] = [
   { value: 'sole_proprietorship', label: 'Sole Proprietorship' },
@@ -70,6 +72,7 @@ const AdvancedInformationSettings = () => {
   const [legalZipCode, setLegalZipCode] = useState('')
   const [legalCountry, setLegalCountry] = useState('GH')
   const [loading, setLoading] = useState(false)
+
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -78,6 +81,7 @@ const AdvancedInformationSettings = () => {
 
   const handleSave = async () => {
     setLoading(true)
+
     try {
       const advancedInfo = {
         taxId,

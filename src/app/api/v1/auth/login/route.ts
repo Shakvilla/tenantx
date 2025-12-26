@@ -4,7 +4,8 @@
  * Login with email and password.
  */
 
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
+
 import { createAdminClient } from '@/lib/supabase/admin'
 import { loginUser } from '@/services/auth-service'
 import { successResponse } from '@/lib/api/response'

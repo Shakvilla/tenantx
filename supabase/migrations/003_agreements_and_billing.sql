@@ -253,31 +253,41 @@ CREATE POLICY "payments_service_role"
 -- -----------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION update_invoice_balance()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  total_paid numeric;
 BEGIN
   IF NEW.status = 'completed' THEN
-    UPDATE invoices
-    SET 
-      amount_paid = (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = NEW.invoice_id AND status = 'completed'),
-      balance_due = total - (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = NEW.invoice_id AND status = 'completed'),
-      paid_date = CASE 
-        WHEN (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = NEW.invoice_id AND status = 'completed') >= total 
-        THEN CURRENT_DATE 
-        ELSE NULL 
+
+    SELECT COALESCE(SUM(p.amount), 0)
+    INTO total_paid
+    FROM public.payments p
+    WHERE p.invoice_id = NEW.invoice_id
+      AND p.status = 'completed';
+
+    UPDATE public.invoices i
+    SET
+      amount_paid = total_paid,
+      balance_due = i.total - total_paid,
+      paid_date = CASE
+        WHEN total_paid >= i.total THEN CURRENT_DATE
+        ELSE NULL
       END,
-      status = CASE 
-        WHEN (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = NEW.invoice_id AND status = 'completed') >= total 
-        THEN 'paid'
-        WHEN (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = NEW.invoice_id AND status = 'completed') > 0 
-        THEN 'partial'
-        ELSE status
+      status = CASE
+        WHEN total_paid >= i.total THEN 'paid'
+        WHEN total_paid > 0 THEN 'partial'
+        ELSE i.status
       END
-    WHERE id = NEW.invoice_id;
+    WHERE i.id = NEW.invoice_id;
+
   END IF;
-  
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE TRIGGER update_invoice_on_payment
   AFTER INSERT OR UPDATE ON payments

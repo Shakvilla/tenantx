@@ -54,6 +54,7 @@ const SubscribeDialog = ({ open, handleClose, plan, billingCycle: initialBilling
 
   const calculatePrice = (cycle: BillingCycle): number => {
     const basePrice = parseFloat(plan.price) || 0
+
     if (plan.billingCycle === cycle) return basePrice
 
     // Convert to selected billing cycle
@@ -74,7 +75,8 @@ const SubscribeDialog = ({ open, handleClose, plan, billingCycle: initialBilling
   const formatLimit = (limit: number): string => {
     if (limit === -1) return 'Unlimited'
     if (limit === 0) return 'None'
-    return limit.toString()
+    
+return limit.toString()
   }
 
   const handleSubscribe = () => {

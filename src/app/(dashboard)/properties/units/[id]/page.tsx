@@ -1,8 +1,9 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState } from 'react'
+
+import { useParams } from 'next/navigation'
 
 // Component Imports
 import UnitDetails from '@/views/properties/view/UnitDetails'
@@ -22,12 +23,11 @@ type UnitData = {
 
 const ViewUnitPage = () => {
   const params = useParams()
-  const router = useRouter()
   const unitId = params.id as string
 
   // TODO: Fetch unit data from API using unitId
   // For now, using sample data - in a real app, this would come from an API
-  const [unitData, setUnitData] = useState<UnitData | undefined>({
+  const [unitData] = useState<UnitData | undefined>({
     id: unitId,
     unitNumber: 'Unit 101',
     propertyName: 'Xorla House',
@@ -40,14 +40,7 @@ const ViewUnitPage = () => {
     size: '850 sqft'
   })
 
-  // Refresh data after edit
-  const handleUnitUpdate = (updatedUnit: UnitData) => {
-    setUnitData(updatedUnit)
-    router.refresh()
-  }
-
-  return <UnitDetails unitData={unitData} unitId={unitId} onUnitUpdate={handleUnitUpdate} />
+  return <UnitDetails unitData={unitData} unitId={unitId} />
 }
 
 export default ViewUnitPage
-

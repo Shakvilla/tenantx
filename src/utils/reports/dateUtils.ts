@@ -4,6 +4,7 @@ import type { DateRangePreset, DateRange } from '@/types/reports/reportTypes'
 
 export const getDateRangeFromPreset = (preset: DateRangePreset): DateRange => {
   const today = new Date()
+
   today.setHours(23, 59, 59, 999)
 
   const startDate = new Date()
@@ -50,6 +51,7 @@ export const formatDateRange = (dateRange: DateRange): string => {
     day: 'numeric',
     year: 'numeric'
   })
+
   const end = dateRange.endDate.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',

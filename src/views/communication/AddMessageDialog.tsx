@@ -132,15 +132,19 @@ const AddMessageDialog = ({
   // Filtered units and tenants based on property/unit selection
   const filteredUnits = useMemo(() => {
     if (!formData.propertyId) return []
-    return units.filter(unit => unit.propertyId === formData.propertyId)
+    
+return units.filter(unit => unit.propertyId === formData.propertyId)
   }, [formData.propertyId, units])
 
   const filteredTenants = useMemo(() => {
     if (!formData.propertyId && !formData.unitId) return tenants
+
     if (formData.unitId) {
       return tenants.filter(tenant => tenant.unitId === formData.unitId)
     }
-    return tenants.filter(tenant => tenant.propertyId === formData.propertyId)
+
+    
+return tenants.filter(tenant => tenant.propertyId === formData.propertyId)
   }, [formData.propertyId, formData.unitId, tenants])
 
   // Reset form when dialog opens/closes
@@ -154,6 +158,7 @@ const AddMessageDialog = ({
   // Handle input change
   const handleInputChange = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
@@ -162,11 +167,14 @@ const AddMessageDialog = ({
     if (field === 'propertyId') {
       setFormData(prev => ({ ...prev, unitId: '', tenantId: '', to: '', toId: '' }))
     }
+
     if (field === 'unitId') {
       setFormData(prev => ({ ...prev, tenantId: '', to: '', toId: '' }))
     }
+
     if (field === 'tenantId') {
       const selectedTenant = filteredTenants.find(t => t.id.toString() === value)
+
       if (selectedTenant) {
         setFormData(prev => ({ ...prev, to: selectedTenant.name, toId: selectedTenant.id.toString() }))
       }
@@ -187,6 +195,7 @@ const AddMessageDialog = ({
     } else {
       setFormData(prev => ({ ...prev, tenantId: '', to: '', toId: '' }))
     }
+
     if (errors.tenantId) {
       setErrors(prev => ({ ...prev, tenantId: false }))
     }
@@ -199,15 +208,18 @@ const AddMessageDialog = ({
     if (!formData.subject.trim()) {
       newErrors.subject = true
     }
+
     if (!formData.to.trim()) {
       newErrors.to = true
     }
+
     if (!formData.message.trim()) {
       newErrors.message = true
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    
+return Object.keys(newErrors).length === 0
   }
 
   // Handle submit

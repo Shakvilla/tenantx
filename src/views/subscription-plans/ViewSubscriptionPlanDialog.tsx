@@ -46,13 +46,15 @@ const ViewSubscriptionPlanDialog = ({ open, handleClose, plan }: Props) => {
   // Mock subscription count (in real app, this would come from API)
   const subscriptionCount = useMemo(() => {
     if (!plan) return 0
+
     // Mock: return a random number between 5 and 50
     return Math.floor(Math.random() * 45) + 5
   }, [plan])
 
   const formatLimit = (limit: number): string => {
     if (limit === -1) return 'Unlimited'
-    return limit.toString()
+    
+return limit.toString()
   }
 
   if (!plan) {
