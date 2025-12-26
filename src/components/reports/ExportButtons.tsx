@@ -2,9 +2,6 @@
 
 'use client'
 
-// React Imports
-import { useRef } from 'react'
-
 // MUI Imports
 import Button from '@mui/material/Button'
 import Box from '@mui/material/Box'

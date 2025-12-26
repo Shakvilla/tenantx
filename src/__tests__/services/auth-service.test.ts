@@ -43,7 +43,7 @@ describe('auth-service', () => {
     }
 
     it('AC1: should create user, tenant, and return token on successful registration', async () => {
-      // Mock Supabase auth admin.createUser
+      // Mock Supabase auth admin methods
       mockSupabase.auth.admin = {
         createUser: vi.fn().mockResolvedValue({
           data: {
@@ -51,7 +51,15 @@ describe('auth-service', () => {
           },
           error: null,
         }),
-      }
+        updateUserById: vi.fn().mockResolvedValue({
+          data: { user: { id: 'user-123' } },
+          error: null,
+        }),
+        listUsers: vi.fn().mockResolvedValue({
+          data: { users: [] },
+          error: null,
+        }),
+      } as any
 
       // Mock signInWithPassword (called after createUser to get session)
       mockSupabase.auth.signInWithPassword = vi.fn().mockResolvedValue({
@@ -131,18 +139,37 @@ describe('auth-service', () => {
 
     // AC3: Duplicate email
     it('AC3: should throw ConflictError when email already exists', async () => {
+      // Mock createUser error with message that triggers duplicate check
       mockSupabase.auth.admin = {
         createUser: vi.fn().mockResolvedValue({
           data: { user: null },
-          error: { message: 'User already been registered', status: 400 },
+          error: { message: 'User has already been registered', status: 422 },
         }),
-      }
+        updateUserById: vi.fn().mockResolvedValue({
+          data: { user: null },
+          error: null,
+        }),
+        listUsers: vi.fn().mockResolvedValue({
+          data: { users: [] },
+          error: null,
+        }),
+      } as any
+
+      // Mock users table to return existing user (triggers ConflictError)
+      setMockResult(mockSupabase, {
+        data: { id: 'existing-user-123' },
+        error: null,
+        count: null,
+      })
 
       await expect(registerUser(mockSupabase, validRegistration)).rejects.toThrow(
         ConflictError
       )
     })
   })
+
+
+
 
   // ===========================================================================
   // AC4-AC6: User Login
