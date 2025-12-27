@@ -340,20 +340,51 @@ interface Property {
   id: string
   tenant_id: string
   name: string
+  description?: string
+  
+  // Location (expanded from frontend form)
   address: {
     street: string
     city: string
-    state: string
+    state: string      // Maps to 'region' in frontend
     zip: string
     country: string
   }
-  type: 'residential' | 'commercial' | 'mixed'
+  region: string       // Ghana region (Greater Accra, Ashanti, etc.)
+  district: string     // District within region
+  gpsCode?: string     // Ghana GPS address code
+  
+  // Property classification
+  type: 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment'
   ownership: 'own' | 'lease'
+  condition: 'new' | 'good' | 'fair' | 'poor'
+  
+  // Property features (from frontend form - property level)
+  bedrooms?: number
+  bathrooms?: number
+  rooms?: number
+  amenities?: string[]
+  
+  // Unit counts (auto-calculated)
   totalUnits: number
   occupiedUnits: number
+  
+  // Status
   status: 'active' | 'inactive' | 'maintenance'
+  
+  // Media
   images?: string[]
+  thumbnailIndex?: number   // Index of thumbnail image
   documents?: Document[]
+  
+  // Financial
+  purchasePrice?: number
+  currentValue?: number
+  currency?: string         // Default: 'GHS'
+  
+  // Metadata
+  metadata?: Record<string, unknown>
+  
   createdAt: Date
   updatedAt: Date
 }
@@ -363,15 +394,40 @@ interface Unit {
   tenant_id: string
   propertyId: string
   unitNo: string
-  type: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial'
-  rent: number
-  status: 'available' | 'occupied' | 'maintenance'
-  tenantId?: string
+  floor?: number
+  
+  // Unit type
+  type: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
+  
+  // Size & features
+  sizeSqft?: number
+  bedrooms?: number
+  bathrooms?: number
   amenities?: string[]
+  features?: Record<string, unknown>
+  
+  // Financial
+  rent: number
+  deposit?: number
+  currency?: string         // Default: 'GHS'
+  
+  // Status (note: 'vacant' in frontend maps to 'available' in DB)
+  status: 'available' | 'occupied' | 'maintenance' | 'reserved'
+  
+  // Current tenant
+  tenantRecordId?: string
+  
+  // Media
+  images?: string[]
+  
+  // Metadata
+  metadata?: Record<string, unknown>
+  
   createdAt: Date
   updatedAt: Date
 }
 ```
+
 
 #### 4.3.2 Endpoints
 

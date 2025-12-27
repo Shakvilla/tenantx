@@ -18,9 +18,42 @@ interface RouteParams {
 }
 
 /**
- * GET /api/v1/tenants/:id
- * 
- * Get a single tenant record by ID.
+ * @swagger
+ * /api/v1/tenants/{id}:
+ *   get:
+ *     summary: Get a tenant record
+ *     description: Retrieve a single property tenant (renter) by ID
+ *     tags:
+ *       - Tenants
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Tenant record ID
+ *     responses:
+ *       200:
+ *         description: Tenant record found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/TenantRecord'
+ *       404:
+ *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 export async function GET(
   request: NextRequest,
@@ -46,9 +79,61 @@ export async function GET(
 }
 
 /**
- * PUT /api/v1/tenants/:id
- * 
- * Update a tenant record (full update).
+ * @swagger
+ * /api/v1/tenants/{id}:
+ *   put:
+ *     summary: Update a tenant record (full)
+ *     description: Replace all fields of a tenant record
+ *     tags:
+ *       - Tenants
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Tenant record ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - firstName
+ *               - lastName
+ *               - email
+ *               - phone
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               phone:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive, pending]
+ *     responses:
+ *       200:
+ *         description: Tenant updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/TenantRecord'
+ *       404:
+ *         description: Tenant not found
  */
 export async function PUT(
   request: NextRequest,
@@ -77,9 +162,53 @@ export async function PUT(
 }
 
 /**
- * PATCH /api/v1/tenants/:id
- * 
- * Partial update a tenant record.
+ * @swagger
+ * /api/v1/tenants/{id}:
+ *   patch:
+ *     summary: Update a tenant record (partial)
+ *     description: Update specific fields of a tenant record
+ *     tags:
+ *       - Tenants
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               phone:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive, pending]
+ *     responses:
+ *       200:
+ *         description: Tenant updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/TenantRecord'
  */
 export async function PATCH(
   request: NextRequest,
@@ -108,9 +237,27 @@ export async function PATCH(
 }
 
 /**
- * DELETE /api/v1/tenants/:id
- * 
- * Delete a tenant record.
+ * @swagger
+ * /api/v1/tenants/{id}:
+ *   delete:
+ *     summary: Delete a tenant record
+ *     description: Permanently delete a tenant record
+ *     tags:
+ *       - Tenants
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       204:
+ *         description: Tenant deleted successfully
+ *       404:
+ *         description: Tenant not found
  */
 export async function DELETE(
   request: NextRequest,

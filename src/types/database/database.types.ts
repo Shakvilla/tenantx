@@ -1850,7 +1850,7 @@ export type Database = {
       }
       get_current_tenant_id: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
-      set_tenant_context: { Args: { tenant_id: string }; Returns: undefined }
+      set_tenant_context: { Args: { p_tenant_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

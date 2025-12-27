@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -15,6 +15,8 @@ import MenuItem from '@mui/material/MenuItem'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -30,6 +32,13 @@ import {
 } from '@tanstack/react-table'
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
+
+// Type Imports
+import type { Unit } from '@/types/property'
+
+// API Imports
+import { getAvailableUnits, deleteUnit } from '@/lib/api/units'
+import { getProperties } from '@/lib/api/properties'
 
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
@@ -51,17 +60,15 @@ declare module '@tanstack/table-core' {
   }
 }
 
-type Unit = {
-  id: string
-  unitNumber: string
+type UnitWithExtras = Unit & {
   propertyName: string
-  propertyId: string
-  tenantName: string | null
-  status: 'occupied' | 'vacant' | 'maintenance'
-  rent: string
-  bedrooms: number
-  bathrooms: number
-  size: string
+  formattedRent: string
+  formattedSize: string
+}
+
+interface PropertyOption {
+  id: string
+  name: string
 }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
@@ -75,150 +82,117 @@ return itemRank.passed
 // Vars
 const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
   occupied: 'success',
-  vacant: 'warning',
-  maintenance: 'error'
+  available: 'warning',
+  maintenance: 'error',
+  reserved: 'info'
 }
 
-// Sample data
-const sampleUnits: Unit[] = [
-  {
-    id: '1',
-    unitNumber: 'Unit 101',
-    propertyName: 'Xorla House',
-    propertyId: '1',
-    tenantName: 'John Doe',
-    status: 'occupied',
-    rent: '₵1,200',
-    bedrooms: 2,
-    bathrooms: 1,
-    size: '850 sqft'
-  },
-  {
-    id: '2',
-    unitNumber: 'Unit 102',
-    propertyName: 'Xorla House',
-    propertyId: '1',
-    tenantName: 'Jane Smith',
-    status: 'occupied',
-    rent: '₵1,500',
-    bedrooms: 3,
-    bathrooms: 2,
-    size: '1,200 sqft'
-  },
-  {
-    id: '3',
-    unitNumber: 'Unit 201',
-    propertyName: 'Xorla House',
-    propertyId: '1',
-    tenantName: null,
-    status: 'vacant',
-    rent: '₵1,300',
-    bedrooms: 2,
-    bathrooms: 1,
-    size: '900 sqft'
-  },
-  {
-    id: '4',
-    unitNumber: 'Unit 202',
-    propertyName: 'Xorla House',
-    propertyId: '1',
-    tenantName: 'Mike Johnson',
-    status: 'occupied',
-    rent: '₵1,800',
-    bedrooms: 3,
-    bathrooms: 2,
-    size: '1,350 sqft'
-  },
-  {
-    id: '5',
-    unitNumber: 'Unit 301',
-    propertyName: 'Xorla House',
-    propertyId: '1',
-    tenantName: null,
-    status: 'maintenance',
-    rent: '₵1,400',
-    bedrooms: 2,
-    bathrooms: 1,
-    size: '950 sqft'
-  },
-  {
-    id: '6',
-    unitNumber: 'Unit 401',
-    propertyName: 'Sunset Apartments',
-    propertyId: '2',
-    tenantName: 'Sarah Williams',
-    status: 'occupied',
-    rent: '₵2,000',
-    bedrooms: 4,
-    bathrooms: 3,
-    size: '1,500 sqft'
-  },
-  {
-    id: '7',
-    unitNumber: 'Unit 402',
-    propertyName: 'Sunset Apartments',
-    propertyId: '2',
-    tenantName: null,
-    status: 'vacant',
-    rent: '₵1,900',
-    bedrooms: 3,
-    bathrooms: 2,
-    size: '1,300 sqft'
-  }
-]
-
-const columnHelper = createColumnHelper<Unit>()
-
-// Sample properties for unit assignment
-const sampleProperties = [
-  { id: 1, name: 'Xorla House' },
-  { id: 2, name: 'Sunset Apartments' },
-  { id: 3, name: 'Green Valley' },
-  { id: 4, name: 'Ocean View' },
-  { id: 5, name: 'Mountain Heights' }
-]
+const columnHelper = createColumnHelper<UnitWithExtras>()
 
 const UnitsListTable = () => {
   // States
-  const [data, setData] = useState(sampleUnits)
+  const [data, setData] = useState<UnitWithExtras[]>([])
+  const [properties, setProperties] = useState<PropertyOption[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [status, setStatus] = useState('')
   const [property, setProperty] = useState('')
   const [bedroom, setBedroom] = useState('')
   const [bathroom, setBathroom] = useState('')
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
   const [addUnitOpen, setAddUnitOpen] = useState(false)
   const [editUnitOpen, setEditUnitOpen] = useState(false)
   const [deleteUnitOpen, setDeleteUnitOpen] = useState(false)
-  const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null)
+  const [selectedUnit, setSelectedUnit] = useState<UnitWithExtras | null>(null)
+
+  // Fetch available units
+  const fetchUnits = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await getAvailableUnits({
+        page: page + 1,
+        pageSize,
+        propertyId: property || undefined,
+      })
+
+      // Handle response with defensive checks
+      const responseData = response?.data || []
+      
+      // Transform data for display
+      const transformedData: UnitWithExtras[] = responseData.map(unit => ({
+        ...unit,
+        propertyName: unit.property?.name || 'Unknown Property',
+        formattedRent: `₵${unit.rent.toLocaleString()}`,
+        formattedSize: unit.size_sqft ? `${unit.size_sqft.toLocaleString()} sqft` : '-'
+      }))
+
+      setData(transformedData)
+      setTotal(response?.pagination?.total || 0)
+    } catch (err) {
+      console.error('Failed to load units:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load units')
+      setData([])
+      setTotal(0)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, pageSize, property])
+
+  // Fetch properties for filter
+  const fetchProperties = useCallback(async () => {
+    try {
+      const response = await getProperties({ pageSize: 100 })
+      const responseData = response?.data || []
+      setProperties(responseData.map(p => ({ id: p.id, name: p.name })))
+    } catch (err) {
+      console.error('Failed to fetch properties:', err)
+    }
+  }, [])
+
+  // Load data on mount
+  useEffect(() => {
+    fetchUnits()
+  }, [fetchUnits])
+
+  useEffect(() => {
+    fetchProperties()
+  }, [fetchProperties])
+
+  // Handle delete
+  const handleDelete = async () => {
+    if (!selectedUnit) return
+
+    try {
+      await deleteUnit(selectedUnit.id)
+      await fetchUnits()
+      setSelectedUnit(null)
+      setDeleteUnitOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete unit')
+    }
+  }
 
   // Calculate stats
   const stats = useMemo(() => {
     return {
-      allUnits: data.length,
+      allUnits: total,
       occupiedUnits: data.filter(u => u.status === 'occupied').length,
-      vacantUnits: data.filter(u => u.status === 'vacant').length,
+      vacantUnits: data.filter(u => u.status === 'available').length,
       maintenanceUnits: data.filter(u => u.status === 'maintenance').length
     }
-  }, [data])
+  }, [data, total])
 
-  // Get unique properties for filter
-  const uniqueProperties = useMemo(() => {
-    const properties = Array.from(new Set(data.map(u => u.propertyName)))
-
-    
-return properties
-  }, [data])
-
-  // Filter data
+  // Filter data locally for bedrooms/bathrooms
   const filteredData = useMemo(() => {
     let filtered = data
 
     if (status) {
       filtered = filtered.filter(u => u.status === status)
-    }
-
-    if (property) {
-      filtered = filtered.filter(u => u.propertyName === property)
     }
 
     if (bedroom) {
@@ -230,15 +204,15 @@ return properties
     }
 
     return filtered
-  }, [data, status, property, bedroom, bathroom])
+  }, [data, status, bedroom, bathroom])
 
-  const columns = useMemo<ColumnDef<Unit, any>[]>(
+  const columns = useMemo<ColumnDef<UnitWithExtras, any>[]>(
     () => [
-      columnHelper.accessor('unitNumber', {
+      columnHelper.accessor('unit_no', {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
           <Typography color='text.primary' className='font-medium'>
-            {row.original.unitNumber}
+            {row.original.unit_no}
           </Typography>
         )
       }),
@@ -250,60 +224,37 @@ return properties
           </Typography>
         )
       }),
-      columnHelper.accessor('tenantName', {
-        header: 'TENANT',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            {row.original.tenantName ? (
-              <>
-                <CustomAvatar skin='light' color='primary' size={34}>
-                  {row.original.tenantName
-                    .split(' ')
-                    .map(n => n[0])
-                    .join('')
-                    .toUpperCase()}
-                </CustomAvatar>
-                <Typography color='text.primary' className='font-medium'>
-                  {row.original.tenantName}
-                </Typography>
-              </>
-            ) : (
-              <Typography color='text.secondary'>-</Typography>
-            )}
-          </div>
-        )
-      }),
       columnHelper.accessor('status', {
         header: 'STATUS',
         cell: ({ row }) => (
           <Chip
             variant='tonal'
-            label={row.original.status}
+            label={row.original.status === 'available' ? 'vacant' : row.original.status}
             size='small'
-            color={unitStatusObj[row.original.status]}
+            color={unitStatusObj[row.original.status] || 'secondary'}
             className='capitalize'
           />
         )
       }),
-      columnHelper.accessor('rent', {
+      columnHelper.accessor('formattedRent', {
         header: 'RENT',
         cell: ({ row }) => (
           <Typography color='text.primary' className='font-medium'>
-            {row.original.rent}
+            {row.original.formattedRent}
           </Typography>
         )
       }),
       columnHelper.accessor('bedrooms', {
         header: 'BEDROOMS',
-        cell: ({ row }) => <Typography>{row.original.bedrooms}</Typography>
+        cell: ({ row }) => <Typography>{row.original.bedrooms || '-'}</Typography>
       }),
       columnHelper.accessor('bathrooms', {
         header: 'BATHROOMS',
-        cell: ({ row }) => <Typography>{row.original.bathrooms}</Typography>
+        cell: ({ row }) => <Typography>{row.original.bathrooms || '-'}</Typography>
       }),
-      columnHelper.accessor('size', {
+      columnHelper.accessor('formattedSize', {
         header: 'SIZE',
-        cell: ({ row }) => <Typography color='text.secondary'>{row.original.size}</Typography>
+        cell: ({ row }) => <Typography color='text.secondary'>{row.original.formattedSize}</Typography>
       }),
       columnHelper.display({
         id: 'actions',
@@ -354,11 +305,8 @@ return properties
     state: {
       globalFilter
     },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
+    manualPagination: true,
+    pageCount: Math.ceil(total / pageSize),
     globalFilterFn: fuzzyFilter,
     getCoreRowModel: getCoreRowModel(),
     onGlobalFilterChange: setGlobalFilter,
@@ -385,26 +333,42 @@ return properties
           title='Units List'
           action={
             <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <Button 
+                size='small' 
+                startIcon={<i className='ri-refresh-line' />}
+                onClick={() => fetchUnits()}
+              >
+                Refresh
+              </Button>
+              <OptionMenu options={['Share', 'Export']} />
             </div>
           }
         />
         <CardContent className='flex flex-col gap-4'>
+          {error && (
+            <Alert severity='error' onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+
           {/* Filters Section */}
-          <Box className='flex flex-col gap-4 p-4  rounded-lg'>
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 items-center gap-2 '>
+          <Box className='flex flex-col gap-4 p-4 rounded-lg'>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 items-center gap-2'>
               <TextField
                 select
                 size='small'
                 label='Select Property'
                 value={property}
-                onChange={e => setProperty(e.target.value)}
+                onChange={e => {
+                  setProperty(e.target.value)
+                  setPage(0)
+                }}
                 sx={{ minWidth: 180 }}
               >
                 <MenuItem value=''>All Properties</MenuItem>
-                {uniqueProperties.map(prop => (
-                  <MenuItem key={prop} value={prop}>
-                    {prop}
+                {properties.map(prop => (
+                  <MenuItem key={prop.id} value={prop.id}>
+                    {prop.name}
                   </MenuItem>
                 ))}
               </TextField>
@@ -418,8 +382,9 @@ return properties
               >
                 <MenuItem value=''>All Status</MenuItem>
                 <MenuItem value='occupied'>Occupied</MenuItem>
-                <MenuItem value='vacant'>Vacant</MenuItem>
+                <MenuItem value='available'>Vacant</MenuItem>
                 <MenuItem value='maintenance'>Maintenance</MenuItem>
+                <MenuItem value='reserved'>Reserved</MenuItem>
               </TextField>
               <TextField
                 select
@@ -434,7 +399,7 @@ return properties
                 <MenuItem value='2'>2</MenuItem>
                 <MenuItem value='3'>3</MenuItem>
                 <MenuItem value='4'>4</MenuItem>
-                <MenuItem value='5+'>5+</MenuItem>
+                <MenuItem value='5'>5+</MenuItem>
               </TextField>
               <TextField
                 select
@@ -449,16 +414,16 @@ return properties
                 <MenuItem value='2'>2</MenuItem>
                 <MenuItem value='3'>3</MenuItem>
                 <MenuItem value='4'>4</MenuItem>
-                <MenuItem value='5+'>5+</MenuItem>
+                <MenuItem value='5'>5+</MenuItem>
               </TextField>
             </div>
             <Divider />
 
-            <div className='flex items-center  justify-between gap-2'>
+            <div className='flex items-center justify-between gap-2'>
               <div>
                 <TextField
                   size='small'
-                  placeholder='Search'
+                  placeholder='Search units...'
                   value={globalFilter}
                   onChange={e => setGlobalFilter(e.target.value)}
                   className='flex-1 min-w-[200px]'
@@ -469,8 +434,11 @@ return properties
                 <TextField
                   select
                   size='small'
-                  value={table.getState().pagination.pageSize}
-                  onChange={e => table.setPageSize(Number(e.target.value))}
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(0)
+                  }}
                   sx={{ minWidth: 100 }}
                 >
                   <MenuItem value={10}>10</MenuItem>
@@ -495,46 +463,48 @@ return properties
 
           {/* Table */}
           <div className='overflow-x-auto'>
-            <table className={tableStyles.table}>
-              <thead>
-                {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map(header => (
-                      <th key={header.id}>
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={classnames({
-                              'flex items-center': header.column.getIsSorted(),
-                              'cursor-pointer select-none': header.column.getCanSort()
-                            })}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <i className='ri-arrow-up-s-line text-xl' />,
-                              desc: <i className='ri-arrow-down-s-line text-xl' />
-                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                          </div>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
-                <tbody>
-                  <tr>
-                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
-                    </td>
-                  </tr>
-                </tbody>
-              ) : (
-                <tbody>
-                  {table
-                    .getRowModel()
-                    .rows.slice(0, table.getState().pagination.pageSize)
-                    .map(row => {
+            {loading ? (
+              <Box className='flex justify-center items-center py-10'>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <table className={tableStyles.table}>
+                <thead>
+                  {table.getHeaderGroups().map(headerGroup => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map(header => (
+                        <th key={header.id}>
+                          {header.isPlaceholder ? null : (
+                            <div
+                              className={classnames({
+                                'flex items-center': header.column.getIsSorted(),
+                                'cursor-pointer select-none': header.column.getCanSort()
+                              })}
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {{
+                                asc: <i className='ri-arrow-up-s-line text-xl' />,
+                                desc: <i className='ri-arrow-down-s-line text-xl' />
+                              }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                            </div>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                {filteredData.length === 0 ? (
+                  <tbody>
+                    <tr>
+                      <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
+                        No units found
+                      </td>
+                    </tr>
+                  </tbody>
+                ) : (
+                  <tbody>
+                    {table.getRowModel().rows.map(row => {
                       return (
                         <tr key={row.id}>
                           {row.getVisibleCells().map(cell => (
@@ -543,33 +513,38 @@ return properties
                         </tr>
                       )
                     })}
-                </tbody>
-              )}
-            </table>
+                  </tbody>
+                )}
+              </table>
+            )}
           </div>
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={table.getFilteredRowModel().rows.length}
-            rowsPerPage={table.getState().pagination.pageSize}
-            page={table.getState().pagination.pageIndex}
+            count={total}
+            rowsPerPage={pageSize}
+            page={page}
             SelectProps={{
               inputProps: { 'aria-label': 'rows per page' }
             }}
-            onPageChange={(_, page) => {
-              table.setPageIndex(page)
+            onPageChange={(_, newPage) => setPage(newPage)}
+            onRowsPerPageChange={e => {
+              setPageSize(Number(e.target.value))
+              setPage(0)
             }}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
           />
         </CardContent>
       </Card>
       <AddUnitDialog
         open={addUnitOpen}
-        handleClose={() => setAddUnitOpen(false)}
-        properties={sampleProperties}
+        handleClose={() => {
+          setAddUnitOpen(false)
+          fetchUnits()
+        }}
+        properties={properties}
         unitsData={data}
-        setData={setData}
+        setData={setData as any}
         mode='add'
       />
       <AddUnitDialog
@@ -577,24 +552,29 @@ return properties
         handleClose={() => {
           setEditUnitOpen(false)
           setSelectedUnit(null)
+          fetchUnits()
         }}
-        properties={sampleProperties}
+        properties={properties}
         unitsData={data}
-        setData={setData}
+        setData={setData as any}
         mode='edit'
         editData={
           selectedUnit
             ? {
                 id: selectedUnit.id,
-                unitNumber: selectedUnit.unitNumber,
-                propertyId: selectedUnit.propertyId,
+                unitNumber: selectedUnit.unit_no,
+                propertyId: selectedUnit.property_id,
                 propertyName: selectedUnit.propertyName,
-                status: selectedUnit.status,
-                rent: selectedUnit.rent,
-                bedrooms: selectedUnit.bedrooms,
-                bathrooms: selectedUnit.bathrooms,
-                size: selectedUnit.size,
-                tenantName: selectedUnit.tenantName
+                status: selectedUnit.status === 'available' 
+                  ? 'vacant' 
+                  : selectedUnit.status === 'reserved' 
+                    ? 'vacant' 
+                    : selectedUnit.status as 'occupied' | 'maintenance' | 'vacant',
+                rent: selectedUnit.formattedRent,
+                bedrooms: selectedUnit.bedrooms || 0,
+                bathrooms: selectedUnit.bathrooms || 0,
+                size: selectedUnit.formattedSize,
+                tenantName: null
               }
             : null
         }
@@ -603,12 +583,7 @@ return properties
         open={deleteUnitOpen}
         setOpen={setDeleteUnitOpen}
         type='delete-unit'
-        onConfirm={() => {
-          if (selectedUnit) {
-            setData(data.filter(unit => unit.id !== selectedUnit.id))
-            setSelectedUnit(null)
-          }
-        }}
+        onConfirm={handleDelete}
       />
     </>
   )

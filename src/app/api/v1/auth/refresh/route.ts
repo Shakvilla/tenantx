@@ -1,7 +1,40 @@
 /**
- * POST /api/v1/auth/refresh
- * 
- * Refresh access token using refresh token.
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     description: Get a new access token using the refresh token from cookies
+ *     tags:
+ *       - Auth
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Token refreshed successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     session:
+ *                       type: object
+ *                       properties:
+ *                         access_token:
+ *                           type: string
+ *                         refresh_token:
+ *                           type: string
+ *                         expires_at:
+ *                           type: integer
+ *       401:
+ *         description: Invalid or expired refresh token
  */
 
 import type { NextRequest } from 'next/server'

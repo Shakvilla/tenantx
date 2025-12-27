@@ -7,6 +7,12 @@ import {
   type TenantRecord,
   type TenantRecordInsert 
 } from '@/repositories/tenant-repository'
+import {
+  tenantHistoryRepository,
+  type TenantHistory,
+  type TenantHistoryInsert,
+  type TenantHistoryEventType,
+} from '@/repositories/tenant-history-repository'
 import { 
   CreateTenantRecordSchema, 
   UpdateTenantRecordSchema,
@@ -177,3 +183,75 @@ export async function getTenantRecordsByProperty(
 ): Promise<TenantRecord[]> {
   return tenantRecordRepository.findByProperty(supabase, tenantId, propertyId)
 }
+
+// =============================================================================
+// TENANT HISTORY FUNCTIONS
+// =============================================================================
+
+/**
+ * Get history for a tenant record with pagination.
+ */
+export async function getTenantRecordHistory(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  tenantRecordId: string,
+  options?: {
+    page?: number
+    pageSize?: number
+    eventType?: TenantHistoryEventType
+    startDate?: string
+    endDate?: string
+  }
+) {
+  // Verify the tenant record exists first
+  await tenantRecordRepository.findByIdOrThrow(supabase, tenantId, tenantRecordId)
+  
+  return tenantHistoryRepository.findByTenantRecord(
+    supabase,
+    tenantId,
+    tenantRecordId,
+    options
+  )
+}
+
+/**
+ * Add a history entry for a tenant record.
+ */
+export async function addTenantRecordHistory(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  tenantRecordId: string,
+  entry: {
+    event_type: TenantHistoryEventType
+    event_date?: string
+    property_id?: string | null
+    unit_id?: string | null
+    agreement_id?: string | null
+    invoice_id?: string | null
+    details?: Record<string, unknown>
+    created_by?: string | null
+    notes?: string | null
+  }
+): Promise<TenantHistory> {
+  // Verify the tenant record exists first
+  await tenantRecordRepository.findByIdOrThrow(supabase, tenantId, tenantRecordId)
+  
+  return tenantHistoryRepository.create(supabase, tenantId, {
+    tenant_record_id: tenantRecordId,
+    ...entry,
+  })
+}
+
+/**
+ * Get recent activity across all tenant records (for dashboard).
+ */
+export async function getRecentTenantActivity(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  limit?: number
+): Promise<TenantHistory[]> {
+  return tenantHistoryRepository.getRecentActivity(supabase, tenantId, limit)
+}
+
+// Re-export types for convenience
+export type { TenantHistory, TenantHistoryEventType }

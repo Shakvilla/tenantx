@@ -41,9 +41,43 @@ export async function authenticateServerAction(): Promise<AuthContext> {
   const role = user.user_metadata?.role || 'user'
   
   // Set tenant context for RLS policies
-  await supabase.rpc('set_tenant_context', { tenant_id: tenantId })
+  await supabase.rpc('set_tenant_context', { p_tenant_id: tenantId })
   
   return { user, tenantId, role, supabase }
+}
+
+/**
+ * Authenticates API route requests.
+ * 
+ * First tries cookie-based auth (for frontend browser calls),
+ * then falls back to Bearer token auth (for external API clients).
+ * 
+ * @param request - The incoming request
+ * @throws UnauthorizedError if authentication fails
+ */
+export async function authenticateApiRoute(request: Request): Promise<AuthContext> {
+  // First, try cookie-based auth (for frontend calls)
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  if (!error && user) {
+    // Cookie auth successful
+    const tenantId = user.user_metadata?.tenant_id
+    
+    if (!tenantId) {
+      throw new UnauthorizedError('No tenant context found')
+    }
+    
+    const role = user.user_metadata?.role || 'user'
+    
+    // Set tenant context for RLS policies
+    await supabase.rpc('set_tenant_context', { p_tenant_id: tenantId })
+    
+    return { user, tenantId, role, supabase }
+  }
+  
+  // Fall back to Bearer token auth (for API clients)
+  return authenticateRequest(request)
 }
 
 /**
@@ -104,7 +138,7 @@ export async function authenticateRequest(request: Request): Promise<AuthContext
   const role = user.user_metadata?.role || 'user'
   
   // Set tenant context for RLS policies (for policies using get_current_tenant_id())
-  const { error: rpcError } = await supabase.rpc('set_tenant_context', { tenant_id: tenantId })
+  const { error: rpcError } = await supabase.rpc('set_tenant_context', { p_tenant_id: tenantId })
   
   if (rpcError) {
     console.error('[authenticateRequest] Failed to set DB tenant context:', rpcError)
@@ -123,3 +157,4 @@ export async function optionalAuth(): Promise<AuthContext | null> {
     return null
   }
 }
+

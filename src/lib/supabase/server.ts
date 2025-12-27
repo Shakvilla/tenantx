@@ -50,7 +50,7 @@ export async function createClientWithTenantContext(tenantId: string) {
   const supabase = await createClient()
   
   // Set tenant context for RLS policies
-  await supabase.rpc('set_tenant_context', { tenant_id: tenantId })
+  await supabase.rpc('set_tenant_context', { p_tenant_id: tenantId })
   
   return supabase
 }

@@ -43,7 +43,7 @@ export async function createAdminClientWithTenantContext(tenantId: string) {
   const adminClient = createAdminClient()
   
   // Set tenant context for operations that still need tenant scoping
-  await adminClient.rpc('set_tenant_context', { tenant_id: tenantId })
+  await adminClient.rpc('set_tenant_context', { p_tenant_id: tenantId })
   
   return adminClient
 }

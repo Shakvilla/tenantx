@@ -36,6 +36,9 @@ import classnames from 'classnames'
 // Styled Component Imports
 import StepperWrapper from '@core/styles/stepper'
 
+// API Imports
+import { saveDraft as saveDraftApi, updateDraft } from '@/lib/api/properties'
+
 type PropertyEditData = {
   id?: string
   name?: string
@@ -304,6 +307,8 @@ return acc
   const [formData, setFormData] = useState<FormDataType>(getInitialFormData)
   const [existingImages, setExistingImages] = useState<string[]>(editData?.images || [])
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
@@ -488,9 +493,72 @@ return acc
     setErrors({})
   }
 
-  const handleSaveDraft = () => {
-    // TODO: Implement save draft logic
-    console.log('Draft saved:', formData)
+  const handleSaveDraft = async () => {
+    // Validate at least the property name exists
+    if (!formData.propertyName.trim()) {
+      setErrors({ propertyName: true })
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      // Transform amenities from Record<string, boolean> to string[]
+      const amenitiesArray = Object.entries(formData.amenities || {})
+        .filter(([, enabled]) => enabled)
+        .map(([id]) => id)
+
+      // Build draft payload
+      const draftPayload = {
+        name: formData.propertyName,
+        address: {
+          street: formData.city, // Using city as street for now
+          city: formData.city,
+          country: 'Ghana'
+        },
+        type: formData.propertyType?.toLowerCase() || undefined,
+        ownership: 'own' as const, // Default for drafts
+        region: formData.region || undefined,
+        district: formData.district || undefined,
+        gpsCode: formData.gpsCode || undefined,
+        description: formData.description || undefined,
+        condition: formData.condition?.toLowerCase() || undefined,
+        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
+        bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
+        rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
+        amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
+        thumbnailIndex: formData.thumbnailIndex ?? undefined,
+        // Note: images need to be uploaded to storage first (handled separately)
+      }
+
+      // Call API - if editing draft, update; otherwise save new
+      if (mode === 'edit' && editData?.id) {
+        const response = await updateDraft(editData.id, draftPayload)
+        if (!response.success) {
+          throw new Error(response.error?.message || 'Failed to update draft')
+        }
+        setDraftId(editData.id)
+      } else if (draftId) {
+        const response = await updateDraft(draftId, draftPayload)
+        if (!response.success) {
+          throw new Error(response.error?.message || 'Failed to update draft')
+        }
+      } else {
+        const response = await saveDraftApi(draftPayload)
+        if (!response.success || !response.data) {
+          throw new Error(response.error?.message || 'Failed to save draft')
+        }
+        setDraftId(response.data.id)
+      }
+
+      // Show success (you could add a toast notification here)
+      console.log('Draft saved successfully')
+    } catch (error) {
+      console.error('Failed to save draft:', error)
+      // Show error (you could add a toast notification here)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleReset = () => {

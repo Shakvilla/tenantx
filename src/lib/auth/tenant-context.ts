@@ -46,7 +46,7 @@ export async function setTenantContext(
   supabase: SupabaseClient<Database>,
   tenantId: string
 ): Promise<void> {
-  await supabase.rpc('set_tenant_context', { tenant_id: tenantId })
+  await supabase.rpc('set_tenant_context', { p_tenant_id: tenantId })
 }
 
 /**

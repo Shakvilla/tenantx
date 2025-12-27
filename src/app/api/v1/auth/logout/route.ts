@@ -1,7 +1,18 @@
 /**
- * POST /api/v1/auth/logout
- * 
- * Logout and invalidate the current session.
+ * @swagger
+ * /api/v1/auth/logout:
+ *   post:
+ *     summary: User logout
+ *     description: Invalidate the current session and logout
+ *     tags:
+ *       - Auth
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       204:
+ *         description: Logout successful
+ *       401:
+ *         description: Not authenticated
  */
 
 import type { NextRequest } from 'next/server'
