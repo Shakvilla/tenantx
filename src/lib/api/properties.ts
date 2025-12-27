@@ -3,7 +3,7 @@
  * Handles all API calls for properties and units
  */
 
-import { apiFetch, apiGet, apiPost, apiPatch, apiDelete } from './client'
+import { apiGet, apiPost, apiPatch, apiDelete } from './client'
 import type { Property, PropertyStats } from '@/types/property'
 
 // API Response types
@@ -88,6 +88,92 @@ export async function getPropertyStats(): Promise<ApiResponse<PropertyStats>> {
   return apiGet('/api/v1/properties/stats')
 }
 
+// Unit type for property units list
+export interface PropertyUnit {
+  id: string
+  unit_no: string
+  type: string
+  status: 'available' | 'occupied' | 'maintenance' | 'reserved'
+  rent: number
+  deposit?: number
+  bedrooms?: number
+  bathrooms?: number
+  size_sqft?: number
+  tenant_record_id?: string
+  tenant_record?: {
+    id: string
+    first_name: string
+    last_name: string
+  }
+}
+
+interface UnitsListResponse {
+  success: boolean
+  data: PropertyUnit[]
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+  }
+}
+
+/**
+ * Get units for a specific property
+ */
+export async function getPropertyUnits(propertyId: string, page = 1, pageSize = 10): Promise<UnitsListResponse> {
+  return apiGet(`/api/v1/properties/${propertyId}/units?page=${page}&pageSize=${pageSize}`)
+}
+
+// Create unit payload
+export interface CreateUnitPayload {
+  unitNo: string
+  type: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
+  rent: number
+  deposit?: number
+  floor?: number
+  bedrooms?: number
+  bathrooms?: number
+  sizeSqft?: number
+  status?: 'available' | 'occupied' | 'maintenance' | 'reserved'
+  amenities?: string[]
+}
+
+// Update unit payload (partial)
+export interface UpdateUnitPayload {
+  unitNo?: string
+  type?: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
+  rent?: number
+  deposit?: number
+  floor?: number
+  bedrooms?: number
+  bathrooms?: number
+  sizeSqft?: number
+  status?: 'available' | 'occupied' | 'maintenance' | 'reserved'
+  amenities?: string[]
+}
+
+/**
+ * Create a new unit for a property
+ */
+export async function createUnit(propertyId: string, data: CreateUnitPayload): Promise<ApiResponse<PropertyUnit>> {
+  return apiPost(`/api/v1/properties/${propertyId}/units`, data)
+}
+
+/**
+ * Update an existing unit
+ */
+export async function updateUnit(unitId: string, data: UpdateUnitPayload): Promise<ApiResponse<PropertyUnit>> {
+  return apiPatch(`/api/v1/units/${unitId}`, data)
+}
+
+/**
+ * Delete a unit
+ */
+export async function deleteUnit(unitId: string): Promise<void> {
+  return apiDelete(`/api/v1/units/${unitId}`)
+}
+
+
 // Draft payload type for client-side
 interface DraftPayload {
   name: string
@@ -125,3 +211,53 @@ export async function updateDraft(id: string, data: DraftPayload): Promise<ApiRe
   return apiPatch('/api/v1/properties/drafts', { id, ...data })
 }
 
+// Image upload types
+interface UploadedImage {
+  path: string
+  url: string
+}
+
+interface UploadResponse {
+  success: boolean
+  data: {
+    images: UploadedImage[]
+    count: number
+  } | null
+  error?: {
+    code: string
+    message: string
+  }
+}
+
+/**
+ * Upload property images to storage
+ * @param files - Array of files to upload
+ * @param propertyId - Optional property ID to organize files
+ */
+export async function uploadPropertyImages(
+  files: File[],
+  propertyId?: string
+): Promise<UploadResponse> {
+  const formData = new FormData()
+
+  files.forEach((file) => {
+    formData.append('files', file)
+  })
+
+  if (propertyId) {
+    formData.append('propertyId', propertyId)
+  }
+
+  // Use axios directly (not apiClient) to avoid default Content-Type header
+  // axios will automatically set Content-Type: multipart/form-data with boundary
+  const { default: axios } = await import('axios')
+
+  const response = await axios.post<UploadResponse>('/api/v1/properties/upload', formData, {
+    withCredentials: true,
+    headers: {
+      // Don't set Content-Type - let axios detect from FormData
+    },
+  })
+
+  return response.data
+}

@@ -37,7 +37,7 @@ import classnames from 'classnames'
 import StepperWrapper from '@core/styles/stepper'
 
 // API Imports
-import { saveDraft as saveDraftApi, updateDraft } from '@/lib/api/properties'
+import { saveDraft as saveDraftApi, updateDraft, createProperty, updateProperty, uploadPropertyImages } from '@/lib/api/properties'
 
 type PropertyEditData = {
   id?: string
@@ -460,55 +460,155 @@ return Object.keys(newErrors).length === 0
     }
   }
 
-  const handleSubmit = () => {
-    // TODO: Implement submit logic
-    console.log('Form submitted:', formData)
-
-
-    // Clean up object URLs
-    if (formData.images && formData.images.length > 0) {
-      formData.images.forEach(image => {
-        URL.revokeObjectURL(URL.createObjectURL(image))
-      })
-    }
-
-    handleClose()
-
-    const resetData: FormDataType = {
-      ...initialData,
-      amenities: amenitiesList.reduce(
-        (acc, amenity) => {
-          acc[amenity.id] = false
-          
-return acc
-        },
-        {} as Record<string, boolean>
-      ),
-      images: [],
-      thumbnailIndex: null
-    }
-
-    setFormData(resetData)
-    setActiveStep(0)
-    setErrors({})
-  }
-
-  const handleSaveDraft = async () => {
-    // Validate at least the property name exists
-    if (!formData.propertyName.trim()) {
-      setErrors({ propertyName: true })
+  const handleSubmit = async () => {
+    // Validate final step
+    if (!validateStep(activeStep)) {
       return
     }
 
     setIsSaving(true)
 
     try {
-      // Transform amenities from Record<string, boolean> to string[]
+      // Step 1: Upload images first (if any)
+      let imageUrls: string[] = [...existingImages] // Start with existing images
+
+      if (formData.images && formData.images.length > 0) {
+        console.log('Uploading', formData.images.length, 'images...')
+        const uploadResponse = await uploadPropertyImages(formData.images)
+
+        if (!uploadResponse.success || !uploadResponse.data) {
+          throw new Error(uploadResponse.error?.message || 'Failed to upload images')
+        }
+
+        // Add newly uploaded image URLs
+        const newUrls = uploadResponse.data.images.map((img) => img.url)
+
+        imageUrls = [...imageUrls, ...newUrls]
+        console.log('Images uploaded:', newUrls)
+      }
+
+      // Step 2: Transform amenities from Record<string, boolean> to string[]
       const amenitiesArray = Object.entries(formData.amenities || {})
         .filter(([, enabled]) => enabled)
         .map(([id]) => id)
 
-      // Build draft payload
+      // Step 3: Build property payload matching API schema
+      const propertyPayload = {
+        name: formData.propertyName,
+        address: {
+          street: formData.city,
+          city: formData.city,
+          country: 'Ghana'
+        },
+        type: (formData.propertyType?.toLowerCase() || 'residential') as 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment',
+        ownership: 'own' as const,
+        region: formData.region,
+        district: formData.district,
+        gpsCode: formData.gpsCode || undefined,
+        description: formData.description || undefined,
+        condition: (formData.condition?.toLowerCase() || undefined) as 'new' | 'good' | 'fair' | 'poor' | undefined,
+        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
+        bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
+        rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
+        amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
+        images: imageUrls.length > 0 ? imageUrls : undefined,
+        thumbnailIndex: formData.thumbnailIndex ?? undefined,
+      }
+
+      // Step 4: Call API to create or update property
+      const existingPropertyId = (mode === 'edit' && editData?.id) ? editData.id : draftId
+
+      let response
+
+      if (existingPropertyId) {
+        // Editing existing draft - update it and change status to active
+        console.log('Updating existing property:', existingPropertyId)
+        response = await updateProperty(existingPropertyId, {
+          ...propertyPayload,
+          status: 'active', // Publish the draft
+        })
+      } else {
+        // Creating new property
+        response = await createProperty(propertyPayload)
+      }
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Failed to save property')
+      }
+
+      console.log('Property saved:', response.data)
+
+      // Clean up object URLs
+      if (formData.images && formData.images.length > 0) {
+        formData.images.forEach(image => {
+          URL.revokeObjectURL(URL.createObjectURL(image))
+        })
+      }
+
+      handleClose()
+
+      const resetData: FormDataType = {
+        ...initialData,
+        amenities: amenitiesList.reduce(
+          (acc, amenity) => {
+            acc[amenity.id] = false
+
+            return acc
+          },
+          {} as Record<string, boolean>
+        ),
+        images: [],
+        thumbnailIndex: null
+      }
+
+      setFormData(resetData)
+      setActiveStep(0)
+      setErrors({})
+      setDraftId(null)
+    } catch (error) {
+      console.error('Failed to create property:', error)
+
+      // Show error (you could add a toast notification here)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    // Validate at least the property name exists
+    if (!formData.propertyName.trim()) {
+      setErrors({ propertyName: true })
+
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      // Step 1: Upload images first (if any new images)
+      let imageUrls: string[] = [...existingImages] // Start with existing images
+
+      if (formData.images && formData.images.length > 0) {
+        console.log('Uploading', formData.images.length, 'images for draft...')
+        const uploadResponse = await uploadPropertyImages(formData.images, draftId || undefined)
+
+        if (!uploadResponse.success || !uploadResponse.data) {
+          throw new Error(uploadResponse.error?.message || 'Failed to upload images')
+        }
+
+        // Add newly uploaded image URLs
+        const newUrls = uploadResponse.data.images.map((img) => img.url)
+
+        imageUrls = [...imageUrls, ...newUrls]
+        console.log('Images uploaded:', newUrls)
+      }
+
+      // Step 2: Transform amenities from Record<string, boolean> to string[]
+      const amenitiesArray = Object.entries(formData.amenities || {})
+        .filter(([, enabled]) => enabled)
+        .map(([id]) => id)
+
+      // Step 3: Build draft payload
       const draftPayload = {
         name: formData.propertyName,
         address: {
@@ -527,27 +627,32 @@ return acc
         bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
         rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
+        images: imageUrls.length > 0 ? imageUrls : undefined,
         thumbnailIndex: formData.thumbnailIndex ?? undefined,
-        // Note: images need to be uploaded to storage first (handled separately)
       }
 
       // Call API - if editing draft, update; otherwise save new
       if (mode === 'edit' && editData?.id) {
         const response = await updateDraft(editData.id, draftPayload)
+
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update draft')
         }
+
         setDraftId(editData.id)
       } else if (draftId) {
         const response = await updateDraft(draftId, draftPayload)
+
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update draft')
         }
       } else {
         const response = await saveDraftApi(draftPayload)
+
         if (!response.success || !response.data) {
           throw new Error(response.error?.message || 'Failed to save draft')
         }
+
         setDraftId(response.data.id)
       }
 
@@ -555,6 +660,7 @@ return acc
       console.log('Draft saved successfully')
     } catch (error) {
       console.error('Failed to save draft:', error)
+
       // Show error (you could add a toast notification here)
     } finally {
       setIsSaving(false)

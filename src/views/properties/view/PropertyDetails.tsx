@@ -56,7 +56,7 @@ const PropertyDetails = ({
             <PropertyFeaturesCard propertyData={propertyData} />
           </Grid>
           <Grid size={{ xs: 12 }}>
-            <PropertyUnitsTable />
+            <PropertyUnitsTable propertyId={propertyId} />
           </Grid>
         </Grid>
       </Grid>

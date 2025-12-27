@@ -89,7 +89,7 @@ import { type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { authenticateApiRoute } from '@/lib/auth/authenticate'
 import { handleError } from '@/lib/errors'
-import { successResponse, createdResponse, listResponse } from '@/lib/api/response'
+import { createdResponse, listResponse } from '@/lib/api/response'
 import { getProperties, createProperty } from '@/services/property-service'
 import { PropertyQuerySchema } from '@/lib/validation/schemas'
 
@@ -100,6 +100,7 @@ export async function GET(request: NextRequest) {
 
     // Parse query parameters
     const searchParams = request.nextUrl.searchParams
+
     const queryValidation = PropertyQuerySchema.safeParse({
       page: searchParams.get('page'),
       pageSize: searchParams.get('pageSize'),
@@ -146,8 +147,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { tenantId } = await authenticateApiRoute(request)
-    const supabase = await createClient()
+    // Use the supabase client from auth which has tenant context set
+    const { tenantId, supabase } = await authenticateApiRoute(request)
 
     const body = await request.json()
     const property = await createProperty(supabase, tenantId, body)

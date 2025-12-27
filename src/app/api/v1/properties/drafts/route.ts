@@ -45,7 +45,6 @@
 
 import { type NextRequest } from 'next/server'
 
-import { createClient } from '@/lib/supabase/server'
 import { authenticateApiRoute } from '@/lib/auth/authenticate'
 import { handleError } from '@/lib/errors'
 import { successResponse, createdResponse } from '@/lib/api/response'
@@ -53,8 +52,8 @@ import { saveDraft, updateDraft } from '@/services/property-service'
 
 export async function POST(request: NextRequest) {
   try {
-    const { tenantId } = await authenticateApiRoute(request)
-    const supabase = await createClient()
+    // Use the supabase client from auth which has tenant context set
+    const { tenantId, supabase } = await authenticateApiRoute(request)
 
     const body = await request.json()
     const property = await saveDraft(supabase, tenantId, body)
@@ -67,16 +66,16 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { tenantId } = await authenticateApiRoute(request)
-    const supabase = await createClient()
+    // Use the supabase client from auth which has tenant context set
+    const { tenantId, supabase } = await authenticateApiRoute(request)
 
     const body = await request.json()
     const { id, ...data } = body
-    
+
     if (!id) {
       return handleError(new Error('Draft ID is required'))
     }
-    
+
     const property = await updateDraft(supabase, tenantId, id, data)
 
     return successResponse(property)

@@ -17,6 +17,11 @@ import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import Grid from '@mui/material/Grid2'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
+
+// API Imports
+import { createUnit, updateUnit, type CreateUnitPayload, type UpdateUnitPayload } from '@/lib/api/properties'
 
 type Property = {
   id: number | string
@@ -49,12 +54,14 @@ type Props = {
 type FormDataType = {
   unitNumber: string
   propertyId: string
-  status: 'occupied' | 'vacant' | 'maintenance' | ''
+  status: 'occupied' | 'available' | 'maintenance' | 'reserved' | ''
   rent: string
+  rentPeriod: 'monthly' | 'biannual' | 'annual' | ''
   bedrooms: string
   bathrooms: string
   size: string
   tenantName: string
+  type: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
 }
 
 const initialData: FormDataType = {
@@ -62,34 +69,48 @@ const initialData: FormDataType = {
   propertyId: '',
   status: '',
   rent: '',
+  rentPeriod: 'monthly',
   bedrooms: '',
   bathrooms: '',
   size: '',
-  tenantName: ''
+  tenantName: '',
+  type: '1br'
 }
 
-const AddUnitDialog = ({ open, handleClose, properties, unitsData, setData, editData, mode = 'add' }: Props) => {
+const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }: Props) => {
   // States
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+  const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   // Get initial form data based on mode
   const getInitialFormData = (): FormDataType => {
     if (mode === 'edit' && editData) {
+      // Parse rent from formatted string like "₵1,200" to number string
+      const rentValue = editData.rent?.replace(/[₵,]/g, '') || ''
+
+      // Parse size from formatted string like "850 sqft" to just number
+      const sizeValue = editData.size?.replace(/[^0-9.]/g, '') || ''
+
+      // Map 'vacant' status to 'available' for API
+      const statusValue = editData.status === 'vacant' ? 'available' : (editData.status || '')
+
       return {
         unitNumber: editData.unitNumber || '',
         propertyId: editData.propertyId?.toString() || '',
-        status: editData.status || '',
-        rent: editData.rent || '',
+        status: statusValue as FormDataType['status'],
+        rent: rentValue,
+        rentPeriod: 'monthly' as FormDataType['rentPeriod'], // Default to monthly for existing units
         bedrooms: editData.bedrooms?.toString() || '',
         bathrooms: editData.bathrooms?.toString() || '',
-        size: editData.size || '',
-        tenantName: editData.tenantName || ''
+        size: sizeValue,
+        tenantName: editData.tenantName || '',
+        type: '1br' // Default type
       }
     }
 
-    
-return initialData
+    return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
@@ -99,6 +120,7 @@ return initialData
 
       setFormData(newFormData)
       setErrors({})
+      setApiError(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
@@ -118,84 +140,92 @@ return initialData
     if (!formData.propertyId) newErrors.propertyId = true
     if (!formData.status) newErrors.status = true
     if (!formData.rent.trim()) newErrors.rent = true
-    if (!formData.bedrooms) newErrors.bedrooms = true
-    if (!formData.bathrooms) newErrors.bathrooms = true
-    if (!formData.size.trim()) newErrors.size = true
-
-    if (formData.status === 'occupied' && !formData.tenantName.trim()) {
-      newErrors.tenantName = true
-    }
 
     setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+
+    return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) {
       return
     }
 
-    const selectedProperty = properties.find(p => p.id.toString() === formData.propertyId)
+    setLoading(true)
+    setApiError(null)
 
-    if (mode === 'add') {
-      const newUnit = {
-        id: Date.now().toString(),
-        unitNumber: formData.unitNumber,
-        propertyName: selectedProperty?.name || '',
-        propertyId: formData.propertyId,
-        tenantName: formData.status === 'occupied' ? formData.tenantName : null,
-        status: formData.status as 'occupied' | 'vacant' | 'maintenance',
-        rent: formData.rent,
-        bedrooms: Number(formData.bedrooms),
-        bathrooms: Number(formData.bathrooms),
-        size: formData.size
+    try {
+      // Map 'occupied' status - API expects 'available', 'occupied', 'maintenance', 'reserved'
+      const statusForApi = formData.status as CreateUnitPayload['status']
+
+      if (mode === 'add') {
+        // Create new unit via API
+        const payload: CreateUnitPayload = {
+          unitNo: formData.unitNumber,
+          type: formData.type,
+          rent: parseFloat(formData.rent),
+          status: statusForApi,
+          bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : undefined,
+          bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
+          sizeSqft: formData.size ? parseFloat(formData.size) : undefined
+        }
+
+        const response = await createUnit(formData.propertyId, payload)
+
+        if (!response.success) {
+          throw new Error(response.error?.message || 'Failed to create unit')
+        }
+      } else if (mode === 'edit' && editData?.id) {
+        // Update existing unit via API
+        const payload: UpdateUnitPayload = {
+          unitNo: formData.unitNumber,
+          type: formData.type,
+          rent: parseFloat(formData.rent),
+          status: statusForApi,
+          bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : undefined,
+          bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
+          sizeSqft: formData.size ? parseFloat(formData.size) : undefined
+        }
+
+        const response = await updateUnit(editData.id, payload)
+
+        if (!response.success) {
+          throw new Error(response.error?.message || 'Failed to update unit')
+        }
       }
 
-      if (unitsData && setData) {
-        setData([...unitsData, newUnit])
-      }
-    } else if (mode === 'edit' && editData) {
-      const updatedUnit = {
-        ...editData,
-        unitNumber: formData.unitNumber,
-        propertyName: selectedProperty?.name || editData.propertyName || '',
-        propertyId: formData.propertyId,
-        tenantName: formData.status === 'occupied' ? formData.tenantName : null,
-        status: formData.status as 'occupied' | 'vacant' | 'maintenance',
-        rent: formData.rent,
-        bedrooms: Number(formData.bedrooms),
-        bathrooms: Number(formData.bathrooms),
-        size: formData.size
-      }
-
-      if (unitsData && setData) {
-        setData(
-          unitsData.map(unit => (unit.id === editData.id ? { ...unit, ...updatedUnit } : unit))
-        )
-      }
+      handleClose()
+      setFormData(initialData)
+      setErrors({})
+    } catch (err) {
+      console.error('Error saving unit:', err)
+      setApiError(err instanceof Error ? err.message : 'Failed to save unit')
+    } finally {
+      setLoading(false)
     }
-
-    handleClose()
-    setFormData(initialData)
-    setErrors({})
   }
 
   const handleReset = () => {
     handleClose()
     setFormData(initialData)
     setErrors({})
+    setApiError(null)
   }
 
   return (
     <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Unit' : 'Add Unit'}</span>
-        <IconButton size='small' onClick={handleReset}>
+        <IconButton size='small' onClick={handleReset} disabled={loading}>
           <i className='ri-close-line' />
         </IconButton>
       </DialogTitle>
       <DialogContent>
+        {apiError && (
+          <Alert severity="error" sx={{ mb: 2, mt: 1 }} onClose={() => setApiError(null)}>
+            {apiError}
+          </Alert>
+        )}
         <div className='flex flex-col gap-4 mbs-4'>
           <Grid container spacing={6}>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -208,6 +238,7 @@ return Object.keys(newErrors).length === 0
                 onChange={e => handleInputChange('unitNumber', e.target.value)}
                 error={Boolean(errors.unitNumber)}
                 helperText={errors.unitNumber ? 'This field is required.' : ''}
+                disabled={loading}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -219,6 +250,7 @@ return Object.keys(newErrors).length === 0
                   label='Property'
                   value={formData.propertyId}
                   onChange={e => handleInputChange('propertyId', e.target.value)}
+                  disabled={loading || mode === 'edit'}
                 >
                   <MenuItem value=''>Select Property</MenuItem>
                   {properties.map(property => (
@@ -235,6 +267,28 @@ return Object.keys(newErrors).length === 0
               </FormControl>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size='small'>
+                <InputLabel id='type-label'>Type</InputLabel>
+                <Select
+                  size='small'
+                  labelId='type-label'
+                  label='Type'
+                  value={formData.type}
+                  onChange={e => handleInputChange('type', e.target.value)}
+                  disabled={loading}
+                >
+                  <MenuItem value='studio'>Studio</MenuItem>
+                  <MenuItem value='1br'>1 Bedroom</MenuItem>
+                  <MenuItem value='2br'>2 Bedrooms</MenuItem>
+                  <MenuItem value='3br'>3 Bedrooms</MenuItem>
+                  <MenuItem value='4br+'>4+ Bedrooms</MenuItem>
+                  <MenuItem value='commercial'>Commercial</MenuItem>
+                  <MenuItem value='office'>Office</MenuItem>
+                  <MenuItem value='retail'>Retail</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth error={Boolean(errors.status)} size='small'>
                 <InputLabel id='status-label'>Status</InputLabel>
                 <Select
@@ -243,11 +297,13 @@ return Object.keys(newErrors).length === 0
                   label='Status'
                   value={formData.status}
                   onChange={e => handleInputChange('status', e.target.value)}
+                  disabled={loading}
                 >
                   <MenuItem value=''>Select Status</MenuItem>
+                  <MenuItem value='available'>Available</MenuItem>
                   <MenuItem value='occupied'>Occupied</MenuItem>
-                  <MenuItem value='vacant'>Vacant</MenuItem>
                   <MenuItem value='maintenance'>Maintenance</MenuItem>
+                  <MenuItem value='reserved'>Reserved</MenuItem>
                 </Select>
                 {errors.status && (
                   <Typography variant='caption' color='error' className='mts-1'>
@@ -260,12 +316,43 @@ return Object.keys(newErrors).length === 0
               <TextField
                 size='small'
                 fullWidth
-                label='Rent'
-                placeholder='e.g., ₵1,200'
+                label='Rent (GHS)'
+                type='number'
+                placeholder='e.g., 1200'
                 value={formData.rent}
                 onChange={e => handleInputChange('rent', e.target.value)}
                 error={Boolean(errors.rent)}
                 helperText={errors.rent ? 'This field is required.' : ''}
+                disabled={loading}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size='small'>
+                <InputLabel id='rent-period-label'>Rent Period</InputLabel>
+                <Select
+                  size='small'
+                  labelId='rent-period-label'
+                  label='Rent Period'
+                  value={formData.rentPeriod}
+                  onChange={e => handleInputChange('rentPeriod', e.target.value)}
+                  disabled={loading}
+                >
+                  <MenuItem value='monthly'>Monthly</MenuItem>
+                  <MenuItem value='biannual'>Biannual (6 months)</MenuItem>
+                  <MenuItem value='annual'>Annual (12 months)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                size='small'
+                fullWidth
+                label='Size (sqft)'
+                type='number'
+                placeholder='e.g., 850'
+                value={formData.size}
+                onChange={e => handleInputChange('size', e.target.value)}
+                disabled={loading}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -277,8 +364,7 @@ return Object.keys(newErrors).length === 0
                 placeholder='e.g., 2'
                 value={formData.bedrooms}
                 onChange={e => handleInputChange('bedrooms', e.target.value)}
-                error={Boolean(errors.bedrooms)}
-                helperText={errors.bedrooms ? 'This field is required.' : ''}
+                disabled={loading}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
@@ -290,44 +376,23 @@ return Object.keys(newErrors).length === 0
                 placeholder='e.g., 1'
                 value={formData.bathrooms}
                 onChange={e => handleInputChange('bathrooms', e.target.value)}
-                error={Boolean(errors.bathrooms)}
-                helperText={errors.bathrooms ? 'This field is required.' : ''}
+                disabled={loading}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                size='small'
-                fullWidth
-                label='Size'
-                placeholder='e.g., 850 sqft'
-                value={formData.size}
-                onChange={e => handleInputChange('size', e.target.value)}
-                error={Boolean(errors.size)}
-                helperText={errors.size ? 'This field is required.' : ''}
-              />
-            </Grid>
-            {formData.status === 'occupied' && (
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  size='small'
-                  fullWidth
-                  label='Tenant Name'
-                  placeholder='Enter tenant name'
-                  value={formData.tenantName}
-                  onChange={e => handleInputChange('tenantName', e.target.value)}
-                  error={Boolean(errors.tenantName)}
-                  helperText={errors.tenantName ? 'Tenant name is required for occupied units.' : ''}
-                />
-              </Grid>
-            )}
           </Grid>
         </div>
       </DialogContent>
       <DialogActions className='gap-2 pbs-4'>
-        <Button variant='outlined' color='secondary' onClick={handleReset}>
+        <Button variant='outlined' color='secondary' onClick={handleReset} disabled={loading}>
           Cancel
         </Button>
-        <Button variant='contained' color='primary' onClick={handleSubmit}>
+        <Button
+          variant='contained'
+          color='primary'
+          onClick={handleSubmit}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={20} /> : null}
+        >
           {mode === 'edit' ? 'Update' : 'Add'} Unit
         </Button>
       </DialogActions>
@@ -336,4 +401,3 @@ return Object.keys(newErrors).length === 0
 }
 
 export default AddUnitDialog
-

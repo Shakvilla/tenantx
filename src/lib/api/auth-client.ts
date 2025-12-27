@@ -1,7 +1,8 @@
 /**
  * Auth API Client
- * Client-side functions to interact with the authentication API endpoints.
+ * Client-side functions to interact with the authentication API endpoints using Axios.
  */
+import axios, { AxiosError } from 'axios'
 
 const API_BASE = '/api/v1/auth'
 
@@ -44,8 +45,8 @@ const REFRESH_TOKEN_KEY = 'refresh_token'
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null
-  
-return localStorage.getItem(TOKEN_KEY)
+
+  return localStorage.getItem(TOKEN_KEY)
 }
 
 export function setStoredTokens(token: string, refreshToken: string): void {
@@ -60,11 +61,10 @@ export function clearStoredTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders(): Record<string, string> {
   const token = getStoredToken()
 
-  
-return token ? { Authorization: `Bearer ${token}` } : {}
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 // API Functions
@@ -73,19 +73,29 @@ export async function loginUser(
   email: string,
   password: string
 ): Promise<ApiResponse<AuthResponse>> {
-  const res = await fetch(`${API_BASE}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
+  try {
+    const { data } = await axios.post<ApiResponse<AuthResponse>>(
+      `${API_BASE}/login`,
+      { email, password }
+    )
 
-  const data = await res.json()
+    if (data.success && data.data) {
+      setStoredTokens(data.data.token, data.data.refreshToken)
+    }
 
-  if (data.success && data.data) {
-    setStoredTokens(data.data.token, data.data.refreshToken)
+    return data
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.data) {
+      return error.response.data as ApiResponse<AuthResponse>
+    }
+
+    
+return {
+      success: false,
+      data: null,
+      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
+    }
   }
-
-  return data
 }
 
 export async function registerUser(payload: {
@@ -95,43 +105,47 @@ export async function registerUser(payload: {
   phone?: string
   tenantName: string
 }): Promise<ApiResponse<AuthResponse>> {
-  const res = await fetch(`${API_BASE}/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+  try {
+    const { data } = await axios.post<ApiResponse<AuthResponse>>(
+      `${API_BASE}/register`,
+      payload
+    )
 
-  const data = await res.json()
+    if (data.success && data.data) {
+      setStoredTokens(data.data.token, data.data.refreshToken)
+    }
 
-  if (data.success && data.data) {
-    setStoredTokens(data.data.token, data.data.refreshToken)
+    return data
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.data) {
+      return error.response.data as ApiResponse<AuthResponse>
+    }
+
+    
+return {
+      success: false,
+      data: null,
+      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
+    }
   }
-
-  return data
 }
 
 export async function logoutUser(): Promise<ApiResponse<null>> {
   try {
-    const res = await fetch(`${API_BASE}/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
+    await axios.post(
+      `${API_BASE}/logout`,
+      {},
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
 
     clearStoredTokens()
-
-    // Logout returns 204 No Content, so no JSON to parse
-    if (res.status === 204 || res.status === 200) {
-      return { success: true, data: null }
-    }
-
-    // If there's an error response, try to parse it
-    const data = await res.json()
-
     
-return data
+return { success: true, data: null }
   } catch {
     // Even if the API call fails, clear local tokens
     clearStoredTokens()
@@ -139,7 +153,6 @@ return data
 return { success: true, data: null }
   }
 }
-
 
 export async function getCurrentUser(): Promise<
   ApiResponse<{ user: AuthUser; tenant: AuthTenant }>
@@ -150,15 +163,30 @@ export async function getCurrentUser(): Promise<
     return { success: false, data: null, error: { code: 'NO_TOKEN', message: 'Not authenticated' } }
   }
 
-  const res = await fetch(`${API_BASE}/me`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
-  })
+  try {
+    const { data } = await axios.get<ApiResponse<{ user: AuthUser; tenant: AuthTenant }>>(
+      `${API_BASE}/me`,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      }
+    )
 
-  return res.json()
+    return data
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.data) {
+      return error.response.data as ApiResponse<{ user: AuthUser; tenant: AuthTenant }>
+    }
+
+    
+return {
+      success: false,
+      data: null,
+      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
+    }
+  }
 }
 
 export async function updateProfile(payload: {
@@ -166,24 +194,54 @@ export async function updateProfile(payload: {
   phone?: string
   avatarUrl?: string
 }): Promise<ApiResponse<{ id: string; name: string; phone?: string; avatarUrl?: string }>> {
-  const res = await fetch(`${API_BASE}/me`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(payload),
-  })
+  try {
+    const { data } = await axios.patch<
+      ApiResponse<{ id: string; name: string; phone?: string; avatarUrl?: string }>
+    >(`${API_BASE}/me`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    })
 
-  return res.json()
+    return data
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.data) {
+      return error.response.data as ApiResponse<{
+        id: string
+        name: string
+        phone?: string
+        avatarUrl?: string
+      }>
+    }
+
+    
+return {
+      success: false,
+      data: null,
+      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
+    }
+  }
 }
 
 export async function forgotPassword(email: string): Promise<ApiResponse<{ message: string }>> {
-  const res = await fetch(`${API_BASE}/forgot-password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  })
+  try {
+    const { data } = await axios.post<ApiResponse<{ message: string }>>(
+      `${API_BASE}/forgot-password`,
+      { email }
+    )
 
-  return res.json()
+    return data
+  } catch (error) {
+    if (error instanceof AxiosError && error.response?.data) {
+      return error.response.data as ApiResponse<{ message: string }>
+    }
+
+    
+return {
+      success: false,
+      data: null,
+      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
+    }
+  }
 }
