@@ -28,6 +28,7 @@ import CardContent from '@mui/material/CardContent'
 import CardMedia from '@mui/material/CardMedia'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
+import CircularProgress from '@mui/material/CircularProgress'
 import { styled } from '@mui/material/styles'
 
 // Third-party Imports
@@ -658,6 +659,7 @@ return Object.keys(newErrors).length === 0
 
       // Show success (you could add a toast notification here)
       console.log('Draft saved successfully')
+      handleClose()
     } catch (error) {
       console.error('Failed to save draft:', error)
 
@@ -1595,9 +1597,10 @@ return (
                   variant='outlined'
                   color='primary'
                   onClick={handleSaveDraft}
-                  startIcon={<i className='ri-save-line' />}
+                  disabled={isSaving}
+                  startIcon={isSaving ? <CircularProgress size={16} color='inherit' /> : <i className='ri-save-line' />}
                 >
-                  SAVE DRAFT 🗐
+                  {isSaving ? 'Saving...' : 'SAVE DRAFT 🗐'}
                 </Button>
                 <Button
                   variant='contained'

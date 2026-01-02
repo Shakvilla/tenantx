@@ -20,17 +20,18 @@ import type { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { logoutUser } from '@/services/auth-service'
 import { noContentResponse } from '@/lib/api/response'
-import { handleError, UnauthorizedError } from '@/lib/errors'
-import { authenticateRequest } from '@/lib/auth/authenticate'
+import { handleError } from '@/lib/errors'
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
-    // Verify user is authenticated first
-    await authenticateRequest(request)
-    
     const supabase = await createClient()
     
-    await logoutUser(supabase)
+    // Try to sign out, but don't fail if session is already invalid
+    try {
+      await logoutUser(supabase)
+    } catch {
+      // Session may already be invalid, continue to return success
+    }
     
     return noContentResponse()
   } catch (error) {

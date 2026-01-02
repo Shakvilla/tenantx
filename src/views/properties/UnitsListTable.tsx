@@ -37,7 +37,7 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 import type { Unit } from '@/types/property'
 
 // API Imports
-import { getAvailableUnits, deleteUnit } from '@/lib/api/units'
+import { getAllUnits, deleteUnit } from '@/lib/api/units'
 import { getProperties } from '@/lib/api/properties'
 
 // Component Imports
@@ -114,7 +114,7 @@ const UnitsListTable = () => {
       setLoading(true)
       setError(null)
 
-      const response = await getAvailableUnits({
+      const response = await getAllUnits({
         page: page + 1,
         pageSize,
         propertyId: property || undefined,

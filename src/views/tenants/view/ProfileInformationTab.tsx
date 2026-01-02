@@ -42,7 +42,7 @@ const ProfileInformationTab = ({ tenantData }: { tenantData?: TenantData }) => {
     <Grid container spacing={6}>
       {/* Profile Information Card */}
       <Grid size={{ xs: 12, md: 4 }}>
-        <Card>
+        <Card elevation={0}>
           <CardHeader title='Profile Information' />
           <CardContent className='flex flex-col gap-6'>
             {/* User Summary */}
@@ -130,7 +130,7 @@ const ProfileInformationTab = ({ tenantData }: { tenantData?: TenantData }) => {
 
       {/* Previous Address Card */}
       <Grid size={{ xs: 12, md: 4 }}>
-        <Card>
+        <Card elevation={0}>
           <CardHeader title='Previous Address' />
           <CardContent>
             <div className='flex flex-col gap-3'>
@@ -181,7 +181,7 @@ const ProfileInformationTab = ({ tenantData }: { tenantData?: TenantData }) => {
 
       {/* Permanent Address Card */}
       <Grid size={{ xs: 12, md: 4 }}>
-        <Card>
+        <Card elevation={0}>
           <CardHeader title='Permanent Address' />
           <CardContent>
             <div className='flex flex-col gap-3'>

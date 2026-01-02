@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 
 import { createClient } from '@/lib/supabase/server'
-import { authenticateRequest } from '@/lib/auth/authenticate'
+import { authenticateApiRoute, authenticateRequest } from '@/lib/auth/authenticate'
 import { handleError } from '@/lib/errors'
 import { 
   successResponse, 
@@ -82,7 +82,7 @@ import {
 export async function GET(request: NextRequest) {
   try {
     // Authenticate request
-    const { tenantId } = await authenticateRequest(request)
+    const { tenantId } = await authenticateApiRoute(request)
     
     // Get Supabase client
     const supabase = await createClient()
@@ -198,8 +198,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate request
-    const { tenantId } = await authenticateRequest(request)
+    // Authenticate request (supports both cookie and Bearer token auth)
+    const { tenantId } = await authenticateApiRoute(request)
     
     // Get Supabase client
     const supabase = await createClient()

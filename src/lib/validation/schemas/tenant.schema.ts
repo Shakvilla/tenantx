@@ -8,6 +8,7 @@ export const CreateTenantRecordSchema = z.object({
   lastName: z.string().min(1, 'Last name is required').max(100),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required').max(20),
+  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
   avatar: z.string().url().optional().nullable(),
   status: z.enum(['active', 'inactive', 'pending']).default('pending'),
   propertyId: z.string().uuid().optional().nullable(),
@@ -19,6 +20,25 @@ export const CreateTenantRecordSchema = z.object({
     name: z.string().min(1),
     phone: z.string().min(1),
     relationship: z.string().min(1),
+  }).optional().nullable(),
+  metadata: z.object({
+    occupation: z.string().optional(),
+    dob: z.string().optional(),
+    familyMembersCount: z.coerce.number().int().min(0).optional(),
+    permanentAddress: z.object({
+      country: z.string().optional(),
+      state: z.string().optional(),
+      city: z.string().optional(),
+      zipCode: z.string().optional(),
+      address: z.string().optional(),
+    }).optional(),
+    previousAddress: z.object({
+      country: z.string().optional(),
+      state: z.string().optional(),
+      city: z.string().optional(),
+      zipCode: z.string().optional(),
+      address: z.string().optional(),
+    }).optional(),
   }).optional().nullable(),
 })
 

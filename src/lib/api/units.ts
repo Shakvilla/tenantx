@@ -30,6 +30,7 @@ interface UnitQuery {
   page?: number
   pageSize?: number
   propertyId?: string
+  status?: string
   minRent?: number
   maxRent?: number
 }
@@ -50,7 +51,23 @@ export async function getUnitsByProperty(
 }
 
 /**
- * Get available units across all properties
+ * Get all units across all properties (with optional filters)
+ */
+export async function getAllUnits(query: UnitQuery = {}): Promise<ListResponse<Unit>> {
+  const params = new URLSearchParams()
+  
+  if (query.page) params.set('page', query.page.toString())
+  if (query.pageSize) params.set('pageSize', query.pageSize.toString())
+  if (query.propertyId) params.set('propertyId', query.propertyId)
+  if (query.status) params.set('status', query.status)
+  if (query.minRent) params.set('minRent', query.minRent.toString())
+  if (query.maxRent) params.set('maxRent', query.maxRent.toString())
+
+  return apiGet(`/api/v1/units?${params.toString()}`)
+}
+
+/**
+ * Get available units across all properties (status = 'available' only)
  */
 export async function getAvailableUnits(query: UnitQuery = {}): Promise<ListResponse<Unit>> {
   const params = new URLSearchParams()

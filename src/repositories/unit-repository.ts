@@ -79,7 +79,59 @@ class UnitRepositoryClass extends BaseRepository<Unit, UnitInsert, UnitUpdate> {
   }
 
   /**
-   * Find available units across all properties.
+   * Find all units across all properties (no status filter).
+   */
+  async findAllWithProperty(
+    supabase: SupabaseClient<Database>,
+    tenantId: string,
+    options: QueryOptions & { propertyId?: string; status?: string; minRent?: number; maxRent?: number } = {}
+  ): Promise<PaginatedResult<UnitWithProperty>> {
+    const { page = 1, pageSize = 10, propertyId, status, minRent, maxRent } = options
+    const { from, to } = calculateRange(page, pageSize)
+
+    let query = supabase
+      .from(this.tableName)
+      .select(`
+        *,
+        property:properties!inner(id, name)
+      `, { count: 'exact' })
+      .eq('tenant_id', tenantId)
+
+    if (propertyId) {
+      query = query.eq('property_id', propertyId)
+    }
+
+    // Only filter by status if explicitly provided
+    if (status) {
+      query = query.eq('status', status)
+    }
+
+    if (minRent !== undefined) {
+      query = query.gte('rent', minRent)
+    }
+
+    if (maxRent !== undefined) {
+      query = query.lte('rent', maxRent)
+    }
+
+    query = query.order('unit_no', { ascending: true }).range(from, to)
+
+    const { data, error, count } = await query
+
+    if (error) {
+      throw error
+    }
+
+    return {
+      data: (data || []) as UnitWithProperty[],
+      total: count || 0,
+      page,
+      pageSize,
+    }
+  }
+
+  /**
+   * Find available units across all properties (status = 'available' only).
    */
   async findAvailable(
     supabase: SupabaseClient<Database>,

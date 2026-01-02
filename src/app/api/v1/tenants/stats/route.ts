@@ -1,7 +1,7 @@
 import { type NextRequest } from 'next/server'
 
 import { createClient } from '@/lib/supabase/server'
-import { authenticateRequest } from '@/lib/auth/authenticate'
+import { authenticateApiRoute, authenticateRequest } from '@/lib/auth/authenticate'
 import { handleError } from '@/lib/errors'
 import { successResponse } from '@/lib/api/response'
 import { getTenantRecordStats } from '@/services/tenant-service'
@@ -56,7 +56,7 @@ import { getTenantRecordStats } from '@/services/tenant-service'
 export async function GET(request: NextRequest) {
   try {
     // Authenticate request
-    const { tenantId } = await authenticateRequest(request)
+    const { tenantId } = await authenticateApiRoute(request)
     
     // Get Supabase client
     const supabase = await createClient()

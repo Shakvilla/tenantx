@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -22,18 +22,20 @@ import AccordionSummary from '@mui/material/AccordionSummary'
 import AccordionDetails from '@mui/material/AccordionDetails'
 import Box from '@mui/material/Box'
 import Avatar from '@mui/material/Avatar'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
+
+// API Imports
+import { createTenant, updateTenant, uploadTenantImage, type CreateTenantPayload, type UpdateTenantPayload } from '@/lib/api/tenants'
+import { getAllUnits } from '@/lib/api/units'
+
+import type { Unit } from '@/types/property'
 
 type Property = {
   id: number | string
   name: string
 }
 
-type Unit = {
-  id: number | string
-  unitNumber: string
-  propertyId: string
-  propertyName: string
-}
 
 type TenantEditData = {
   id?: string | number
@@ -127,6 +129,7 @@ type FormDataType = {
   age: string
   familyMembers: string
   password: string
+  unitNo: string // Added to store unit number
   previousAddress: {
     country: string
     state: string
@@ -159,6 +162,7 @@ const initialData: FormDataType = {
   age: '',
   familyMembers: '',
   password: '',
+  unitNo: '',
   previousAddress: {
     country: '',
     state: '',
@@ -196,6 +200,8 @@ const AddTenantDialog = ({
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [expanded, setExpanded] = useState<string | false>('tenant-info')
+  const [isSaving, setIsSaving] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const [previewImages, setPreviewImages] = useState<{
     tenantPicture: string | null
@@ -207,13 +213,71 @@ const AddTenantDialog = ({
     ghanaCardBack: null
   })
 
+  // Dynamic units state - fetched based on selected property
+  const [availableUnits, setAvailableUnits] = useState<Array<{ id: string; unit_no: string }>>([])
+  const [isLoadingUnits, setIsLoadingUnits] = useState(false)
+
   // Refs for file inputs
   const tenantPictureRef = useRef<HTMLInputElement>(null)
   const ghanaCardFrontRef = useRef<HTMLInputElement>(null)
   const ghanaCardBackRef = useRef<HTMLInputElement>(null)
 
-  // Get filtered units based on selected property
-  const filteredUnits = units.filter(unit => unit.propertyId === formData.propertyId)
+  // Fetch available units when property is selected
+  const fetchUnitsForProperty = useCallback(async (propertyId: string) => {
+    if (!propertyId) {
+      setAvailableUnits([])
+      return
+    }
+
+    setIsLoadingUnits(true)
+    try {
+      const response = await getAllUnits({ 
+        propertyId, 
+        status: 'available',
+        pageSize: 100 
+      })
+      
+      if (response?.data) {
+        setAvailableUnits(response.data.map(u => ({ 
+          id: u.id, 
+          unit_no: u.unit_no 
+        })))
+      }
+    } catch (err) {
+      console.error('Failed to fetch units:', err)
+      setAvailableUnits([])
+    } finally {
+      setIsLoadingUnits(false)
+    }
+  }, [])
+
+  // Fetch units when property changes
+  useEffect(() => {
+    if (formData.propertyId) {
+      fetchUnitsForProperty(formData.propertyId)
+    } else {
+      setAvailableUnits([])
+    }
+  }, [formData.propertyId, fetchUnitsForProperty])
+
+  // Get filtered units based on selected property - memoized to prevent infinite re-renders
+  // Falls back to passed units prop if available, otherwise uses dynamically fetched units
+  const filteredUnits = useMemo(
+    () => {
+      // Use dynamically fetched available units
+      if (availableUnits.length > 0) {
+        return availableUnits.map(u => ({
+          id: u.id,
+          unit_no: u.unit_no,
+          property_id: formData.propertyId,
+          propertyName: ''
+        }))
+      }
+      // Fallback to prop-based units
+      return units.filter((unit: Unit) => unit.property_id === formData.propertyId)
+    },
+    [availableUnits, units, formData.propertyId]
+  )
 
   // Get initial form data based on mode
   const getInitialFormData = (): FormDataType => {
@@ -221,7 +285,7 @@ const AddTenantDialog = ({
       // Find unit by unitId or by roomNo
       const unit = editData.unitId
         ? units.find(u => u.id.toString() === editData.unitId)
-        : units.find(u => u.unitNumber === editData.roomNo)
+        : units.find((u: Unit) => u.property_id === editData.propertyId && u.unit_no === editData.roomNo)
       
       // Merge address objects to ensure all fields are present
       // Always merge with initialData to ensure all fields exist
@@ -250,6 +314,7 @@ const AddTenantDialog = ({
         age: editData.age?.toString() || '',
         familyMembers: editData.familyMembers?.toString() || '',
         password: editData.password || '',
+        unitNo: unit?.unit_no || '',
         previousAddress,
         permanentAddress,
         propertyId: editData.propertyId || '',
@@ -283,12 +348,25 @@ return initialData
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
 
-  // Reset unitId when property changes
+  // Reset unitId when property changes - only if unitId is not already empty
   useEffect(() => {
-    if (formData.propertyId && !filteredUnits.find(u => u.id.toString() === formData.unitId)) {
-      setFormData(prev => ({ ...prev, unitId: '' }))
+    // Guard: Only reset if unitId is not already empty and doesn't match any filtered unit
+    if (formData.propertyId && formData.unitId && !filteredUnits.find(u => u.id.toString() === formData.unitId)) {
+      setFormData(prev => ({ ...prev, unitId: '', unitNo: '' })) // Also reset unitNo
     }
   }, [formData.propertyId, filteredUnits, formData.unitId])
+
+  // Update unitNo when unitId changes
+  useEffect(() => {
+    if (formData.unitId) {
+      const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId);
+      if (selectedUnit && selectedUnit.unit_no !== formData.unitNo) {
+        setFormData(prev => ({ ...prev, unitNo: selectedUnit.unit_no }));
+      }
+    } else if (formData.unitNo !== '') {
+      setFormData(prev => ({ ...prev, unitNo: '' }));
+    }
+  }, [formData.unitId, filteredUnits, formData.unitNo]);
 
   // Cleanup preview URLs
   useEffect(() => {
@@ -373,80 +451,160 @@ return initialData
 return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) {
       return
     }
 
-    const selectedProperty = properties.find(p => p.id.toString() === formData.propertyId)
-    const selectedUnit = units.find(u => u.id.toString() === formData.unitId)
+    setIsSaving(true)
+    setApiError(null)
 
-    if (mode === 'add') {
-      const newTenant: Tenant = {
-        id: Date.now(),
-        name: `${formData.firstName} ${formData.lastName}`,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        occupation: formData.occupation,
-        age: Number(formData.age),
-        familyMembers: Number(formData.familyMembers),
-        password: formData.password,
-        roomNo: selectedUnit?.unitNumber || '',
-        propertyName: selectedProperty?.name || '',
-        propertyId: formData.propertyId,
-        numberOfUnits: 1,
-        status: 'active' as const,
-        avatar: previewImages.tenantPicture || undefined,
-        previousAddress: formData.previousAddress,
-        permanentAddress: formData.permanentAddress,
-        leaseStartDate: formData.leaseStartDate,
-        leaseEndDate: formData.leaseEndDate,
-        ghanaCardFront: previewImages.ghanaCardFront || undefined,
-        ghanaCardBack: previewImages.ghanaCardBack || undefined
-      }
+    try {
+      const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId)
+      const selectedProperty = properties.find(p => p.id.toString() === formData.propertyId)
+      const tenantFullName = `${formData.firstName} ${formData.lastName}`
+      const propertyName = selectedProperty?.name || 'Unknown'
 
-      if (tenantsData && setData) {
-        setData([...tenantsData, newTenant])
-      }
-    } else if (mode === 'edit' && editData) {
-      const updatedTenant: Partial<Tenant> = {
-        ...editData,
-        name: `${formData.firstName} ${formData.lastName}`,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phone: formData.phone,
-        occupation: formData.occupation,
-        age: Number(formData.age),
-        familyMembers: Number(formData.familyMembers),
-        password: formData.password,
-        roomNo: selectedUnit?.unitNumber || editData.roomNo || '',
-        propertyName: selectedProperty?.name || editData.propertyName || '',
-        propertyId: formData.propertyId,
-        previousAddress: formData.previousAddress,
-        permanentAddress: formData.permanentAddress,
-        leaseStartDate: formData.leaseStartDate,
-        leaseEndDate: formData.leaseEndDate,
-        avatar: previewImages.tenantPicture || editData.avatar,
-        ghanaCardFront: previewImages.ghanaCardFront || editData.ghanaCardFront,
-        ghanaCardBack: previewImages.ghanaCardBack || editData.ghanaCardBack
-      }
+      // Upload images if provided
+      let avatarUrl: string | undefined
 
-      if (tenantsData && setData) {
-        setData(
-          tenantsData.map(tenant =>
-            tenant.id === editData.id ? { ...tenant, ...updatedTenant } : tenant
+      if (formData.tenantPicture) {
+        try {
+          const uploadResult = await uploadTenantImage(
+            formData.tenantPicture,
+            propertyName,
+            tenantFullName,
+            'avatar'
           )
-        )
+          avatarUrl = uploadResult.data?.url
+        } catch (uploadErr) {
+          console.error('Failed to upload avatar:', uploadErr)
+          // Continue without avatar if upload fails
+        }
       }
-    }
 
-    handleClose()
-    setFormData(initialData)
-    setErrors({})
-    setPreviewImages({ tenantPicture: null, ghanaCardFront: null, ghanaCardBack: null })
+      // Upload Ghana card front if provided (for future use)
+      if (formData.ghanaCardFront) {
+        try {
+          await uploadTenantImage(
+            formData.ghanaCardFront,
+            propertyName,
+            tenantFullName,
+            'ghanaCardFront'
+          )
+        } catch (uploadErr) {
+          console.error('Failed to upload Ghana card front:', uploadErr)
+        }
+      }
+
+      // Upload Ghana card back if provided (for future use)
+      if (formData.ghanaCardBack) {
+        try {
+          await uploadTenantImage(
+            formData.ghanaCardBack,
+            propertyName,
+            tenantFullName,
+            'ghanaCardBack'
+          )
+        } catch (uploadErr) {
+          console.error('Failed to upload Ghana card back:', uploadErr)
+        }
+      }
+
+      if (mode === 'add') {
+        // Build API payload
+        // Convert date inputs (YYYY-MM-DD) to ISO datetime format
+        const moveInDate = formData.leaseStartDate 
+          ? new Date(formData.leaseStartDate).toISOString() 
+          : undefined
+        const moveOutDate = formData.leaseEndDate 
+          ? new Date(formData.leaseEndDate).toISOString() 
+          : undefined
+
+        const payload: CreateTenantPayload = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          password: formData.password || undefined, // Add password field
+          status: 'active', // Default to active
+          propertyId: formData.propertyId || undefined,
+          unitId: formData.unitId || undefined,
+          unitNo: selectedUnit?.unit_no || undefined,
+          moveInDate: formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined,
+          moveOutDate: formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined,
+          avatar: avatarUrl,
+          // Add metadata fields
+          metadata: {
+            occupation: formData.occupation,
+            dob: formData.age, // Mapping age/dob field
+            familyMembersCount: parseInt(formData.familyMembers) || 0,
+            permanentAddress: {
+              country: formData.permanentAddress.country,
+              state: formData.permanentAddress.state,
+              city: formData.permanentAddress.city,
+              zipCode: formData.permanentAddress.zipCode,
+              address: formData.permanentAddress.address
+            },
+            previousAddress: {
+              country: formData.previousAddress.country,
+              state: formData.previousAddress.state,
+              city: formData.previousAddress.city,
+              zipCode: formData.previousAddress.zipCode,
+              address: formData.previousAddress.address
+            }
+          }
+        }
+
+        const response = await createTenant(payload)
+        
+        if (!response.success) {
+          throw new Error(response.error?.message || 'Failed to create tenant')
+        }
+
+        console.log('Tenant created:', response.data)
+      } else if (mode === 'edit' && editData?.id) {
+        // Build update payload
+        // Convert date inputs (YYYY-MM-DD) to ISO datetime format
+        const moveInDate = formData.leaseStartDate 
+          ? new Date(formData.leaseStartDate).toISOString() 
+          : undefined
+        const moveOutDate = formData.leaseEndDate 
+          ? new Date(formData.leaseEndDate).toISOString() 
+          : undefined
+
+        const payload: UpdateTenantPayload = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phone: formData.phone,
+          propertyId: formData.propertyId || undefined,
+          unitId: formData.unitId || undefined,
+          unitNo: selectedUnit?.unit_no || undefined,
+          moveInDate,
+          moveOutDate,
+          avatar: avatarUrl,
+        }
+
+        const response = await updateTenant(editData.id.toString(), payload)
+        
+        if (!response.success) {
+          throw new Error(response.error?.message || 'Failed to update tenant')
+        }
+
+        console.log('Tenant updated:', response.data)
+      }
+
+      handleClose()
+      setFormData(initialData)
+      setErrors({})
+      setPreviewImages({ tenantPicture: null, ghanaCardFront: null, ghanaCardBack: null })
+    } catch (error) {
+      // console.error('Failed to save tenant:', error)
+      setApiError(error instanceof Error ? error.message : 'Failed to save tenant')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleReset = () => {
@@ -466,6 +624,11 @@ return Object.keys(newErrors).length === 0
       </DialogTitle>
       <DialogContent>
         <div className='flex flex-col gap-4 mbs-4'>
+          {apiError && (
+            <Alert severity='error' onClose={() => setApiError(null)}>
+              {apiError}
+            </Alert>
+          )}
           {/* Tenant Information Section */}
           <Accordion expanded={expanded === 'tenant-info'} onChange={handleExpandChange('tenant-info')}>
             <AccordionSummary expandIcon={<i className='ri-arrow-down-s-line' />}>
@@ -561,7 +724,6 @@ return Object.keys(newErrors).length === 0
                     size='small'
                     fullWidth
                     label='Family Members'
-                    type='number'
                     placeholder='Family members'
                     value={formData.familyMembers}
                     onChange={e => handleInputChange('familyMembers', e.target.value)}
@@ -972,19 +1134,24 @@ return Object.keys(newErrors).length === 0
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth error={Boolean(errors.unitId)} size='small' disabled={!formData.propertyId}>
-                    <InputLabel id='unit-label'>Unit Name</InputLabel>
+                  <FormControl fullWidth error={Boolean(errors.unitId)} size='small' disabled={!formData.propertyId || isLoadingUnits}>
+                    <InputLabel id='unit-label'>
+                      {isLoadingUnits ? 'Loading units...' : 'Unit Name'}
+                    </InputLabel>
                     <Select
                       size='small'
                       labelId='unit-label'
-                      label='Unit Name'
+                      label={isLoadingUnits ? 'Loading units...' : 'Unit Name'}
                       value={formData.unitId}
                       onChange={e => handleInputChange('unitId', e.target.value)}
+                      endAdornment={isLoadingUnits ? <CircularProgress size={20} sx={{ mr: 3 }} /> : null}
                     >
-                      <MenuItem value=''>Select Unit</MenuItem>
+                      <MenuItem value=''>
+                        {isLoadingUnits ? 'Loading...' : (filteredUnits.length === 0 ? 'No available units' : 'Select Unit')}
+                      </MenuItem>
                       {filteredUnits.map(unit => (
-                        <MenuItem key={unit.id} value={unit.id.toString()}>
-                          {unit.unitNumber}
+                        <MenuItem key={unit.id} value={unit.id}>
+                          {unit.unit_no}
                         </MenuItem>
                       ))}
                     </Select>
@@ -1029,11 +1196,17 @@ return Object.keys(newErrors).length === 0
         </div>
       </DialogContent>
       <DialogActions className='gap-2 pbs-4'>
-        <Button variant='outlined' color='secondary' onClick={handleReset}>
+        <Button variant='outlined' color='secondary' onClick={handleReset} disabled={isSaving}>
           Cancel
         </Button>
-        <Button variant='contained' color='primary' onClick={handleSubmit}>
-          {mode === 'edit' ? 'Update' : 'Save Now'}
+        <Button 
+          variant='contained' 
+          color='primary' 
+          onClick={handleSubmit}
+          disabled={isSaving}
+          startIcon={isSaving ? <CircularProgress size={16} color='inherit' /> : null}
+        >
+          {isSaving ? 'Saving...' : (mode === 'edit' ? 'Update' : 'Save Now')}
         </Button>
       </DialogActions>
     </Dialog>

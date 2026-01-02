@@ -55,6 +55,17 @@ export async function getAvailableUnits(
 }
 
 /**
+ * Get all units across all properties (no status restriction).
+ */
+export async function getAllUnits(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  options: QueryOptions & { propertyId?: string; status?: string; minRent?: number; maxRent?: number } = {}
+): Promise<PaginatedResult<UnitWithProperty>> {
+  return unitRepository.findAllWithProperty(supabase, tenantId, options)
+}
+
+/**
  * Create a new unit for a property.
  */
 export async function createUnit(

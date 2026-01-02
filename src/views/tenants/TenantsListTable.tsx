@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -17,6 +17,8 @@ import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import Avatar from '@mui/material/Avatar'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -40,7 +42,16 @@ import TenantsStatsCard from './TenantsStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
 import AddTenantDialog from './AddTenantDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
-import OpenDialogOnElementClick from '@components/dialogs/OpenDialogOnElementClick'
+
+// API Imports
+import { 
+  getTenants, 
+  getTenantStats, 
+  deleteTenant,
+  type TenantRecord,
+  type TenantStats 
+} from '@/lib/api/tenants'
+import { getProperties } from '@/lib/api/properties'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -57,49 +68,18 @@ declare module '@tanstack/table-core' {
   }
 }
 
-type Tenant = {
-  id: number
-  name: string
-  firstName?: string
-  lastName?: string
-  email: string
-  phone: string
-  occupation?: string
-  age?: number
-  familyMembers?: number
-  password?: string
-  roomNo: string
-  propertyName: string
-  propertyId?: string
-  numberOfUnits: number
-  costPerMonth?: string
-  leasePeriod?: string
-  totalAmount?: string
-  status: 'active' | 'inactive'
-  avatar?: string
-  previousAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  permanentAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  leaseStartDate?: string
-  leaseEndDate?: string
-  ghanaCardFront?: string
-  ghanaCardBack?: string
-}
-
-type TenantWithAction = Tenant & {
+type TenantWithAction = TenantRecord & {
   action?: string
 }
+
+import type { Unit } from '@/types/property'
+
+// Property type for dropdown
+type Property = {
+  id: string
+  name: string
+}
+
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
@@ -109,247 +89,148 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
 return itemRank.passed
 }
 
-// Sample data
-const sampleTenants: Tenant[] = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+233 24 123 4567',
-    roomNo: 'Unit 101',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,200',
-    leasePeriod: '12 months',
-    totalAmount: '₵14,400',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 2,
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    phone: '+233 24 234 5678',
-    roomNo: 'Unit 102',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,500',
-    leasePeriod: '6 months',
-    totalAmount: '₵9,000',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 3,
-    name: 'Mike Johnson',
-    email: 'mike.johnson@example.com',
-    phone: '+233 24 345 6789',
-    roomNo: 'Unit 201',
-    propertyName: 'Xorla House',
-    numberOfUnits: 2,
-    costPerMonth: '₵2,400',
-    leasePeriod: '24 months',
-    totalAmount: '₵57,600',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 4,
-    name: 'Sarah Williams',
-    email: 'sarah.williams@example.com',
-    phone: '+233 24 456 7890',
-    roomNo: 'Unit 301',
-    propertyName: 'Sunset Apartments',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,800',
-    leasePeriod: '12 months',
-    totalAmount: '₵21,600',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 5,
-    name: 'David Brown',
-    email: 'david.brown@example.com',
-    phone: '+233 24 567 8901',
-    roomNo: 'Unit 202',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,300',
-    leasePeriod: '6 months',
-    totalAmount: '₵7,800',
-    status: 'inactive',
-    avatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  }
-]
-
 const columnHelper = createColumnHelper<TenantWithAction>()
 
 const TenantsListTable = () => {
   // States
   const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(sampleTenants)
+  const [data, setData] = useState<TenantRecord[]>([])
+  const [stats, setStats] = useState<TenantStats>({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    pending: 0
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [status, setStatus] = useState('')
-  const [property, setProperty] = useState('')
-  const [unit, setUnit] = useState('')
+  const [propertyFilter, setPropertyFilter] = useState('')
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
+  
+  // Dialog states
   const [addTenantOpen, setAddTenantOpen] = useState(false)
   const [editTenantOpen, setEditTenantOpen] = useState(false)
   const [deleteTenantOpen, setDeleteTenantOpen] = useState(false)
-  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null)
+  const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null)
+  
+  // Properties and units for dropdowns
+  const [properties, setProperties] = useState<Property[]>([])
+  const [units, setUnits] = useState<Unit[]>([])
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    const activeTenants = data.filter(t => t.status === 'active').length
-    const inactiveTenants = data.filter(t => t.status === 'inactive').length
+  // Fetch tenants from API
+  const fetchTenants = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-    const totalRevenue = data
-      .filter(t => t.status === 'active' && t.costPerMonth)
-      .reduce((sum, tenant) => {
-        const amount = parseFloat((tenant.costPerMonth || '0').replace(/[₵,]/g, ''))
+      const response = await getTenants({
+        page: page + 1,
+        pageSize,
+        search: globalFilter || undefined,
+        status: status || undefined,
+        propertyId: propertyFilter || undefined,
+      })
 
-        
-return sum + amount
-      }, 0)
-
-    return {
-      allTenants: data.length,
-      activeTenants,
-      inactiveTenants,
-      totalRevenue: `₵${totalRevenue.toLocaleString()}`
+      setData(response?.data || [])
+      setTotal(response?.pagination?.total || 0)
+    } catch (err) {
+      console.error('Failed to load tenants:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load tenants')
+      setData([])
+      setTotal(0)
+    } finally {
+      setLoading(false)
     }
-  }, [data])
+  }, [page, pageSize, globalFilter, status, propertyFilter])
 
-  // Get unique properties for filter
-  const uniqueProperties = useMemo(() => {
-    const properties = Array.from(new Set(data.map(t => t.propertyName)))
-
-    
-return properties
-  }, [data])
-
-  // Get unique units for filter
-  const uniqueUnits = useMemo(() => {
-    const units = Array.from(new Set(data.map(t => t.roomNo)))
-
-    
-return units
-  }, [data])
-
-  // Sample properties and units data (in a real app, these would come from API)
-  const properties = useMemo(
-    () => [
-      { id: 1, name: 'Xorla House' },
-      { id: 2, name: 'Sunset Apartments' },
-      { id: 3, name: 'Beautiful modern style luxury home exterior at sunset' }
-    ],
-    []
-  )
-
-  const units = useMemo(
-    () => [
-      { id: '1', unitNumber: 'Unit 101', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '2', unitNumber: 'Unit 102', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '3', unitNumber: 'Unit 201', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '4', unitNumber: 'Unit 202', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '5', unitNumber: 'Unit 301', propertyId: '2', propertyName: 'Sunset Apartments' },
-      { id: '6', unitNumber: 'Unit 401', propertyId: '2', propertyName: 'Sunset Apartments' },
-      {
-        id: '7',
-        unitNumber: 'Unite 4',
-        propertyId: '3',
-        propertyName: 'Beautiful modern style luxury home exterior at sunset'
+  // Fetch stats from API
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await getTenantStats()
+      if (response.data) {
+        setStats(response.data)
       }
-    ],
-    []
-  )
+    } catch (err) {
+      console.error('Failed to fetch stats:', err)
+    }
+  }, [])
 
-  const handleDeleteTenant = (tenantId: number) => {
-    setData(data.filter(t => t.id !== tenantId))
-    setDeleteTenantOpen(false)
-    setSelectedTenant(null)
+  // Fetch properties for filter dropdown
+  const fetchProperties = useCallback(async () => {
+    try {
+      const response = await getProperties({ pageSize: 100 })
+      if (response?.data) {
+        setProperties(response.data.map(p => ({ id: p.id, name: p.name })))
+      }
+    } catch (err) {
+      console.error('Failed to fetch properties:', err)
+    }
+  }, [])
+
+  // Load data on mount and when filters change
+  useEffect(() => {
+    fetchTenants()
+  }, [fetchTenants])
+
+  useEffect(() => {
+    fetchStats()
+    fetchProperties()
+  }, [fetchStats, fetchProperties])
+
+  // Handle delete
+  const handleDelete = async () => {
+    if (!selectedTenant) return
+
+    try {
+      await deleteTenant(selectedTenant.id)
+      await fetchTenants()
+      await fetchStats()
+      setSelectedTenant(null)
+      setDeleteTenantOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete tenant')
+    }
   }
 
-  const handleEditTenant = (tenant: Tenant) => {
+  // Handle edit
+  const handleEditTenant = (tenant: TenantRecord) => {
     setSelectedTenant(tenant)
     setEditTenantOpen(true)
   }
 
-  // Convert Tenant to TenantEditData format
-  const getTenantEditData = (tenant: Tenant | null) => {
+  // Convert TenantRecord to TenantEditData format for AddTenantDialog
+  const getTenantEditData = (tenant: TenantRecord | null) => {
     if (!tenant) return null
-
-    // Find propertyId from propertyName if not set
-    const propertyId = tenant.propertyId || properties.find(p => p.name === tenant.propertyName)?.id.toString() || ''
-
-    // Find unitId from roomNo
-    const unit = units.find(u => u.unitNumber === tenant.roomNo)
-    const unitId = unit?.id.toString() || ''
-
-    // Split name into firstName and lastName if not already split
-    let firstName = tenant.firstName || ''
-    let lastName = tenant.lastName || ''
-
-    if (!firstName && !lastName && tenant.name) {
-      const nameParts = tenant.name.split(' ')
-
-      firstName = nameParts[0] || ''
-      lastName = nameParts.slice(1).join(' ') || ''
-    }
 
     return {
       id: tenant.id,
-      firstName,
-      lastName,
-      name: tenant.name,
+      firstName: tenant.first_name,
+      lastName: tenant.last_name,
       email: tenant.email,
       phone: tenant.phone,
-      occupation: tenant.occupation || '',
-      age: tenant.age,
-      familyMembers: tenant.familyMembers,
-      password: tenant.password || '',
-      roomNo: tenant.roomNo,
-      propertyName: tenant.propertyName,
-      propertyId,
-      unitId,
-      numberOfUnits: tenant.numberOfUnits,
-      costPerMonth: tenant.costPerMonth || '',
-      leasePeriod: tenant.leasePeriod || '',
-      totalAmount: tenant.totalAmount || '',
-      status: tenant.status,
-      avatar: tenant.avatar,
-      previousAddress: tenant.previousAddress,
-      permanentAddress: tenant.permanentAddress,
-      leaseStartDate: tenant.leaseStartDate || '',
-      leaseEndDate: tenant.leaseEndDate || '',
-      ghanaCardFront: tenant.ghanaCardFront,
-      ghanaCardBack: tenant.ghanaCardBack
+      propertyId: tenant.property_id || '',
+      unitId: tenant.unit_id || '',
+      roomNo: tenant.unit_no || '',
+      propertyName: tenant.property?.name || '',
+      leaseStartDate: tenant.move_in_date || '',
+      leaseEndDate: tenant.move_out_date || '',
+      avatar: tenant.avatar || undefined,
     }
   }
 
-  // Filter data
-  const filteredData = useMemo(() => {
-    let filtered = data
-
-    if (status) {
-      filtered = filtered.filter(t => t.status === status)
-    }
-
-    if (property) {
-      filtered = filtered.filter(t => t.propertyName === property)
-    }
-
-    if (unit) {
-      filtered = filtered.filter(t => t.roomNo === unit)
-    }
-
-    return filtered
-  }, [data, status, property, unit])
+  // Get unique properties from current data for quick filter
+  const uniqueProperties = useMemo(() => {
+    const propMap = new Map<string, string>()
+    data.forEach(t => {
+      if (t.property?.id && t.property?.name) {
+        propMap.set(t.property.id, t.property.name)
+      }
+    })
+    return Array.from(propMap.entries()).map(([id, name]) => ({ id, name }))
+  }, [data])
 
   const columns = useMemo<ColumnDef<TenantWithAction, any>[]>(
     () => [
@@ -364,55 +245,52 @@ return units
         ),
         cell: ({ row }) => <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
       }),
-      columnHelper.accessor('name', {
+      columnHelper.accessor('first_name', {
         header: 'TENANT',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            {row.original.avatar ? (
-              <Avatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
-            ) : (
-              <CustomAvatar skin='light' color='primary' size={34}>
-                {getInitials(row.original.name)}
-              </CustomAvatar>
-            )}
-            <div className='flex flex-col'>
-              <Typography color='text.primary' className='font-medium'>
-                {row.original.name}
-              </Typography>
-              <Typography variant='body2' color='text.secondary'>
-                {row.original.email}
-              </Typography>
+        cell: ({ row }) => {
+          const fullName = `${row.original.first_name} ${row.original.last_name}`
+          return (
+            <div className='flex items-center gap-3'>
+              {row.original.avatar ? (
+                <Avatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
+              ) : (
+                <CustomAvatar skin='light' color='primary' size={34}>
+                  {getInitials(fullName)}
+                </CustomAvatar>
+              )}
+              <div className='flex flex-col'>
+                <Typography color='text.primary' className='font-medium'>
+                  {fullName}
+                </Typography>
+                <Typography variant='body2' color='text.secondary'>
+                  {row.original.email}
+                </Typography>
+              </div>
             </div>
-          </div>
-        )
+          )
+        }
       }),
       columnHelper.accessor('phone', {
         header: 'PHONE',
         cell: ({ row }) => <Typography>{row.original.phone}</Typography>
       }),
-      columnHelper.accessor('roomNo', {
+      columnHelper.accessor('unit_no', {
         header: 'ROOM NO',
-        cell: ({ row }) => <Typography>{row.original.roomNo}</Typography>
+        cell: ({ row }) => <Typography>{row.original.unit_no || row.original.unit?.unit_no || '-'}</Typography>
       }),
-      columnHelper.accessor('propertyName', {
+      columnHelper.accessor('property', {
         header: 'PROPERTY',
-        cell: ({ row }) => <Typography>{row.original.propertyName}</Typography>
+        cell: ({ row }) => <Typography>{row.original.property?.name || '-'}</Typography>
       }),
-      columnHelper.accessor('numberOfUnits', {
-        header: 'UNITS',
-        cell: ({ row }) => <Typography>{row.original.numberOfUnits}</Typography>
-      }),
-      columnHelper.accessor('costPerMonth', {
-        header: 'COST/MONTH',
+      columnHelper.accessor('move_in_date', {
+        header: 'MOVE IN',
         cell: ({ row }) => (
-          <Typography color='text.primary' className='font-medium'>
-            {row.original.costPerMonth}
+          <Typography>
+            {row.original.move_in_date 
+              ? new Date(row.original.move_in_date).toLocaleDateString() 
+              : '-'}
           </Typography>
         )
-      }),
-      columnHelper.accessor('leasePeriod', {
-        header: 'LEASE PERIOD',
-        cell: ({ row }) => <Typography>{row.original.leasePeriod}</Typography>
       }),
       columnHelper.accessor('status', {
         header: 'STATUS',
@@ -421,7 +299,13 @@ return units
             variant='tonal'
             label={row.original.status}
             size='small'
-            color={row.original.status === 'active' ? 'success' : 'warning'}
+            color={
+              row.original.status === 'active' 
+                ? 'success' 
+                : row.original.status === 'pending' 
+                  ? 'warning' 
+                  : 'default'
+            }
             className='capitalize'
           />
         )
@@ -464,7 +348,7 @@ return units
   )
 
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
     filterFns: {
       fuzzy: fuzzyFilter
@@ -473,11 +357,8 @@ return units
       rowSelection,
       globalFilter
     },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
+    manualPagination: true,
+    pageCount: Math.ceil(total / pageSize),
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -496,51 +377,55 @@ return units
         icon='ri-group-line'
       />
       <TenantsStatsCard
-        allTenants={stats.allTenants}
-        activeTenants={stats.activeTenants}
-        inactiveTenants={stats.inactiveTenants}
-        totalRevenue={stats.totalRevenue}
+        allTenants={stats.total}
+        activeTenants={stats.active}
+        inactiveTenants={stats.inactive}
+        totalRevenue={`₵${stats.pending}`}
       />
       <Card className='mbs-6'>
         <CardHeader
           title='Tenants List'
           action={
             <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <Button 
+                size='small' 
+                startIcon={<i className='ri-refresh-line' />}
+                onClick={() => {
+                  fetchTenants()
+                  fetchStats()
+                }}
+              >
+                Refresh
+              </Button>
+              <OptionMenu options={['Share', 'Export']} />
             </div>
           }
         />
         <CardContent className='flex flex-col gap-4'>
+          {error && (
+            <Alert severity='error' onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+
           {/* Filters Section */}
-          <Box className='flex flex-col gap-4 p-4  rounded-lg'>
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center gap-2 '>
+          <Box className='flex flex-col gap-4 p-4 rounded-lg'>
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center gap-2'>
               <TextField
                 select
                 size='small'
                 label='Select Property'
-                value={property}
-                onChange={e => setProperty(e.target.value)}
+                value={propertyFilter}
+                onChange={e => {
+                  setPropertyFilter(e.target.value)
+                  setPage(0)
+                }}
                 sx={{ minWidth: 180 }}
               >
                 <MenuItem value=''>All Properties</MenuItem>
-                {uniqueProperties.map(prop => (
-                  <MenuItem key={prop} value={prop}>
-                    {prop}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                size='small'
-                label='Select Unit'
-                value={unit}
-                onChange={e => setUnit(e.target.value)}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value=''>All Units</MenuItem>
-                {uniqueUnits.map(unitOption => (
-                  <MenuItem key={unitOption} value={unitOption}>
-                    {unitOption}
+                {(properties.length > 0 ? properties : uniqueProperties).map(prop => (
+                  <MenuItem key={prop.id} value={prop.id}>
+                    {prop.name}
                   </MenuItem>
                 ))}
               </TextField>
@@ -549,23 +434,30 @@ return units
                 size='small'
                 label='Status'
                 value={status}
-                onChange={e => setStatus(e.target.value)}
+                onChange={e => {
+                  setStatus(e.target.value)
+                  setPage(0)
+                }}
                 sx={{ minWidth: 150 }}
               >
                 <MenuItem value=''>All Status</MenuItem>
                 <MenuItem value='active'>Active</MenuItem>
                 <MenuItem value='inactive'>Inactive</MenuItem>
+                <MenuItem value='pending'>Pending</MenuItem>
               </TextField>
             </div>
             <Divider />
 
-            <div className='flex items-center  justify-between gap-2'>
+            <div className='flex items-center justify-between gap-2'>
               <div>
                 <TextField
                   size='small'
-                  placeholder='Search'
+                  placeholder='Search tenants...'
                   value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
+                  onChange={e => {
+                    setGlobalFilter(e.target.value)
+                    setPage(0)
+                  }}
                   className='flex-1 min-w-[200px]'
                 />
               </div>
@@ -574,8 +466,11 @@ return units
                 <TextField
                   select
                   size='small'
-                  value={table.getState().pagination.pageSize}
-                  onChange={e => table.setPageSize(Number(e.target.value))}
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(0)
+                  }}
                   sx={{ minWidth: 100 }}
                 >
                   <MenuItem value={10}>10</MenuItem>
@@ -600,46 +495,48 @@ return units
 
           {/* Table */}
           <div className='overflow-x-auto'>
-            <table className={tableStyles.table}>
-              <thead>
-                {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map(header => (
-                      <th key={header.id}>
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={classnames({
-                              'flex items-center': header.column.getIsSorted(),
-                              'cursor-pointer select-none': header.column.getCanSort()
-                            })}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <i className='ri-arrow-up-s-line text-xl' />,
-                              desc: <i className='ri-arrow-down-s-line text-xl' />
-                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                          </div>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
-                <tbody>
-                  <tr>
-                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
-                    </td>
-                  </tr>
-                </tbody>
-              ) : (
-                <tbody>
-                  {table
-                    .getRowModel()
-                    .rows.slice(0, table.getState().pagination.pageSize)
-                    .map(row => {
+            {loading ? (
+              <Box className='flex justify-center items-center py-10'>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <table className={tableStyles.table}>
+                <thead>
+                  {table.getHeaderGroups().map(headerGroup => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map(header => (
+                        <th key={header.id}>
+                          {header.isPlaceholder ? null : (
+                            <div
+                              className={classnames({
+                                'flex items-center': header.column.getIsSorted(),
+                                'cursor-pointer select-none': header.column.getCanSort()
+                              })}
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {{
+                                asc: <i className='ri-arrow-up-s-line text-xl' />,
+                                desc: <i className='ri-arrow-down-s-line text-xl' />
+                              }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                            </div>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                {data.length === 0 ? (
+                  <tbody>
+                    <tr>
+                      <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
+                        No tenants found
+                      </td>
+                    </tr>
+                  </tbody>
+                ) : (
+                  <tbody>
+                    {table.getRowModel().rows.map(row => {
                       return (
                         <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
                           {row.getVisibleCells().map(cell => (
@@ -648,24 +545,26 @@ return units
                         </tr>
                       )
                     })}
-                </tbody>
-              )}
-            </table>
+                  </tbody>
+                )}
+              </table>
+            )}
           </div>
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={table.getFilteredRowModel().rows.length}
-            rowsPerPage={table.getState().pagination.pageSize}
-            page={table.getState().pagination.pageIndex}
+            count={total}
+            rowsPerPage={pageSize}
+            page={page}
             SelectProps={{
               inputProps: { 'aria-label': 'rows per page' }
             }}
-            onPageChange={(_, page) => {
-              table.setPageIndex(page)
+            onPageChange={(_, newPage) => setPage(newPage)}
+            onRowsPerPageChange={e => {
+              setPageSize(Number(e.target.value))
+              setPage(0)
             }}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
           />
         </CardContent>
       </Card>
@@ -673,8 +572,12 @@ return units
       {/* Add Tenant Dialog */}
       <AddTenantDialog
         open={addTenantOpen}
-        handleClose={() => setAddTenantOpen(false)}
-        properties={properties}
+        handleClose={() => {
+          setAddTenantOpen(false)
+          fetchTenants()
+          fetchStats()
+        }}
+        properties={properties.map(p => ({ id: p.id, name: p.name }))}
         units={units}
         tenantsData={data}
         setData={setData}
@@ -687,8 +590,10 @@ return units
         handleClose={() => {
           setEditTenantOpen(false)
           setSelectedTenant(null)
+          fetchTenants()
+          fetchStats()
         }}
-        properties={properties}
+        properties={properties.map(p => ({ id: p.id, name: p.name }))}
         units={units}
         tenantsData={data}
         setData={setData}
@@ -701,11 +606,7 @@ return units
         open={deleteTenantOpen}
         setOpen={setDeleteTenantOpen}
         type='delete-tenant'
-        onConfirm={() => {
-          if (selectedTenant) {
-            handleDeleteTenant(selectedTenant.id)
-          }
-        }}
+        onConfirm={handleDelete}
       />
     </>
   )

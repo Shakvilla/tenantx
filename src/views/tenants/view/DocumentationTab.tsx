@@ -75,7 +75,7 @@ const DocumentationTab = () => {
   }
 
   return (
-    <Card>
+    <Card elevation={0}>
       <CardContent className='flex flex-col gap-6'>
         <Typography variant='h5' className='font-medium'>
           Documents

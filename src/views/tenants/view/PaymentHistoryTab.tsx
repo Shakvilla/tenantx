@@ -358,7 +358,7 @@ return months.sort()
   }
 
   return (
-    <Card>
+    <Card elevation={0}>
       <CardHeader
         title='Payment History'
         action={

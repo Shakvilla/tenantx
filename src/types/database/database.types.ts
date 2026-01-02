@@ -1429,6 +1429,7 @@ export type Database = {
           unit_id: string | null
           unit_no: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           avatar?: string | null
@@ -1450,6 +1451,7 @@ export type Database = {
           unit_id?: string | null
           unit_no?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           avatar?: string | null
@@ -1463,6 +1465,7 @@ export type Database = {
           move_in_date?: string | null
           move_out_date?: string | null
           notes?: string | null
+          user_id?: string | null
           phone?: string
           property_id?: string | null
           status?: string

@@ -89,6 +89,56 @@ export async function createTenantRecord(
     emergency_contact: validated.emergencyContact 
       ? JSON.parse(JSON.stringify(validated.emergencyContact))
       : null,
+    metadata: validated.metadata ? JSON.parse(JSON.stringify(validated.metadata)) : null,
+  }
+
+  // Handle Renter Login Creation if password is provided
+  if (validated.password) {
+    // 1. Create Auth User
+    const { data: authData, error: createError } = await supabase.auth.admin.createUser({
+      email: validated.email,
+      password: validated.password,
+      email_confirm: true,
+      user_metadata: {
+        name: `${validated.firstName} ${validated.lastName}`,
+        phone: validated.phone,
+        tenant_id: tenantId,
+        role: 'renter'
+      }
+    })
+
+    if (createError) {
+      console.error('Failed to create auth user for renter:', createError)
+      // We continue without linking user, or we could throw. 
+      // For now, let's log and proceed, or we could throw if login is mandatory.
+      // Decision: Throw, as explicit password implies intent to login.
+      throw new Error(`Failed to create login account: ${createError.message}`)
+    }
+
+    if (authData.user) {
+      // 2. Create Public User Profile
+      const { error: userError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          tenant_id: tenantId,
+          email: validated.email,
+          name: `${validated.firstName} ${validated.lastName}`,
+          role: 'renter',
+          status: 'active',
+          phone: validated.phone
+        })
+
+      if (userError) {
+        console.error('Failed to create public user profile:', userError)
+        // Cleanup auth user to avoid orphans? 
+        // For now, throw.
+        throw new Error(`Failed to create user profile: ${userError.message}`)
+      }
+
+      // 3. Link to Tenant Record
+      insertData.user_id = authData.user.id
+    }
   }
   
   return tenantRecordRepository.create(supabase, tenantId, insertData)
@@ -139,6 +189,12 @@ export async function updateTenantRecord(
       ? JSON.parse(JSON.stringify(validated.emergencyContact))
       : null
   }
+
+  if (validated.metadata !== undefined) {
+    updateData.metadata = validated.metadata 
+      ? JSON.parse(JSON.stringify(validated.metadata))
+      : null
+  }
   
   if (Object.keys(updateData).length === 0) {
     throw new ValidationError('No fields to update')
@@ -172,6 +228,7 @@ export async function getTenantRecordStats(
 }> {
   return tenantRecordRepository.getStats(supabase, tenantId)
 }
+
 
 /**
  * Get tenant records by property.

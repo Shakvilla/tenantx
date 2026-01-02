@@ -10,6 +10,7 @@ import {
   logoutUser as apiLogout,
   getCurrentUser,
   getStoredToken,
+  setStoredTokens,
   clearStoredTokens,
   type AuthUser,
   type AuthTenant,
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       })
       
-return
+      return
     }
 
     try {
@@ -75,14 +76,37 @@ return
           isLoading: false,
         })
       } else {
-        // Token is invalid, clear it
+        // Token may be stale - try to refresh the session
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+        
+        if (!refreshError && refreshData.session) {
+          // Session refreshed - update tokens and retry
+          setStoredTokens(refreshData.session.access_token, refreshData.session.refresh_token)
+          const retryResponse = await getCurrentUser()
+          
+          if (retryResponse.success && retryResponse.data) {
+            setState({
+              user: retryResponse.data.user,
+              tenant: retryResponse.data.tenant,
+              isAuthenticated: true,
+              isLoading: false,
+            })
+            return
+          }
+        }
+        
+        // Refresh failed - clear everything and redirect to login
         clearStoredTokens()
+        await supabase.auth.signOut()
         setState({
           user: null,
           tenant: null,
           isAuthenticated: false,
           isLoading: false,
         })
+        router.push('/login')
       }
     } catch {
       clearStoredTokens()
@@ -92,8 +116,9 @@ return
         isAuthenticated: false,
         isLoading: false,
       })
+      router.push('/login')
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     refreshUser()
@@ -163,6 +188,15 @@ return {
 
   // Logout
   const logout = useCallback(async () => {
+    // Ensure Supabase session is cleared even if API fails
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      await supabase.auth.signOut()
+    } catch {
+      // Continue even if signOut fails
+    }
+    
     await apiLogout()
     setState({
       user: null,

@@ -3,6 +3,7 @@
  * Client-side functions to interact with the authentication API endpoints using Axios.
  */
 import axios, { AxiosError } from 'axios'
+import { createClient } from '@/lib/supabase/client'
 
 const API_BASE = '/api/v1/auth'
 
@@ -132,6 +133,10 @@ return {
 
 export async function logoutUser(): Promise<ApiResponse<null>> {
   try {
+    // Sign out from Supabase browser client to clear auth cookies/state
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    
     await axios.post(
       `${API_BASE}/logout`,
       {},

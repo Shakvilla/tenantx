@@ -9,9 +9,13 @@ import { useRouter } from 'next/navigation'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Component Imports
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+
+// API Imports
+import { deleteTenant } from '@/lib/api/tenants'
 
 type TenantData = {
   id: string
@@ -33,14 +37,26 @@ const TenantDetailHeader = ({
 }) => {
   // States
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const router = useRouter()
 
   const statusColor = tenantData?.status === 'active' ? 'success' : 'warning'
 
-  const handleDelete = () => {
-    // TODO: Implement API call to delete tenant
-    // For now, just navigate back to tenants list
-    router.push('/tenants')
+  const handleDelete = async () => {
+    setIsDeleting(true)
+    setDeleteError(null)
+
+    try {
+      await deleteTenant(tenantId)
+      setDeleteDialogOpen(false)
+      // Navigate back to tenants list after successful deletion
+      router.push('/tenants')
+    } catch (error) {
+      console.error('Failed to delete tenant:', error)
+      setDeleteError(error instanceof Error ? error.message : 'Failed to delete tenant')
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -71,13 +87,19 @@ const TenantDetailHeader = ({
           <Button
             variant='outlined'
             color='error'
-            startIcon={<i className='ri-delete-bin-line' />}
+            startIcon={isDeleting ? <CircularProgress size={16} color='inherit' /> : <i className='ri-delete-bin-line' />}
             onClick={() => setDeleteDialogOpen(true)}
+            disabled={isDeleting}
           >
-            Delete Tenant
+            {isDeleting ? 'Deleting...' : 'Delete Tenant'}
           </Button>
         </div>
       </div>
+      {deleteError && (
+        <Typography variant='body2' color='error' className='mt-2'>
+          {deleteError}
+        </Typography>
+      )}
       <ConfirmationDialog
         open={deleteDialogOpen}
         setOpen={setDeleteDialogOpen}
@@ -89,4 +111,3 @@ const TenantDetailHeader = ({
 }
 
 export default TenantDetailHeader
-

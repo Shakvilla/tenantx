@@ -33,7 +33,7 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
     <Grid container spacing={6}>
       {/* Property Image Section */}
       <Grid size={{ xs: 12, md: 7 }}>
-        <Card>
+        <Card elevation={0}>
           <CardMedia
             component='img'
             image={
@@ -48,7 +48,7 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
 
       {/* Rent Information Section */}
       <Grid size={{ xs: 12, md: 5 }}>
-        <Card>
+        <Card elevation={0}>
           <CardContent className='flex flex-col gap-6'>
             <div className='flex flex-col gap-2'>
               <Typography variant='h5'>{tenantData?.propertyName || 'Property Name'}</Typography>
