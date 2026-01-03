@@ -1,22 +1,25 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import {
-  loginUser as apiLogin,
-  registerUser as apiRegister,
-  logoutUser as apiLogout,
-  getCurrentUser,
-  getStoredToken,
-  setStoredTokens,
-  clearStoredTokens,
-  type AuthUser,
-  type AuthTenant,
-} from '@/lib/api/auth-client'
+// Types - preserved for your new backend
+export interface AuthUser {
+  id: string
+  email: string
+  name: string
+  role: string
+  avatarUrl?: string
+  phone?: string
+}
 
-// Types
+export interface AuthTenant {
+  id: string
+  name: string
+  subdomain?: string
+}
+
 interface AuthState {
   user: AuthUser | null
   tenant: AuthTenant | null
@@ -39,122 +42,71 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-// Provider
+// Mock user for development - replace with your backend auth
+const MOCK_USER: AuthUser = {
+  id: 'dev-user-001',
+  email: 'developer@tenantx.dev',
+  name: 'Developer',
+  role: 'admin',
+}
+
+const MOCK_TENANT: AuthTenant = {
+  id: 'dev-tenant-001',
+  name: 'Development Org',
+}
+
+/**
+ * AuthProvider stub - replace with your new backend auth
+ * 
+ * TODO: Implement authentication with your new backend:
+ * - Replace mock data with actual API calls
+ * - Implement token storage/refresh
+ * - Connect to your auth provider
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
 
+  // Development mode: auto-authenticated with mock user
   const [state, setState] = useState<AuthState>({
-    user: null,
-    tenant: null,
-    isAuthenticated: false,
-    isLoading: true,
+    user: MOCK_USER,
+    tenant: MOCK_TENANT,
+    isAuthenticated: true,
+    isLoading: false,
   })
 
-  // Check auth on mount
+  // Refresh user - stub
   const refreshUser = useCallback(async () => {
-    const token = getStoredToken()
+    // TODO: Fetch current user from your backend
+    setState({
+      user: MOCK_USER,
+      tenant: MOCK_TENANT,
+      isAuthenticated: true,
+      isLoading: false,
+    })
+  }, [])
 
-    if (!token) {
-      setState({
-        user: null,
-        tenant: null,
-        isAuthenticated: false,
-        isLoading: false,
-      })
-      
-      return
-    }
-
-    try {
-      const response = await getCurrentUser()
-
-      if (response.success && response.data) {
-        setState({
-          user: response.data.user,
-          tenant: response.data.tenant,
-          isAuthenticated: true,
-          isLoading: false,
-        })
-      } else {
-        // Token may be stale - try to refresh the session
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-        
-        if (!refreshError && refreshData.session) {
-          // Session refreshed - update tokens and retry
-          setStoredTokens(refreshData.session.access_token, refreshData.session.refresh_token)
-          const retryResponse = await getCurrentUser()
-          
-          if (retryResponse.success && retryResponse.data) {
-            setState({
-              user: retryResponse.data.user,
-              tenant: retryResponse.data.tenant,
-              isAuthenticated: true,
-              isLoading: false,
-            })
-            return
-          }
-        }
-        
-        // Refresh failed - clear everything and redirect to login
-        clearStoredTokens()
-        await supabase.auth.signOut()
-        setState({
-          user: null,
-          tenant: null,
-          isAuthenticated: false,
-          isLoading: false,
-        })
-        router.push('/login')
-      }
-    } catch {
-      clearStoredTokens()
-      setState({
-        user: null,
-        tenant: null,
-        isAuthenticated: false,
-        isLoading: false,
-      })
-      router.push('/login')
-    }
-  }, [router])
-
-  useEffect(() => {
-    refreshUser()
-  }, [refreshUser])
-
-  // Login
+  // Login - stub
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (_email: string, _password: string) => {
       setState(prev => ({ ...prev, isLoading: true }))
 
-      const response = await apiLogin(email, password)
+      // TODO: Call your backend login API
+      // Simulate success for development
+      setState({
+        user: MOCK_USER,
+        tenant: MOCK_TENANT,
+        isAuthenticated: true,
+        isLoading: false,
+      })
 
-      if (response.success && response.data) {
-        setState({
-          user: response.data.user,
-          tenant: response.data.tenant,
-          isAuthenticated: true,
-          isLoading: false,
-        })
-        
-return { success: true }
-      }
-
-      setState(prev => ({ ...prev, isLoading: false }))
-      
-return {
-        success: false,
-        error: response.error?.message || 'Login failed',
-      }
+      return { success: true }
     },
     []
   )
 
-  // Register
+  // Register - stub
   const register = useCallback(
-    async (data: {
+    async (_data: {
       email: string
       password: string
       name: string
@@ -163,41 +115,22 @@ return {
     }) => {
       setState(prev => ({ ...prev, isLoading: true }))
 
-      const response = await apiRegister(data)
+      // TODO: Call your backend register API
+      setState({
+        user: MOCK_USER,
+        tenant: MOCK_TENANT,
+        isAuthenticated: true,
+        isLoading: false,
+      })
 
-      if (response.success && response.data) {
-        setState({
-          user: response.data.user,
-          tenant: response.data.tenant,
-          isAuthenticated: true,
-          isLoading: false,
-        })
-        
-return { success: true }
-      }
-
-      setState(prev => ({ ...prev, isLoading: false }))
-      
-return {
-        success: false,
-        error: response.error?.message || 'Registration failed',
-      }
+      return { success: true }
     },
     []
   )
 
-  // Logout
+  // Logout - stub
   const logout = useCallback(async () => {
-    // Ensure Supabase session is cleared even if API fails
-    try {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    } catch {
-      // Continue even if signOut fails
-    }
-    
-    await apiLogout()
+    // TODO: Call your backend logout API
     setState({
       user: null,
       tenant: null,
@@ -230,8 +163,7 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider')
   }
 
-  
-return context
+  return context
 }
 
 // Optional: Hook for requiring authentication
@@ -239,11 +171,7 @@ export function useRequireAuth(redirectTo = '/login') {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push(redirectTo)
-    }
-  }, [isAuthenticated, isLoading, router, redirectTo])
-
-  return { isAuthenticated, isLoading }
+  // For development, always authenticated
+  // TODO: Implement actual auth check
+  return { isAuthenticated: true, isLoading: false }
 }
