@@ -1,13 +1,11 @@
 /**
- * Auth API Client
- * Client-side functions to interact with the authentication API endpoints using Axios.
+ * Auth API Client Stub
+ * 
+ * TODO: Replace with actual API calls to your new backend
+ * This file provides type definitions and stub functions for development.
  */
-import axios, { AxiosError } from 'axios'
-import { createClient } from '@/lib/supabase/client'
 
-const API_BASE = '/api/v1/auth'
-
-// Types
+// Types - preserved for your new backend
 export interface AuthUser {
   id: string
   email: string
@@ -40,13 +38,12 @@ export interface ApiResponse<T> {
   }
 }
 
-// Token management
+// Token management stubs
 const TOKEN_KEY = 'auth_token'
 const REFRESH_TOKEN_KEY = 'refresh_token'
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null
-
   return localStorage.getItem(TOKEN_KEY)
 }
 
@@ -62,191 +59,69 @@ export function clearStoredTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY)
 }
 
-function getAuthHeaders(): Record<string, string> {
-  const token = getStoredToken()
-
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
-// API Functions
+// API stub functions - TODO: implement with your backend
 
 export async function loginUser(
-  email: string,
-  password: string
+  _email: string,
+  _password: string
 ): Promise<ApiResponse<AuthResponse>> {
-  try {
-    const { data } = await axios.post<ApiResponse<AuthResponse>>(
-      `${API_BASE}/login`,
-      { email, password }
-    )
-
-    if (data.success && data.data) {
-      setStoredTokens(data.data.token, data.data.refreshToken)
-    }
-
-    return data
-  } catch (error) {
-    if (error instanceof AxiosError && error.response?.data) {
-      return error.response.data as ApiResponse<AuthResponse>
-    }
-
-    
-return {
-      success: false,
-      data: null,
-      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
-    }
+  // TODO: Call your backend login API
+  return {
+    success: false,
+    data: null,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
   }
 }
 
-export async function registerUser(payload: {
+export async function registerUser(_payload: {
   email: string
   password: string
   name: string
   phone?: string
   tenantName: string
 }): Promise<ApiResponse<AuthResponse>> {
-  try {
-    const { data } = await axios.post<ApiResponse<AuthResponse>>(
-      `${API_BASE}/register`,
-      payload
-    )
-
-    if (data.success && data.data) {
-      setStoredTokens(data.data.token, data.data.refreshToken)
-    }
-
-    return data
-  } catch (error) {
-    if (error instanceof AxiosError && error.response?.data) {
-      return error.response.data as ApiResponse<AuthResponse>
-    }
-
-    
-return {
-      success: false,
-      data: null,
-      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
-    }
+  // TODO: Call your backend register API
+  return {
+    success: false,
+    data: null,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
   }
 }
 
 export async function logoutUser(): Promise<ApiResponse<null>> {
-  try {
-    // Sign out from Supabase browser client to clear auth cookies/state
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    
-    await axios.post(
-      `${API_BASE}/logout`,
-      {},
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    )
-
-    clearStoredTokens()
-    
-return { success: true, data: null }
-  } catch {
-    // Even if the API call fails, clear local tokens
-    clearStoredTokens()
-    
-return { success: true, data: null }
-  }
+  clearStoredTokens()
+  return { success: true, data: null }
 }
 
 export async function getCurrentUser(): Promise<
   ApiResponse<{ user: AuthUser; tenant: AuthTenant }>
 > {
-  const token = getStoredToken()
-
-  if (!token) {
-    return { success: false, data: null, error: { code: 'NO_TOKEN', message: 'Not authenticated' } }
-  }
-
-  try {
-    const { data } = await axios.get<ApiResponse<{ user: AuthUser; tenant: AuthTenant }>>(
-      `${API_BASE}/me`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      }
-    )
-
-    return data
-  } catch (error) {
-    if (error instanceof AxiosError && error.response?.data) {
-      return error.response.data as ApiResponse<{ user: AuthUser; tenant: AuthTenant }>
-    }
-
-    
-return {
-      success: false,
-      data: null,
-      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
-    }
+  // TODO: Call your backend to get current user
+  return {
+    success: false,
+    data: null,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
   }
 }
 
-export async function updateProfile(payload: {
+export async function updateProfile(_payload: {
   name?: string
   phone?: string
   avatarUrl?: string
 }): Promise<ApiResponse<{ id: string; name: string; phone?: string; avatarUrl?: string }>> {
-  try {
-    const { data } = await axios.patch<
-      ApiResponse<{ id: string; name: string; phone?: string; avatarUrl?: string }>
-    >(`${API_BASE}/me`, payload, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-    })
-
-    return data
-  } catch (error) {
-    if (error instanceof AxiosError && error.response?.data) {
-      return error.response.data as ApiResponse<{
-        id: string
-        name: string
-        phone?: string
-        avatarUrl?: string
-      }>
-    }
-
-    
-return {
-      success: false,
-      data: null,
-      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
-    }
+  // TODO: Call your backend to update profile
+  return {
+    success: false,
+    data: null,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
   }
 }
 
-export async function forgotPassword(email: string): Promise<ApiResponse<{ message: string }>> {
-  try {
-    const { data } = await axios.post<ApiResponse<{ message: string }>>(
-      `${API_BASE}/forgot-password`,
-      { email }
-    )
-
-    return data
-  } catch (error) {
-    if (error instanceof AxiosError && error.response?.data) {
-      return error.response.data as ApiResponse<{ message: string }>
-    }
-
-    
-return {
-      success: false,
-      data: null,
-      error: { code: 'NETWORK_ERROR', message: 'Failed to connect to server' },
-    }
+export async function forgotPassword(_email: string): Promise<ApiResponse<{ message: string }>> {
+  // TODO: Call your backend forgot password API
+  return {
+    success: false,
+    data: null,
+    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
   }
 }

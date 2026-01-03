@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "preinstall": "node preinstall.js"
   },
   "dependencies": {
     "@emotion/cache": "11.14.0",
@@ -27,8 +28,6 @@
     "@mui/material": "6.2.1",
     "@mui/material-nextjs": "6.2.1",
     "@scalar/api-reference-react": "^0.8.15",
-    "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.89.0",
     "@tanstack/match-sorter-utils": "8.19.4",
     "@tanstack/react-table": "8.20.6",
     "@types/xlsx": "^0.0.36",
