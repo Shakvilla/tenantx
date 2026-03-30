@@ -3,6 +3,9 @@
 // Third-party Imports
 import classnames from 'classnames'
 
+// MUI Imports
+import LinearProgress from '@mui/material/LinearProgress'
+
 // Type Imports
 import type { ShortcutsType } from '@components/layout/shared/ShortcutsDropdown'
 import type { NotificationsType } from '@components/layout/shared/NotificationsDropdown'
@@ -15,6 +18,9 @@ import ShortcutsDropdown from '@components/layout/shared/ShortcutsDropdown'
 import ModeDropdown from '@components/layout/shared/ModeDropdown'
 import NotificationsDropdown from '@components/layout/shared/NotificationsDropdown'
 import UserDropdown from '@components/layout/shared/UserDropdown'
+
+// Context Imports
+import { useAuth } from '@/contexts/AuthContext'
 
 // Util Imports
 import { verticalLayoutClasses } from '@layouts/utils/layoutClasses'
@@ -91,18 +97,28 @@ const notifications: NotificationsType[] = [
 ]
 
 const NavbarContent = () => {
+  const { isRefreshing } = useAuth()
+
   return (
-    <div className={classnames(verticalLayoutClasses.navbarContent, 'flex items-center justify-between gap-4 is-full')}>
-      <div className='flex items-center gap-4'>
-        <NavToggle />
-        <NavSearch />
-      </div>
-      <div className='flex items-center gap-2'>
-        <CreateButton />
-        <ShortcutsDropdown shortcuts={shortcuts} />
-        <ModeDropdown />
-        <NotificationsDropdown notifications={notifications} />
-        <UserDropdown />
+    <div className={classnames(verticalLayoutClasses.navbarContent, 'flex flex-col is-full relative')}>
+      {isRefreshing && (
+        <LinearProgress 
+          className='absolute block-start-0 inline-start-0 is-full' 
+          sx={{ height: 2, zIndex: 1000 }}
+        />
+      )}
+      <div className='flex items-center justify-between gap-4 is-full bs-full'>
+        <div className='flex items-center gap-4'>
+          <NavToggle />
+          <NavSearch />
+        </div>
+        <div className='flex items-center gap-2'>
+          <CreateButton />
+          <ShortcutsDropdown shortcuts={shortcuts} />
+          <ModeDropdown />
+          <NotificationsDropdown notifications={notifications} />
+          <UserDropdown />
+        </div>
       </div>
     </div>
   )

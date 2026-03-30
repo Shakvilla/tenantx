@@ -1,3 +1,4 @@
+/* eslint-disable import/no-unresolved */
 // Type Imports
 import type { ChildrenType } from '@core/types'
 

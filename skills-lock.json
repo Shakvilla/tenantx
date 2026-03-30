@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "48c9438b32e62679de45e510b34f3e81b1341d4ba9aeae97b92bbd7e3e01986a"
+    },
+    "next-best-practices": {
+      "source": "vercel-labs/next-skills",
+      "sourceType": "github",
+      "computedHash": "515ba75178bd44875812d9a560bdf14651f86709f89cf1d4f209638e879807f3"
+    },
+    "performance-optimization": {
+      "source": "supercent-io/skills-template",
+      "sourceType": "github",
+      "computedHash": "5cbae5d5e98c89e02b18cb43d9f7b9175fd95cf3957b2eaafb0f5a32b53205b1"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "afeca00ac2f492d88fdd010e73d91719a5b57c564bb4a73325b0bd77e11323ab"
+    }
+  }
+}

@@ -12,6 +12,7 @@ import Chip from '@mui/material/Chip'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
+import TablePagination from '@mui/material/TablePagination'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
@@ -40,7 +41,9 @@ import CustomAvatar from '@core/components/mui/Avatar'
 import AddUnitDialog from './AddUnitDialog'
 
 // API Imports
-import { getPropertyUnits, deleteUnit, type PropertyUnit } from '@/lib/api/properties'
+import { getUnitsByProperty as getPropertyUnits, deleteUnit } from '@/lib/api/units'
+import type { Unit as PropertyUnit } from '@/types/property'
+import { formatCurrency } from '@/utils/currency'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -57,10 +60,12 @@ type UnitType = {
   id: string
   unitNumber: string
   tenantName: string | null
-  status: 'occupied' | 'vacant' | 'maintenance'
-  rent: string
-  bedrooms: number
-  bathrooms: number
+  type: string
+  status: 'occupied' | 'vacant' | 'maintenance' | string
+  rent: number
+  formattedRent: string
+  bedrooms: number | string
+  bathrooms: number | string
   size: string
   originalData: PropertyUnit
 }
@@ -76,15 +81,15 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 function transformUnits(units: PropertyUnit[]): UnitType[] {
   return units.map((unit) => ({
     id: unit.id,
-    unitNumber: unit.unit_no,
-    tenantName: unit.tenant_record
-      ? `${unit.tenant_record.first_name} ${unit.tenant_record.last_name}`
-      : null,
-    status: unit.status === 'available' ? 'vacant' : (unit.status as 'occupied' | 'vacant' | 'maintenance'),
-    rent: `₵${unit.rent?.toLocaleString() || '0'}`,
-    bedrooms: unit.bedrooms || 0,
-    bathrooms: unit.bathrooms || 0,
-    size: unit.size_sqft ? `${unit.size_sqft.toLocaleString()} sqft` : '-',
+    unitNumber: unit.unitNo,
+    type: unit.type,
+    status: unit.status,
+    bedrooms: unit.bedrooms || '-',
+    bathrooms: unit.bathrooms || '-',
+    rent: unit.rent,
+    formattedRent: formatCurrency(unit.rent),
+    size: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-',
+    tenantName: unit.tenantRecordId ? 'Has Tenant' : 'Vacant',
     originalData: unit
   }))
 }
@@ -102,6 +107,14 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
   const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
 
+  // Pagination states
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+  const [cursorHistory, setCursorHistory] = useState<string[]>([])
+
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editUnit, setEditUnit] = useState<PropertyUnit | null>(null)
@@ -110,34 +123,45 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
   const [deleting, setDeleting] = useState(false)
 
   // Fetch units
-  const fetchUnits = useCallback(async () => {
+  const fetchUnits = useCallback(async (cursorOverride?: string | null) => {
     if (!propertyId) {
       setLoading(false)
       setError('No property ID provided')
-      
-return
+      return
     }
 
     try {
       setLoading(true)
       setError(null)
-      const response = await getPropertyUnits(propertyId)
+      const response = await getPropertyUnits(propertyId, {
+        size: pageSize,
+        sort: 'id,asc',
+        cursor: cursorOverride ?? undefined
+      })
 
       if (response.success && response.data) {
         setData(transformUnits(response.data))
+        setTotal(response.meta?.pagination?.total || response.data.length || 0)
+        setCursor(response.meta?.pagination?.cursor ?? null)
+        setHasNext(response.meta?.pagination?.hasNext ?? false)
       } else {
         setError('Failed to load units')
       }
     } catch (err) {
       console.error('Error fetching units:', err)
       setError(err instanceof Error ? err.message : 'Failed to load units')
+      setData([])
+      setTotal(0)
     } finally {
       setLoading(false)
     }
-  }, [propertyId])
+  }, [propertyId, pageSize])
 
   useEffect(() => {
-    fetchUnits()
+    setCursor(null)
+    setCursorHistory([])
+    setPage(0)
+    fetchUnits(null)
   }, [fetchUnits])
 
   // Handle add success
@@ -231,7 +255,7 @@ return
         header: 'RENT',
         cell: ({ row }) => (
           <Typography color="text.primary" className="font-medium">
-            {row.original.rent}
+            {row.original.formattedRent}
           </Typography>
         )
       }),
@@ -280,7 +304,8 @@ return
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { globalFilter },
-    initialState: { pagination: { pageSize: 10 } },
+    manualPagination: true,
+    pageCount: Math.ceil(total / pageSize),
     globalFilterFn: fuzzyFilter,
     getCoreRowModel: getCoreRowModel(),
     onGlobalFilterChange: setGlobalFilter,
@@ -357,8 +382,7 @@ return
                   <tbody className="border-be">
                     {table
                       .getRowModel()
-                      .rows.slice(0, table.getState().pagination.pageSize)
-                      .map((row) => (
+                      .rows.map((row) => (
                         <tr key={row.id}>
                           {row.getVisibleCells().map((cell) => (
                             <td key={cell.id} className="first:is-14">
@@ -371,6 +395,41 @@ return
                 )}
               </table>
             </div>
+          )}
+          {!loading && !error && (
+            <TablePagination
+              rowsPerPageOptions={[10, 25, 50]}
+              component="div"
+              className="border-bs"
+              count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
+              rowsPerPage={pageSize}
+              page={page}
+              SelectProps={{
+                inputProps: { 'aria-label': 'rows per page' }
+              }}
+              onPageChange={(_, newPage) => {
+                if (newPage > page && hasNext && cursor) {
+                  // Going forward
+                  setCursorHistory((prev) => [...prev, cursor])
+                  fetchUnits(cursor)
+                  setPage(newPage)
+                } else if (newPage < page) {
+                  // Going backward
+                  const newHistory = [...cursorHistory]
+                  const prevCursor = newHistory.pop() ?? null
+                  setCursorHistory(newHistory)
+                  fetchUnits(prevCursor === cursorHistory[0] ? null : prevCursor)
+                  setPage(newPage)
+                }
+              }}
+              onRowsPerPageChange={(e) => {
+                setPageSize(Number(e.target.value))
+                setPage(0)
+                setCursor(null)
+                setCursorHistory([])
+                fetchUnits(null)
+              }}
+            />
           )}
         </CardContent>
       </Card>

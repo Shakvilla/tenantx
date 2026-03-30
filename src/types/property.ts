@@ -18,7 +18,7 @@ export interface PropertyAddress {
  */
 export interface Property {
   id: string
-  tenant_id: string
+  tenantId: string
   name: string
   description?: string | null
   address: PropertyAddress
@@ -26,7 +26,7 @@ export interface Property {
   // Location (Ghana-specific)
   region?: string | null
   district?: string | null
-  gps_code?: string | null
+  gpsCode?: string | null
   
   // Classification
   type: 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment'
@@ -40,24 +40,24 @@ export interface Property {
   amenities?: string[] | null
   
   // Unit counts
-  total_units: number
-  occupied_units: number
+  totalUnits: number
+  occupiedUnits: number
   
   // Status
   status: 'active' | 'inactive' | 'maintenance'
   
   // Media
   images?: string[] | null
-  thumbnail_index?: number | null
+  thumbnailIndex?: number | null
   
   // Financial
-  purchase_price?: number | null
-  current_value?: number | null
+  purchasePrice?: number | null
+  currentValue?: number | null
   currency?: string | null
   
   // Timestamps
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string | null
 }
 
 /**
@@ -78,16 +78,16 @@ export interface PropertyStats {
  */
 export interface Unit {
   id: string
-  tenant_id: string
-  property_id: string
-  unit_no: string
+  tenantId: string
+  propertyId: string
+  unitNo: string
   floor?: number | null
   
   // Type
   type: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
   
   // Size & features
-  size_sqft?: number | null
+  sizeSqft?: number | null
   bedrooms?: number | null
   bathrooms?: number | null
   amenities?: string[] | null
@@ -101,14 +101,14 @@ export interface Unit {
   status: 'available' | 'occupied' | 'maintenance' | 'reserved'
   
   // Tenant
-  tenant_record_id?: string | null
+  tenantRecordId?: string | null
   
   // Media
   images?: string[] | null
   
   // Timestamps
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string | null
   
   // Joined data
   property?: {

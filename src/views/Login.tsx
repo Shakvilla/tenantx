@@ -4,7 +4,7 @@
 import { useState } from 'react'
 
 // Next Imports
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
 import Typography from '@mui/material/Typography'
@@ -22,10 +22,12 @@ import classnames from 'classnames'
 
 // Type Imports
 import type { Mode } from '@core/types'
+import type { Workspace } from '@/lib/api/auth-client'
 
 // Component Imports
 import Link from '@components/Link'
 import Logo from '@components/layout/shared/Logo'
+import WorkspaceSelection from '@views/auth/WorkspaceSelection'
 
 // Config Imports
 import themeConfig from '@configs/themeConfig'
@@ -53,9 +55,13 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
   // Hooks
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { settings } = useSettings()
-  const { login } = useAuth()
+  const { login, needsWorkspaceSelection, pendingWorkspaces, selectWorkspace } = useAuth()
   const authBackground = useImageVariant(mode, lightImg, darkImg)
+
+  // Message from query params (e.g. session expired)
+  const message = searchParams.get('message')
 
   const characterIllustration = useImageVariant(
     mode,
@@ -74,14 +80,84 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     const result = await login(email, password)
 
+    if (!result.success) {
+      setError(result.error || 'Login failed. Please check your credentials.')
+    }
+
+    // If workspace selection is needed, the component will re-render with the selection UI
+    // If auto-selected (single workspace), redirect to dashboard
+    if (result.success && !needsWorkspaceSelection) {
+      // Small delay to let the state settle (auto-select case)
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 100)
+    }
+
+    setIsSubmitting(false)
+  }
+
+  const handleWorkspaceSelect = async (workspace: Workspace) => {
+    setError(null)
+    setIsSubmitting(true)
+
+    const result = await selectWorkspace(workspace)
+
     if (result.success) {
       router.push('/dashboard')
     } else {
-      setError(result.error || 'Login failed. Please check your credentials.')
-      setIsSubmitting(false)
+      setError(result.error || 'Failed to select workspace.')
     }
+
+    setIsSubmitting(false)
   }
 
+  // ---------------------------------------------------------------------------
+  // Workspace Selection View
+  // ---------------------------------------------------------------------------
+  if (needsWorkspaceSelection && pendingWorkspaces && pendingWorkspaces.length > 0) {
+    return (
+      <div className='flex bs-full justify-center'>
+        <div
+          className={classnames(
+            'flex bs-full items-center justify-center flex-1 min-bs-[100dvh] relative p-6 max-md:hidden',
+            {
+              'border-ie': settings.skin === 'bordered'
+            }
+          )}
+        >
+          <div className='pli-6 max-lg:mbs-40 lg:mbe-24'>
+            <img
+              src={characterIllustration}
+              alt='character-illustration'
+              className='max-bs-[673px] max-is-full bs-auto'
+            />
+          </div>
+          <img src={authBackground} className='absolute bottom-[4%] z-[-1] is-full max-md:hidden' />
+        </div>
+        <div className='flex justify-center items-center bs-full bg-backgroundPaper !min-is-full p-6 md:!min-is-[unset] md:p-12 md:is-[480px]'>
+          <Link className='absolute block-start-5 sm:block-start-[38px] inline-start-6 sm:inline-start-[38px]'>
+            <Logo />
+          </Link>
+          <div className='flex flex-col gap-5 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
+            {error && (
+              <Alert severity='error' onClose={() => setError(null)}>
+                {error}
+              </Alert>
+            )}
+            <WorkspaceSelection
+              workspaces={pendingWorkspaces}
+              onSelect={handleWorkspaceSelect}
+              isLoading={isSubmitting}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // Login Form View
+  // ---------------------------------------------------------------------------
   return (
     <div className='flex bs-full justify-center'>
       <div
@@ -110,6 +186,12 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
             <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
             <Typography className='mbs-1'>Please sign-in to your account and start the adventure</Typography>
           </div>
+          
+          {message && (
+            <Alert severity='info'>
+              {message}
+            </Alert>
+          )}
           
           {error && (
             <Alert severity='error' onClose={() => setError(null)}>

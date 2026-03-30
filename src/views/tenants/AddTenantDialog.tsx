@@ -26,7 +26,13 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 
 // API Imports
-import { createTenant, updateTenant, uploadTenantImage, type CreateTenantPayload, type UpdateTenantPayload } from '@/lib/api/tenants'
+import {
+  createTenant,
+  updateTenant,
+  uploadTenantImage,
+  type CreateTenantPayload,
+  type UpdateTenantPayload
+} from '@/lib/api/tenants'
 import { getAllUnits } from '@/lib/api/units'
 
 import type { Unit } from '@/types/property'
@@ -35,7 +41,6 @@ type Property = {
   id: number | string
   name: string
 }
-
 
 type TenantEditData = {
   id?: string | number
@@ -226,22 +231,30 @@ const AddTenantDialog = ({
   const fetchUnitsForProperty = useCallback(async (propertyId: string) => {
     if (!propertyId) {
       setAvailableUnits([])
+
       return
     }
 
     setIsLoadingUnits(true)
+
     try {
-      const response = await getAllUnits({ 
-        propertyId, 
+      const response = await getAllUnits({
+        propertyId,
         status: 'available',
-        pageSize: 100 
+        pageSize: 100
       })
-      
+
+      if (!response.success && response.error) {
+        throw new Error(response.error.message || 'Failed to fetch units')
+      }
+
       if (response?.data) {
-        setAvailableUnits(response.data.map(u => ({ 
-          id: u.id, 
-          unit_no: u.unit_no 
-        })))
+        setAvailableUnits(
+          response.data.map(u => ({
+            id: u.id,
+            unit_no: u.unit_no
+          }))
+        )
       }
     } catch (err) {
       console.error('Failed to fetch units:', err)
@@ -262,22 +275,20 @@ const AddTenantDialog = ({
 
   // Get filtered units based on selected property - memoized to prevent infinite re-renders
   // Falls back to passed units prop if available, otherwise uses dynamically fetched units
-  const filteredUnits = useMemo(
-    () => {
-      // Use dynamically fetched available units
-      if (availableUnits.length > 0) {
-        return availableUnits.map(u => ({
-          id: u.id,
-          unit_no: u.unit_no,
-          property_id: formData.propertyId,
-          propertyName: ''
-        }))
-      }
-      // Fallback to prop-based units
-      return units.filter((unit: Unit) => unit.property_id === formData.propertyId)
-    },
-    [availableUnits, units, formData.propertyId]
-  )
+  const filteredUnits = useMemo(() => {
+    // Use dynamically fetched available units
+    if (availableUnits.length > 0) {
+      return availableUnits.map(u => ({
+        id: u.id,
+        unit_no: u.unit_no,
+        property_id: formData.propertyId,
+        propertyName: ''
+      }))
+    }
+
+    // Fallback to prop-based units
+    return units.filter((unit: Unit) => unit.property_id === formData.propertyId)
+  }, [availableUnits, units, formData.propertyId])
 
   // Get initial form data based on mode
   const getInitialFormData = (): FormDataType => {
@@ -286,7 +297,7 @@ const AddTenantDialog = ({
       const unit = editData.unitId
         ? units.find(u => u.id.toString() === editData.unitId)
         : units.find((u: Unit) => u.property_id === editData.propertyId && u.unit_no === editData.roomNo)
-      
+
       // Merge address objects to ensure all fields are present
       // Always merge with initialData to ensure all fields exist
       const previousAddress = {
@@ -304,7 +315,7 @@ const AddTenantDialog = ({
         zipCode: editData.permanentAddress?.zipCode ?? initialData.permanentAddress.zipCode,
         address: editData.permanentAddress?.address ?? initialData.permanentAddress.address
       }
-      
+
       return {
         firstName: editData.firstName || '',
         lastName: editData.lastName || '',
@@ -327,8 +338,7 @@ const AddTenantDialog = ({
       }
     }
 
-    
-return initialData
+    return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
@@ -359,14 +369,15 @@ return initialData
   // Update unitNo when unitId changes
   useEffect(() => {
     if (formData.unitId) {
-      const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId);
+      const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId)
+
       if (selectedUnit && selectedUnit.unit_no !== formData.unitNo) {
-        setFormData(prev => ({ ...prev, unitNo: selectedUnit.unit_no }));
+        setFormData(prev => ({ ...prev, unitNo: selectedUnit.unit_no }))
       }
     } else if (formData.unitNo !== '') {
-      setFormData(prev => ({ ...prev, unitNo: '' }));
+      setFormData(prev => ({ ...prev, unitNo: '' }))
     }
-  }, [formData.unitId, filteredUnits, formData.unitNo]);
+  }, [formData.unitId, filteredUnits, formData.unitNo])
 
   // Cleanup preview URLs
   useEffect(() => {
@@ -397,11 +408,7 @@ return initialData
     }
   }
 
-  const handleAddressChange = (
-    type: 'previousAddress' | 'permanentAddress',
-    field: string,
-    value: string
-  ) => {
+  const handleAddressChange = (type: 'previousAddress' | 'permanentAddress', field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       [type]: {
@@ -447,8 +454,8 @@ return initialData
     }
 
     setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async () => {
@@ -470,15 +477,12 @@ return Object.keys(newErrors).length === 0
 
       if (formData.tenantPicture) {
         try {
-          const uploadResult = await uploadTenantImage(
-            formData.tenantPicture,
-            propertyName,
-            tenantFullName,
-            'avatar'
-          )
+          const uploadResult = await uploadTenantImage(formData.tenantPicture, propertyName, tenantFullName, 'avatar')
+
           avatarUrl = uploadResult.data?.url
         } catch (uploadErr) {
           console.error('Failed to upload avatar:', uploadErr)
+
           // Continue without avatar if upload fails
         }
       }
@@ -486,12 +490,7 @@ return Object.keys(newErrors).length === 0
       // Upload Ghana card front if provided (for future use)
       if (formData.ghanaCardFront) {
         try {
-          await uploadTenantImage(
-            formData.ghanaCardFront,
-            propertyName,
-            tenantFullName,
-            'ghanaCardFront'
-          )
+          await uploadTenantImage(formData.ghanaCardFront, propertyName, tenantFullName, 'ghanaCardFront')
         } catch (uploadErr) {
           console.error('Failed to upload Ghana card front:', uploadErr)
         }
@@ -500,12 +499,7 @@ return Object.keys(newErrors).length === 0
       // Upload Ghana card back if provided (for future use)
       if (formData.ghanaCardBack) {
         try {
-          await uploadTenantImage(
-            formData.ghanaCardBack,
-            propertyName,
-            tenantFullName,
-            'ghanaCardBack'
-          )
+          await uploadTenantImage(formData.ghanaCardBack, propertyName, tenantFullName, 'ghanaCardBack')
         } catch (uploadErr) {
           console.error('Failed to upload Ghana card back:', uploadErr)
         }
@@ -514,12 +508,9 @@ return Object.keys(newErrors).length === 0
       if (mode === 'add') {
         // Build API payload
         // Convert date inputs (YYYY-MM-DD) to ISO datetime format
-        const moveInDate = formData.leaseStartDate 
-          ? new Date(formData.leaseStartDate).toISOString() 
-          : undefined
-        const moveOutDate = formData.leaseEndDate 
-          ? new Date(formData.leaseEndDate).toISOString() 
-          : undefined
+        const moveInDate = formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined
+
+        const moveOutDate = formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined
 
         const payload: CreateTenantPayload = {
           firstName: formData.firstName,
@@ -534,6 +525,7 @@ return Object.keys(newErrors).length === 0
           moveInDate: formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined,
           moveOutDate: formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined,
           avatar: avatarUrl,
+
           // Add metadata fields
           metadata: {
             occupation: formData.occupation,
@@ -557,7 +549,7 @@ return Object.keys(newErrors).length === 0
         }
 
         const response = await createTenant(payload)
-        
+
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to create tenant')
         }
@@ -566,12 +558,9 @@ return Object.keys(newErrors).length === 0
       } else if (mode === 'edit' && editData?.id) {
         // Build update payload
         // Convert date inputs (YYYY-MM-DD) to ISO datetime format
-        const moveInDate = formData.leaseStartDate 
-          ? new Date(formData.leaseStartDate).toISOString() 
-          : undefined
-        const moveOutDate = formData.leaseEndDate 
-          ? new Date(formData.leaseEndDate).toISOString() 
-          : undefined
+        const moveInDate = formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined
+
+        const moveOutDate = formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined
 
         const payload: UpdateTenantPayload = {
           firstName: formData.firstName,
@@ -583,11 +572,11 @@ return Object.keys(newErrors).length === 0
           unitNo: selectedUnit?.unit_no || undefined,
           moveInDate,
           moveOutDate,
-          avatar: avatarUrl,
+          avatar: avatarUrl
         }
 
         const response = await updateTenant(editData.id.toString(), payload)
-        
+
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update tenant')
         }
@@ -759,7 +748,6 @@ return Object.keys(newErrors).length === 0
                       const file = e.target.files?.[0] || null
 
                       handleFileChange('tenantPicture', file)
-
 
                       // Reset input to allow selecting the same file again
                       if (e.target) {
@@ -1134,10 +1122,13 @@ return Object.keys(newErrors).length === 0
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth error={Boolean(errors.unitId)} size='small' disabled={!formData.propertyId || isLoadingUnits}>
-                    <InputLabel id='unit-label'>
-                      {isLoadingUnits ? 'Loading units...' : 'Unit Name'}
-                    </InputLabel>
+                  <FormControl
+                    fullWidth
+                    error={Boolean(errors.unitId)}
+                    size='small'
+                    disabled={!formData.propertyId || isLoadingUnits}
+                  >
+                    <InputLabel id='unit-label'>{isLoadingUnits ? 'Loading units...' : 'Unit Name'}</InputLabel>
                     <Select
                       size='small'
                       labelId='unit-label'
@@ -1147,7 +1138,11 @@ return Object.keys(newErrors).length === 0
                       endAdornment={isLoadingUnits ? <CircularProgress size={20} sx={{ mr: 3 }} /> : null}
                     >
                       <MenuItem value=''>
-                        {isLoadingUnits ? 'Loading...' : (filteredUnits.length === 0 ? 'No available units' : 'Select Unit')}
+                        {isLoadingUnits
+                          ? 'Loading...'
+                          : filteredUnits.length === 0
+                            ? 'No available units'
+                            : 'Select Unit'}
                       </MenuItem>
                       {filteredUnits.map(unit => (
                         <MenuItem key={unit.id} value={unit.id}>
@@ -1199,14 +1194,14 @@ return Object.keys(newErrors).length === 0
         <Button variant='outlined' color='secondary' onClick={handleReset} disabled={isSaving}>
           Cancel
         </Button>
-        <Button 
-          variant='contained' 
-          color='primary' 
+        <Button
+          variant='contained'
+          color='primary'
           onClick={handleSubmit}
           disabled={isSaving}
           startIcon={isSaving ? <CircularProgress size={16} color='inherit' /> : null}
         >
-          {isSaving ? 'Saving...' : (mode === 'edit' ? 'Update' : 'Save Now')}
+          {isSaving ? 'Saving...' : mode === 'edit' ? 'Update' : 'Save Now'}
         </Button>
       </DialogActions>
     </Dialog>

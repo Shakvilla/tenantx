@@ -44,7 +44,7 @@ import { getProperties } from '@/lib/api/properties'
 import OptionMenu from '@core/components/option-menu'
 import PageBanner from '@components/banner/PageBanner'
 import UnitsStatsCard from './UnitsStatsCard'
-import CustomAvatar from '@core/components/mui/Avatar'
+
 import AddUnitDialog from './AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
@@ -108,31 +108,43 @@ const UnitsListTable = () => {
   const [deleteUnitOpen, setDeleteUnitOpen] = useState(false)
   const [selectedUnit, setSelectedUnit] = useState<UnitWithExtras | null>(null)
 
+  // Cursor-based pagination state
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+  const [cursorHistory, setCursorHistory] = useState<string[]>([])
+
   // Fetch available units
-  const fetchUnits = useCallback(async () => {
+  const fetchUnits = useCallback(async (cursorOverride?: string | null) => {
     try {
       setLoading(true)
       setError(null)
 
       const response = await getAllUnits({
-        page: page + 1,
-        pageSize,
+        size: pageSize,
+        sort: 'id,asc',
+        cursor: cursorOverride ?? undefined,
         propertyId: property || undefined,
       })
 
+      if (!response.success && response.error) {
+        throw new Error(response.error.message || 'Failed to load units')
+      }
+
       // Handle response with defensive checks
       const responseData = response?.data || []
-      
+
       // Transform data for display
       const transformedData: UnitWithExtras[] = responseData.map(unit => ({
         ...unit,
         propertyName: unit.property?.name || 'Unknown Property',
         formattedRent: `₵${unit.rent.toLocaleString()}`,
-        formattedSize: unit.size_sqft ? `${unit.size_sqft.toLocaleString()} sqft` : '-'
+        formattedSize: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-'
       }))
 
       setData(transformedData)
-      setTotal(response?.pagination?.total || 0)
+      setTotal(response?.meta?.pagination?.total || responseData.length || 0)
+      setCursor(response?.meta?.pagination?.cursor ?? null)
+      setHasNext(response?.meta?.pagination?.hasNext ?? false)
     } catch (err) {
       console.error('Failed to load units:', err)
       setError(err instanceof Error ? err.message : 'Failed to load units')
@@ -141,13 +153,14 @@ const UnitsListTable = () => {
     } finally {
       setLoading(false)
     }
-  }, [page, pageSize, property])
+  }, [pageSize, property])
 
   // Fetch properties for filter
   const fetchProperties = useCallback(async () => {
     try {
-      const response = await getProperties({ pageSize: 100 })
+      const response = await getProperties({ size: 100 })
       const responseData = response?.data || []
+
       setProperties(responseData.map(p => ({ id: p.id, name: p.name })))
     } catch (err) {
       console.error('Failed to fetch properties:', err)
@@ -156,7 +169,10 @@ const UnitsListTable = () => {
 
   // Load data on mount
   useEffect(() => {
-    fetchUnits()
+    setCursor(null)
+    setCursorHistory([])
+    setPage(0)
+    fetchUnits(null)
   }, [fetchUnits])
 
   useEffect(() => {
@@ -208,11 +224,11 @@ const UnitsListTable = () => {
 
   const columns = useMemo<ColumnDef<UnitWithExtras, any>[]>(
     () => [
-      columnHelper.accessor('unit_no', {
+      columnHelper.accessor('unitNo', {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
           <Typography color='text.primary' className='font-medium'>
-            {row.original.unit_no}
+            {row.original.unitNo}
           </Typography>
         )
       }),
@@ -522,16 +538,32 @@ const UnitsListTable = () => {
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={total}
+            count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
             rowsPerPage={pageSize}
             page={page}
             SelectProps={{
               inputProps: { 'aria-label': 'rows per page' }
             }}
-            onPageChange={(_, newPage) => setPage(newPage)}
+            onPageChange={(_, newPage) => {
+              if (newPage > page && hasNext && cursor) {
+                setCursorHistory(prev => [...prev, cursor])
+                fetchUnits(cursor)
+                setPage(newPage)
+              } else if (newPage < page) {
+                const newHistory = [...cursorHistory]
+                const prevCursor = newHistory.pop() ?? null
+
+                setCursorHistory(newHistory)
+                fetchUnits(prevCursor === cursorHistory[0] ? null : prevCursor)
+                setPage(newPage)
+              }
+            }}
             onRowsPerPageChange={e => {
               setPageSize(Number(e.target.value))
               setPage(0)
+              setCursor(null)
+              setCursorHistory([])
+              fetchUnits(null)
             }}
           />
         </CardContent>
@@ -562,8 +594,8 @@ const UnitsListTable = () => {
           selectedUnit
             ? {
                 id: selectedUnit.id,
-                unitNumber: selectedUnit.unit_no,
-                propertyId: selectedUnit.property_id,
+                unitNumber: selectedUnit.unitNo,
+                propertyId: selectedUnit.propertyId,
                 propertyName: selectedUnit.propertyName,
                 status: selectedUnit.status === 'available' 
                   ? 'vacant' 

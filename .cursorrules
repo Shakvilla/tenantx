@@ -1,0 +1,19 @@
+# TenantApp Frontend Rules & Workflows
+
+Ensure all development adheres to the project-specific rules and workflows.
+
+## Workflows
+- **Feature Development**: `/feature-development` - Use for any new feature or major enhancement.
+- **Performance Audit**: `/performance-audit` - Use for investigating or fixing speed issues.
+- **API Integration**: `/api-integration` - Use for connecting to the Spring Boot backend.
+
+## Rules
+- **Lead Architect Rules**: Refer to `.agent/rules/nextjs-supabase-developer.md` for core architectural standards (PIP, Multi-tenancy, SOLID).
+- **Frontend Excellence**: Refer to `.agent/rules/frontend-excellence.md` for React/Next.js and performance standards.
+
+## Skills
+The following skills are available and should be utilized:
+- `frontend-patterns`: React/UI best practices.
+- `next-best-practices`: Next.js 15+ standards.
+- `performance-optimization`: Web vitals and speed.
+- `vercel-react-best-practices`: High-performance React patterns.

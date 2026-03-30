@@ -1,4 +1,12 @@
-import type { User } from '@supabase/supabase-js'
+/**
+ * Minimal User type (previously from @supabase/supabase-js).
+ * Kept local to avoid external dependency.
+ */
+export interface User {
+  id: string
+  email?: string
+  [key: string]: unknown
+}
 
 /**
  * Authentication context returned by authenticate functions.

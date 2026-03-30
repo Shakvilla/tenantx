@@ -3,7 +3,7 @@
  * Handles all API calls for tenant (renter) management
  */
 
-import { apiGet, apiPost, apiPatch, apiDelete } from './client'
+import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from './client'
 
 // API Response types
 interface ApiResponse<T> {
@@ -164,42 +164,42 @@ export async function getTenants(query: TenantQuery = {}): Promise<ListResponse<
   if (query.status) params.set('status', query.status)
   if (query.propertyId) params.set('propertyId', query.propertyId)
 
-  return apiGet(`/api/v1/tenants?${params.toString()}`)
+  return apiGet(`${API_BASE}/tenants?${params.toString()}`)
 }
 
 /**
  * Get a single tenant by ID
  */
 export async function getTenantById(id: string): Promise<ApiResponse<TenantRecord>> {
-  return apiGet(`/api/v1/tenants/${id}`)
+  return apiGet(`${API_BASE}/tenants/${id}`)
 }
 
 /**
  * Create a new tenant
  */
 export async function createTenant(data: CreateTenantPayload): Promise<ApiResponse<TenantRecord>> {
-  return apiPost('/api/v1/tenants', data)
+  return apiPost(`${API_BASE}/tenants`, data)
 }
 
 /**
  * Update an existing tenant
  */
 export async function updateTenant(id: string, data: UpdateTenantPayload): Promise<ApiResponse<TenantRecord>> {
-  return apiPatch(`/api/v1/tenants/${id}`, data)
+  return apiPatch(`${API_BASE}/tenants/${id}`, data)
 }
 
 /**
  * Delete a tenant
  */
 export async function deleteTenant(id: string): Promise<void> {
-  return apiDelete(`/api/v1/tenants/${id}`)
+  return apiDelete(`${API_BASE}/tenants/${id}`)
 }
 
 /**
  * Get tenant statistics
  */
 export async function getTenantStats(): Promise<ApiResponse<TenantStats>> {
-  return apiGet('/api/v1/tenants/stats')
+  return apiGet(`${API_BASE}/tenants/stats`)
 }
 
 /**
@@ -221,7 +221,7 @@ export async function uploadTenantImage(
   formData.append('tenantName', tenantName)
   formData.append('fileType', fileType)
 
-  const response = await fetch('/api/v1/tenants/upload', {
+  const response = await fetch(`${API_BASE}/tenants/upload`, {
     method: 'POST',
     body: formData,
     credentials: 'include',

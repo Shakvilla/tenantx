@@ -11,7 +11,7 @@ import Divider from '@mui/material/Divider'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import Switch from '@mui/material/Switch'
+
 import MenuItem from '@mui/material/MenuItem'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
@@ -19,6 +19,9 @@ import Checkbox from '@mui/material/Checkbox'
 import Avatar from '@mui/material/Avatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+
+import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -77,8 +80,8 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 // Vars
@@ -96,6 +99,7 @@ const PropertiesListTable = () => {
   // States
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState<Property[]>([])
+
   const [stats, setStats] = useState<PropertyStats>({
     total: 0,
     active: 0,
@@ -105,9 +109,12 @@ const PropertiesListTable = () => {
     occupiedUnits: 0,
     occupancyRate: 0
   })
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeSearch, setActiveSearch] = useState('')
   const [propertyType, setPropertyType] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [bedroom, setBedroom] = useState('')
@@ -120,37 +127,53 @@ const PropertiesListTable = () => {
   const [deletePropertyOpen, setDeletePropertyOpen] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
 
+  // Cursor-based pagination state
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+
+  // Keep a history of cursors so we can go "back"
+  const [cursorHistory, setCursorHistory] = useState<string[]>([])
+
   // Fetch properties
-  const fetchProperties = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  const fetchProperties = useCallback(
+    async (cursorOverride?: string | null) => {
+      try {
+        setLoading(true)
+        setError(null)
 
-      const response = await getProperties({
-        page: page + 1,
-        pageSize,
-        search: globalFilter || undefined,
-        type: propertyType || undefined,
-        status: statusFilter || undefined,
-      })
+        const response = await getProperties({
+          size: pageSize,
+          sort: 'id,asc',
+          cursor: cursorOverride ?? undefined,
+          search: activeSearch || undefined,
+          type: propertyType || undefined,
+          status: statusFilter || undefined
+        })
 
-      // Handle response with defensive checks
-      setData(response?.data || [])
-      setTotal(response?.pagination?.total || 0)
-    } catch (err) {
-      console.error('Failed to load properties:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load properties')
-      setData([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, pageSize, globalFilter, propertyType, statusFilter])
+        // console.log('properties', response)
+
+        // Handle response with defensive checks
+        setData(response?.data || [])
+        setTotal(response?.meta?.pagination?.total || response?.data?.length || 0)
+        setCursor(response?.meta?.pagination?.cursor ?? null)
+        setHasNext(response?.meta?.pagination?.hasNext ?? false)
+      } catch (err) {
+        // console.error('Failed to load properties:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load properties')
+        setData([])
+        setTotal(0)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [pageSize, activeSearch, propertyType, statusFilter]
+  )
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
     try {
       const response = await getPropertyStats()
+
       if (response.data) {
         setStats(response.data)
       }
@@ -161,12 +184,30 @@ const PropertiesListTable = () => {
 
   // Load data on mount and when filters change
   useEffect(() => {
-    fetchProperties()
+    // Reset cursor state when filters change
+    setCursor(null)
+    setCursorHistory([])
+    setPage(0)
+    fetchProperties(null)
   }, [fetchProperties])
 
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
+
+  const handleSearch = useCallback(() => {
+    setActiveSearch(searchQuery)
+    setPage(0)
+    setCursor(null)
+    setCursorHistory([])
+    fetchProperties(null)
+  }, [searchQuery, fetchProperties])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+  }
 
   // Handle delete
   const handleDelete = async () => {
@@ -215,10 +256,10 @@ const PropertiesListTable = () => {
         header: 'PROPERTY NAME',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar 
-              variant='rounded' 
-              sx={{ width: 30, height: 30 }} 
-              src={row.original.images?.[row.original.thumbnail_index ?? 0]} 
+            <Avatar
+              variant='rounded'
+              sx={{ width: 30, height: 30 }}
+              src={row.original.images?.[row.original.thumbnailIndex ?? 0]}
             />
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>
@@ -235,18 +276,20 @@ const PropertiesListTable = () => {
         header: 'PROPERTY TYPE',
         cell: ({ row }) => {
           const typeKey = row.original.type?.toLowerCase() || 'residential'
+
           const propertyTypeConfig = propertyTypeObj[typeKey] || {
             icon: 'ri-building-line',
             color: 'secondary' as ThemeColor
           }
 
-          
-return (
+          return (
             <div className='flex items-center gap-3'>
               <CustomAvatar skin='light' color={propertyTypeConfig.color} size={30}>
                 <i className={classnames(propertyTypeConfig.icon, 'text-lg')} />
               </CustomAvatar>
-              <Typography color='text.primary' className='capitalize'>{row.original.type}</Typography>
+              <Typography color='text.primary' className='capitalize'>
+                {row.original.type}
+              </Typography>
             </div>
           )
         }
@@ -261,8 +304,8 @@ return (
           }
 
           return (
-            <Typography 
-              variant='body2' 
+            <Typography
+              variant='body2'
               className='capitalize'
               color={`${statusColors[row.original.status] || 'secondary'}.main`}
             >
@@ -273,17 +316,13 @@ return (
       }),
       columnHelper.accessor('address', {
         header: 'ADDRESS',
-        cell: ({ row }) => (
-          <Typography>
-            {row.original.gps_code || row.original.address?.street || '-'}
-          </Typography>
-        )
+        cell: ({ row }) => <Typography>{row.original.gpsCode || row.original.address?.street || '-'}</Typography>
       }),
-      columnHelper.accessor('total_units', {
+      columnHelper.accessor('totalUnits', {
         header: 'UNITS',
         cell: ({ row }) => (
           <Typography>
-            {row.original.occupied_units}/{row.original.total_units}
+            {row.original.occupiedUnits}/{row.original.totalUnits}
           </Typography>
         )
       }),
@@ -345,6 +384,7 @@ return (
       rowSelection,
       globalFilter
     },
+    manualFiltering: true,
     manualPagination: true,
     pageCount: Math.ceil(total / pageSize),
     enableRowSelection: true,
@@ -375,8 +415,8 @@ return (
           title='Properties List'
           action={
             <div className='flex items-center gap-2'>
-              <Button 
-                size='small' 
+              <Button
+                size='small'
                 startIcon={<i className='ri-refresh-line' />}
                 onClick={() => {
                   fetchProperties()
@@ -471,12 +511,21 @@ return (
                 <TextField
                   size='small'
                   placeholder='Search properties...'
-                  value={globalFilter}
-                  onChange={e => {
-                    setGlobalFilter(e.target.value)
-                    setPage(0)
-                  }}
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className='flex-1 min-w-[200px]'
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position='end'>
+                          <IconButton size='small' onClick={handleSearch} edge='end'>
+                            <i className='ri-search-line' />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }
+                  }}
                 />
               </div>
 
@@ -572,16 +621,34 @@ return (
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={total}
+            count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
             rowsPerPage={pageSize}
             page={page}
             SelectProps={{
               inputProps: { 'aria-label': 'rows per page' }
             }}
-            onPageChange={(_, newPage) => setPage(newPage)}
+            onPageChange={(_, newPage) => {
+              if (newPage > page && hasNext && cursor) {
+                // Going forward
+                setCursorHistory(prev => [...prev, cursor])
+                fetchProperties(cursor)
+                setPage(newPage)
+              } else if (newPage < page) {
+                // Going backward
+                const newHistory = [...cursorHistory]
+                const prevCursor = newHistory.pop() ?? null
+
+                setCursorHistory(newHistory)
+                fetchProperties(prevCursor === cursorHistory[0] ? null : prevCursor)
+                setPage(newPage)
+              }
+            }}
             onRowsPerPageChange={e => {
               setPageSize(Number(e.target.value))
               setPage(0)
+              setCursor(null)
+              setCursorHistory([])
+              fetchProperties(null)
             }}
           />
         </CardContent>
@@ -617,18 +684,22 @@ return (
                 region: selectedProperty.region || '',
                 district: selectedProperty.district || '',
                 city: selectedProperty.address?.city || '',
-                gpsCode: selectedProperty.gps_code || '',
+                gpsCode: selectedProperty.gpsCode || '',
                 description: selectedProperty.description || '',
                 bedrooms: selectedProperty.bedrooms || 0,
                 bathrooms: selectedProperty.bathrooms || 0,
                 rooms: selectedProperty.rooms || 0,
                 condition: selectedProperty.condition || '',
-                amenities: selectedProperty.amenities?.reduce((acc, amenity) => {
-                  acc[amenity] = true
-                  return acc
-                }, {} as Record<string, boolean>),
+                amenities: selectedProperty.amenities?.reduce(
+                  (acc, amenity) => {
+                    acc[amenity] = true
+
+                    return acc
+                  },
+                  {} as Record<string, boolean>
+                ),
                 images: selectedProperty.images || [],
-                thumbnailIndex: selectedProperty.thumbnail_index
+                thumbnailIndex: selectedProperty.thumbnailIndex
               }
             : null
         }

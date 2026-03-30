@@ -1,3 +1,4 @@
+/* eslint-disable import/no-unresolved */
 // Next Imports
 import type { Metadata } from 'next'
 

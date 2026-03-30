@@ -63,15 +63,14 @@ export const UpdateUnitSchema = CreateUnitSchema.partial()
  * Unit query schema for list endpoints.
  */
 export const UnitQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  size: z.coerce.number().int().min(1).max(100).default(50),
+  sort: z.string().default('id,asc'),
+  cursor: z.string().optional(),
   search: z.string().optional(),
   status: UnitStatusEnum.optional(),
   type: UnitTypeEnum.optional(),
   minRent: z.coerce.number().optional(),
   maxRent: z.coerce.number().optional(),
-  sort: z.string().default('created_at'),
-  order: z.enum(['asc', 'desc']).default('desc'),
 })
 
 // Export types

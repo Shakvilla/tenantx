@@ -3,10 +3,16 @@
  * Handles all API calls for properties and units
  */
 
-import { apiGet, apiPost, apiPatch, apiDelete } from './client'
+import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from './client'
 import type { Property, PropertyStats } from '@/types/property'
 
-// API Response types
+// ---------------------------------------------------------------------------
+// API Response types (aligned with backend guide)
+// ---------------------------------------------------------------------------
+
+/**
+ * Standard single-object response from the backend.
+ */
 interface ApiResponse<T> {
   success: boolean
   data: T | null
@@ -16,19 +22,34 @@ interface ApiResponse<T> {
   }
 }
 
-interface ListResponse<T> {
+/**
+ * Paginated list response using cursor-based pagination as mandated
+ * by the backend guide (Section 11 — Implementation Safeguards).
+ */
+interface PaginatedResponse<T> {
   success: boolean
   data: T[]
-  pagination: {
-    page: number
-    pageSize: number
-    total: number
+  meta: {
+    pagination: {
+      page?: number
+      pageSize?: number
+      total?: number
+      totalPages?: number
+      hasNext: boolean
+      hasPrev?: boolean
+      cursor?: string | null
+    }
   }
 }
 
+// ---------------------------------------------------------------------------
+// Query types
+// ---------------------------------------------------------------------------
+
 interface PropertyQuery {
-  page?: number
-  pageSize?: number
+  size?: number
+  sort?: string // e.g. "id,asc"
+  cursor?: string | null // opaque cursor for next page
   search?: string
   status?: string
   type?: string
@@ -36,145 +57,125 @@ interface PropertyQuery {
   district?: string
 }
 
+
+// ---------------------------------------------------------------------------
+// Properties CRUD
+// ---------------------------------------------------------------------------
+
 /**
- * Get list of properties with pagination and filters
+ * Get list of properties with cursor-based pagination and filters.
+ *
+ * API: GET /properties
+ * Guide: Section 4.2
  */
-export async function getProperties(query: PropertyQuery = {}): Promise<ListResponse<Property>> {
+
+export async function getProperties(query: PropertyQuery = {}): Promise<PaginatedResponse<Property>> {
   const params = new URLSearchParams()
-  
-  if (query.page) params.set('page', query.page.toString())
-  if (query.pageSize) params.set('pageSize', query.pageSize.toString())
+
+  if (query.size) params.set('size', query.size.toString())
+  if (query.sort) params.set('sort', query.sort)
+  if (query.cursor) params.set('cursor', query.cursor)
   if (query.search) params.set('search', query.search)
   if (query.status) params.set('status', query.status)
   if (query.type) params.set('type', query.type)
   if (query.region) params.set('region', query.region)
   if (query.district) params.set('district', query.district)
 
-  return apiGet(`/api/v1/properties?${params.toString()}`)
+  const qs = params.toString()
+
+  return apiGet(`${API_BASE}/properties${qs ? `?${qs}` : ''}`)
 }
 
 /**
- * Get a single property by ID
+ * Get a single property by ID.
  */
 export async function getPropertyById(id: string): Promise<ApiResponse<Property>> {
-  return apiGet(`/api/v1/properties/${id}`)
+  return apiGet(`${API_BASE}/properties/${id}`)
 }
 
 /**
- * Create a new property
+ * Get the property assigned to the currently-authenticated occupant.
+ *
+ * API: GET /properties/my-property
+ * Guide: Section 4.3
+ */
+export async function getMyProperty(): Promise<ApiResponse<Property>> {
+  return apiGet(`${API_BASE}/properties/my-property`)
+}
+
+/**
+ * Create a new property.
+ *
+ * API: POST /properties
+ * Guide: Section 4.1
  */
 export async function createProperty(data: Partial<Property>): Promise<ApiResponse<Property>> {
-  return apiPost('/api/v1/properties', data)
+  return apiPost(`${API_BASE}/properties`, data)
 }
 
 /**
- * Update a property
+ * Update a property.
  */
 export async function updateProperty(id: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
-  return apiPatch(`/api/v1/properties/${id}`, data)
+  return apiPatch(`${API_BASE}/properties/${id}`, data)
 }
 
 /**
- * Delete a property
+ * Delete a property.
  */
 export async function deleteProperty(id: string): Promise<void> {
-  return apiDelete(`/api/v1/properties/${id}`)
+  return apiDelete(`${API_BASE}/properties/${id}`)
 }
 
 /**
- * Get property statistics
+ * Get property statistics.
+ * 
+ * NOTE: The backend returns a raw object without the ApiResponse wrapper.
+ * We manually wrap it and map the fields to match the PropertyStats interface.
  */
 export async function getPropertyStats(): Promise<ApiResponse<PropertyStats>> {
-  return apiGet('/api/v1/properties/stats')
-}
+  try {
+    const rawData = await apiGet<any>(`${API_BASE}/properties/stats`)
 
-// Unit type for property units list
-export interface PropertyUnit {
-  id: string
-  unit_no: string
-  type: string
-  status: 'available' | 'occupied' | 'maintenance' | 'reserved'
-  rent: number
-  deposit?: number
-  bedrooms?: number
-  bathrooms?: number
-  size_sqft?: number
-  tenant_record_id?: string
-  tenant_record?: {
-    id: string
-    first_name: string
-    last_name: string
+    // Map backend fields to frontend PropertyStats interface
+    // Backend: { totalProperties, occupiedUnits, vacantUnits, damagedUnits }
+    const mappedStats: PropertyStats = {
+      total: rawData.totalProperties || 0,
+      active: rawData.totalProperties || 0, // Fallback if active not provided
+      inactive: 0,
+      maintenance: rawData.damagedUnits || 0,
+      totalUnits: (rawData.occupiedUnits || 0) + (rawData.vacantUnits || 0),
+      occupiedUnits: rawData.occupiedUnits || 0,
+      occupancyRate: 0
+    }
+
+    // Calculate occupancy rate if possible
+    if (mappedStats.totalUnits > 0) {
+      mappedStats.occupancyRate = Math.round((mappedStats.occupiedUnits / mappedStats.totalUnits) * 100)
+    }
+
+    return {
+      success: true,
+      data: mappedStats
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'STATS_FETCH_ERROR',
+        message: error.message || 'Failed to fetch property statistics'
+      }
+    }
   }
 }
 
-interface UnitsListResponse {
-  success: boolean
-  data: PropertyUnit[]
-  pagination: {
-    page: number
-    pageSize: number
-    total: number
-  }
-}
+// Unit functionality has been moved to units.ts
 
-/**
- * Get units for a specific property
- */
-export async function getPropertyUnits(propertyId: string, page = 1, pageSize = 10): Promise<UnitsListResponse> {
-  return apiGet(`/api/v1/properties/${propertyId}/units?page=${page}&pageSize=${pageSize}`)
-}
+// ---------------------------------------------------------------------------
+// Drafts
+// ---------------------------------------------------------------------------
 
-// Create unit payload
-export interface CreateUnitPayload {
-  unitNo: string
-  type: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
-  rent: number
-  deposit?: number
-  floor?: number
-  bedrooms?: number
-  bathrooms?: number
-  sizeSqft?: number
-  status?: 'available' | 'occupied' | 'maintenance' | 'reserved'
-  amenities?: string[]
-}
-
-// Update unit payload (partial)
-export interface UpdateUnitPayload {
-  unitNo?: string
-  type?: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
-  rent?: number
-  deposit?: number
-  floor?: number
-  bedrooms?: number
-  bathrooms?: number
-  sizeSqft?: number
-  status?: 'available' | 'occupied' | 'maintenance' | 'reserved'
-  amenities?: string[]
-}
-
-/**
- * Create a new unit for a property
- */
-export async function createUnit(propertyId: string, data: CreateUnitPayload): Promise<ApiResponse<PropertyUnit>> {
-  return apiPost(`/api/v1/properties/${propertyId}/units`, data)
-}
-
-/**
- * Update an existing unit
- */
-export async function updateUnit(unitId: string, data: UpdateUnitPayload): Promise<ApiResponse<PropertyUnit>> {
-  return apiPatch(`/api/v1/units/${unitId}`, data)
-}
-
-/**
- * Delete a unit
- */
-export async function deleteUnit(unitId: string): Promise<void> {
-  return apiDelete(`/api/v1/units/${unitId}`)
-}
-
-
-// Draft payload type for client-side
 interface DraftPayload {
   name: string
   address?: {
@@ -198,20 +199,23 @@ interface DraftPayload {
 }
 
 /**
- * Save a property as draft (incomplete form)
+ * Save a property as draft (incomplete form).
  */
 export async function saveDraft(data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPost('/api/v1/properties/drafts', data)
+  return apiPost(`${API_BASE}/properties/drafts`, data)
 }
 
 /**
- * Update an existing property draft
+ * Update an existing property draft.
  */
 export async function updateDraft(id: string, data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPatch('/api/v1/properties/drafts', { id, ...data })
+  return apiPatch(`${API_BASE}/properties/drafts`, { id, ...data })
 }
 
-// Image upload types
+// ---------------------------------------------------------------------------
+// Image upload
+// ---------------------------------------------------------------------------
+
 interface UploadedImage {
   path: string
   url: string
@@ -230,17 +234,14 @@ interface UploadResponse {
 }
 
 /**
- * Upload property images to storage
+ * Upload property images to storage.
  * @param files - Array of files to upload
  * @param propertyId - Optional property ID to organize files
  */
-export async function uploadPropertyImages(
-  files: File[],
-  propertyId?: string
-): Promise<UploadResponse> {
+export async function uploadPropertyImages(files: File[], propertyId?: string): Promise<UploadResponse> {
   const formData = new FormData()
 
-  files.forEach((file) => {
+  files.forEach(file => {
     formData.append('files', file)
   })
 
@@ -252,12 +253,17 @@ export async function uploadPropertyImages(
   // axios will automatically set Content-Type: multipart/form-data with boundary
   const { default: axios } = await import('axios')
 
-  const response = await axios.post<UploadResponse>('/api/v1/properties/upload', formData, {
+  const response = await axios.post<UploadResponse>(`${API_BASE}/properties/upload`, formData, {
     withCredentials: true,
     headers: {
       // Don't set Content-Type - let axios detect from FormData
-    },
+    }
   })
 
   return response.data
 }
+
+// ---------------------------------------------------------------------------
+// Re-export types for consumers
+// ---------------------------------------------------------------------------
+export type { ApiResponse, PaginatedResponse, PropertyQuery }

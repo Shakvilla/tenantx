@@ -1,35 +1,68 @@
-/**
- * Auth API Client Stub
- * 
- * TODO: Replace with actual API calls to your new backend
- * This file provides type definitions and stub functions for development.
- */
+/* eslint-disable lines-around-comment */
+import { apiGet, apiPost, API_BASE } from './client'
+import type { RegisterPayload, LoginPayload } from '../validation/schemas/auth.schema'
+import {
+  getStoredToken,
+  getStoredTenantId,
+  setStoredTokens,
+  setStoredTenantId,
+  clearStoredTokens
+} from './storage'
 
-// Types - preserved for your new backend
-export interface AuthUser {
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Workspace returned in the global login response */
+export interface Workspace {
+  tenantId: string
+  tenantName: string
+  role: string
+  userType: string
+}
+
+/** Full response from POST /global/auth/login */
+export interface GlobalLoginResponse {
+  accessToken: string
+  tokenType: string
+  expiresIn: number
+  firstTimeLogin: boolean
+  workspaces: Workspace[]
+}
+
+/** Response from POST /global/auth/select-tenant */
+export interface SelectTenantResponse {
+  accessToken: string
+  refreshToken: string
+  type: string
+  expiresIn: number
+}
+
+/** Response from POST /global/auth/verify-otp */
+export interface VerifyOtpResponse {
+  verificationToken: string
+}
+
+/** Response from POST /auth/signup */
+export interface SignupResponse {
   id: string
   email: string
-  name: string
-  role: string
-  avatarUrl?: string
-  phone?: string
+  fullName: string
+  companyName: string
 }
 
-export interface AuthTenant {
+/** Authenticated user profile from GET /users/me */
+export interface UserProfile {
   id: string
-  name: string
-  subdomain?: string
+  email: string
+  fullName: string
+  companyName: string
+  active: boolean
+  createdAt: string
 }
 
-export interface AuthResponse {
-  token: string
-  refreshToken: string
-  expiresAt: number
-  user: AuthUser
-  tenant: AuthTenant
-}
-
-export interface ApiResponse<T> {
+// Re-export or alias for local use if needed, but we'll use SuccessResponse/ErrorResponse logic
+export type ApiResponse<T> = {
   success: boolean
   data: T | null
   error?: {
@@ -38,90 +71,350 @@ export interface ApiResponse<T> {
   }
 }
 
-// Token management stubs
-const TOKEN_KEY = 'auth_token'
-const REFRESH_TOKEN_KEY = 'refresh_token'
+// ---------------------------------------------------------------------------
+// API Functions
+// ---------------------------------------------------------------------------
 
-export function getStoredToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem(TOKEN_KEY)
-}
 
-export function setStoredTokens(token: string, refreshToken: string): void {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
-}
+/**
+ * Global Login — POST /global/auth/login
+ * Returns user info including available workspaces.
+ */
+export async function globalLogin(
+  credentials: LoginPayload
+): Promise<ApiResponse<GlobalLoginResponse>> {
+  try {
+    const data = await apiPost<GlobalLoginResponse>(
+      `${API_BASE}/global/auth/login`,
+      credentials
+    )
 
-export function clearStoredTokens(): void {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(REFRESH_TOKEN_KEY)
-}
+    // Store access token (no refresh token in global login response)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auth_token', data.accessToken)
+      // Note: We don't set the cookie here because middleware would redirect
+      // to dashboard before a tenant is selected.
+    }
 
-// API stub functions - TODO: implement with your backend
-
-export async function loginUser(
-  _email: string,
-  _password: string
-): Promise<ApiResponse<AuthResponse>> {
-  // TODO: Call your backend login API
-  return {
-    success: false,
-    data: null,
-    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'LOGIN_ERROR', message: error.message || 'Login failed' },
+    }
   }
 }
 
-export async function registerUser(_payload: {
+/**
+ * Select Tenant — POST /global/auth/select-tenant
+ * Exchanges the global token for a tenant‑scoped token.
+ */
+export async function selectTenant(
+  tenantId: string
+): Promise<ApiResponse<SelectTenantResponse>> {
+  try {
+    // We need to use the global token from localStorage explicitly here
+    // because the interceptor might not have it yet.
+    const token = getStoredToken()
+
+    const data = await apiPost<SelectTenantResponse>(
+      `${API_BASE}/global/auth/select-tenant`,
+      { tenantId },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+
+    // Replace tokens with tenant-scoped ones and set cookies
+    setStoredTokens(data.accessToken, data.refreshToken)
+    setStoredTenantId(tenantId)
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'TENANT_SELECTION_ERROR', message: error.message || 'Tenant selection failed' },
+    }
+  }
+}
+
+/**
+ * Register / Signup — POST /auth/signup
+ * Self-service account creation (creates user + tenant).
+ */
+export async function registerUser(payload: RegisterPayload): Promise<ApiResponse<SignupResponse>> {
+  try {
+    const data = await apiPost<SignupResponse>(
+      `${API_BASE}/auth/signup`,
+      payload
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'REGISTRATION_ERROR', message: error.message || 'Registration failed' },
+    }
+  }
+}
+
+/**
+ * Request OTP — POST /global/auth/request-otp
+ * Used for first-time login flow.
+ */
+export async function requestOtp(
   email: string
-  password: string
-  name: string
-  phone?: string
-  tenantName: string
-}): Promise<ApiResponse<AuthResponse>> {
-  // TODO: Call your backend register API
-  return {
-    success: false,
-    data: null,
-    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const data = await apiPost<{ message: string }>(
+      `${API_BASE}/global/auth/request-otp`,
+      { email }
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'OTP_ERROR', message: error.message || 'Failed to request OTP' },
+    }
   }
 }
 
+/**
+ * Verify OTP — POST /global/auth/verify-otp
+ */
+export async function verifyOtp(
+  email: string,
+  otp: string
+): Promise<ApiResponse<VerifyOtpResponse>> {
+  try {
+    const data = await apiPost<VerifyOtpResponse>(
+      `${API_BASE}/global/auth/verify-otp`,
+      { email, otp }
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'OTP_VERIFICATION_ERROR', message: error.message || 'OTP verification failed' },
+    }
+  }
+}
+
+/**
+ * Set Password — POST /global/auth/set-password
+ */
+export async function setPassword(
+  otpVerificationToken: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const data = await apiPost<{ message: string }>(
+      `${API_BASE}/global/auth/set-password`,
+      { otpVerificationToken, newPassword, confirmPassword }
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'PASSWORD_ERROR', message: error.message || 'Failed to set password' },
+    }
+  }
+}
+
+/**
+ * Token Refresh — POST /auth/refresh
+ */
+export async function refreshTokens(): Promise<ApiResponse<{ accessToken: string; refreshToken: string }>> {
+  try {
+    const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null
+
+    if (!refreshToken) {
+      return { success: false, data: null, error: { code: 'NO_TOKEN', message: 'No refresh token available' } }
+    }
+
+    const tenantId = getStoredTenantId()
+
+    const data = await apiPost<{ accessToken: string; refreshToken: string }>(
+      `${API_BASE}/auth/refresh`,
+      { refreshToken },
+      {
+        headers: {
+          'X-Tenant-ID': tenantId
+        }
+      }
+    )
+
+    setStoredTokens(data.accessToken, data.refreshToken)
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'REFRESH_ERROR', message: error.message || 'Token refresh failed' },
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Forgot Password Flow
+// ---------------------------------------------------------------------------
+
+/** Channel returned by forgot-password initiation */
+export interface ForgotPasswordChannel {
+  channel: 'EMAIL' | 'SMS'
+  maskedAddress: string
+}
+
+/** Response from POST /global/auth/forgot-password/initiate */
+export interface ForgotPasswordInitiateResponse {
+  channels: ForgotPasswordChannel[]
+}
+
+/**
+ * Response from POST /global/auth/forgot-password/otp/verify
+ * NOTE: This endpoint returns `otpVerificationToken`, distinct from the
+ * first-time-login OTP flow which returns `verificationToken`.
+ */
+export interface ForgotPasswordVerifyOtpResponse {
+  otpVerificationToken: string
+}
+
+/**
+ * Forgot Password — Step 1: Initiate
+ * POST /global/auth/forgot-password/initiate
+ */
+export async function forgotPasswordInitiate(
+  email: string
+): Promise<ApiResponse<ForgotPasswordInitiateResponse>> {
+  try {
+    const data = await apiPost<ForgotPasswordInitiateResponse>(
+      `${API_BASE}/global/auth/forgot-password/initiate`,
+      { email }
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'FORGOT_PASSWORD_INITIATE_ERROR', message: error.message || 'Failed to initiate password reset' }
+    }
+  }
+}
+
+/**
+ * Forgot Password — Step 2: Send OTP
+ * POST /global/auth/forgot-password/otp/send
+ */
+export async function forgotPasswordSendOtp(
+  email: string,
+  channel: 'EMAIL' | 'SMS'
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const data = await apiPost<{ message: string }>(
+      `${API_BASE}/global/auth/forgot-password/otp/send`,
+      { email, channel }
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'FORGOT_PASSWORD_OTP_SEND_ERROR', message: error.message || 'Failed to send OTP' }
+    }
+  }
+}
+
+/**
+ * Forgot Password — Step 3: Verify OTP
+ * POST /global/auth/forgot-password/otp/verify
+ * Returns `otpVerificationToken` which must be passed as `resetToken` in the final reset step.
+ */
+export async function forgotPasswordVerifyOtp(
+  email: string,
+  otp: string
+): Promise<ApiResponse<ForgotPasswordVerifyOtpResponse>> {
+  try {
+    const data = await apiPost<ForgotPasswordVerifyOtpResponse>(
+      `${API_BASE}/global/auth/forgot-password/otp/verify`,
+      { email, otp }
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'FORGOT_PASSWORD_OTP_VERIFY_ERROR', message: error.message || 'OTP verification failed' }
+    }
+  }
+}
+
+/**
+ * Forgot Password — Step 4: Reset Password
+ * POST /global/auth/forgot-password/reset
+ */
+export async function forgotPasswordReset(
+  resetToken: string,
+  newPassword: string,
+  confirmPassword: string
+): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const data = await apiPost<{ message: string }>(
+      `${API_BASE}/global/auth/forgot-password/reset`,
+      { resetToken, newPassword, confirmPassword }
+    )
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'FORGOT_PASSWORD_RESET_ERROR', message: error.message || 'Password reset failed' }
+    }
+  }
+}
+
+/**
+ * Get Current User — GET /users/me
+ */
+export async function getCurrentUser(): Promise<ApiResponse<UserProfile>> {
+  try {
+    // Standard headers are injected by the interceptor in client.ts
+    const data = await apiGet<UserProfile>(`${API_BASE}/users/me`)
+
+    return { success: true, data }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'USER_FETCH_ERROR', message: error.message || 'Failed to fetch user profile' },
+    }
+  }
+}
+
+/**
+ * Logout — clears stored tokens
+ */
 export async function logoutUser(): Promise<ApiResponse<null>> {
   clearStoredTokens()
+
   return { success: true, data: null }
 }
 
-export async function getCurrentUser(): Promise<
-  ApiResponse<{ user: AuthUser; tenant: AuthTenant }>
-> {
-  // TODO: Call your backend to get current user
-  return {
-    success: false,
-    data: null,
-    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
-  }
-}
-
-export async function updateProfile(_payload: {
-  name?: string
-  phone?: string
-  avatarUrl?: string
-}): Promise<ApiResponse<{ id: string; name: string; phone?: string; avatarUrl?: string }>> {
-  // TODO: Call your backend to update profile
-  return {
-    success: false,
-    data: null,
-    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
-  }
-}
-
-export async function forgotPassword(_email: string): Promise<ApiResponse<{ message: string }>> {
-  // TODO: Call your backend forgot password API
-  return {
-    success: false,
-    data: null,
-    error: { code: 'NOT_IMPLEMENTED', message: 'Backend not connected' },
-  }
-}
+// Re-export storage helpers for convenience
+export { getStoredToken, getStoredTenantId, setStoredTokens, setStoredTenantId, clearStoredTokens }

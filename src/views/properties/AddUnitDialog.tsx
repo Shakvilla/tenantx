@@ -21,7 +21,8 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 
 // API Imports
-import { createUnit, updateUnit, type CreateUnitPayload, type UpdateUnitPayload } from '@/lib/api/properties'
+import { createUnit, updateUnit } from '@/lib/api/units'
+import type { CreateUnitPayload, UpdateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
 type Property = {
   id: number | string
@@ -134,12 +135,19 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
   }
 
   const validateForm = (): boolean => {
+    // We only validate the subset of fields present in our form against the API schema requirements
     const newErrors: Partial<Record<keyof FormDataType, boolean>> = {}
 
+    // Required fields check based on CreateUnitSchema
     if (!formData.unitNumber.trim()) newErrors.unitNumber = true
     if (!formData.propertyId) newErrors.propertyId = true
     if (!formData.status) newErrors.status = true
-    if (!formData.rent.trim()) newErrors.rent = true
+    
+    // Rent must be positive
+    const rentVal = parseFloat(formData.rent)
+    if (!formData.rent.trim() || isNaN(rentVal) || rentVal < 0) {
+      newErrors.rent = true
+    }
 
     setErrors(newErrors)
 
@@ -167,7 +175,8 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
           status: statusForApi,
           bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : undefined,
           bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
-          sizeSqft: formData.size ? parseFloat(formData.size) : undefined
+          sizeSqft: formData.size ? parseFloat(formData.size) : undefined,
+          currency: 'GHS'
         }
 
         const response = await createUnit(formData.propertyId, payload)
@@ -184,7 +193,8 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
           status: statusForApi,
           bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : undefined,
           bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
-          sizeSqft: formData.size ? parseFloat(formData.size) : undefined
+          sizeSqft: formData.size ? parseFloat(formData.size) : undefined,
+          currency: 'GHS'
         }
 
         const response = await updateUnit(editData.id, payload)

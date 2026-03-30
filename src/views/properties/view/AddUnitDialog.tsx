@@ -16,7 +16,9 @@ import Alert from '@mui/material/Alert'
 import InputAdornment from '@mui/material/InputAdornment'
 
 // API Imports
-import { createUnit, updateUnit, type CreateUnitPayload, type UpdateUnitPayload, type PropertyUnit } from '@/lib/api/properties'
+import { createUnit, updateUnit } from '@/lib/api/units'
+import type { PropertyUnit } from '@/lib/api/properties'
+import type { CreateUnitPayload, UpdateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
 const unitTypes = [
   { value: 'studio', label: 'Studio' },
@@ -74,7 +76,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
   useEffect(() => {
     if (editUnit) {
       setFormData({
-        unitNo: editUnit.unit_no || '',
+        unitNo: editUnit.unitNo || '',
         type: (editUnit.type as CreateUnitPayload['type']) || '1br',
         rent: editUnit.rent?.toString() || '',
         rentPeriod: 'monthly', // Default for existing units
@@ -82,7 +84,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         floor: '',
         bedrooms: editUnit.bedrooms?.toString() || '',
         bathrooms: editUnit.bathrooms?.toString() || '',
-        sizeSqft: editUnit.size_sqft?.toString() || '',
+        sizeSqft: editUnit.sizeSqft?.toString() || '',
         status: editUnit.status || 'available'
       })
     } else {
@@ -140,7 +142,8 @@ return
           bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : undefined,
           bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
           sizeSqft: formData.sizeSqft ? parseFloat(formData.sizeSqft) : undefined,
-          status: formData.status
+          status: formData.status,
+          currency: 'GHS'
         }
 
         const response = await updateUnit(editUnit.id, payload)
@@ -159,7 +162,8 @@ return
           bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : undefined,
           bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
           sizeSqft: formData.sizeSqft ? parseFloat(formData.sizeSqft) : undefined,
-          status: formData.status
+          status: formData.status,
+          currency: 'GHS'
         }
 
         const response = await createUnit(propertyId, payload)

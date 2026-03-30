@@ -38,15 +38,15 @@ const Register = ({ mode }: { mode: Mode }) => {
   const [isPasswordShown, setIsPasswordShown] = useState(false)
 
   const [formData, setFormData] = useState({
-    name: '',
+    fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    tenantName: '',
-    phone: '',
+    companyName: '',
   })
 
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Vars
@@ -80,18 +80,19 @@ const Register = ({ mode }: { mode: Mode }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null)
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
-      
-return
+
+      return
     }
 
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters')
-      
-return
+
+      return
     }
 
     setIsSubmitting(true)
@@ -99,13 +100,16 @@ return
     const result = await register({
       email: formData.email,
       password: formData.password,
-      name: formData.name,
-      phone: formData.phone || undefined,
-      tenantName: formData.tenantName,
+      fullName: formData.fullName,
+      companyName: formData.companyName,
     })
 
     if (result.success) {
-      router.push('/dashboard')
+      setSuccess('Account created successfully! Redirecting to login...')
+
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
     } else {
       setError(result.error || 'Registration failed. Please try again.')
       setIsSubmitting(false)
@@ -113,11 +117,11 @@ return
   }
 
   const isFormValid =
-    formData.name &&
+    formData.fullName &&
     formData.email &&
     formData.password &&
     formData.confirmPassword &&
-    formData.tenantName
+    formData.companyName
 
   return (
     <div className='flex bs-full justify-center'>
@@ -154,6 +158,12 @@ return
             </Alert>
           )}
 
+          {success && (
+            <Alert severity='success'>
+              {success}
+            </Alert>
+          )}
+
           <form
             noValidate
             autoComplete='off'
@@ -165,8 +175,8 @@ return
               fullWidth
               label='Full Name'
               size='small'
-              value={formData.name}
-              onChange={handleChange('name')}
+              value={formData.fullName}
+              onChange={handleChange('fullName')}
               disabled={isSubmitting}
               required
             />
@@ -182,19 +192,10 @@ return
             />
             <TextField
               fullWidth
-              label='Phone (optional)'
-              size='small'
-              type='tel'
-              value={formData.phone}
-              onChange={handleChange('phone')}
-              disabled={isSubmitting}
-            />
-            <TextField
-              fullWidth
               label='Company / Organization Name'
               size='small'
-              value={formData.tenantName}
-              onChange={handleChange('tenantName')}
+              value={formData.companyName}
+              onChange={handleChange('companyName')}
               disabled={isSubmitting}
               required
               helperText='This will be your workspace name'
