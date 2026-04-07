@@ -28,6 +28,9 @@ import Logo from '@components/layout/shared/Logo'
 // Config Imports
 import themeConfig from '@configs/themeConfig'
 
+// Validation Imports
+import { RegisterSchema } from '@/lib/validation/schemas/auth.schema'
+
 // Hook Imports
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
@@ -42,7 +45,7 @@ const Register = ({ mode }: { mode: Mode }) => {
     email: '',
     password: '',
     confirmPassword: '',
-    companyName: '',
+    companyName: ''
   })
 
   const [error, setError] = useState<string | null>(null)
@@ -82,27 +85,31 @@ const Register = ({ mode }: { mode: Mode }) => {
     setError(null)
     setSuccess(null)
 
-    // Validation
+    // Validate with centralized Zod schema
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
 
       return
     }
 
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters')
+    const validation = RegisterSchema.safeParse({
+      email: formData.email,
+      password: formData.password,
+      fullName: formData.fullName,
+      companyName: formData.companyName
+    })
+
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message ?? 'Invalid input'
+
+      setError(firstError)
 
       return
     }
 
     setIsSubmitting(true)
 
-    const result = await register({
-      email: formData.email,
-      password: formData.password,
-      fullName: formData.fullName,
-      companyName: formData.companyName,
-    })
+    const result = await register(validation.data)
 
     if (result.success) {
       setSuccess('Account created successfully! Redirecting to login...')
@@ -117,11 +124,7 @@ const Register = ({ mode }: { mode: Mode }) => {
   }
 
   const isFormValid =
-    formData.fullName &&
-    formData.email &&
-    formData.password &&
-    formData.confirmPassword &&
-    formData.companyName
+    formData.fullName && formData.email && formData.password && formData.confirmPassword && formData.companyName
 
   return (
     <div className='flex bs-full justify-center'>
@@ -158,18 +161,9 @@ const Register = ({ mode }: { mode: Mode }) => {
             </Alert>
           )}
 
-          {success && (
-            <Alert severity='success'>
-              {success}
-            </Alert>
-          )}
+          {success && <Alert severity='success'>{success}</Alert>}
 
-          <form
-            noValidate
-            autoComplete='off'
-            onSubmit={handleSubmit}
-            className='flex flex-col gap-4'
-          >
+          <form noValidate autoComplete='off' onSubmit={handleSubmit} className='flex flex-col gap-4'>
             <TextField
               autoFocus
               fullWidth

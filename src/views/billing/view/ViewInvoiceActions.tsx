@@ -51,7 +51,7 @@ type Props = {
 
 
 const ViewInvoiceActions = ({
-  invoiceId,
+  invoiceId: _invoiceId,
   invoiceData,
   properties = [],
   units = [],

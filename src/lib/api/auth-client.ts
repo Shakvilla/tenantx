@@ -34,8 +34,10 @@ export interface GlobalLoginResponse {
 export interface SelectTenantResponse {
   accessToken: string
   refreshToken: string
-  type: string
+  tokenType: string
   expiresIn: number
+  expiresAt: string
+  user: UserProfile
 }
 
 /** Response from POST /global/auth/verify-otp */
@@ -236,15 +238,13 @@ export async function setPassword(
 /**
  * Token Refresh — POST /auth/refresh
  */
-export async function refreshTokens(): Promise<ApiResponse<{ accessToken: string; refreshToken: string }>> {
+export async function refreshTokens(tenantId: string): Promise<ApiResponse<{ accessToken: string; refreshToken: string }>> {
   try {
     const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null
 
     if (!refreshToken) {
       return { success: false, data: null, error: { code: 'NO_TOKEN', message: 'No refresh token available' } }
     }
-
-    const tenantId = getStoredTenantId()
 
     const data = await apiPost<{ accessToken: string; refreshToken: string }>(
       `${API_BASE}/auth/refresh`,
@@ -392,10 +392,13 @@ export async function forgotPasswordReset(
 /**
  * Get Current User — GET /users/me
  */
-export async function getCurrentUser(): Promise<ApiResponse<UserProfile>> {
+export async function getCurrentUser(tenantId: string): Promise<ApiResponse<UserProfile>> {
   try {
-    // Standard headers are injected by the interceptor in client.ts
-    const data = await apiGet<UserProfile>(`${API_BASE}/users/me`)
+    const data = await apiGet<UserProfile>(`${API_BASE}/users/me`, {
+      headers: {
+        'X-Tenant-ID': tenantId
+      }
+    })
 
     return { success: true, data }
   } catch (error: any) {

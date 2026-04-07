@@ -21,7 +21,6 @@ import Autocomplete from '@mui/material/Autocomplete'
 import InputAdornment from '@mui/material/InputAdornment'
 import Box from '@mui/material/Box'
 import Avatar from '@mui/material/Avatar'
-import Chip from '@mui/material/Chip'
 
 // Type Imports
 import type { MaintenanceRequestType } from '@/types/maintenance/maintenanceRequestTypes'

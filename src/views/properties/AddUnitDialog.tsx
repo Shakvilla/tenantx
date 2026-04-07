@@ -22,6 +22,7 @@ import Alert from '@mui/material/Alert'
 
 // API Imports
 import { createUnit, updateUnit } from '@/lib/api/units'
+import { getStoredTenantId } from '@/lib/api/storage'
 import type { CreateUnitPayload, UpdateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
 type Property = {
@@ -142,9 +143,10 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
     if (!formData.unitNumber.trim()) newErrors.unitNumber = true
     if (!formData.propertyId) newErrors.propertyId = true
     if (!formData.status) newErrors.status = true
-    
+
     // Rent must be positive
     const rentVal = parseFloat(formData.rent)
+
     if (!formData.rent.trim() || isNaN(rentVal) || rentVal < 0) {
       newErrors.rent = true
     }
@@ -156,6 +158,14 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
 
   const handleSubmit = async () => {
     if (!validateForm()) {
+      return
+    }
+
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      setApiError('No tenant ID found')
+
       return
     }
 
@@ -179,7 +189,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
           currency: 'GHS'
         }
 
-        const response = await createUnit(formData.propertyId, payload)
+        const response = await createUnit(tenantId, formData.propertyId, payload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to create unit')
@@ -197,7 +207,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
           currency: 'GHS'
         }
 
-        const response = await updateUnit(editData.id, payload)
+        const response = await updateUnit(tenantId, editData.id, payload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update unit')
@@ -232,7 +242,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add' }
       </DialogTitle>
       <DialogContent>
         {apiError && (
-          <Alert severity="error" sx={{ mb: 2, mt: 1 }} onClose={() => setApiError(null)}>
+          <Alert severity='error' sx={{ mb: 2, mt: 1 }} onClose={() => setApiError(null)}>
             {apiError}
           </Alert>
         )}

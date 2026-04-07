@@ -187,7 +187,7 @@ const ExpenseConfigsListTable = ({ tableData }: { tableData?: ExpenseConfigType[
       }),
       columnHelper.accessor('action', {
         header: () => <div className='text-right'>ACTION</div>,
-        cell: ({ row }) => (
+        cell: ({ row: _row }) => (
           <div className='flex justify-end'>
             <IconButton size='small' title='Edit'>
               <i className='ri-pencil-line text-textSecondary' />

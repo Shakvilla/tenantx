@@ -295,14 +295,6 @@ const MaintenanceRequestsListTable = ({
     setFilteredData(filtered)
   }, [data, globalFilter, selectedStatus, selectedPriority])
 
-  // Handle delete request
-  const handleDeleteRequest = (requestId: number) => {
-    setData(data.filter(request => request.id !== requestId))
-    setDeleteRequestOpen(false)
-    setSelectedRequest(null)
-    setRowSelection({})
-  }
-
   const columnHelper = createColumnHelper<MaintenanceRequestTypeWithAction>()
 
   // Status color mapping

@@ -129,7 +129,7 @@ const sampleActivities: ActivityItem[] = [
   }
 ]
 
-const ActivityTimelineTab = ({ tenantId }: { tenantId: string }) => {
+const ActivityTimelineTab = ({ tenantId: _tenantId }: { tenantId: string }) => {
   // In a real app, fetch activities based on tenantId
   const activities = sampleActivities
 

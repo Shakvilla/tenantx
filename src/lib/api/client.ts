@@ -27,14 +27,9 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (typeof window === 'undefined') return config
 
   const token = getStoredToken()
-  const tenantId = getStoredTenantId()
 
   if (token && !config.headers?.Authorization) {
     config.headers.set('Authorization', `Bearer ${token}`)
-  }
-
-  if (tenantId && !config.headers?.['X-Tenant-ID']) {
-    config.headers.set('X-Tenant-ID', tenantId)
   }
 
   return config
@@ -60,7 +55,7 @@ function processQueue(error: unknown | null) {
   failedQueue = []
 }
 
-async function handleUnauthorized(message?: string): Promise<void> {
+async function handleUnauthorized(): Promise<void> {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('refresh_token')
@@ -68,12 +63,8 @@ async function handleUnauthorized(message?: string): Promise<void> {
     document.cookie = 'auth_token=; path=/; max-age=0; SameSite=Lax'
     document.cookie = 'tenant_id=; path=/; max-age=0; SameSite=Lax'
 
-    // Emit event instead of hard redirect. AuthContext will catch this and logout with reason.
-    window.dispatchEvent(
-      new CustomEvent('AUTH_SESSION_EXPIRED', {
-        detail: { message }
-      })
-    )
+    // Emit event — AuthContext will catch this and trigger a clean logout.
+    window.dispatchEvent(new CustomEvent('AUTH_SESSION_EXPIRED'))
   }
 }
 
@@ -82,7 +73,28 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Auth endpoints should never trigger token refresh — a 401 here means bad credentials, not expired session
+    const requestUrl = originalRequest.url ?? ''
+
+    const isAuthEndpoint = requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/signup') ||
+      requestUrl.includes('/auth/select-tenant') ||
+      requestUrl.includes('/auth/forgot-password') ||
+      requestUrl.includes('/auth/request-otp') ||
+      requestUrl.includes('/auth/verify-otp') ||
+      requestUrl.includes('/auth/set-password') ||
+      requestUrl.includes('/auth/refresh')
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+      // Only attempt refresh if we actually have a refresh token
+      const refreshToken = getStoredRefreshToken()
+
+      if (!refreshToken) {
+        await handleUnauthorized()
+
+        return Promise.reject(error)
+      }
+
       if (isRefreshing) {
         // Queue until the token refresh completes
         return new Promise((resolve, reject) => {
@@ -97,11 +109,6 @@ apiClient.interceptors.response.use(
 
       try {
         const tenantId = getStoredTenantId()
-        const refreshToken = getStoredRefreshToken()
-
-        if (!refreshToken) {
-          throw new Error('No refresh token')
-        }
 
         const { data } = await axios.post(`${API_BASE}/auth/refresh`, {
           refreshToken,
@@ -121,7 +128,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError)
-        await handleUnauthorized('Your session has expired. Please log in again.')
+        await handleUnauthorized()
 
         return Promise.reject(refreshError)
       } finally {
@@ -174,9 +181,9 @@ export async function apiFetch(
 /**
  * Helper for GET requests
  */
-export async function apiGet<T>(url: string): Promise<T> {
+export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
-    const response = await apiClient.get<T>(url)
+    const response = await apiClient.get<T>(url, config)
 
 
 return response.data
@@ -246,9 +253,9 @@ return response.data
 /**
  * Helper for DELETE requests
  */
-export async function apiDelete(url: string): Promise<void> {
+export async function apiDelete(url: string, config?: AxiosRequestConfig): Promise<void> {
   try {
-    await apiClient.delete(url)
+    await apiClient.delete(url, config)
   } catch (error) {
     if (error instanceof AxiosError && error.response?.status !== 204) {
       throw new Error(getErrorMessage(error))

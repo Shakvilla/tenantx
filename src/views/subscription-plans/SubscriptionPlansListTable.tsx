@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -13,11 +13,9 @@ import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import MenuItem from '@mui/material/MenuItem'
-import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
-import Divider from '@mui/material/Divider'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -34,22 +32,15 @@ import {
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
+// Type Imports
+import type { SubscriptionPlan, SubscriptionPlanWithAction } from '@/types/subscription-plans/subscriptionPlanTypes'
+
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
-import PageBanner from '@components/banner/PageBanner'
-import SubscriptionPlansStatsCard from './SubscriptionPlansStatsCard'
-import AddSubscriptionPlanDialog from './AddSubscriptionPlanDialog'
-import ViewSubscriptionPlanDialog from './ViewSubscriptionPlanDialog'
+import CustomAvatar from '@core/components/mui/Avatar'
+import ViewPlanDialog from './ViewSubscriptionPlanDialog'
+import AddPlanDialog from './AddSubscriptionPlanDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
-
-// Type Imports
-import type {
-  SubscriptionPlan,
-  SubscriptionPlanWithAction,
-  PlanTier,
-  PlanStatus,
-  BillingCycle
-} from '@/types/subscription-plans/subscriptionPlanTypes'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -67,149 +58,120 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
-const columnHelper = createColumnHelper<SubscriptionPlanWithAction>()
-
-// Sample data
+// Sample subscription plans data
 const samplePlans: SubscriptionPlan[] = [
   {
     id: 1,
-    name: 'Free Plan',
-    tier: 'free',
-    description: 'Perfect for getting started',
-    status: 'active',
-    price: '0',
-    currency: '₵',
-    billingCycle: 'monthly',
-    trialPeriod: 0,
-    maxProperties: 0,
-    maxTenants: 0,
-    maxUnits: 0,
-    maxDocuments: 5,
-    maxUsers: 1,
-    features: ['Basic dashboard', 'Limited support', '5 documents'],
-    isPopular: false
-  },
-  {
-    id: 2,
     name: 'Basic Plan',
     tier: 'basic',
-    description: 'Ideal for small property managers',
+    description: 'Perfect for small property owners starting out.',
     status: 'active',
-    price: '29',
-    currency: '₵',
+    price: '49',
+    currency: 'GHS',
     billingCycle: 'monthly',
     trialPeriod: 14,
     maxProperties: 5,
     maxTenants: 20,
-    maxUnits: 15,
+    maxUnits: 20,
     maxDocuments: 100,
     maxUsers: 2,
-    features: ['Up to 5 properties', '20 tenants', '15 units', '100 documents', '2 users', 'Email support'],
-    isPopular: false
+    features: ['Up to 5 properties', 'Basic support', 'Email notifications'],
+    isPopular: false,
+    createdAt: '2024-01-10'
+  },
+  {
+    id: 2,
+    name: 'Standard Plan',
+    tier: 'pro',
+    description: 'Ideal for growing businesses with multiple properties.',
+    status: 'active',
+    price: '99',
+    currency: 'GHS',
+    billingCycle: 'monthly',
+    trialPeriod: 14,
+    maxProperties: 20,
+    maxTenants: 100,
+    maxUnits: 100,
+    maxDocuments: 500,
+    maxUsers: 5,
+    features: ['Up to 20 properties', 'Priority support', 'SMS & Email notifications', 'Custom reports'],
+    isPopular: true,
+    createdAt: '2024-01-15'
   },
   {
     id: 3,
-    name: 'Pro Plan',
-    tier: 'pro',
-    description: 'Best for growing businesses',
+    name: 'Premium Plan',
+    tier: 'enterprise',
+    description: 'Advanced features for large-scale property management.',
     status: 'active',
-    price: '99',
-    currency: '₵',
+    price: '199',
+    currency: 'GHS',
     billingCycle: 'monthly',
-    trialPeriod: 14,
-    maxProperties: 25,
-    maxTenants: 100,
-    maxUnits: 75,
-    maxDocuments: 500,
-    maxUsers: 5,
-    features: [
-      'Up to 25 properties',
-      '100 tenants',
-      '75 units',
-      '500 documents',
-      '5 users',
-      'Priority support',
-      'Advanced reports',
-      'API access'
-    ],
-    isPopular: true
+    trialPeriod: 30,
+    maxProperties: 100,
+    maxTenants: 500,
+    maxUnits: 500,
+    maxDocuments: 2000,
+    maxUsers: 20,
+    features: ['Unlimited properties', '24/7 Dedicated support', 'Advanced analytics', 'API Access', 'Custom branding'],
+    isPopular: false,
+    createdAt: '2024-02-01'
   },
   {
     id: 4,
     name: 'Enterprise Plan',
     tier: 'enterprise',
-    description: 'For large organizations',
-    status: 'active',
-    price: '299',
-    currency: '₵',
+    description: 'Custom solutions tailored to your unique requirements.',
+    status: 'inactive',
+    price: '499',
+    currency: 'GHS',
     billingCycle: 'monthly',
     trialPeriod: 30,
-    maxProperties: -1, // unlimited
-    maxTenants: -1,
-    maxUnits: -1,
-    maxDocuments: -1,
-    maxUsers: -1,
-    features: [
-      'Unlimited properties',
-      'Unlimited tenants',
-      'Unlimited units',
-      'Unlimited documents',
-      'Unlimited users',
-      '24/7 priority support',
-      'Custom integrations',
-      'Dedicated account manager',
-      'SLA guarantee'
-    ],
-    isPopular: false
+    maxProperties: 1000,
+    maxTenants: 5000,
+    maxUnits: 1000,
+    maxDocuments: 10000,
+    maxUsers: 100,
+    features: ['Unlimited everything', 'On-premise deployment', 'Custom development'],
+    isPopular: false,
+    createdAt: '2024-03-10'
   }
 ]
 
+// Vars
+const statusObj: Record<string, { title: string; color: 'success' | 'warning' | 'error' | 'secondary' }> = {
+  active: { title: 'Active', color: 'success' },
+  inactive: { title: 'Inactive', color: 'secondary' },
+  archived: { title: 'Archived', color: 'error' }
+}
+
+const tierColorObj: Record<string, 'primary' | 'info' | 'success' | 'warning'> = {
+  free: 'warning',
+  basic: 'primary',
+  pro: 'info',
+  enterprise: 'success'
+}
+
 const SubscriptionPlansListTable = () => {
   // States
-  const [data, setData] = useState<SubscriptionPlan[]>(samplePlans)
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [data, setData] = useState(samplePlans)
   const [rowSelection, setRowSelection] = useState({})
-  const [status, setStatus] = useState<PlanStatus | ''>('')
-  const [tier, setTier] = useState<PlanTier | ''>('')
-  const [billingCycle, setBillingCycle] = useState<BillingCycle | ''>('')
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [status, setStatus] = useState('')
+  const [tier, setTier] = useState('')
   const [addPlanOpen, setAddPlanOpen] = useState(false)
   const [editPlanOpen, setEditPlanOpen] = useState(false)
   const [viewPlanOpen, setViewPlanOpen] = useState(false)
   const [deletePlanOpen, setDeletePlanOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null)
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    const activePlans = data.filter(p => p.status === 'active').length
-
-    // Mock subscription counts (in real app, these would come from API)
-    const totalSubscriptions = 45
-    const activeSubscriptions = 38
-
-    const monthlyRevenue = data
-      .filter(p => p.status === 'active' && p.tier !== 'free')
-      .reduce((sum, p) => {
-        const price = parseFloat(p.price) || 0
-
-        
-return sum + price * 10 // Mock: assume 10 subscriptions per paid plan
-      }, 0)
-
-    return {
-      totalPlans: data.length,
-      activePlans,
-      totalSubscriptions,
-      activeSubscriptions,
-      monthlyRecurringRevenue: `₵${monthlyRevenue.toLocaleString()}`
-    }
-  }, [data])
-
+  // Handle plan operations
   const handleDeletePlan = (planId: number) => {
-    setData(data.filter(p => p.id !== planId))
+    setData(data.filter(plan => plan.id !== planId))
     setDeletePlanOpen(false)
     setSelectedPlan(null)
   }
@@ -224,9 +186,9 @@ return sum + price * 10 // Mock: assume 10 subscriptions per paid plan
     setViewPlanOpen(true)
   }
 
-  const handleToggleStatus = (plan: SubscriptionPlan) => {
-    setData(data.map(p => (p.id === plan.id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p)))
-  }
+  const handleToggleStatus = useCallback((plan: SubscriptionPlan) => {
+    setData(prevData => prevData.map(p => (p.id === plan.id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p)))
+  }, [])
 
   // Filter data
   const filteredData = useMemo(() => {
@@ -240,12 +202,17 @@ return sum + price * 10 // Mock: assume 10 subscriptions per paid plan
       filtered = filtered.filter(p => p.tier === tier)
     }
 
-    if (billingCycle) {
-      filtered = filtered.filter(p => p.billingCycle === billingCycle)
+    if (globalFilter) {
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        p.tier.toLowerCase().includes(globalFilter.toLowerCase())
+      )
     }
 
     return filtered
-  }, [data, status, tier, billingCycle])
+  }, [data, status, tier, globalFilter])
+
+  const columnHelper = createColumnHelper<SubscriptionPlanWithAction>()
 
   const columns = useMemo<ColumnDef<SubscriptionPlanWithAction, any>[]>(
     () => [
@@ -258,87 +225,63 @@ return sum + price * 10 // Mock: assume 10 subscriptions per paid plan
             onChange={table.getToggleAllRowsSelectedHandler()}
           />
         ),
-        cell: ({ row }) => <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            disabled={!row.getCanSelect()}
+            onChange={row.getToggleSelectedHandler()}
+          />
+        )
       }),
       columnHelper.accessor('name', {
         header: 'PLAN NAME',
         cell: ({ row }) => (
-          <div className='flex flex-col'>
-            <Typography color='text.primary' className='font-medium'>
-              {row.original.name}
-            </Typography>
-            {row.original.isPopular && (
-              <Chip variant='tonal' label='Popular' size='small' color='primary' className='w-fit mts-1' />
-            )}
+          <div className='flex items-center gap-3'>
+            <CustomAvatar skin='light' color={tierColorObj[row.original.tier] || 'primary'} size={34}>
+              <i className='ri-vip-crown-line text-xl' />
+            </CustomAvatar>
+            <div className='flex flex-col'>
+              <Typography color='text.primary' className='font-medium'>
+                {row.original.name}
+              </Typography>
+              <Typography variant='body2' color='text.secondary'>
+                {`${row.original.features.length} Features`}
+              </Typography>
+            </div>
           </div>
         )
       }),
       columnHelper.accessor('tier', {
         header: 'TIER',
-        cell: ({ row }) => {
-          const tierColors: Record<PlanTier, 'primary' | 'success' | 'warning' | 'info'> = {
-            free: 'info',
-            basic: 'primary',
-            pro: 'success',
-            enterprise: 'warning'
-          }
-
-          
-return (
-            <Chip
-              variant='tonal'
-              label={row.original.tier}
-              size='small'
-              color={tierColors[row.original.tier]}
-              className='capitalize'
-            />
-          )
-        }
+        cell: ({ row }) => (
+          <Chip
+            label={row.original.tier}
+            variant='tonal'
+            size='small'
+            color={tierColorObj[row.original.tier] || 'default'}
+            className='capitalize'
+          />
+        )
       }),
       columnHelper.accessor('price', {
-        header: 'PRICE',
+        header: 'MONTHLY PRICE',
         cell: ({ row }) => (
           <Typography color='text.primary' className='font-medium'>
-            {row.original.price === '0' ? 'Free' : `${row.original.currency}${row.original.price}`}
-            <Typography component='span' variant='body2' color='text.secondary' className='ml-1'>
-              /
-              {row.original.billingCycle === 'monthly'
-                ? 'mo'
-                : row.original.billingCycle === 'quarterly'
-                  ? 'qtr'
-                  : 'yr'}
-            </Typography>
+            {`${row.original.currency} ${row.original.price}`}
           </Typography>
         )
       }),
-      columnHelper.accessor('billingCycle', {
-        header: 'BILLING CYCLE',
-        cell: ({ row }) => <Typography className='capitalize'>{row.original.billingCycle}</Typography>
-      }),
       columnHelper.accessor('status', {
         header: 'STATUS',
-        cell: ({ row }) => {
-          const statusColors: Record<PlanStatus, 'success' | 'warning' | 'error'> = {
-            active: 'success',
-            inactive: 'warning',
-            archived: 'error'
-          }
-
-          
-return (
-            <Chip
-              variant='tonal'
-              label={row.original.status}
-              size='small'
-              color={statusColors[row.original.status]}
-              className='capitalize'
-            />
-          )
-        }
-      }),
-      columnHelper.accessor('features', {
-        header: 'FEATURES',
-        cell: ({ row }) => <Typography color='text.secondary'>{row.original.features.length} features</Typography>
+        cell: ({ row }) => (
+          <Chip
+            variant='tonal'
+            label={statusObj[row.original.status].title}
+            size='small'
+            color={statusObj[row.original.status].color}
+            className='capitalize'
+          />
+        )
       }),
       columnHelper.display({
         id: 'actions',
@@ -348,25 +291,19 @@ return (
             iconButtonProps={{ size: 'small' }}
             options={[
               {
-                text: 'View',
+                text: 'View Details',
                 icon: 'ri-eye-line',
-                menuItemProps: {
-                  onClick: () => handleViewPlan(row.original)
-                }
+                menuItemProps: { onClick: () => handleViewPlan(row.original) }
               },
               {
-                text: 'Edit',
+                text: 'Edit Plan',
                 icon: 'ri-pencil-line',
-                menuItemProps: {
-                  onClick: () => handleEditPlan(row.original)
-                }
+                menuItemProps: { onClick: () => handleEditPlan(row.original) }
               },
               {
                 text: row.original.status === 'active' ? 'Deactivate' : 'Activate',
-                icon: row.original.status === 'active' ? 'ri-pause-circle-line' : 'ri-play-circle-line',
-                menuItemProps: {
-                  onClick: () => handleToggleStatus(row.original)
-                }
+                icon: row.original.status === 'active' ? 'ri-close-circle-line' : 'ri-checkbox-circle-line',
+                menuItemProps: { onClick: () => handleToggleStatus(row.original) }
               },
               {
                 text: 'Delete',
@@ -375,7 +312,8 @@ return (
                   onClick: () => {
                     setSelectedPlan(row.original)
                     setDeletePlanOpen(true)
-                  }
+                  },
+                  sx: { color: 'error.main' }
                 }
               }
             ]}
@@ -383,7 +321,7 @@ return (
         )
       })
     ],
-    []
+    [handleToggleStatus, columnHelper]
   )
 
   const table = useReactTable({
@@ -413,50 +351,32 @@ return (
 
   return (
     <>
-      <PageBanner
-        title='Subscription Plans'
-        description='Manage subscription plans and pricing tiers'
-        icon='ri-vip-crown-line'
-      />
-      <SubscriptionPlansStatsCard
-        totalPlans={stats.totalPlans}
-        activePlans={stats.activePlans}
-        totalSubscriptions={stats.totalSubscriptions}
-        activeSubscriptions={stats.activeSubscriptions}
-        monthlyRecurringRevenue={stats.monthlyRecurringRevenue}
-      />
-      <Card className='mbs-6'>
+      <Card>
         <CardHeader
-          title='Plans List'
+          title='Subscription Plans'
           action={
             <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <Button
+                variant='contained'
+                size='small'
+                startIcon={<i className='ri-add-line' />}
+                onClick={() => setAddPlanOpen(true)}
+              >
+                Create Plan
+              </Button>
             </div>
           }
         />
         <CardContent className='flex flex-col gap-4'>
-          {/* Filters Section */}
-          <Box className='flex flex-col gap-4 p-4 rounded-lg'>
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-center gap-2'>
-              <TextField
-                select
-                size='small'
-                label='Status'
-                value={status}
-                onChange={e => setStatus(e.target.value as PlanStatus | '')}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value=''>All Status</MenuItem>
-                <MenuItem value='active'>Active</MenuItem>
-                <MenuItem value='inactive'>Inactive</MenuItem>
-                <MenuItem value='archived'>Archived</MenuItem>
-              </TextField>
+          {/* Filters */}
+          <div className='flex flex-wrap items-center justify-between gap-4'>
+            <div className='flex items-center gap-4'>
               <TextField
                 select
                 size='small'
                 label='Tier'
                 value={tier}
-                onChange={e => setTier(e.target.value as PlanTier | '')}
+                onChange={e => setTier(e.target.value)}
                 sx={{ minWidth: 150 }}
               >
                 <MenuItem value=''>All Tiers</MenuItem>
@@ -468,57 +388,24 @@ return (
               <TextField
                 select
                 size='small'
-                label='Billing Cycle'
-                value={billingCycle}
-                onChange={e => setBillingCycle(e.target.value as BillingCycle | '')}
+                label='Status'
+                value={status}
+                onChange={e => setStatus(e.target.value)}
                 sx={{ minWidth: 150 }}
               >
-                <MenuItem value=''>All Cycles</MenuItem>
-                <MenuItem value='monthly'>Monthly</MenuItem>
-                <MenuItem value='quarterly'>Quarterly</MenuItem>
-                <MenuItem value='yearly'>Yearly</MenuItem>
+                <MenuItem value=''>All Status</MenuItem>
+                <MenuItem value='active'>Active</MenuItem>
+                <MenuItem value='inactive'>Inactive</MenuItem>
               </TextField>
             </div>
-            <Divider />
-
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search'
-                  value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
-
-              <div className='flex items-center gap-2 ml-auto'>
-                <TextField
-                  select
-                  size='small'
-                  value={table.getState().pagination.pageSize}
-                  onChange={e => table.setPageSize(Number(e.target.value))}
-                  sx={{ minWidth: 100 }}
-                >
-                  <MenuItem value={10}>10</MenuItem>
-                  <MenuItem value={25}>25</MenuItem>
-                  <MenuItem value={50}>50</MenuItem>
-                </TextField>
-                <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
-                  Export
-                </Button>
-                <Button
-                  variant='contained'
-                  color='primary'
-                  size='small'
-                  startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddPlanOpen(true)}
-                >
-                  Add Plan
-                </Button>
-              </div>
-            </div>
-          </Box>
+            <TextField
+              size='small'
+              placeholder='Search Plans'
+              value={globalFilter}
+              onChange={e => setGlobalFilter(e.target.value)}
+              className='max-sm:is-full'
+            />
+          </div>
 
           {/* Table */}
           <div className='overflow-x-auto'>
@@ -548,32 +435,27 @@ return (
                   </tr>
                 ))}
               </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
-                <tbody>
+              <tbody>
+                {table.getRowModel().rows.length === 0 ? (
                   <tr>
                     <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
+                      No plans available
                     </td>
                   </tr>
-                </tbody>
-              ) : (
-                <tbody>
-                  {table
-                    .getRowModel()
-                    .rows.slice(0, table.getState().pagination.pageSize)
-                    .map(row => {
-                      return (
-                        <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                          {row.getVisibleCells().map(cell => (
-                            <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                </tbody>
-              )}
+                ) : (
+                  table.getRowModel().rows.map(row => (
+                    <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
@@ -587,48 +469,37 @@ return (
             onPageChange={(_, page) => {
               table.setPageIndex(page)
             }}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
+            onRowsPerPageChange={e => {
+              table.setPageSize(Number(e.target.value))
+            }}
           />
         </CardContent>
       </Card>
 
-      {/* Add Plan Dialog */}
-      <AddSubscriptionPlanDialog
-        open={addPlanOpen}
-        handleClose={() => setAddPlanOpen(false)}
-        plansData={data}
-        setData={setData}
-        mode='add'
-      />
-
-      {/* Edit Plan Dialog */}
-      <AddSubscriptionPlanDialog
-        open={editPlanOpen}
-        handleClose={() => {
-          setEditPlanOpen(false)
-          setSelectedPlan(null)
-        }}
-        plansData={data}
-        setData={setData}
-        editData={selectedPlan}
-        mode='edit'
-      />
-
-      {/* View Plan Dialog */}
-      <ViewSubscriptionPlanDialog
+      {/* Dialogs */}
+      <ViewPlanDialog
         open={viewPlanOpen}
-        handleClose={() => {
-          setViewPlanOpen(false)
-          setSelectedPlan(null)
-        }}
+        handleClose={() => setViewPlanOpen(false)}
         plan={selectedPlan}
       />
 
-      {/* Delete Confirmation Dialog */}
+      <AddPlanDialog
+        open={addPlanOpen || editPlanOpen}
+        handleClose={() => {
+          setAddPlanOpen(false)
+          setEditPlanOpen(false)
+          setSelectedPlan(null)
+        }}
+        mode={editPlanOpen ? 'edit' : 'add'}
+        editData={selectedPlan}
+        plansData={data}
+        setData={setData}
+      />
+
       <ConfirmationDialog
         open={deletePlanOpen}
         setOpen={setDeletePlanOpen}
-        type='delete-tenant'
+        type='delete-customer'
         onConfirm={() => {
           if (selectedPlan) {
             handleDeletePlan(selectedPlan.id)

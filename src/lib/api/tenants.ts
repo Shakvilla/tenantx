@@ -48,6 +48,7 @@ export interface TenantRecord {
   metadata?: Record<string, unknown> | null
   created_at: string
   updated_at: string
+
   // Joined relations
   property?: {
     id: string
@@ -155,7 +156,7 @@ export interface UpdateTenantPayload {
 /**
  * Get list of tenants with pagination and filters
  */
-export async function getTenants(query: TenantQuery = {}): Promise<ListResponse<TenantRecord>> {
+export async function getTenants(tenantId: string, query: TenantQuery = {}): Promise<ListResponse<TenantRecord>> {
   const params = new URLSearchParams()
   
   if (query.page) params.set('page', query.page.toString())
@@ -164,58 +165,68 @@ export async function getTenants(query: TenantQuery = {}): Promise<ListResponse<
   if (query.status) params.set('status', query.status)
   if (query.propertyId) params.set('propertyId', query.propertyId)
 
-  return apiGet(`${API_BASE}/tenants?${params.toString()}`)
+  return apiGet(`${API_BASE}/tenants?${params.toString()}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Get a single tenant by ID
  */
-export async function getTenantById(id: string): Promise<ApiResponse<TenantRecord>> {
-  return apiGet(`${API_BASE}/tenants/${id}`)
+export async function getTenantById(tenantId: string, id: string): Promise<ApiResponse<TenantRecord>> {
+  return apiGet(`${API_BASE}/tenants/${id}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Create a new tenant
  */
-export async function createTenant(data: CreateTenantPayload): Promise<ApiResponse<TenantRecord>> {
-  return apiPost(`${API_BASE}/tenants`, data)
+export async function createTenant(tenantId: string, data: CreateTenantPayload): Promise<ApiResponse<TenantRecord>> {
+  return apiPost(`${API_BASE}/tenants`, data, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Update an existing tenant
  */
-export async function updateTenant(id: string, data: UpdateTenantPayload): Promise<ApiResponse<TenantRecord>> {
-  return apiPatch(`${API_BASE}/tenants/${id}`, data)
+export async function updateTenant(tenantId: string, id: string, data: UpdateTenantPayload): Promise<ApiResponse<TenantRecord>> {
+  return apiPatch(`${API_BASE}/tenants/${id}`, data, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Delete a tenant
  */
-export async function deleteTenant(id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/tenants/${id}`)
+export async function deleteTenant(tenantId: string, id: string): Promise<void> {
+  return apiDelete(`${API_BASE}/tenants/${id}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Get tenant statistics
  */
-export async function getTenantStats(): Promise<ApiResponse<TenantStats>> {
-  return apiGet(`${API_BASE}/tenants/stats`)
+export async function getTenantStats(tenantId: string): Promise<ApiResponse<TenantStats>> {
+  return apiGet(`${API_BASE}/tenants/stats`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Upload a tenant image to Supabase storage
- * @param file - The file to upload
- * @param propertyName - The property name for folder organization
- * @param tenantName - The tenant name for folder organization
- * @param fileType - Type of file: 'avatar', 'ghanaCardFront', 'ghanaCardBack'
  */
 export async function uploadTenantImage(
+  tenantId: string,
   file: File,
   propertyName: string,
   tenantName: string,
   fileType: 'avatar' | 'ghanaCardFront' | 'ghanaCardBack'
 ): Promise<ApiResponse<{ path: string; url: string; fileType: string }>> {
   const formData = new FormData()
+
   formData.append('file', file)
   formData.append('propertyName', propertyName)
   formData.append('tenantName', tenantName)
@@ -225,6 +236,9 @@ export async function uploadTenantImage(
     method: 'POST',
     body: formData,
     credentials: 'include',
+    headers: {
+      'X-Tenant-ID': tenantId
+    }
   })
 
   const data = await response.json()

@@ -227,7 +227,6 @@ return Object.keys(newErrors).length === 0
     if (!validateForm()) return
 
     const today = new Date()
-    const formattedDate = `${today.getDate()} ${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`
 
     const newCommunication: CommunicationType = {
       id: (communicationData?.length || 0) + 1,

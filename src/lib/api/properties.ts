@@ -40,6 +40,10 @@ interface PaginatedResponse<T> {
       cursor?: string | null
     }
   }
+  error?: {
+    code: string
+    message: string
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +73,7 @@ interface PropertyQuery {
  * Guide: Section 4.2
  */
 
-export async function getProperties(query: PropertyQuery = {}): Promise<PaginatedResponse<Property>> {
+export async function getProperties(tenantId: string, query: PropertyQuery = {}): Promise<PaginatedResponse<Property>> {
   const params = new URLSearchParams()
 
   if (query.size) params.set('size', query.size.toString())
@@ -83,14 +87,31 @@ export async function getProperties(query: PropertyQuery = {}): Promise<Paginate
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/properties${qs ? `?${qs}` : ''}`)
+  return apiGet(`${API_BASE}/properties${qs ? `?${qs}` : ''}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
- * Get a single property by ID.
+ * Get a single property by ID (client-side — uses Axios interceptors).
  */
-export async function getPropertyById(id: string): Promise<ApiResponse<Property>> {
-  return apiGet(`${API_BASE}/properties/${id}`)
+export async function getPropertyById(tenantId: string, id: string): Promise<ApiResponse<Property>> {
+  return apiGet(`${API_BASE}/properties/${id}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
+}
+
+/**
+ * Get a single property by ID (server-side — uses cookies).
+ *
+ * This is intended for Next.js Server Components / Server Actions where
+ * `localStorage` is unavailable and auth must come from cookies.
+ */
+export async function serverGetPropertyById(tenantId: string, id: string): Promise<Property | null> {
+  // Dynamic import to keep the server-only module out of client bundles
+  const { serverApiGet } = await import('./server-api')
+
+  return serverApiGet<Property>(tenantId, `/properties/${id}`)
 }
 
 /**
@@ -99,8 +120,10 @@ export async function getPropertyById(id: string): Promise<ApiResponse<Property>
  * API: GET /properties/my-property
  * Guide: Section 4.3
  */
-export async function getMyProperty(): Promise<ApiResponse<Property>> {
-  return apiGet(`${API_BASE}/properties/my-property`)
+export async function getMyProperty(tenantId: string): Promise<ApiResponse<Property>> {
+  return apiGet(`${API_BASE}/properties/my-property`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
@@ -109,22 +132,28 @@ export async function getMyProperty(): Promise<ApiResponse<Property>> {
  * API: POST /properties
  * Guide: Section 4.1
  */
-export async function createProperty(data: Partial<Property>): Promise<ApiResponse<Property>> {
-  return apiPost(`${API_BASE}/properties`, data)
+export async function createProperty(tenantId: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
+  return apiPost(`${API_BASE}/properties`, data, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Update a property.
  */
-export async function updateProperty(id: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
-  return apiPatch(`${API_BASE}/properties/${id}`, data)
+export async function updateProperty(tenantId: string, id: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
+  return apiPatch(`${API_BASE}/properties/${id}`, data, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Delete a property.
  */
-export async function deleteProperty(id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/properties/${id}`)
+export async function deleteProperty(tenantId: string, id: string): Promise<void> {
+  return apiDelete(`${API_BASE}/properties/${id}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
@@ -133,9 +162,11 @@ export async function deleteProperty(id: string): Promise<void> {
  * NOTE: The backend returns a raw object without the ApiResponse wrapper.
  * We manually wrap it and map the fields to match the PropertyStats interface.
  */
-export async function getPropertyStats(): Promise<ApiResponse<PropertyStats>> {
+export async function getPropertyStats(tenantId: string): Promise<ApiResponse<PropertyStats>> {
   try {
-    const rawData = await apiGet<any>(`${API_BASE}/properties/stats`)
+    const rawData = await apiGet<any>(`${API_BASE}/properties/stats`, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
 
     // Map backend fields to frontend PropertyStats interface
     // Backend: { totalProperties, occupiedUnits, vacantUnits, damagedUnits }
@@ -201,15 +232,19 @@ interface DraftPayload {
 /**
  * Save a property as draft (incomplete form).
  */
-export async function saveDraft(data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPost(`${API_BASE}/properties/drafts`, data)
+export async function saveDraft(tenantId: string, data: DraftPayload): Promise<ApiResponse<Property>> {
+  return apiPost(`${API_BASE}/properties/drafts`, data, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Update an existing property draft.
  */
-export async function updateDraft(id: string, data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPatch(`${API_BASE}/properties/drafts`, { id, ...data })
+export async function updateDraft(tenantId: string, id: string, data: DraftPayload): Promise<ApiResponse<Property>> {
+  return apiPatch(`${API_BASE}/properties/drafts`, { id, ...data }, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -235,10 +270,11 @@ interface UploadResponse {
 
 /**
  * Upload property images to storage.
+ * @param tenantId - The tenant ID for authentication
  * @param files - Array of files to upload
  * @param propertyId - Optional property ID to organize files
  */
-export async function uploadPropertyImages(files: File[], propertyId?: string): Promise<UploadResponse> {
+export async function uploadPropertyImages(tenantId: string, files: File[], propertyId?: string): Promise<UploadResponse> {
   const formData = new FormData()
 
   files.forEach(file => {
@@ -256,6 +292,8 @@ export async function uploadPropertyImages(files: File[], propertyId?: string): 
   const response = await axios.post<UploadResponse>(`${API_BASE}/properties/upload`, formData, {
     withCredentials: true,
     headers: {
+      'X-Tenant-ID': tenantId
+
       // Don't set Content-Type - let axios detect from FormData
     }
   })

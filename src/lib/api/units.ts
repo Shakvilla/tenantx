@@ -28,6 +28,10 @@ interface PaginatedResponse<T> {
       total?: number
     }
   }
+  error?: {
+    code: string
+    message: string
+  }
 }
 
 interface UnitQuery {
@@ -50,6 +54,7 @@ interface UnitQuery {
  * Guide: Section 5.2
  */
 export async function getUnitsByProperty(
+  tenantId: string,
   propertyId: string,
   query: UnitQuery = {}
 ): Promise<PaginatedResponse<Unit>> {
@@ -62,13 +67,15 @@ export async function getUnitsByProperty(
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/properties/${propertyId}/units${qs ? `?${qs}` : ''}`)
+  return apiGet(`${API_BASE}/properties/${propertyId}/units${qs ? `?${qs}` : ''}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Get all units across all properties (with optional filters).
  */
-export async function getAllUnits(query: UnitQuery = {}): Promise<PaginatedResponse<Unit>> {
+export async function getAllUnits(tenantId: string, query: UnitQuery = {}): Promise<PaginatedResponse<Unit>> {
   const params = new URLSearchParams()
 
   if (query.size) params.set('size', query.size.toString())
@@ -83,7 +90,9 @@ export async function getAllUnits(query: UnitQuery = {}): Promise<PaginatedRespo
   const url = `${API_BASE}/units${qs ? `?${qs}` : ''}`
 
   try {
-    const response = await apiGet<any>(url)
+    const response = await apiGet<any>(url, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
 
     // Defensive check: If response is already an array, backend is returning raw list
     if (Array.isArray(response)) {
@@ -143,7 +152,7 @@ export async function getAllUnits(query: UnitQuery = {}): Promise<PaginatedRespo
  * API: GET /units/available
  * Guide: Section 5.3
  */
-export async function getAvailableUnits(query: UnitQuery = {}): Promise<PaginatedResponse<Unit>> {
+export async function getAvailableUnits(tenantId: string, query: UnitQuery = {}): Promise<PaginatedResponse<Unit>> {
   const params = new URLSearchParams()
 
   if (query.propertyId) params.set('propertyId', query.propertyId)
@@ -151,36 +160,46 @@ export async function getAvailableUnits(query: UnitQuery = {}): Promise<Paginate
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/units/available${qs ? `?${qs}` : ''}`)
+  return apiGet(`${API_BASE}/units/available${qs ? `?${qs}` : ''}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Get a single unit by ID
  */
-export async function getUnitById(id: string): Promise<ApiResponse<Unit>> {
-  return apiGet(`${API_BASE}/units/${id}`)
+export async function getUnitById(tenantId: string, id: string): Promise<ApiResponse<Unit>> {
+  return apiGet(`${API_BASE}/units/${id}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Create a new unit for a property
  * Guide: Section 5.1
  */
-export async function createUnit(propertyId: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
-  return apiPost(`${API_BASE}/properties/${propertyId}/units`, data)
+export async function createUnit(tenantId: string, propertyId: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
+  return apiPost(`${API_BASE}/properties/${propertyId}/units`, data, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Update an existing unit
  */
-export async function updateUnit(id: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
-  return apiPatch(`${API_BASE}/units/${id}`, data)
+export async function updateUnit(tenantId: string, id: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
+  return apiPatch(`${API_BASE}/units/${id}`, data, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
  * Delete a unit
  */
-export async function deleteUnit(id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/units/${id}`)
+export async function deleteUnit(tenantId: string, id: string): Promise<void> {
+  return apiDelete(`${API_BASE}/units/${id}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 // Re-export types

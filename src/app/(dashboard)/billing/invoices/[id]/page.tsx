@@ -1,126 +1,89 @@
-'use client'
-
-// React Imports
-import { useState } from 'react'
-
-import { useParams } from 'next/navigation'
+// Next.js Imports
+import { cookies } from 'next/headers'
 
 // MUI Imports
 import Grid from '@mui/material/Grid2'
+import Alert from '@mui/material/Alert'
 
 // Component Imports
 import ViewInvoiceCard from '@/views/billing/view/ViewInvoiceCard'
 import ViewInvoiceActions from '@/views/billing/view/ViewInvoiceActions'
 
-// Print styles are handled in globals.css
+// API Imports
+import { getInvoiceById } from '@/lib/api/invoices'
+import { getProperties } from '@/lib/api/properties'
+import { getAllUnits } from '@/lib/api/units'
+import { getTenants } from '@/lib/api/tenants'
 
-const ViewInvoicePage = () => {
-  const params = useParams()
-  const invoiceId = params.id as string
+type Props = {
+  params: Promise<{ id: string }>
+}
 
-  // Type for invoice data - matches ViewInvoiceActions
-  type InvoiceData = {
-    id: number
-    invoiceNumber: string
-    tenantName: string
-    tenantEmail: string
-    tenantAvatar?: string
-    propertyName: string
-    unitName: string
-    amount: string
-    issuedDate: string
-    dueDate: string
-    status: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
-    balance: string
-    invoiceMonth?: string
-    invoiceType?: string
-    description?: string
-    invoiceItems?: Array<{
-      id: number
-      description: string
-      quantity: number
-      price: number
-    }>
+const ViewInvoicePage = async (props: Props) => {
+  const params = await props.params
+  const invoiceId = params.id
+  
+  const cookieStore = await cookies()
+  const tenantId = cookieStore.get('tenant_id')?.value
+
+  if (!tenantId) {
+    return <Alert severity="error">Unauthenticated / No Tenant Selected</Alert>
   }
 
-  // Sample data - TODO: Fetch from API
-  const [invoicesData, setInvoicesData] = useState<InvoiceData[]>([
-    {
-      id: parseInt(invoiceId),
-      invoiceNumber: 'INV-2024-001',
-      tenantName: 'John Doe',
-      tenantEmail: 'john.doe@example.com',
-      tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-      propertyName: 'Beautiful modern style luxury home exterior at sunset',
-      unitName: 'Unit 101',
-      amount: '₵1,450',
-      issuedDate: '2024-01-15',
-      dueDate: '2024-02-15',
-      status: 'pending',
-      balance: '₵1,450',
-      invoiceMonth: '01/2024',
-      invoiceType: 'Rent',
-      description: 'Monthly rent payment for Unit 101',
-      invoiceItems: [
-        {
-          id: 1,
-          description: 'Monthly Rent',
-          quantity: 1,
-          price: 1450
-        },
-        {
-          id: 2,
-          description: 'Maintenance Fee',
-          quantity: 1,
-          price: 50
-        }
-      ]
+  try {
+    // Fetch data concurrently to avoid waterfalls
+    const [invoiceRes, propertiesRes, unitsRes, tenantsRes] = await Promise.all([
+      getInvoiceById(tenantId, invoiceId),
+      getProperties(tenantId, { size: 100 }),
+      getAllUnits(tenantId, { size: 100 }),
+      getTenants(tenantId, { pageSize: 100 })
+    ])
+
+    if (!invoiceRes.success || !invoiceRes.data) {
+      return <Alert severity="warning">Invoice not found</Alert>
     }
-  ])
 
-  const invoiceData = invoicesData.find(inv => inv.id === parseInt(invoiceId)) || invoicesData[0]
+    const invoiceData = invoiceRes.data
+    const properties = propertiesRes.data.map(p => ({ id: parseInt(p.id), name: p.name }))
+    
+    const units = unitsRes.data.map(u => ({
+      id: parseInt(u.id),
+      unitNumber: u.unitNo,
+      propertyId: u.propertyId,
+      propertyName: u.property?.name || ''
+    }))
 
-  // Sample data for dropdowns - TODO: Fetch from API
-  const properties = [
-    { id: 1, name: 'Beautiful modern style luxury home exterior at sunset' },
-    { id: 2, name: 'Property 2' }
-  ]
+    const tenants = tenantsRes.data.map(t => ({
+      id: parseInt(t.id),
+      name: `${t.first_name} ${t.last_name}`,
+      email: t.email,
+      roomNo: t.unit_no || '',
+      propertyName: t.property?.name || '',
+      avatar: t.avatar || undefined
+    }))
 
-  const units = [
-    { id: 1, unitNumber: 'Unit 101', propertyId: '1', propertyName: 'Beautiful modern style luxury home exterior at sunset' },
-    { id: 2, unitNumber: 'Unit 102', propertyId: '1', propertyName: 'Beautiful modern style luxury home exterior at sunset' }
-  ]
-
-  const tenants = [
-    {
-      id: 1,
-      name: 'John Doe',
-      email: 'john.doe@example.com',
-      roomNo: 'Unit 101',
-      propertyName: 'Beautiful modern style luxury home exterior at sunset',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-    }
-  ]
-
-  return (
-    <Grid container spacing={6}>
-      <Grid size={{ xs: 12, md: 9 }}>
-        <ViewInvoiceCard invoiceData={invoiceData} invoiceId={invoiceId} />
+    return (
+      <Grid container spacing={6}>
+        <Grid size={{ xs: 12, md: 9 }}>
+          <ViewInvoiceCard invoiceData={invoiceData} invoiceId={invoiceId} />
+        </Grid>
+        <Grid size={{ xs: 12, md: 3 }}>
+          <ViewInvoiceActions
+            invoiceId={invoiceId}
+            invoiceData={invoiceData}
+            properties={properties}
+            units={units}
+            tenants={tenants}
+            invoicesData={[invoiceData]}
+          />
+        </Grid>
       </Grid>
-      <Grid size={{ xs: 12, md: 3 }}>
-        <ViewInvoiceActions
-          invoiceId={invoiceId}
-          invoiceData={invoiceData}
-          properties={properties}
-          units={units}
-          tenants={tenants}
-          invoicesData={invoicesData}
-          setData={setInvoicesData}
-        />
-      </Grid>
-    </Grid>
-  )
+    )
+  } catch (error) {
+    console.error('Failed to load invoice page:', error)
+    
+    return <Alert severity="error">Failed to load invoice data</Alert>
+  }
 }
 
 export default ViewInvoicePage
-

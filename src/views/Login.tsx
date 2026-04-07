@@ -4,7 +4,7 @@
 import { useState } from 'react'
 
 // Next Imports
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
 // MUI Imports
 import Typography from '@mui/material/Typography'
@@ -55,13 +55,11 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
   // Hooks
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { settings } = useSettings()
   const { login, needsWorkspaceSelection, pendingWorkspaces, selectWorkspace } = useAuth()
   const authBackground = useImageVariant(mode, lightImg, darkImg)
 
-  // Message from query params (e.g. session expired)
-  const message = searchParams.get('message')
+
 
   const characterIllustration = useImageVariant(
     mode,
@@ -187,11 +185,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
             <Typography className='mbs-1'>Please sign-in to your account and start the adventure</Typography>
           </div>
           
-          {message && (
-            <Alert severity='info'>
-              {message}
-            </Alert>
-          )}
+
           
           {error && (
             <Alert severity='error' onClose={() => setError(null)}>

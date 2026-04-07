@@ -1,12 +1,11 @@
 'use client'
 
 // React Imports
-import { useMemo } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import Typography from '@mui/material/Typography'
-import { styled, useTheme } from '@mui/material/styles'
+import { styled } from '@mui/material/styles'
 
 // Type Imports
 type PageBannerProps = {
@@ -102,7 +101,6 @@ const ImageWrapper = styled('div')(({ theme }) => ({
 
 const PageBanner = ({ title, description, icon = 'ri-rocket-line', image }: PageBannerProps) => {
   // Hooks
-  const theme = useTheme()
 
   return (
     <StyledBanner>

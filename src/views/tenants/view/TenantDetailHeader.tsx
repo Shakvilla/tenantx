@@ -16,6 +16,7 @@ import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // API Imports
 import { deleteTenant } from '@/lib/api/tenants'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 type TenantData = {
   id: string
@@ -28,13 +29,7 @@ type TenantData = {
   avatar?: string
 }
 
-const TenantDetailHeader = ({
-  tenantData,
-  tenantId
-}: {
-  tenantData?: TenantData
-  tenantId: string
-}) => {
+const TenantDetailHeader = ({ tenantData, tenantId }: { tenantData?: TenantData; tenantId: string }) => {
   // States
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -44,12 +39,21 @@ const TenantDetailHeader = ({
   const statusColor = tenantData?.status === 'active' ? 'success' : 'warning'
 
   const handleDelete = async () => {
+    const tenantIdStorage = getStoredTenantId()
+
+    if (!tenantIdStorage) {
+      setDeleteError('No tenant ID found')
+
+      return
+    }
+
     setIsDeleting(true)
     setDeleteError(null)
 
     try {
-      await deleteTenant(tenantId)
+      await deleteTenant(tenantIdStorage, tenantId)
       setDeleteDialogOpen(false)
+
       // Navigate back to tenants list after successful deletion
       router.push('/tenants')
     } catch (error) {
@@ -65,19 +69,11 @@ const TenantDetailHeader = ({
         <div className='flex flex-col items-start gap-2'>
           <div className='flex items-center gap-2 flex-wrap'>
             <Typography variant='h4'>{tenantData?.name || `Tenant #${tenantId}`}</Typography>
-            <Chip
-              variant='tonal'
-              label={tenantData?.status || '-'}
-              color={statusColor}
-              size='small'
-              className='capitalize'
-            />
+            <Chip variant='tonal' label={tenantData?.status || '-'} color={statusColor} size='small' className='capitalize' />
             {tenantData?.propertyName && (
               <Chip variant='tonal' label={tenantData.propertyName} color='primary' size='small' />
             )}
-            {tenantData?.roomNo && (
-              <Chip variant='tonal' label={tenantData.roomNo} color='info' size='small' />
-            )}
+            {tenantData?.roomNo && <Chip variant='tonal' label={tenantData.roomNo} color='info' size='small' />}
           </div>
           <Typography variant='body2' color='text.secondary'>
             {tenantData?.email || 'Email not available'}

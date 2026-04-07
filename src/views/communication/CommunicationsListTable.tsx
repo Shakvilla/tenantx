@@ -355,24 +355,6 @@ const CommunicationsListTable = ({ tableData }: { tableData?: CommunicationType[
     setFilteredData(filtered)
   }, [data, globalFilter, selectedType, selectedStatus])
 
-  // Handle delete communication
-  const handleDeleteCommunication = (communicationId: number) => {
-    setData(data.filter(communication => communication.id !== communicationId))
-    setDeleteCommunicationOpen(false)
-    setSelectedCommunication(null)
-    setRowSelection({})
-  }
-
-  // Handle bulk delete
-  const handleBulkDelete = () => {
-    const selectedIds = Object.keys(rowSelection).map(key => filteredData[parseInt(key)]?.id).filter(Boolean) as number[]
-
-    if (selectedIds.length > 0) {
-      setData(data.filter(communication => !selectedIds.includes(communication.id)))
-      setRowSelection({})
-    }
-  }
-
   const columnHelper = createColumnHelper<CommunicationTypeWithAction>()
 
   // Type and Status color mapping

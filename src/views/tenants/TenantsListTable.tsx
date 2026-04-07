@@ -44,14 +44,15 @@ import AddTenantDialog from './AddTenantDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // API Imports
-import { 
-  getTenants, 
-  getTenantStats, 
+import {
+  getTenants,
+  getTenantStats,
   deleteTenant,
   type TenantRecord,
-  type TenantStats 
+  type TenantStats
 } from '@/lib/api/tenants'
 import { getProperties } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -80,13 +81,12 @@ type Property = {
   name: string
 }
 
-
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 const columnHelper = createColumnHelper<TenantWithAction>()
@@ -95,12 +95,14 @@ const TenantsListTable = () => {
   // States
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState<TenantRecord[]>([])
+
   const [stats, setStats] = useState<TenantStats>({
     total: 0,
     active: 0,
     inactive: 0,
     pending: 0
   })
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
@@ -109,29 +111,33 @@ const TenantsListTable = () => {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
-  
+
   // Dialog states
   const [addTenantOpen, setAddTenantOpen] = useState(false)
   const [editTenantOpen, setEditTenantOpen] = useState(false)
   const [deleteTenantOpen, setDeleteTenantOpen] = useState(false)
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null)
-  
+
   // Properties and units for dropdowns
   const [properties, setProperties] = useState<Property[]>([])
-  const [units, setUnits] = useState<Unit[]>([])
+  const [units] = useState<Unit[]>([]) // TODO: Fetch units if needed, currently commented out setUnits to avoid lint warning
 
   // Fetch tenants from API
   const fetchTenants = useCallback(async () => {
     try {
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
       setLoading(true)
       setError(null)
 
-      const response = await getTenants({
+      const response = await getTenants(tenantId, {
         page: page + 1,
         pageSize,
         search: globalFilter || undefined,
         status: status || undefined,
-        propertyId: propertyFilter || undefined,
+        propertyId: propertyFilter || undefined
       })
 
       setData(response?.data || [])
@@ -149,7 +155,12 @@ const TenantsListTable = () => {
   // Fetch stats from API
   const fetchStats = useCallback(async () => {
     try {
-      const response = await getTenantStats()
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      const response = await getTenantStats(tenantId)
+
       if (response.data) {
         setStats(response.data)
       }
@@ -161,7 +172,12 @@ const TenantsListTable = () => {
   // Fetch properties for filter dropdown
   const fetchProperties = useCallback(async () => {
     try {
-      const response = await getProperties({ pageSize: 100 })
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      const response = await getProperties(tenantId, { size: 100 })
+
       if (response?.data) {
         setProperties(response.data.map(p => ({ id: p.id, name: p.name })))
       }
@@ -185,7 +201,11 @@ const TenantsListTable = () => {
     if (!selectedTenant) return
 
     try {
-      await deleteTenant(selectedTenant.id)
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      await deleteTenant(tenantId, selectedTenant.id)
       await fetchTenants()
       await fetchStats()
       setSelectedTenant(null)
@@ -217,18 +237,20 @@ const TenantsListTable = () => {
       propertyName: tenant.property?.name || '',
       leaseStartDate: tenant.move_in_date || '',
       leaseEndDate: tenant.move_out_date || '',
-      avatar: tenant.avatar || undefined,
+      avatar: tenant.avatar || undefined
     }
   }
 
   // Get unique properties from current data for quick filter
   const uniqueProperties = useMemo(() => {
     const propMap = new Map<string, string>()
+
     data.forEach(t => {
       if (t.property?.id && t.property?.name) {
         propMap.set(t.property.id, t.property.name)
       }
     })
+
     return Array.from(propMap.entries()).map(([id, name]) => ({ id, name }))
   }, [data])
 
@@ -249,6 +271,7 @@ const TenantsListTable = () => {
         header: 'TENANT',
         cell: ({ row }) => {
           const fullName = `${row.original.first_name} ${row.original.last_name}`
+
           return (
             <div className='flex items-center gap-3'>
               {row.original.avatar ? (
@@ -286,9 +309,7 @@ const TenantsListTable = () => {
         header: 'MOVE IN',
         cell: ({ row }) => (
           <Typography>
-            {row.original.move_in_date 
-              ? new Date(row.original.move_in_date).toLocaleDateString() 
-              : '-'}
+            {row.original.move_in_date ? new Date(row.original.move_in_date).toLocaleDateString() : '-'}
           </Typography>
         )
       }),
@@ -300,11 +321,7 @@ const TenantsListTable = () => {
             label={row.original.status}
             size='small'
             color={
-              row.original.status === 'active' 
-                ? 'success' 
-                : row.original.status === 'pending' 
-                  ? 'warning' 
-                  : 'default'
+              row.original.status === 'active' ? 'success' : row.original.status === 'pending' ? 'warning' : 'default'
             }
             className='capitalize'
           />
@@ -387,8 +404,8 @@ const TenantsListTable = () => {
           title='Tenants List'
           action={
             <div className='flex items-center gap-2'>
-              <Button 
-                size='small' 
+              <Button
+                size='small'
                 startIcon={<i className='ri-refresh-line' />}
                 onClick={() => {
                   fetchTenants()

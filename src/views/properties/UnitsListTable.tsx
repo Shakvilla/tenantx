@@ -39,6 +39,7 @@ import type { Unit } from '@/types/property'
 // API Imports
 import { getAllUnits, deleteUnit } from '@/lib/api/units'
 import { getProperties } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
@@ -75,8 +76,8 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 // Vars
@@ -114,51 +115,62 @@ const UnitsListTable = () => {
   const [cursorHistory, setCursorHistory] = useState<string[]>([])
 
   // Fetch available units
-  const fetchUnits = useCallback(async (cursorOverride?: string | null) => {
-    try {
-      setLoading(true)
-      setError(null)
+  const fetchUnits = useCallback(
+    async (cursorOverride?: string | null) => {
+      try {
+        const tenantId = getStoredTenantId()
 
-      const response = await getAllUnits({
-        size: pageSize,
-        sort: 'id,asc',
-        cursor: cursorOverride ?? undefined,
-        propertyId: property || undefined,
-      })
+        if (!tenantId) return
 
-      if (!response.success && response.error) {
-        throw new Error(response.error.message || 'Failed to load units')
+        setLoading(true)
+        setError(null)
+
+        const response = await getAllUnits(tenantId, {
+          size: pageSize,
+          sort: 'id,asc',
+          cursor: cursorOverride ?? undefined,
+          propertyId: property || undefined
+        })
+
+        if (!response.success && response.error) {
+          throw new Error(response.error.message || 'Failed to load units')
+        }
+
+        // Handle response with defensive checks
+        const responseData = response?.data || []
+
+        // Transform data for display
+        const transformedData: UnitWithExtras[] = responseData.map(unit => ({
+          ...unit,
+          propertyName: unit.property?.name || 'Unknown Property',
+          formattedRent: `₵${unit.rent.toLocaleString()}`,
+          formattedSize: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-'
+        }))
+
+        setData(transformedData)
+        setTotal(response?.meta?.pagination?.total || responseData.length || 0)
+        setCursor(response?.meta?.pagination?.cursor ?? null)
+        setHasNext(response?.meta?.pagination?.hasNext ?? false)
+      } catch (err) {
+        console.error('Failed to load units:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load units')
+        setData([])
+        setTotal(0)
+      } finally {
+        setLoading(false)
       }
-
-      // Handle response with defensive checks
-      const responseData = response?.data || []
-
-      // Transform data for display
-      const transformedData: UnitWithExtras[] = responseData.map(unit => ({
-        ...unit,
-        propertyName: unit.property?.name || 'Unknown Property',
-        formattedRent: `₵${unit.rent.toLocaleString()}`,
-        formattedSize: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-'
-      }))
-
-      setData(transformedData)
-      setTotal(response?.meta?.pagination?.total || responseData.length || 0)
-      setCursor(response?.meta?.pagination?.cursor ?? null)
-      setHasNext(response?.meta?.pagination?.hasNext ?? false)
-    } catch (err) {
-      console.error('Failed to load units:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load units')
-      setData([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [pageSize, property])
+    },
+    [pageSize, property]
+  )
 
   // Fetch properties for filter
   const fetchProperties = useCallback(async () => {
     try {
-      const response = await getProperties({ size: 100 })
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      const response = await getProperties(tenantId, { size: 100 })
       const responseData = response?.data || []
 
       setProperties(responseData.map(p => ({ id: p.id, name: p.name })))
@@ -184,7 +196,11 @@ const UnitsListTable = () => {
     if (!selectedUnit) return
 
     try {
-      await deleteUnit(selectedUnit.id)
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      await deleteUnit(tenantId, selectedUnit.id)
       await fetchUnits()
       setSelectedUnit(null)
       setDeleteUnitOpen(false)
@@ -349,11 +365,7 @@ const UnitsListTable = () => {
           title='Units List'
           action={
             <div className='flex items-center gap-2'>
-              <Button 
-                size='small' 
-                startIcon={<i className='ri-refresh-line' />}
-                onClick={() => fetchUnits()}
-              >
+              <Button size='small' startIcon={<i className='ri-refresh-line' />} onClick={() => fetchUnits()}>
                 Refresh
               </Button>
               <OptionMenu options={['Share', 'Export']} />
@@ -597,11 +609,12 @@ const UnitsListTable = () => {
                 unitNumber: selectedUnit.unitNo,
                 propertyId: selectedUnit.propertyId,
                 propertyName: selectedUnit.propertyName,
-                status: selectedUnit.status === 'available' 
-                  ? 'vacant' 
-                  : selectedUnit.status === 'reserved' 
-                    ? 'vacant' 
-                    : selectedUnit.status as 'occupied' | 'maintenance' | 'vacant',
+                status:
+                  selectedUnit.status === 'available'
+                    ? 'vacant'
+                    : selectedUnit.status === 'reserved'
+                      ? 'vacant'
+                      : (selectedUnit.status as 'occupied' | 'maintenance' | 'vacant'),
                 rent: selectedUnit.formattedRent,
                 bedrooms: selectedUnit.bedrooms || 0,
                 bathrooms: selectedUnit.bathrooms || 0,

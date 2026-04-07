@@ -61,7 +61,10 @@ export function getStoredTenantId(): string | null {
 
 function setCookie(name: string, value: string, maxAgeSeconds = 86400): void {
   if (typeof document === 'undefined') return
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`
+  const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
+  const secureFlag = isSecure ? '; Secure' : ''
+
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax${secureFlag}`
 }
 
 function deleteCookie(name: string): void {

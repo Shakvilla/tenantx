@@ -38,7 +38,14 @@ import classnames from 'classnames'
 import StepperWrapper from '@core/styles/stepper'
 
 // API Imports
-import { saveDraft as saveDraftApi, updateDraft, createProperty, updateProperty, uploadPropertyImages } from '@/lib/api/properties'
+import {
+  saveDraft as saveDraftApi,
+  updateDraft,
+  createProperty,
+  updateProperty,
+  uploadPropertyImages
+} from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 type PropertyEditData = {
   id?: string
@@ -91,10 +98,9 @@ const steps: StepProps[] = [
     title: 'STEP 3',
     subtitle: 'Upload Images'
   },
-
   {
     icon: 'ri-check-double-line',
-    title: 'SUBMIT: Submit',
+    title: 'SUBMIT',
     subtitle: 'Submit'
   }
 ]
@@ -177,14 +183,11 @@ const initialData: FormDataType = {
   bedrooms: '',
   bathrooms: '',
   rooms: '',
-  amenities: amenitiesList.reduce(
-    (acc, amenity) => {
-      acc[amenity.id] = false
-      
-return acc
-    },
-    {} as Record<string, boolean>
-  ),
+  amenities: amenitiesList.reduce((acc, amenity) => {
+    acc[amenity.id] = false
+
+    return acc
+  }, {} as Record<string, boolean>),
   images: [],
   thumbnailIndex: null
 }
@@ -253,7 +256,14 @@ const ImagePreviewCard = styled(Card, {
   }
 }))
 
-const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData, mode = 'add' }: Props) => {
+const AddPropertyDialog = ({
+  open,
+  handleClose,
+  propertyData: _propertyData,
+  setData: _setData,
+  editData,
+  mode = 'add'
+}: Props) => {
   // States
   const [activeStep, setActiveStep] = useState(0)
 
@@ -274,32 +284,25 @@ const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData,
         rooms: editData.rooms?.toString() || '',
         amenities:
           editData.amenities ||
-          amenitiesList.reduce(
-            (acc, amenity) => {
-              acc[amenity.id] = false
-              
-return acc
-            },
-            {} as Record<string, boolean>
-          ),
+          amenitiesList.reduce((acc, amenity) => {
+            acc[amenity.id] = false
+
+            return acc
+          }, {} as Record<string, boolean>),
         images: [], // Will be handled separately for existing images
         thumbnailIndex: editData.thumbnailIndex ?? null
       }
     }
 
-    
-return {
+    return {
       ...initialData,
       amenities:
         initialData.amenities ||
-        amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
-            
-return acc
-          },
-          {} as Record<string, boolean>
-        ),
+        amenitiesList.reduce((acc, amenity) => {
+          acc[amenity.id] = false
+
+          return acc
+        }, {} as Record<string, boolean>),
       images: initialData.images || [],
       thumbnailIndex: initialData.thumbnailIndex ?? null
     }
@@ -331,21 +334,16 @@ return acc
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
 
-
       // Ensure amenities is always defined
       if (!updated.amenities) {
-        updated.amenities = amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
-            
-return acc
-          },
-          {} as Record<string, boolean>
-        )
+        updated.amenities = amenitiesList.reduce((acc, amenity) => {
+          acc[amenity.id] = false
+
+          return acc
+        }, {} as Record<string, boolean>)
       }
 
-      
-return updated
+      return updated
     })
 
     if (errors[field]) {
@@ -434,8 +432,8 @@ return updated
     }
 
     setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+
+    return Object.keys(newErrors).length === 0
   }
 
   const handleNext = () => {
@@ -467,6 +465,14 @@ return Object.keys(newErrors).length === 0
       return
     }
 
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      console.error('No tenant ID found')
+
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -475,14 +481,14 @@ return Object.keys(newErrors).length === 0
 
       if (formData.images && formData.images.length > 0) {
         console.log('Uploading', formData.images.length, 'images...')
-        const uploadResponse = await uploadPropertyImages(formData.images)
+        const uploadResponse = await uploadPropertyImages(tenantId, formData.images)
 
         if (!uploadResponse.success || !uploadResponse.data) {
           throw new Error(uploadResponse.error?.message || 'Failed to upload images')
         }
 
         // Add newly uploaded image URLs
-        const newUrls = uploadResponse.data.images.map((img) => img.url)
+        const newUrls = uploadResponse.data.images.map(img => img.url)
 
         imageUrls = [...imageUrls, ...newUrls]
         console.log('Images uploaded:', newUrls)
@@ -501,7 +507,12 @@ return Object.keys(newErrors).length === 0
           city: formData.city,
           country: 'Ghana'
         },
-        type: (formData.propertyType?.toLowerCase() || 'residential') as 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment',
+        type: (formData.propertyType?.toLowerCase() || 'residential') as
+          | 'residential'
+          | 'commercial'
+          | 'mixed'
+          | 'house'
+          | 'apartment',
         ownership: 'own' as const,
         region: formData.region,
         district: formData.district,
@@ -513,24 +524,24 @@ return Object.keys(newErrors).length === 0
         rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
-        thumbnailIndex: formData.thumbnailIndex ?? undefined,
+        thumbnailIndex: formData.thumbnailIndex ?? undefined
       }
 
       // Step 4: Call API to create or update property
-      const existingPropertyId = (mode === 'edit' && editData?.id) ? editData.id : draftId
+      const existingPropertyId = mode === 'edit' && editData?.id ? editData.id : draftId
 
       let response
 
       if (existingPropertyId) {
         // Editing existing draft - update it and change status to active
         console.log('Updating existing property:', existingPropertyId)
-        response = await updateProperty(existingPropertyId, {
+        response = await updateProperty(tenantId, existingPropertyId, {
           ...propertyPayload,
-          status: 'active', // Publish the draft
+          status: 'active' // Publish the draft
         })
       } else {
         // Creating new property
-        response = await createProperty(propertyPayload)
+        response = await createProperty(tenantId, propertyPayload)
       }
 
       if (!response.success || !response.data) {
@@ -550,14 +561,11 @@ return Object.keys(newErrors).length === 0
 
       const resetData: FormDataType = {
         ...initialData,
-        amenities: amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
+        amenities: amenitiesList.reduce((acc, amenity) => {
+          acc[amenity.id] = false
 
-            return acc
-          },
-          {} as Record<string, boolean>
-        ),
+          return acc
+        }, {} as Record<string, boolean>),
         images: [],
         thumbnailIndex: null
       }
@@ -583,6 +591,14 @@ return Object.keys(newErrors).length === 0
       return
     }
 
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      console.error('No tenant ID found')
+
+      return
+    }
+
     setIsSaving(true)
 
     try {
@@ -591,14 +607,14 @@ return Object.keys(newErrors).length === 0
 
       if (formData.images && formData.images.length > 0) {
         console.log('Uploading', formData.images.length, 'images for draft...')
-        const uploadResponse = await uploadPropertyImages(formData.images, draftId || undefined)
+        const uploadResponse = await uploadPropertyImages(tenantId, formData.images, draftId || undefined)
 
         if (!uploadResponse.success || !uploadResponse.data) {
           throw new Error(uploadResponse.error?.message || 'Failed to upload images')
         }
 
         // Add newly uploaded image URLs
-        const newUrls = uploadResponse.data.images.map((img) => img.url)
+        const newUrls = uploadResponse.data.images.map(img => img.url)
 
         imageUrls = [...imageUrls, ...newUrls]
         console.log('Images uploaded:', newUrls)
@@ -629,12 +645,12 @@ return Object.keys(newErrors).length === 0
         rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
-        thumbnailIndex: formData.thumbnailIndex ?? undefined,
+        thumbnailIndex: formData.thumbnailIndex ?? undefined
       }
 
       // Call API - if editing draft, update; otherwise save new
       if (mode === 'edit' && editData?.id) {
-        const response = await updateDraft(editData.id, draftPayload)
+        const response = await updateDraft(tenantId, editData.id, draftPayload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update draft')
@@ -642,13 +658,13 @@ return Object.keys(newErrors).length === 0
 
         setDraftId(editData.id)
       } else if (draftId) {
-        const response = await updateDraft(draftId, draftPayload)
+        const response = await updateDraft(tenantId, draftId, draftPayload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update draft')
         }
       } else {
-        const response = await saveDraftApi(draftPayload)
+        const response = await saveDraftApi(tenantId, draftPayload)
 
         if (!response.success || !response.data) {
           throw new Error(response.error?.message || 'Failed to save draft')
@@ -1016,12 +1032,7 @@ return Object.keys(newErrors).length === 0
                     Supports: JPG, PNG, GIF (Max 10MB per image)
                   </Typography>
                 </div>
-                <Button
-                  variant='outlined'
-                  color='primary'
-                  size='small'
-                  startIcon={<i className='ri-upload-cloud-line' />}
-                >
+                <Button variant='outlined' color='primary' size='small' startIcon={<i className='ri-upload-cloud-line' />}>
                   Choose Files
                 </Button>
               </div>
@@ -1047,8 +1058,7 @@ return Object.keys(newErrors).length === 0
                     const isThumbnail =
                       formData.thumbnailIndex === totalIndex && formData.thumbnailIndex < existingImages.length
 
-                    
-return (
+                    return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`existing-${index}`}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
@@ -1084,7 +1094,6 @@ return (
                               const newExisting = existingImages.filter((_, i) => i !== index)
 
                               setExistingImages(newExisting)
-
 
                               // Adjust thumbnail index if needed
                               if (formData.thumbnailIndex === totalIndex) {
@@ -1136,8 +1145,7 @@ return (
                     const totalIndex = (existingImages?.length || 0) + index
                     const isThumbnail = formData.thumbnailIndex === totalIndex
 
-                    
-return (
+                    return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
@@ -1208,8 +1216,7 @@ return (
       case 3:
         const selectedAmenities = amenitiesList.filter(amenity => formData.amenities[amenity.id])
 
-        
-return (
+        return (
           <div className='flex flex-col gap-6'>
             <div className='flex flex-col gap-2'>
               <Typography variant='h6' className='font-semibold' color='text.primary'>
@@ -1439,16 +1446,13 @@ return (
                         const imageUrl = URL.createObjectURL(image)
                         const isThumbnail = formData.thumbnailIndex === index
 
-                        
-return (
+                        return (
                           <Grid size={{ xs: 6, sm: 4, md: 3 }} key={index}>
                             <Box
                               sx={{
                                 position: 'relative',
                                 border: isThumbnail ? '2px solid' : '1px solid',
-                                borderColor: isThumbnail
-                                  ? 'var(--mui-palette-primary-main)'
-                                  : 'var(--mui-palette-divider)',
+                                borderColor: isThumbnail ? 'var(--mui-palette-primary-main)' : 'var(--mui-palette-divider)',
                                 borderRadius: 1,
                                 overflow: 'hidden'
                               }}

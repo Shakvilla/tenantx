@@ -324,14 +324,6 @@ return specs as string[]
     setFilteredData(filtered)
   }, [data, globalFilter, selectedStatus, selectedSpecialization])
 
-  // Handle delete maintainer
-  const handleDeleteMaintainer = (maintainerId: number) => {
-    setData(data.filter(maintainer => maintainer.id !== maintainerId))
-    setDeleteMaintainerOpen(false)
-    setSelectedMaintainer(null)
-    setRowSelection({})
-  }
-
   const columnHelper = createColumnHelper<MaintainerTypeWithAction>()
 
   // Status color mapping

@@ -44,6 +44,7 @@ import type { Property, PropertyStats } from '@/types/property'
 
 // API Imports
 import { getProperties, getPropertyStats, deleteProperty } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
@@ -138,10 +139,14 @@ const PropertiesListTable = () => {
   const fetchProperties = useCallback(
     async (cursorOverride?: string | null) => {
       try {
+        const tenantId = getStoredTenantId()
+
+        if (!tenantId) return
+
         setLoading(true)
         setError(null)
 
-        const response = await getProperties({
+        const response = await getProperties(tenantId, {
           size: pageSize,
           sort: 'id,asc',
           cursor: cursorOverride ?? undefined,
@@ -172,7 +177,11 @@ const PropertiesListTable = () => {
   // Fetch stats
   const fetchStats = useCallback(async () => {
     try {
-      const response = await getPropertyStats()
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      const response = await getPropertyStats(tenantId)
 
       if (response.data) {
         setStats(response.data)
@@ -214,7 +223,11 @@ const PropertiesListTable = () => {
     if (!selectedProperty) return
 
     try {
-      await deleteProperty(selectedProperty.id)
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      await deleteProperty(tenantId, selectedProperty.id)
       await fetchProperties()
       await fetchStats()
       setSelectedProperty(null)
@@ -690,14 +703,11 @@ const PropertiesListTable = () => {
                 bathrooms: selectedProperty.bathrooms || 0,
                 rooms: selectedProperty.rooms || 0,
                 condition: selectedProperty.condition || '',
-                amenities: selectedProperty.amenities?.reduce(
-                  (acc, amenity) => {
-                    acc[amenity] = true
+                amenities: selectedProperty.amenities?.reduce((acc, amenity) => {
+                  acc[amenity] = true
 
-                    return acc
-                  },
-                  {} as Record<string, boolean>
-                ),
+                  return acc
+                }, {} as Record<string, boolean>),
                 images: selectedProperty.images || [],
                 thumbnailIndex: selectedProperty.thumbnailIndex
               }

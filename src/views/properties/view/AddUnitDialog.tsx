@@ -17,7 +17,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 
 // API Imports
 import { createUnit, updateUnit } from '@/lib/api/units'
-import type { PropertyUnit } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
+import type { Unit as PropertyUnit } from '@/lib/api/units'
 import type { CreateUnitPayload, UpdateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
 const unitTypes = [
@@ -107,7 +108,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
   }, [editUnit, open])
 
   const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({
+    setFormData(prev => ({
       ...prev,
       [field]: e.target.value
     }))
@@ -117,14 +118,22 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
     // Validate required fields
     if (!formData.unitNo.trim()) {
       setError('Unit number is required')
-      
-return
+
+      return
     }
 
     if (!formData.rent || parseFloat(formData.rent) <= 0) {
       setError('Valid rent amount is required')
-      
-return
+
+      return
+    }
+
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      setError('No tenant ID found')
+
+      return
     }
 
     setLoading(true)
@@ -146,7 +155,7 @@ return
           currency: 'GHS'
         }
 
-        const response = await updateUnit(editUnit.id, payload)
+        const response = await updateUnit(tenantId, editUnit.id, payload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update unit')
@@ -166,7 +175,7 @@ return
           currency: 'GHS'
         }
 
-        const response = await createUnit(propertyId, payload)
+        const response = await createUnit(tenantId, propertyId, payload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to create unit')
@@ -184,11 +193,11 @@ return
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth='sm' fullWidth>
       <DialogTitle>{isEdit ? 'Edit Unit' : 'Add New Unit'}</DialogTitle>
       <DialogContent>
         {error && (
-          <Alert severity="error" sx={{ mb: 2, mt: 1 }}>
+          <Alert severity='error' sx={{ mb: 2, mt: 1 }}>
             {error}
           </Alert>
         )}
@@ -196,24 +205,18 @@ return
         <Grid container spacing={3} sx={{ mt: 1 }}>
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Unit Number"
+              label='Unit Number'
               value={formData.unitNo}
               onChange={handleChange('unitNo')}
               fullWidth
               required
-              placeholder="e.g., Unit 101"
+              placeholder='e.g., Unit 101'
             />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              select
-              label="Type"
-              value={formData.type}
-              onChange={handleChange('type')}
-              fullWidth
-            >
-              {unitTypes.map((option) => (
+            <TextField select label='Type' value={formData.type} onChange={handleChange('type')} fullWidth>
+              {unitTypes.map(option => (
                 <MenuItem key={option.value} value={option.value}>
                   {option.label}
                 </MenuItem>
@@ -223,27 +226,21 @@ return
 
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Rent (GHS)"
-              type="number"
+              label='Rent (GHS)'
+              type='number'
               value={formData.rent}
               onChange={handleChange('rent')}
               fullWidth
               required
               InputProps={{
-                startAdornment: <InputAdornment position="start">₵</InputAdornment>
+                startAdornment: <InputAdornment position='start'>₵</InputAdornment>
               }}
             />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              select
-              label="Rent Period"
-              value={formData.rentPeriod}
-              onChange={handleChange('rentPeriod')}
-              fullWidth
-            >
-              {rentPeriods.map((option) => (
+            <TextField select label='Rent Period' value={formData.rentPeriod} onChange={handleChange('rentPeriod')} fullWidth>
+              {rentPeriods.map(option => (
                 <MenuItem key={option.value} value={option.value}>
                   {option.label}
                 </MenuItem>
@@ -253,21 +250,21 @@ return
 
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Deposit"
-              type="number"
+              label='Deposit'
+              type='number'
               value={formData.deposit}
               onChange={handleChange('deposit')}
               fullWidth
               InputProps={{
-                startAdornment: <InputAdornment position="start">₵</InputAdornment>
+                startAdornment: <InputAdornment position='start'>₵</InputAdornment>
               }}
             />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Bedrooms"
-              type="number"
+              label='Bedrooms'
+              type='number'
               value={formData.bedrooms}
               onChange={handleChange('bedrooms')}
               fullWidth
@@ -277,8 +274,8 @@ return
 
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              label="Bathrooms"
-              type="number"
+              label='Bathrooms'
+              type='number'
               value={formData.bathrooms}
               onChange={handleChange('bathrooms')}
               fullWidth
@@ -287,34 +284,16 @@ return
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              label="Size (sqft)"
-              type="number"
-              value={formData.sizeSqft}
-              onChange={handleChange('sizeSqft')}
-              fullWidth
-            />
+            <TextField label='Size (sqft)' type='number' value={formData.sizeSqft} onChange={handleChange('sizeSqft')} fullWidth />
           </Grid>
 
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              label="Floor"
-              type="number"
-              value={formData.floor}
-              onChange={handleChange('floor')}
-              fullWidth
-            />
+            <TextField label='Floor' type='number' value={formData.floor} onChange={handleChange('floor')} fullWidth />
           </Grid>
 
           <Grid size={{ xs: 12 }}>
-            <TextField
-              select
-              label="Status"
-              value={formData.status}
-              onChange={handleChange('status')}
-              fullWidth
-            >
-              {unitStatuses.map((option) => (
+            <TextField select label='Status' value={formData.status} onChange={handleChange('status')} fullWidth>
+              {unitStatuses.map(option => (
                 <MenuItem key={option.value} value={option.value}>
                   {option.label}
                 </MenuItem>
@@ -329,7 +308,7 @@ return
           Cancel
         </Button>
         <Button
-          variant="contained"
+          variant='contained'
           onClick={handleSubmit}
           disabled={loading}
           startIcon={loading ? <CircularProgress size={20} /> : null}

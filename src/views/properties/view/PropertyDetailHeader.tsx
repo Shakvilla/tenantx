@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Typography from '@mui/material/Typography'
-import type { ButtonProps } from '@mui/material/Button'
 
 // Type Imports
 import type { ThemeColor } from '@core/types'
@@ -51,14 +50,8 @@ const PropertyDetailHeader = ({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const router = useRouter()
 
-  // Vars
-  const buttonProps = (children: string, color: ThemeColor, variant: ButtonProps['variant']): ButtonProps => ({
-    children,
-    color,
-    variant
-  })
+  const _statusColor = propertyData?.stock ? 'success' : 'error'
 
-  const stockStatus = propertyData?.stock ? 'In Stock' : 'Out of Stock'
   const stockColor: ThemeColor = propertyData?.stock ? 'success' : 'error'
 
   // Prepare edit data
@@ -85,8 +78,9 @@ const PropertyDetailHeader = ({
     : null
 
   const handleDelete = () => {
-    // TODO: Implement API call to delete property
-    // For now, just navigate back to properties list
+    // Implement delete logic
+    console.log('Deleting property:', propertyId)
+    setDeleteDialogOpen(false)
     router.push('/properties')
   }
 
@@ -96,43 +90,37 @@ const PropertyDetailHeader = ({
         <div className='flex flex-col items-start gap-2'>
           <div className='flex items-center gap-2 flex-wrap'>
             <Typography variant='h4'>{propertyData?.name || `Property #${propertyId}`}</Typography>
-            <Chip variant='tonal' label={propertyData?.type || '-'} color='primary' size='small' />
-            <Chip variant='tonal' label={stockStatus} color={stockColor} size='small' />
-            {propertyData?.condition && (
-              <Chip variant='tonal' label={propertyData.condition} color='info' size='small' />
-            )}
+            <Chip
+              variant='tonal'
+              label={propertyData?.stock ? 'Active' : 'Maintenance'}
+              color={stockColor}
+              size='small'
+              className='capitalize'
+            />
+            <Chip variant='tonal' label={propertyData?.type || '-'} color='primary' size='small' className='capitalize' />
           </div>
           <Typography variant='body2' color='text.secondary'>
             {propertyData?.address || 'Address not available'}
           </Typography>
         </div>
         <div className='flex items-center gap-2'>
-          <Button
-            variant='outlined'
-            color='primary'
-            startIcon={<i className='ri-edit-line' />}
-            onClick={() => setEditDialogOpen(true)}
-          >
+          <Button variant='outlined' color='secondary' onClick={() => setEditDialogOpen(true)}>
             Edit Property
           </Button>
-          <Button
-            variant='outlined'
-            color='error'
-            startIcon={<i className='ri-delete-bin-line' />}
-            onClick={() => setDeleteDialogOpen(true)}
-          >
+          <Button variant='outlined' color='error' onClick={() => setDeleteDialogOpen(true)}>
             Delete Property
           </Button>
         </div>
       </div>
+
       <AddPropertyDialog
         open={editDialogOpen}
         handleClose={() => setEditDialogOpen(false)}
-        editData={editData}
         mode='edit'
-        propertyData={[]}
+        editData={editData}
         setData={() => {}}
       />
+
       <ConfirmationDialog
         open={deleteDialogOpen}
         setOpen={setDeleteDialogOpen}
@@ -144,4 +132,3 @@ const PropertyDetailHeader = ({
 }
 
 export default PropertyDetailHeader
-

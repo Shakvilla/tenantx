@@ -34,6 +34,7 @@ import {
   type UpdateTenantPayload
 } from '@/lib/api/tenants'
 import { getAllUnits } from '@/lib/api/units'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 import type { Unit } from '@/types/property'
 
@@ -73,43 +74,6 @@ type TenantEditData = {
   leaseStartDate?: string
   leaseEndDate?: string
   avatar?: string
-  ghanaCardFront?: string
-  ghanaCardBack?: string
-}
-
-type Tenant = {
-  id: number | string
-  name: string
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  occupation: string
-  age: number
-  familyMembers: number
-  password: string
-  roomNo: string
-  propertyName: string
-  propertyId: string
-  numberOfUnits: number
-  status: 'active' | 'inactive'
-  avatar?: string
-  previousAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  permanentAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  leaseStartDate?: string
-  leaseEndDate?: string
   ghanaCardFront?: string
   ghanaCardBack?: string
 }
@@ -196,8 +160,8 @@ const AddTenantDialog = ({
   handleClose,
   properties,
   units,
-  tenantsData,
-  setData,
+  tenantsData: _tenantsData,
+  setData: _setData,
   editData,
   mode = 'add'
 }: Props) => {
@@ -219,7 +183,7 @@ const AddTenantDialog = ({
   })
 
   // Dynamic units state - fetched based on selected property
-  const [availableUnits, setAvailableUnits] = useState<Array<{ id: string; unit_no: string }>>([])
+  const [availableUnits, setAvailableUnits] = useState<Array<{ id: string; unitNo: string }>>([])
   const [isLoadingUnits, setIsLoadingUnits] = useState(false)
 
   // Refs for file inputs
@@ -235,13 +199,21 @@ const AddTenantDialog = ({
       return
     }
 
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      console.error('No tenant ID found')
+
+      return
+    }
+
     setIsLoadingUnits(true)
 
     try {
-      const response = await getAllUnits({
+      const response = await getAllUnits(tenantId, {
         propertyId,
         status: 'available',
-        pageSize: 100
+        size: 100
       })
 
       if (!response.success && response.error) {
@@ -252,7 +224,7 @@ const AddTenantDialog = ({
         setAvailableUnits(
           response.data.map(u => ({
             id: u.id,
-            unit_no: u.unit_no
+            unitNo: u.unitNo
           }))
         )
       }
@@ -280,14 +252,14 @@ const AddTenantDialog = ({
     if (availableUnits.length > 0) {
       return availableUnits.map(u => ({
         id: u.id,
-        unit_no: u.unit_no,
-        property_id: formData.propertyId,
+        unitNo: u.unitNo,
+        propertyId: formData.propertyId,
         propertyName: ''
       }))
     }
 
     // Fallback to prop-based units
-    return units.filter((unit: Unit) => unit.property_id === formData.propertyId)
+    return units.filter((unit: Unit) => unit.propertyId === formData.propertyId)
   }, [availableUnits, units, formData.propertyId])
 
   // Get initial form data based on mode
@@ -296,7 +268,7 @@ const AddTenantDialog = ({
       // Find unit by unitId or by roomNo
       const unit = editData.unitId
         ? units.find(u => u.id.toString() === editData.unitId)
-        : units.find((u: Unit) => u.property_id === editData.propertyId && u.unit_no === editData.roomNo)
+        : units.find((u: Unit) => u.propertyId === editData.propertyId && u.unitNo === editData.roomNo)
 
       // Merge address objects to ensure all fields are present
       // Always merge with initialData to ensure all fields exist
@@ -325,7 +297,7 @@ const AddTenantDialog = ({
         age: editData.age?.toString() || '',
         familyMembers: editData.familyMembers?.toString() || '',
         password: editData.password || '',
-        unitNo: unit?.unit_no || '',
+        unitNo: unit?.unitNo || '',
         previousAddress,
         permanentAddress,
         propertyId: editData.propertyId || '',
@@ -371,8 +343,8 @@ const AddTenantDialog = ({
     if (formData.unitId) {
       const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId)
 
-      if (selectedUnit && selectedUnit.unit_no !== formData.unitNo) {
-        setFormData(prev => ({ ...prev, unitNo: selectedUnit.unit_no }))
+      if (selectedUnit && selectedUnit.unitNo !== formData.unitNo) {
+        setFormData(prev => ({ ...prev, unitNo: selectedUnit.unitNo }))
       }
     } else if (formData.unitNo !== '') {
       setFormData(prev => ({ ...prev, unitNo: '' }))
@@ -463,6 +435,14 @@ const AddTenantDialog = ({
       return
     }
 
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      setApiError('No tenant ID found')
+
+      return
+    }
+
     setIsSaving(true)
     setApiError(null)
 
@@ -477,7 +457,13 @@ const AddTenantDialog = ({
 
       if (formData.tenantPicture) {
         try {
-          const uploadResult = await uploadTenantImage(formData.tenantPicture, propertyName, tenantFullName, 'avatar')
+          const uploadResult = await uploadTenantImage(
+            tenantId,
+            formData.tenantPicture,
+            propertyName,
+            tenantFullName,
+            'avatar'
+          )
 
           avatarUrl = uploadResult.data?.url
         } catch (uploadErr) {
@@ -490,7 +476,7 @@ const AddTenantDialog = ({
       // Upload Ghana card front if provided (for future use)
       if (formData.ghanaCardFront) {
         try {
-          await uploadTenantImage(formData.ghanaCardFront, propertyName, tenantFullName, 'ghanaCardFront')
+          await uploadTenantImage(tenantId, formData.ghanaCardFront, propertyName, tenantFullName, 'ghanaCardFront')
         } catch (uploadErr) {
           console.error('Failed to upload Ghana card front:', uploadErr)
         }
@@ -499,7 +485,7 @@ const AddTenantDialog = ({
       // Upload Ghana card back if provided (for future use)
       if (formData.ghanaCardBack) {
         try {
-          await uploadTenantImage(formData.ghanaCardBack, propertyName, tenantFullName, 'ghanaCardBack')
+          await uploadTenantImage(tenantId, formData.ghanaCardBack, propertyName, tenantFullName, 'ghanaCardBack')
         } catch (uploadErr) {
           console.error('Failed to upload Ghana card back:', uploadErr)
         }
@@ -508,9 +494,9 @@ const AddTenantDialog = ({
       if (mode === 'add') {
         // Build API payload
         // Convert date inputs (YYYY-MM-DD) to ISO datetime format
-        const moveInDate = formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined
+        const _moveInDate = formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined
 
-        const moveOutDate = formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined
+        const _moveOutDate = formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined
 
         const payload: CreateTenantPayload = {
           firstName: formData.firstName,
@@ -521,7 +507,7 @@ const AddTenantDialog = ({
           status: 'active', // Default to active
           propertyId: formData.propertyId || undefined,
           unitId: formData.unitId || undefined,
-          unitNo: selectedUnit?.unit_no || undefined,
+          unitNo: selectedUnit?.unitNo || undefined,
           moveInDate: formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined,
           moveOutDate: formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined,
           avatar: avatarUrl,
@@ -548,7 +534,7 @@ const AddTenantDialog = ({
           }
         }
 
-        const response = await createTenant(payload)
+        const response = await createTenant(tenantId, payload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to create tenant')
@@ -569,13 +555,13 @@ const AddTenantDialog = ({
           phone: formData.phone,
           propertyId: formData.propertyId || undefined,
           unitId: formData.unitId || undefined,
-          unitNo: selectedUnit?.unit_no || undefined,
+          unitNo: selectedUnit?.unitNo || undefined,
           moveInDate,
           moveOutDate,
           avatar: avatarUrl
         }
 
-        const response = await updateTenant(editData.id.toString(), payload)
+        const response = await updateTenant(tenantId, editData.id.toString(), payload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update tenant')
@@ -1146,7 +1132,7 @@ const AddTenantDialog = ({
                       </MenuItem>
                       {filteredUnits.map(unit => (
                         <MenuItem key={unit.id} value={unit.id}>
-                          {unit.unit_no}
+                          {unit.unitNo}
                         </MenuItem>
                       ))}
                     </Select>

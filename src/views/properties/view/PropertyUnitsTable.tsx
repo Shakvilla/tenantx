@@ -27,9 +27,6 @@ import {
   getCoreRowModel,
   useReactTable,
   getFilteredRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFacetedMinMaxValues,
   getPaginationRowModel,
   getSortedRowModel
 } from '@tanstack/react-table'
@@ -42,6 +39,7 @@ import AddUnitDialog from './AddUnitDialog'
 
 // API Imports
 import { getUnitsByProperty as getPropertyUnits, deleteUnit } from '@/lib/api/units'
+import { getStoredTenantId } from '@/lib/api/storage'
 import type { Unit as PropertyUnit } from '@/types/property'
 import { formatCurrency } from '@/utils/currency'
 
@@ -79,7 +77,7 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 }
 
 function transformUnits(units: PropertyUnit[]): UnitType[] {
-  return units.map((unit) => ({
+  return units.map(unit => ({
     id: unit.id,
     unitNumber: unit.unitNo,
     type: unit.type,
@@ -123,39 +121,48 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
   const [deleting, setDeleting] = useState(false)
 
   // Fetch units
-  const fetchUnits = useCallback(async (cursorOverride?: string | null) => {
-    if (!propertyId) {
-      setLoading(false)
-      setError('No property ID provided')
-      return
-    }
+  const fetchUnits = useCallback(
+    async (cursorOverride?: string | null) => {
+      if (!propertyId) {
+        setLoading(false)
+        setError('No property ID provided')
 
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await getPropertyUnits(propertyId, {
-        size: pageSize,
-        sort: 'id,asc',
-        cursor: cursorOverride ?? undefined
-      })
-
-      if (response.success && response.data) {
-        setData(transformUnits(response.data))
-        setTotal(response.meta?.pagination?.total || response.data.length || 0)
-        setCursor(response.meta?.pagination?.cursor ?? null)
-        setHasNext(response.meta?.pagination?.hasNext ?? false)
-      } else {
-        setError('Failed to load units')
+        return
       }
-    } catch (err) {
-      console.error('Error fetching units:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load units')
-      setData([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [propertyId, pageSize])
+
+      try {
+        const tenantId = getStoredTenantId()
+
+        if (!tenantId) return
+
+        setLoading(true)
+        setError(null)
+
+        const response = await getPropertyUnits(tenantId, propertyId, {
+          size: pageSize,
+          sort: 'id,asc',
+          cursor: cursorOverride ?? undefined
+        })
+
+        if (response.success && response.data) {
+          setData(transformUnits(response.data))
+          setTotal(response.meta?.pagination?.total || response.data.length || 0)
+          setCursor(response.meta?.pagination?.cursor ?? null)
+          setHasNext(response.meta?.pagination?.hasNext ?? false)
+        } else {
+          setError('Failed to load units')
+        }
+      } catch (err) {
+        console.error('Error fetching units:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load units')
+        setData([])
+        setTotal(0)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [propertyId, pageSize]
+  )
 
   useEffect(() => {
     setCursor(null)
@@ -185,10 +192,14 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
   const handleDeleteConfirm = async () => {
     if (!unitToDelete) return
 
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) return
+
     setDeleting(true)
 
     try {
-      await deleteUnit(unitToDelete.id)
+      await deleteUnit(tenantId, unitToDelete.id)
       setDeleteDialogOpen(false)
       setUnitToDelete(null)
       fetchUnits()
@@ -211,7 +222,7 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       columnHelper.accessor('unitNumber', {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
-          <Typography color="text.primary" className="font-medium">
+          <Typography color='text.primary' className='font-medium'>
             {row.original.unitNumber}
           </Typography>
         )
@@ -219,22 +230,22 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       columnHelper.accessor('tenantName', {
         header: 'TENANT',
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
+          <div className='flex items-center gap-3'>
             {row.original.tenantName ? (
               <>
-                <CustomAvatar skin="light" color="primary" size={34}>
+                <CustomAvatar skin='light' color='primary' size={34}>
                   {row.original.tenantName
                     .split(' ')
-                    .map((n) => n[0])
+                    .map(n => n[0])
                     .join('')
                     .toUpperCase()}
                 </CustomAvatar>
-                <Typography color="text.primary" className="font-medium">
+                <Typography color='text.primary' className='font-medium'>
                   {row.original.tenantName}
                 </Typography>
               </>
             ) : (
-              <Typography color="text.secondary">-</Typography>
+              <Typography color='text.secondary'>-</Typography>
             )}
           </div>
         )
@@ -243,18 +254,18 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
         header: 'STATUS',
         cell: ({ row }) => (
           <Chip
-            variant="tonal"
+            variant='tonal'
             label={row.original.status}
-            size="small"
+            size='small'
             color={unitStatusObj[row.original.status] || 'default'}
-            className="capitalize"
+            className='capitalize'
           />
         )
       }),
       columnHelper.accessor('rent', {
         header: 'RENT',
         cell: ({ row }) => (
-          <Typography color="text.primary" className="font-medium">
+          <Typography color='text.primary' className='font-medium'>
             {row.original.formattedRent}
           </Typography>
         )
@@ -269,7 +280,7 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       }),
       columnHelper.accessor('size', {
         header: 'SIZE',
-        cell: ({ row }) => <Typography color="text.secondary">{row.original.size}</Typography>
+        cell: ({ row }) => <Typography color='text.secondary'>{row.original.size}</Typography>
       }),
       columnHelper.display({
         id: 'actions',
@@ -311,22 +322,19 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-    getFacetedMinMaxValues: getFacetedMinMaxValues()
+    getPaginationRowModel: getPaginationRowModel()
   })
 
   return (
     <>
       <Card>
         <CardHeader
-          title="Property Units"
+          title='Property Units'
           action={
             <Button
-              variant="contained"
-              size="small"
-              startIcon={<i className="ri-add-line" />}
+              variant='contained'
+              size='small'
+              startIcon={<i className='ri-add-line' />}
               onClick={() => setAddDialogOpen(true)}
             >
               Add Unit
@@ -335,20 +343,20 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
         />
         <CardContent>
           {loading ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+            <Box display='flex' justifyContent='center' alignItems='center' minHeight={200}>
               <CircularProgress />
             </Box>
           ) : error ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
-              <Typography color="error">{error}</Typography>
+            <Box display='flex' justifyContent='center' alignItems='center' minHeight={200}>
+              <Typography color='error'>{error}</Typography>
             </Box>
           ) : (
-            <div className="overflow-x-auto">
+            <div className='overflow-x-auto'>
               <table className={tableStyles.table}>
                 <thead>
-                  {table.getHeaderGroups().map((headerGroup) => (
+                  {table.getHeaderGroups().map(headerGroup => (
                     <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
+                      {headerGroup.headers.map(header => (
                         <th key={header.id}>
                           {header.isPlaceholder ? null : (
                             <div
@@ -360,8 +368,8 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
                             >
                               {flexRender(header.column.columnDef.header, header.getContext())}
                               {{
-                                asc: <i className="ri-arrow-up-s-line text-xl" />,
-                                desc: <i className="ri-arrow-down-s-line text-xl" />
+                                asc: <i className='ri-arrow-up-s-line text-xl' />,
+                                desc: <i className='ri-arrow-down-s-line text-xl' />
                               }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
                             </div>
                           )}
@@ -373,24 +381,22 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
                 {table.getFilteredRowModel().rows.length === 0 ? (
                   <tbody>
                     <tr>
-                      <td colSpan={table.getVisibleFlatColumns().length} className="text-center">
+                      <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
                         No units available
                       </td>
                     </tr>
                   </tbody>
                 ) : (
-                  <tbody className="border-be">
-                    {table
-                      .getRowModel()
-                      .rows.map((row) => (
-                        <tr key={row.id}>
-                          {row.getVisibleCells().map((cell) => (
-                            <td key={cell.id} className="first:is-14">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
+                  <tbody className='border-be'>
+                    {table.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => (
+                          <td key={cell.id} className='first:is-14'>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
                   </tbody>
                 )}
               </table>
@@ -399,8 +405,8 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
           {!loading && !error && (
             <TablePagination
               rowsPerPageOptions={[10, 25, 50]}
-              component="div"
-              className="border-bs"
+              component='div'
+              className='border-bs'
               count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
               rowsPerPage={pageSize}
               page={page}
@@ -410,19 +416,20 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
               onPageChange={(_, newPage) => {
                 if (newPage > page && hasNext && cursor) {
                   // Going forward
-                  setCursorHistory((prev) => [...prev, cursor])
+                  setCursorHistory(prev => [...prev, cursor])
                   fetchUnits(cursor)
                   setPage(newPage)
                 } else if (newPage < page) {
                   // Going backward
                   const newHistory = [...cursorHistory]
                   const prevCursor = newHistory.pop() ?? null
+
                   setCursorHistory(newHistory)
                   fetchUnits(prevCursor === cursorHistory[0] ? null : prevCursor)
                   setPage(newPage)
                 }
               }}
-              onRowsPerPageChange={(e) => {
+              onRowsPerPageChange={e => {
                 setPageSize(Number(e.target.value))
                 setPage(0)
                 setCursor(null)
@@ -458,8 +465,8 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
             Cancel
           </Button>
           <Button
-            color="error"
-            variant="contained"
+            color='error'
+            variant='contained'
             onClick={handleDeleteConfirm}
             disabled={deleting}
             startIcon={deleting ? <CircularProgress size={20} /> : null}

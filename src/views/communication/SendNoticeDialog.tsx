@@ -17,8 +17,6 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
-import Autocomplete from '@mui/material/Autocomplete'
-import InputAdornment from '@mui/material/InputAdornment'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Chip from '@mui/material/Chip'
@@ -129,7 +127,7 @@ const SendNoticeDialog = ({
   properties = sampleProperties,
   units = sampleUnits,
   tenants = sampleTenants,
-  initialRecipient,
+  initialRecipient: _initialRecipient,
   initialPropertyId,
   initialUnitId
 }: Props) => {
@@ -228,7 +226,6 @@ return Object.keys(newErrors).length === 0
     if (!validateForm()) return
 
     const today = new Date()
-    const formattedDate = `${today.getDate()} ${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`
 
     // Determine recipients
     const recipients = formData.sendToAll
@@ -436,4 +433,3 @@ return Object.keys(newErrors).length === 0
 }
 
 export default SendNoticeDialog
-

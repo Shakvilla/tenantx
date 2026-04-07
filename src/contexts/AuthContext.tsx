@@ -118,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tenantId = getStoredTenantId()
 
     if (token && tenantId) {
-      getCurrentUser()
+      getCurrentUser(tenantId)
         .then(res => {
           if (res.success && res.data) {
             setState({
@@ -155,8 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }
         })
-        .catch(error => {
-          console.error('Bootstrap user fetch crashed:', error instanceof Error ? error.message : error)
+        .catch(_error => {
+          // console.error('Bootstrap user fetch crashed:', error instanceof Error ? error.message : error)
 
           // Don't wipe session on crash (network error etc), just stop loading
           setState(prev => ({
@@ -244,15 +244,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: result.error?.message ?? 'Failed to select workspace' }
     }
 
-    // After tenant selection we get tenant-scoped tokens.
-    // We don't have user profile yet — fetch it.
-    const userRes = await getCurrentUser()
+    // The select-tenant response includes the user profile inline (AuthResponseDto.user).
+    // No need for a separate getCurrentUser() call — eliminates the API waterfall.
+    const tenantData = result.data
 
     setState({
-      user:
-        userRes.success && userRes.data
-          ? mapProfileToUser(userRes.data, workspace.role)
-          : { id: '', email: '', name: '', role: workspace.role },
+      user: tenantData.user
+        ? mapProfileToUser(tenantData.user, workspace.role)
+        : { id: '', email: '', name: '', role: workspace.role },
       tenant: {
         id: workspace.tenantId,
         name: workspace.tenantName
@@ -298,7 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ---- Logout ----
   const logout = useCallback(
-    async (reason?: string) => {
+    async (_reason?: string) => {
       await logoutUser()
       setState({
         user: null,
@@ -311,9 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         needsPasswordSetup: false
       })
 
-      const loginUrl = reason ? `/login?message=${encodeURIComponent(reason)}` : '/login'
-
-      router.push(loginUrl)
+      router.push('/login')
     },
     [router]
   )
@@ -325,7 +322,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!token || !tenantId) return
 
-    const res = await getCurrentUser()
+    const res = await getCurrentUser(tenantId)
 
     if (res.success && res.data) {
       setState(prev => ({

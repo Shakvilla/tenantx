@@ -761,7 +761,7 @@ return total
                 </Grid>
 
                 {/* Invoice Items */}
-                {formData.invoiceItems.map((item, index) => {
+                {formData.invoiceItems.map((item, _index) => {
                   const itemTotal = item.quantity * item.price
 
                   return (

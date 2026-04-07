@@ -12,7 +12,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
 import Typography from '@mui/material/Typography'
-import { useTheme , styled } from '@mui/material/styles'
+import { styled } from '@mui/material/styles'
 import Chip from '@mui/material/Chip'
 
 // Third-party Imports
@@ -188,7 +188,7 @@ const TopContributors = () => {
         }
       })
     ],
-    []
+    [columnHelper]
   )
 
   const table = useReactTable({

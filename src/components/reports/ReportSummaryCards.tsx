@@ -16,7 +16,7 @@ type Props = {
   summaries: ReportSummary[]
 }
 
-const StyledCard = styled(Card)<{ color?: string }>(({ theme, color }) => ({
+const StyledCard = styled(Card)<{ color?: string }>(({ theme: _theme, color }) => ({
   position: 'relative',
   overflow: 'hidden',
   '&::before': {

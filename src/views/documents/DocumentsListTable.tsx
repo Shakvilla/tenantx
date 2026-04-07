@@ -1,25 +1,18 @@
 'use client'
 
 // React Imports
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
-import Divider from '@mui/material/Divider'
-import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import Avatar from '@mui/material/Avatar'
-import Checkbox from '@mui/material/Checkbox'
-import Chip from '@mui/material/Chip'
-import FormControl from '@mui/material/FormControl'
-import InputLabel from '@mui/material/InputLabel'
-import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import TablePagination from '@mui/material/TablePagination'
-import type { TextFieldProps } from '@mui/material/TextField'
+import Chip from '@mui/material/Chip'
+import Avatar from '@mui/material/Avatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -41,15 +34,11 @@ import type { DocumentType } from '@/types/documents/documentTypes'
 
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
-import PageBanner from '@components/banner/PageBanner'
 import CustomAvatar from '@core/components/mui/Avatar'
-import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import ViewDocumentDialog from './ViewDocumentDialog'
 import AcceptDocumentDialog from './AcceptDocumentDialog'
 import RejectDocumentDialog from './RejectDocumentDialog'
-
-// Util Imports
-import { getInitials } from '@/utils/getInitials'
+import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -71,263 +60,118 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
-const DebouncedInput = ({
-  value: initialValue,
-  onChange,
-  debounce = 500,
-  ...props
-}: {
-  value: string | number
-  onChange: (value: string | number) => void
-  debounce?: number
-} & Omit<TextFieldProps, 'onChange'>) => {
-  const [value, setValue] = useState(initialValue)
-
-  useEffect(() => {
-    setValue(initialValue)
-  }, [initialValue])
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      onChange(value)
-    }, debounce)
-
-    return () => clearTimeout(timeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value])
-
-  return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
-}
-
-// Sample data
+// Sample document data
 const sampleDocuments: DocumentType[] = [
   {
     id: 1,
-    propertyName: 'A living room with mexican mansion blue',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 3',
+    documentType: 'Lease Agreement',
+    status: 'accepted',
     tenantName: 'Brokin Simon',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'ID Card',
-    status: 'accepted'
+    propertyName: 'A living room with mexican mansion blue',
+    unitNo: 'Unit no 3',
+    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
   },
   {
     id: 2,
-    propertyName: 'Rendering of a modern villa',
-    propertyImage:
-      'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 2',
+    documentType: 'ID Card',
+    status: 'pending',
     tenantName: 'Andrew Paul',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'Passport',
-    status: 'rejected'
+    propertyName: 'Rendering of a modern villa',
+    unitNo: 'Unit no 5',
+    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
   },
   {
     id: 3,
-    propertyName: 'Beautiful modern style luxury home exterior sunset',
-    propertyImage:
-      'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 6',
+    documentType: 'Other',
+    status: 'rejected',
     tenantName: 'Mrtle Hale',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'ID Card',
-    status: 'accepted'
+    propertyName: 'Beautiful modern style luxury home exterior sunset',
+    unitNo: 'Unit no 2',
+    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
   },
   {
     id: 4,
-    propertyName: 'Design of a modern house as mansion blue couch',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 4',
+    documentType: 'Other',
+    status: 'accepted',
     tenantName: 'Timothy',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'ID Card',
-    status: 'accepted'
+    propertyName: 'Design of a modern house as mansion blue couch',
+    unitNo: 'Unit no 1',
+    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
   },
   {
     id: 5,
-    propertyName: 'A house with a lot of windows and a lot of plants',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 1',
+    documentType: 'Other',
+    status: 'pending',
     tenantName: 'John Doe',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'Lease Agreement',
-    status: 'pending'
+    propertyName: 'A house with a lot of windows and a lot of plants',
+    unitNo: 'Unit no 6',
+    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
   },
   {
     id: 6,
-    propertyName: 'Depending on the location and design',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 5',
+    documentType: 'Other',
+    status: 'accepted',
     tenantName: 'Jane Smith',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'Passport',
-    status: 'accepted'
-  },
-  {
-    id: 7,
-    propertyName: 'A living room with mexican mansion blue',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 7',
-    tenantName: 'Robert Johnson',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'Contract',
-    status: 'rejected'
-  },
-  {
-    id: 8,
-    propertyName: 'Rendering of a modern villa',
-    propertyImage:
-      'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 8',
-    tenantName: 'Sarah Williams',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'ID Card',
-    status: 'pending'
-  },
-  {
-    id: 9,
-    propertyName: 'Beautiful modern style luxury home exterior sunset',
-    propertyImage:
-      'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 9',
-    tenantName: 'Michael Brown',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'Passport',
-    status: 'accepted'
-  },
-  {
-    id: 10,
-    propertyName: 'A house with a lot of windows and a lot of plants',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 10',
-    tenantName: 'Emily Davis',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'Lease Agreement',
-    status: 'accepted'
-  },
-  {
-    id: 11,
-    propertyName: 'Design of a modern house as mansion blue couch',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 11',
-    tenantName: 'David Wilson',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'ID Card',
-    status: 'rejected'
-  },
-  {
-    id: 12,
     propertyName: 'Depending on the location and design',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
     unitNo: 'Unit no 12',
-    tenantName: 'Lisa Anderson',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentImage:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    documentType: 'Contract',
-    status: 'accepted'
+    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
   }
 ]
 
-const DocumentsListTable = ({ tableData }: { tableData?: DocumentType[] }) => {
+// Vars
+const statusObj: Record<string, { title: string; color: 'success' | 'warning' | 'error' | 'secondary' }> = {
+  accepted: { title: 'Accepted', color: 'success' },
+  pending: { title: 'Pending', color: 'warning' },
+  rejected: { title: 'Rejected', color: 'error' }
+}
+
+const typeIconObj: Record<string, { icon: string; color: string }> = {
+  'Lease Agreement': { icon: 'ri-file-list-3-line', color: 'primary' },
+  'ID Card': { icon: 'ri-user-star-line', color: 'info' },
+  'Passport': { icon: 'ri-shield-check-line', color: 'success' },
+  'Contract': { icon: 'ri-file-text-line', color: 'warning' },
+  'Other': { icon: 'ri-file-line', color: 'secondary' }
+}
+
+const DocumentsListTable = () => {
   // States
-  const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(tableData || sampleDocuments)
+  const [data, setData] = useState(sampleDocuments)
   const [filteredData, setFilteredData] = useState(data)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [selectedProperty, setSelectedProperty] = useState<string>('')
-  const [selectedUnit, setSelectedUnit] = useState<string>('')
-  const [deleteDocumentOpen, setDeleteDocumentOpen] = useState(false)
-  const [selectedDocument, setSelectedDocument] = useState<DocumentType | null>(null)
+  const [selectedProperty, setSelectedProperty] = useState('')
+  const [selectedUnit, setSelectedUnit] = useState('')
   const [viewDocumentOpen, setViewDocumentOpen] = useState(false)
-  const [documentToView, setDocumentToView] = useState<DocumentType | null>(null)
   const [acceptDocumentOpen, setAcceptDocumentOpen] = useState(false)
   const [rejectDocumentOpen, setRejectDocumentOpen] = useState(false)
-  const [documentToAccept, setDocumentToAccept] = useState<DocumentType | null>(null)
-  const [documentToReject, setDocumentToReject] = useState<DocumentType | null>(null)
+  const [deleteDocumentOpen, setDeleteDocumentOpen] = useState(false)
+  const [selectedDocument, setSelectedDocument] = useState<DocumentType | null>(null)
 
-  // Get unique properties and units
-  const uniqueProperties = useMemo(() => {
-    const props = Array.from(new Set(data.map(d => d.propertyName).filter(Boolean)))
-
-    
-return props as string[]
-  }, [data])
-
-  const uniqueUnits = useMemo(() => {
-    const units = Array.from(new Set(data.map(d => d.unitNo).filter(Boolean)))
-
-    
-return units as string[]
-  }, [data])
+  // Get unique properties and units for filters
+  const properties = useMemo(() => Array.from(new Set(data.map(d => d.propertyName).filter(Boolean))), [data])
+  const units = useMemo(() => Array.from(new Set(data.map(d => d.unitNo).filter(Boolean))), [data])
 
   // Filter data
   useEffect(() => {
-    let filtered = data
+    const filtered = data.filter(document => {
+      if (globalFilter && !document.documentType.toLowerCase().includes(globalFilter.toLowerCase()) && 
+          !document.tenantName.toLowerCase().includes(globalFilter.toLowerCase())) {
+        return false
+      }
 
-    if (globalFilter) {
-      filtered = filtered.filter(
-        document =>
-          document.tenantName?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-          document.propertyName?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-          document.unitNo?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-          document.documentType?.toLowerCase().includes(globalFilter.toLowerCase())
-      )
-    }
+      if (selectedProperty && document.propertyName !== selectedProperty) {
+        return false
+      }
 
-    if (selectedProperty) {
-      filtered = filtered.filter(document => document.propertyName === selectedProperty)
-    }
+      if (selectedUnit && document.unitNo !== selectedUnit) {
+        return false
+      }
 
-    if (selectedUnit) {
-      filtered = filtered.filter(document => document.unitNo === selectedUnit)
-    }
+      return true
+    })
 
     setFilteredData(filtered)
   }, [data, globalFilter, selectedProperty, selectedUnit])
@@ -340,7 +184,7 @@ return units as string[]
   }
 
   // Handle status update
-  const handleStatusUpdate = (documentId: number, newStatus: 'accepted' | 'rejected', rejectReason?: string) => {
+  const handleStatusUpdate = (documentId: number, newStatus: 'accepted' | 'rejected', _rejectReason?: string) => {
     setData(
       data.map(document =>
         document.id === documentId ? { ...document, status: newStatus } : document
@@ -348,190 +192,121 @@ return units as string[]
     )
   }
 
-  // Handle accept document
-  const handleAcceptDocument = () => {
-    if (documentToAccept) {
-      handleStatusUpdate(documentToAccept.id, 'accepted')
-      setDocumentToAccept(null)
-    }
-  }
-
-  // Handle reject document
-  const handleRejectDocument = (rejectReason: string) => {
-    if (documentToReject) {
-      handleStatusUpdate(documentToReject.id, 'rejected', rejectReason)
-      setDocumentToReject(null)
-    }
-  }
-
+  // Column Helper
   const columnHelper = createColumnHelper<DocumentTypeWithAction>()
-
-  // Status color mapping
-  const documentStatusObj: {
-    [key: string]: {
-      color: 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'
-    }
-  } = {
-    accepted: { color: 'primary' },
-    rejected: { color: 'warning' },
-    pending: { color: 'info' }
-  }
 
   const columns = useMemo<ColumnDef<DocumentTypeWithAction, any>[]>(
     () => [
-      {
-        id: 'select',
-        header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllRowsSelected()}
-            indeterminate={table.getIsSomeRowsSelected()}
-            onChange={table.getToggleAllRowsSelectedHandler()}
-          />
-        ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            disabled={!row.getCanSelect()}
-            indeterminate={row.getIsSomeSelected()}
-            onChange={row.getToggleSelectedHandler()}
-          />
-        )
-      },
-      columnHelper.display({
-        id: 'sl',
-        header: 'SL',
-        cell: ({ row, table }) => {
-          const pageIndex = table.getState().pagination.pageIndex
-          const pageSize = table.getState().pagination.pageSize
-
-          
-return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
-        }
-      }),
-      columnHelper.accessor('propertyName', {
-        header: 'Property',
+      columnHelper.accessor('documentType', {
+        header: 'DOCUMENT TYPE',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar
-              variant='rounded'
-              src={row.original.propertyImage}
-              alt={row.original.propertyName}
-              sx={{ width: 40, height: 40 }}
+            <CustomAvatar
+              skin='light'
+              color={(typeIconObj[row.original.documentType] || typeIconObj.Other).color as any}
+              size={34}
             >
-              {row.original.propertyName?.[0]?.toUpperCase() || 'P'}
-            </Avatar>
-            <Typography color='text.primary' className='font-medium max-w-[200px] truncate'>
-              {row.original.propertyName || '-'}
-            </Typography>
+              <i className={classnames((typeIconObj[row.original.documentType] || typeIconObj.Other).icon, 'text-xl')} />
+            </CustomAvatar>
+            <div className='flex flex-col'>
+              <Typography color='text.primary' className='font-medium'>
+                {row.original.documentType}
+              </Typography>
+            </div>
           </div>
         )
-      }),
-      columnHelper.accessor('unitNo', {
-        header: 'Unit No',
-        cell: ({ row }) => <Typography color='text.primary'>{row.original.unitNo || '-'}</Typography>
       }),
       columnHelper.accessor('tenantName', {
-        header: 'Tenant Name',
+        header: 'TENANT',
         cell: ({ row }) => (
-          <div className='flex items-center gap-2'>
-            <CustomAvatar src={row.original.tenantAvatar} skin='light' size={28}>
-              {getInitials(row.original.tenantName)}
-            </CustomAvatar>
-            <Typography color='text.primary' className='font-medium'>
-              {row.original.tenantName || '-'}
-            </Typography>
+          <div className='flex items-center gap-3'>
+            <Avatar src={row.original.tenantAvatar} sx={{ width: 30, height: 30 }} />
+            <Typography color='text.primary'>{row.original.tenantName}</Typography>
           </div>
         )
       }),
-      columnHelper.accessor('documentImage', {
-        header: 'Image',
+      columnHelper.accessor('propertyName', {
+        header: 'PROPERTY & UNIT',
         cell: ({ row }) => (
-          <Avatar
-            variant='rounded'
-            src={row.original.documentImage}
-            alt={row.original.documentType}
-            sx={{ width: 50, height: 50 }}
-          >
-            <i className='ri-file-line' />
-          </Avatar>
-        )
-      }),
-      columnHelper.accessor('documentType', {
-        header: 'Document Type',
-        cell: ({ row }) => (
-          <Typography color='text.primary'>{row.original.documentType || '-'}</Typography>
+          <div className='flex flex-col'>
+            <Typography color='text.primary' className='font-medium max-w-[200px] truncate'>
+              {row.original.propertyName}
+            </Typography>
+            <Typography variant='body2' color='text.secondary'>
+              {row.original.unitNo}
+            </Typography>
+          </div>
         )
       }),
       columnHelper.accessor('status', {
-        header: 'Status',
-        cell: ({ row }) => {
-          const status = row.original.status
-          const statusConfig = documentStatusObj[status] || { color: 'secondary' }
-
-          return (
-            <Chip
-              variant='tonal'
-              label={status}
-              size='small'
-              color={statusConfig.color}
-              className='capitalize'
-            />
-          )
-        }
+        header: 'STATUS',
+        cell: ({ row }) => (
+          <Chip
+            variant='tonal'
+            label={statusObj[row.original.status].title}
+            size='small'
+            color={statusObj[row.original.status].color}
+            className='capitalize'
+          />
+        )
       }),
       columnHelper.display({
-        id: 'action',
-        header: 'Action',
-        cell: ({ row }) => {
-          return (
-            <OptionMenu
-              iconButtonProps={{ size: 'small' }}
-              options={[
-                {
-                  text: 'View',
-                  icon: 'ri-eye-line',
-                  menuItemProps: {
-                    onClick: () => {
-                      setDocumentToView(row.original)
-                      setViewDocumentOpen(true)
-                    }
-                  }
-                },
-                {
-                  text: 'Accepted',
-                  icon: 'ri-checkbox-circle-line',
-                  menuItemProps: {
-                    onClick: () => {
-                      setDocumentToAccept(row.original)
-                      setAcceptDocumentOpen(true)
-                    }
-                  }
-                },
-                {
-                  text: 'Rejected',
-                  icon: 'ri-close-circle-line',
-                  menuItemProps: {
-                    onClick: () => {
-                      setDocumentToReject(row.original)
-                      setRejectDocumentOpen(true)
-                    }
-                  }
-                },
-                {
-                  text: 'Delete',
-                  icon: 'ri-delete-bin-line',
-                  menuItemProps: {
-                    onClick: () => {
-                      setSelectedDocument(row.original)
-                      setDeleteDocumentOpen(true)
-                    }
+        id: 'actions',
+        header: 'ACTIONS',
+        cell: ({ row }) => (
+          <OptionMenu
+            iconButtonProps={{ size: 'small' }}
+            options={[
+              {
+                text: 'View',
+                icon: 'ri-eye-line',
+                menuItemProps: {
+                  onClick: () => {
+                    setSelectedDocument(row.original)
+                    setViewDocumentOpen(true)
                   }
                 }
-              ]}
-            />
-          )
-        },
-        enableSorting: false
+              },
+              {
+                text: 'Download',
+                icon: 'ri-download-line'
+              },
+              {
+                text: 'Accept',
+                icon: 'ri-check-line',
+                menuItemProps: {
+                  onClick: () => {
+                    setSelectedDocument(row.original)
+                    setAcceptDocumentOpen(true)
+                  },
+                  disabled: row.original.status === 'accepted'
+                }
+              },
+              {
+                text: 'Reject',
+                icon: 'ri-close-line',
+                menuItemProps: {
+                  onClick: () => {
+                    setSelectedDocument(row.original)
+                    setRejectDocumentOpen(true)
+                  },
+                  disabled: row.original.status === 'rejected'
+                }
+              },
+              {
+                text: 'Delete',
+                icon: 'ri-delete-bin-line',
+                menuItemProps: {
+                  onClick: () => {
+                    setSelectedDocument(row.original)
+                    setDeleteDocumentOpen(true)
+                  },
+                  sx: { color: 'error.main' }
+                }
+              }
+            ]}
+          />
+        )
       })
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -544,20 +319,7 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
     filterFns: {
       fuzzy: fuzzyFilter
     },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
-    enableRowSelection: true,
-    globalFilterFn: fuzzyFilter,
-    onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
-    onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel()
@@ -565,58 +327,54 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
 
   return (
     <>
-      <PageBanner
-        title='Document'
-        description='Manage and view all tenant documents'
-        icon='ri-file-text-line'
-      />
-      <Card className='mbs-6'>
+      <Card>
         <CardHeader
-          title='Documents List'
+          title='Documents'
           action={
             <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <TextField
+                size='small'
+                placeholder='Search'
+                value={globalFilter}
+                onChange={e => setGlobalFilter(e.target.value)}
+                className='max-sm:is-full'
+              />
             </div>
           }
         />
-        <Divider />
         <CardContent className='flex flex-col gap-4'>
           {/* Filters */}
-          <div className='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
-            <div className='flex flex-wrap gap-4 items-center'>
-              <FormControl size='small' sx={{ minWidth: 180 }}>
-                <InputLabel>Select Property</InputLabel>
-                <Select
-                  value={selectedProperty}
-                  onChange={e => setSelectedProperty(e.target.value)}
-                  label='Select Property'
-                >
-                  <MenuItem value=''>All Properties</MenuItem>
-                  {uniqueProperties.map(prop => (
-                    <MenuItem key={prop} value={prop}>
-                      {prop}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size='small' sx={{ minWidth: 150 }}>
-                <InputLabel>Select Unit No</InputLabel>
-                <Select value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)} label='Select Unit No'>
-                  <MenuItem value=''>All Units</MenuItem>
-                  {uniqueUnits.map(unit => (
-                    <MenuItem key={unit} value={unit}>
-                      {unit}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </div>
-            <DebouncedInput
-              value={globalFilter ?? ''}
-              onChange={value => setGlobalFilter(String(value))}
-              placeholder='Search:'
-              className='sm:is-auto min-is-[200px]'
-            />
+          <div className='flex flex-wrap items-center gap-4'>
+            <TextField
+              select
+              size='small'
+              label='Property'
+              value={selectedProperty}
+              onChange={e => setSelectedProperty(e.target.value)}
+              sx={{ minWidth: 200 }}
+            >
+              <MenuItem value=''>All Properties</MenuItem>
+              {properties.map(property => (
+                <MenuItem key={property} value={property}>
+                  {property}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              size='small'
+              label='Unit'
+              value={selectedUnit}
+              onChange={e => setSelectedUnit(e.target.value)}
+              sx={{ minWidth: 150 }}
+            >
+              <MenuItem value=''>All Units</MenuItem>
+              {units.map(unit => (
+                <MenuItem key={unit} value={unit}>
+                  {unit}
+                </MenuItem>
+              ))}
+            </TextField>
           </div>
 
           {/* Table */}
@@ -647,29 +405,27 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
                   </tr>
                 ))}
               </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
-                <tbody>
+              <tbody>
+                {table.getRowModel().rows.length === 0 ? (
                   <tr>
                     <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
+                      No documents available
                     </td>
                   </tr>
-                </tbody>
-              ) : (
-                <tbody>
-                  {table.getRowModel().rows.map(row => {
-                    return (
-                      <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                        {row.getVisibleCells().map(cell => (
-                          <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                        ))}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              )}
+                ) : (
+                  table.getRowModel().rows.map(row => (
+                    <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+              </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
@@ -683,52 +439,49 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
             onPageChange={(_, page) => {
               table.setPageIndex(page)
             }}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
+            onRowsPerPageChange={e => {
+              table.setPageSize(Number(e.target.value))
+            }}
           />
         </CardContent>
       </Card>
 
-      {/* View Document Dialog */}
+      {/* Dialogs */}
       <ViewDocumentDialog
         open={viewDocumentOpen}
-        setOpen={setViewDocumentOpen}
-        documentData={documentToView}
-        onAccept={() => {
-          if (documentToView) {
-            setDocumentToAccept(documentToView)
-            setViewDocumentOpen(false)
-            setAcceptDocumentOpen(true)
-          }
+        handleClose={() => {
+          setViewDocumentOpen(false)
+          setSelectedDocument(null)
         }}
-        onReject={() => {
-          if (documentToView) {
-            setDocumentToReject(documentToView)
-            setViewDocumentOpen(false)
-            setRejectDocumentOpen(true)
-          }
-        }}
+        document={selectedDocument}
       />
 
-      {/* Accept Document Dialog */}
       <AcceptDocumentDialog
         open={acceptDocumentOpen}
         setOpen={setAcceptDocumentOpen}
-        onConfirm={handleAcceptDocument}
+        onConfirm={() => {
+          if (selectedDocument) {
+            handleStatusUpdate(selectedDocument.id, 'accepted')
+          }
+        }}
+        documentName={selectedDocument?.documentType}
       />
 
-      {/* Reject Document Dialog */}
       <RejectDocumentDialog
         open={rejectDocumentOpen}
         setOpen={setRejectDocumentOpen}
-        documentData={documentToReject}
-        onConfirm={handleRejectDocument}
+        documentData={selectedDocument}
+        onConfirm={(reason) => {
+          if (selectedDocument) {
+            handleStatusUpdate(selectedDocument.id, 'rejected', reason)
+          }
+        }}
       />
 
-      {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         open={deleteDocumentOpen}
         setOpen={setDeleteDocumentOpen}
-        type='delete-document'
+        type='delete-customer'
         onConfirm={() => {
           if (selectedDocument) {
             handleDeleteDocument(selectedDocument.id)
@@ -740,4 +493,3 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
 }
 
 export default DocumentsListTable
-

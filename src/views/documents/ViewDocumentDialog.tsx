@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { } from 'react'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -11,231 +11,131 @@ import DialogActions from '@mui/material/DialogActions'
 import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import Avatar from '@mui/material/Avatar'
-import Chip from '@mui/material/Chip'
 import Button from '@mui/material/Button'
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 
-// Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
-
-// Util Imports
-import { getInitials } from '@/utils/getInitials'
-
 // Type Imports
 import type { DocumentType } from '@/types/documents/documentTypes'
 
 type ViewDocumentDialogProps = {
   open: boolean
-  setOpen: (open: boolean) => void
-  documentData: DocumentType | null
-  onAccept?: () => void
-  onReject?: () => void
+  handleClose: () => void
+  document: DocumentType | null
 }
 
-const ViewDocumentDialog = ({ open, setOpen, documentData, onAccept, onReject }: ViewDocumentDialogProps) => {
-  // Status color mapping
-  const documentStatusObj: {
-    [key: string]: {
-      color: 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'
-      textColor?: string
-    }
-  } = {
-    accepted: { color: 'primary' },
-    rejected: { color: 'warning', textColor: '#f44336' },
-    pending: { color: 'info' }
+const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogProps) => {
+  if (!document) {
+    return null
   }
 
-  const handleDownload = (imageUrl?: string) => {
-    if (imageUrl) {
-      const link = document.createElement('a')
-
-      link.href = imageUrl
-      link.download = `document-${documentData?.id || 'download'}`
-      link.target = '_blank'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    }
+  // Handle Download
+  const handleDownload = () => {
+    // In a real app, this would trigger a download
+    console.log(`Downloading document: ${document.documentType}`)
   }
-
-  if (!documentData) return null
-
-  const statusConfig = documentStatusObj[documentData.status] || { color: 'secondary' }
 
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
       <DialogTitle className='flex items-center justify-between'>
-        <span className='font-medium'>Document Details</span>
-        <IconButton size='small' onClick={() => setOpen(false)}>
+        <span>Document Preview</span>
+        <IconButton size='small' onClick={handleClose}>
           <i className='ri-close-line' />
         </IconButton>
       </DialogTitle>
-      <DialogContent className='flex flex-col gap-6'>
-        {/* Document Images - Side by Side */}
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Card className='relative'>
-              <Box className='relative'>
-                <Avatar
-                  variant='rounded'
-                  src={documentData.documentImage}
-                  alt={documentData.documentType}
-                  sx={{
-                    width: '100%',
-                    height: 400,
-                    objectFit: 'cover',
-                    borderRadius: '4px 4px 0 0'
-                  }}
-                >
-                  <i className='ri-file-line text-6xl' />
-                </Avatar>
-                <IconButton
-                  className='absolute top-2 right-2'
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    '&:hover': { bgcolor: 'primary.dark' },
-                    boxShadow: 2
-                  }}
-                  size='small'
-                  onClick={() => handleDownload(documentData.documentImage)}
-                >
-                  <i className='ri-download-line' />
-                </IconButton>
-              </Box>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Card className='relative'>
-              <Box className='relative'>
-                <Avatar
-                  variant='rounded'
-                  src={documentData.tenantAvatar || documentData.documentImage}
-                  alt='Additional Document'
-                  sx={{
-                    width: '100%',
-                    height: 400,
-                    objectFit: 'cover',
-                    borderRadius: '4px 4px 0 0'
-                  }}
-                >
-                  <i className='ri-file-line text-6xl' />
-                </Avatar>
-                <IconButton
-                  className='absolute top-2 right-2'
-                  sx={{
-                    bgcolor: 'primary.main',
-                    color: 'white',
-                    '&:hover': { bgcolor: 'primary.dark' },
-                    boxShadow: 2
-                  }}
-                  size='small'
-                  onClick={() => handleDownload(documentData.tenantAvatar || documentData.documentImage)}
-                >
-                  <i className='ri-download-line' />
-                </IconButton>
-              </Box>
-            </Card>
-          </Grid>
-        </Grid>
+      <DialogContent>
+        <div className='flex flex-col gap-6'>
+          {/* Document Info Card */}
+          <Card variant='outlined'>
+            <CardContent>
+              <Grid container spacing={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <div className='flex flex-col gap-1'>
+                    <Typography variant='caption' color='text.secondary'>
+                      Document Type
+                    </Typography>
+                    <Typography variant='body1' className='font-medium'>
+                      {document.documentType}
+                    </Typography>
+                  </div>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <div className='flex flex-col gap-1'>
+                    <Typography variant='caption' color='text.secondary'>
+                      Status
+                    </Typography>
+                    <Typography variant='body1' className='font-medium capitalize'>
+                      {document.status}
+                    </Typography>
+                  </div>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <div className='flex flex-col gap-1'>
+                    <Typography variant='caption' color='text.secondary'>
+                      Tenant
+                    </Typography>
+                    <div className='flex items-center gap-2 mts-1'>
+                      <Avatar src={document.tenantAvatar} sx={{ width: 24, height: 24 }} />
+                      <Typography variant='body1' className='font-medium'>
+                        {document.tenantName}
+                      </Typography>
+                    </div>
+                  </div>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <div className='flex flex-col gap-1'>
+                    <Typography variant='caption' color='text.secondary'>
+                      Property & Unit
+                    </Typography>
+                    <Typography variant='body1' className='font-medium'>
+                      {`${document.propertyName} - ${document.unitNo}`}
+                    </Typography>
+                  </div>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
 
-        {/* Document Details */}
-        <Card>
-          <CardContent className='flex flex-col gap-4'>
-            <Grid container spacing={3}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                  SL
-                </Typography>
-                <Typography variant='body1' className='font-medium'>
-                  {documentData.id}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                  Document Type
-                </Typography>
-                <Typography variant='body1' className='font-medium'>
-                  {documentData.documentType}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                  Property
-                </Typography>
-                <Typography variant='body1' className='font-medium'>
-                  {documentData.propertyName}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                  Unit
-                </Typography>
-                <Typography variant='body1' className='font-medium'>
-                  {documentData.unitNo}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                  Tenant Name
-                </Typography>
-                <Typography variant='body1' className='font-medium'>
-                  {documentData.tenantName}
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                  Status
-                </Typography>
-                <Typography
-                  variant='body1'
-                  className='font-medium capitalize'
-                  sx={{ color: statusConfig.textColor || 'inherit' }}
-                >
-                  {documentData.status}
-                </Typography>
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
+          {/* Document Preview Placeholder */}
+          <Box
+            sx={{
+              height: 400,
+              width: '100%',
+              backgroundColor: 'var(--mui-palette-action-hover)',
+              borderRadius: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              border: '1px dashed var(--mui-palette-divider)'
+            }}
+          >
+            <i className='ri-file-text-line text-[100px] text-secondary opacity-20' />
+            <Typography color='text.secondary'>Document preview is not available in this demo</Typography>
+            <Button
+              variant='outlined'
+              size='small'
+              startIcon={<i className='ri-download-line' />}
+              onClick={handleDownload}
+            >
+              Download to view full content
+            </Button>
+          </Box>
+        </div>
       </DialogContent>
       <DialogActions className='gap-2 pbs-4'>
-        <Button variant='outlined' color='secondary' onClick={() => setOpen(false)}>
+        <Button variant='outlined' color='secondary' onClick={handleClose}>
           Close
         </Button>
-        {documentData.status !== 'accepted' && onAccept && (
-          <Button
-            variant='contained'
-            color='primary'
-            startIcon={<i className='ri-checkbox-circle-line' />}
-            onClick={() => {
-              onAccept()
-              setOpen(false)
-            }}
-          >
-            Accept
-          </Button>
-        )}
-        {documentData.status !== 'rejected' && onReject && (
-          <Button
-            variant='outlined'
-            color='warning'
-            startIcon={<i className='ri-close-circle-line' />}
-            onClick={() => {
-              onReject()
-              setOpen(false)
-            }}
-          >
-            Reject
-          </Button>
-        )}
+        <Button variant='contained' color='primary' startIcon={<i className='ri-download-line' />} onClick={handleDownload}>
+          Download
+        </Button>
       </DialogActions>
     </Dialog>
   )
 }
 
 export default ViewDocumentDialog
-

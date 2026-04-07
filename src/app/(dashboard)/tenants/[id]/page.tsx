@@ -1,14 +1,8 @@
-'use client'
-
-// React Imports
-import { useState, useEffect } from 'react'
-
-import { useParams } from 'next/navigation'
+// Next.js Imports
+import { cookies } from 'next/headers'
 
 // MUI Imports
-import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
 
 // Component Imports
 import TenantDetails from '@/views/tenants/view/TenantDetails'
@@ -16,12 +10,15 @@ import TenantDetails from '@/views/tenants/view/TenantDetails'
 // API Imports
 import { getTenantById, type TenantRecord } from '@/lib/api/tenants'
 
+// Util Imports
+import { calculateLeasePeriod } from '@/utils/math'
+
 /**
  * Transform API TenantRecord to the format expected by TenantDetails component
  */
 function transformTenantData(record: TenantRecord) {
   const fullName = `${record.first_name} ${record.last_name}`
-  
+
   return {
     id: record.id,
     name: fullName,
@@ -31,7 +28,7 @@ function transformTenantData(record: TenantRecord) {
     propertyName: record.property?.name || '-',
     numberOfUnits: 1,
     costPerMonth: '-', // TODO: Get from unit data when available
-    leasePeriod: '-', // TODO: Calculate from move_in/out dates
+    leasePeriod: calculateLeasePeriod(record.move_in_date, record.move_out_date),
     totalAmount: '-', // TODO: Calculate total
     status: (record.status === 'active' ? 'active' : 'inactive') as 'active' | 'inactive',
     avatar: record.avatar || undefined,
@@ -47,76 +44,51 @@ function transformTenantData(record: TenantRecord) {
     lateFee: '-', // TODO: Get from lease data
     rentType: 'Monthly',
     receipt: '-',
-    paymentDueDate: record.move_in_date 
-      ? new Date(record.move_in_date).toLocaleDateString() 
-      : '-',
+    paymentDueDate: record.move_in_date ? new Date(record.move_in_date).toLocaleDateString() : '-'
   }
 }
 
-const ViewTenantPage = () => {
-  const params = useParams()
-  const tenantId = params.id as string
+type Props = {
+  params: Promise<{ id: string }>
+}
 
-  // States for data fetching
-  const [tenantData, setTenantData] = useState<ReturnType<typeof transformTenantData> | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export default async function ViewTenantPage(props: Props) {
+  // 1. Await Next.js 15 Async APIs
+  const params = await props.params
+  const cookieStore = await cookies()
+  const tenantIdCookie = cookieStore.get('tenant_id')?.value
 
-  // Fetch tenant data on mount
-  useEffect(() => {
-    async function fetchTenant() {
-      if (!tenantId) return
+  if (!tenantIdCookie) {
+    return (
+      <Alert severity='error' sx={{ m: 2 }}>
+        Unauthenticated/No Tenant Setup
+      </Alert>
+    )
+  }
 
-      setIsLoading(true)
-      setError(null)
+  try {
+    // 2. Fetch data directly via RSC, passing TenantID explicitly
+    const response = await getTenantById(tenantIdCookie, params.id)
 
-      try {
-        const response = await getTenantById(tenantId)
-        
-        if (response.success && response.data) {
-          setTenantData(transformTenantData(response.data))
-        } else {
-          setError(response.error?.message || 'Failed to load tenant data')
-        }
-      } catch (err) {
-        console.error('Failed to fetch tenant:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load tenant data')
-      } finally {
-        setIsLoading(false)
-      }
+    if (!response || !response.success || !response.data) {
+      return (
+        <Alert severity='warning' sx={{ m: 2 }}>
+          Tenant not found
+        </Alert>
+      )
     }
 
-    fetchTenant()
-  }, [tenantId])
+    // 3. Transform and Forward
+    const tenantData = transformTenantData(response.data)
 
-  // Loading state
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
-    )
-  }
+    return <TenantDetails tenantData={tenantData} tenantId={params.id} />
+  } catch (error) {
+    console.error('Failed to fetch tenant:', error)
 
-  // Error state
-  if (error) {
     return (
-      <Alert severity="error" sx={{ m: 2 }}>
-        {error}
+      <Alert severity='error' sx={{ m: 2 }}>
+        {error instanceof Error ? error.message : 'Failed to load tenant data'}
       </Alert>
     )
   }
-
-  // No data state
-  if (!tenantData) {
-    return (
-      <Alert severity="warning" sx={{ m: 2 }}>
-        Tenant not found
-      </Alert>
-    )
-  }
-
-  return <TenantDetails tenantData={tenantData} tenantId={tenantId} />
 }
-
-export default ViewTenantPage

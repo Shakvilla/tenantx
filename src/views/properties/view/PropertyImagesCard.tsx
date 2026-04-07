@@ -9,12 +9,10 @@ import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import CardMedia from '@mui/material/CardMedia'
 import Box from '@mui/material/Box'
-import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 
 // Third-party Imports
-import classnames from 'classnames'
 
 type PropertyData = {
   images: string[]

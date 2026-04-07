@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState, useRef, useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 
 // MUI Imports
 import Grid from '@mui/material/Grid2'

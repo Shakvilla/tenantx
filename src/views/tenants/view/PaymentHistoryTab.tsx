@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -69,8 +69,8 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 // Sample payment history data
@@ -211,6 +211,32 @@ const PaymentHistoryTab = () => {
     return filtered
   }, [data, monthFilter])
 
+  // Get available status options based on current status
+  const getAvailableStatuses = useCallback((currentStatus: PaymentRecord['status']): PaymentRecord['status'][] => {
+    if (currentStatus === 'paid') {
+      return ['refunded']
+    } else if (currentStatus === 'unpaid') {
+      return ['paid']
+    } else {
+      // refunded - no further updates allowed
+      return []
+    }
+  }, [])
+
+  // Handle edit click
+  const handleEditClick = useCallback(
+    (payment: PaymentRecord) => {
+      setSelectedPayment(payment)
+      const availableStatuses = getAvailableStatuses(payment.status)
+
+      if (availableStatuses.length > 0) {
+        setNewStatus(availableStatuses[0])
+        setUpdateDialogOpen(true)
+      }
+    },
+    [getAvailableStatuses]
+  )
+
   const columns = useMemo<ColumnDef<PaymentRecord, any>[]>(
     () => [
       columnHelper.accessor('sl', {
@@ -292,7 +318,7 @@ const PaymentHistoryTab = () => {
         }
       })
     ],
-    []
+    [getAvailableStatuses, handleEditClick]
   )
 
   const table = useReactTable({
@@ -321,21 +347,8 @@ const PaymentHistoryTab = () => {
   const uniqueMonths = useMemo(() => {
     const months = Array.from(new Set(data.map(p => p.month)))
 
-    
-return months.sort()
+    return months.sort()
   }, [data])
-
-  // Get available status options based on current status
-  const getAvailableStatuses = (currentStatus: PaymentRecord['status']): PaymentRecord['status'][] => {
-    if (currentStatus === 'paid') {
-      return ['refunded']
-    } else if (currentStatus === 'unpaid') {
-      return ['paid']
-    } else {
-      // refunded - no further updates allowed
-      return []
-    }
-  }
 
   // Handle status update
   const handleStatusUpdate = () => {
@@ -343,17 +356,6 @@ return months.sort()
       setData(data.map(payment => (payment.id === selectedPayment.id ? { ...payment, status: newStatus } : payment)))
       setUpdateDialogOpen(false)
       setSelectedPayment(null)
-    }
-  }
-
-  // Handle edit click
-  const handleEditClick = (payment: PaymentRecord) => {
-    setSelectedPayment(payment)
-    const availableStatuses = getAvailableStatuses(payment.status)
-
-    if (availableStatuses.length > 0) {
-      setNewStatus(availableStatuses[0])
-      setUpdateDialogOpen(true)
     }
   }
 

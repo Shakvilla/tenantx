@@ -1,14 +1,13 @@
-'use client'
-
-// React Imports
-import { useParams } from 'next/navigation'
-
 // Component Imports
 import TenantHistoryDetails from '@/views/tenants/view/TenantHistoryDetails'
 
-const ViewTenantHistoryPage = () => {
-  const params = useParams()
-  const tenantId = params.id as string
+type Props = {
+  params: Promise<{ id: string }>
+}
+
+const ViewTenantHistoryPage = async (props: Props) => {
+  const params = await props.params
+  const tenantId = params.id
 
   // TODO: Fetch tenant data from API using tenantId
   // For now, using sample data

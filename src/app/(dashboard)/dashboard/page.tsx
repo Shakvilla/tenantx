@@ -17,8 +17,8 @@ const DashboardPage = () => {
   const { tenant } = useAuth()
 
   // Use tenant name or fallback to default
-  const welcomeTitle = tenant?.name ? `Welcome to ${tenant.name}` : 'Welcome to TenantX'
-  
+  const welcomeTitle = tenant?.name ? `Welcome to ${tenant.name}` : ''
+
   return (
     <Grid container spacing={6}>
       {/* Banner */}
@@ -29,7 +29,6 @@ const DashboardPage = () => {
           icon='ri-dashboard-line'
         />
       </Grid>
-
 
       {/* Row 1: Summary Cards */}
       <Grid size={{ xs: 12, sm: 6, md: 3 }}>
