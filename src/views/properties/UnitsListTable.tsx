@@ -132,8 +132,12 @@ const UnitsListTable = () => {
           propertyId: property || undefined
         })
 
-        if (!response.success && response.error) {
-          throw new Error(response.error.message || 'Failed to load units')
+        if (!response.success) {
+          setError(response.error?.message || 'Failed to load units')
+          setData([])
+          setTotal(0)
+
+          return
         }
 
         // Handle response with defensive checks
@@ -142,17 +146,19 @@ const UnitsListTable = () => {
         // Transform data for display
         const transformedData: UnitWithExtras[] = responseData.map(unit => ({
           ...unit,
-          propertyName: unit.property?.name || 'Unknown Property',
+          propertyName: unit.propertyName || unit.property?.propertyName || 'Unknown Property',
           formattedRent: `₵${unit.rent.toLocaleString()}`,
           formattedSize: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-'
         }))
+
+        // console.log('response data =>', transformedData)
 
         setData(transformedData)
         setTotal(response?.meta?.pagination?.total || responseData.length || 0)
         setCursor(response?.meta?.pagination?.cursor ?? null)
         setHasNext(response?.meta?.pagination?.hasNext ?? false)
       } catch (err) {
-        console.error('Failed to load units:', err)
+        // console.error('Failed to load units:', err)
         setError(err instanceof Error ? err.message : 'Failed to load units')
         setData([])
         setTotal(0)

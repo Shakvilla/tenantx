@@ -2,19 +2,19 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 import type * as ApiClient from '@/lib/api/client'
 
-import { 
-  getProperties, 
-  getPropertyById, 
-  serverGetPropertyById,
-  getMyProperty, 
-  createProperty, 
-  updateProperty, 
-  deleteProperty, 
+import {
+  getProperties,
+  getPropertyById,
+  getMyProperty,
+  createProperty,
+  updateProperty,
+  deleteProperty,
   getPropertyStats,
   saveDraft,
   updateDraft,
   uploadPropertyImages
 } from '@/lib/api/properties'
+import { serverGetPropertyById } from '@/lib/api/properties.server'
 
 vi.mock('@/lib/api/client', async importOriginal => {
   const actual = await importOriginal<typeof ApiClient>()
@@ -32,6 +32,9 @@ vi.mock('@/lib/api/client', async importOriginal => {
 // Mock server-api for serverGetPropertyById
 vi.mock('@/lib/api/server-api', () => ({
   serverApiGet: vi.fn()
+}))
+vi.mock('@/lib/api/properties.server', () => ({
+  serverGetPropertyById: vi.fn()
 }))
 
 // We need a way to verify axios calls without breaking client.ts
@@ -61,7 +64,6 @@ vi.mock('axios', async (importOriginal) => {
 })
 
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/client'
-import { serverApiGet } from '@/lib/api/server-api'
 import axios from 'axios'
 
 describe('Properties Service', () => {
@@ -103,13 +105,13 @@ describe('Properties Service', () => {
   })
 
   describe('serverGetPropertyById', () => {
-    it('should call serverApiGet', async () => {
-      vi.mocked(serverApiGet).mockResolvedValue({ id: '1' })
+    it('should call serverGetPropertyById', async () => {
+      vi.mocked(serverGetPropertyById).mockResolvedValue({ id: '1' } as any)
       const id = 'prop-1'
-      
+
       const result = await serverGetPropertyById(tenantId, id)
 
-      expect(serverApiGet).toHaveBeenCalledWith(tenantId, `/properties/${id}`)
+      expect(serverGetPropertyById).toHaveBeenCalledWith(tenantId, id)
       expect(result).toEqual({ id: '1' })
     })
   })

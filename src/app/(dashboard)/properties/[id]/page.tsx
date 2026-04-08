@@ -2,7 +2,7 @@
 import { cookies } from 'next/headers'
 
 // API Imports
-import { serverGetPropertyById } from '@/lib/api/properties'
+import { serverGetPropertyById } from '@/lib/api/properties.server'
 
 // Component Imports
 import PropertyDetails from '@/views/properties/view/PropertyDetails'

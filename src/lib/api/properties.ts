@@ -61,7 +61,6 @@ interface PropertyQuery {
   district?: string
 }
 
-
 // ---------------------------------------------------------------------------
 // Properties CRUD
 // ---------------------------------------------------------------------------
@@ -102,19 +101,6 @@ export async function getPropertyById(tenantId: string, id: string): Promise<Api
 }
 
 /**
- * Get a single property by ID (server-side — uses cookies).
- *
- * This is intended for Next.js Server Components / Server Actions where
- * `localStorage` is unavailable and auth must come from cookies.
- */
-export async function serverGetPropertyById(tenantId: string, id: string): Promise<Property | null> {
-  // Dynamic import to keep the server-only module out of client bundles
-  const { serverApiGet } = await import('./server-api')
-
-  return serverApiGet<Property>(tenantId, `/properties/${id}`)
-}
-
-/**
  * Get the property assigned to the currently-authenticated occupant.
  *
  * API: GET /properties/my-property
@@ -141,7 +127,11 @@ export async function createProperty(tenantId: string, data: Partial<Property>):
 /**
  * Update a property.
  */
-export async function updateProperty(tenantId: string, id: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
+export async function updateProperty(
+  tenantId: string,
+  id: string,
+  data: Partial<Property>
+): Promise<ApiResponse<Property>> {
   return apiPatch(`${API_BASE}/properties/${id}`, data, {
     headers: { 'X-Tenant-ID': tenantId }
   })
@@ -158,7 +148,7 @@ export async function deleteProperty(tenantId: string, id: string): Promise<void
 
 /**
  * Get property statistics.
- * 
+ *
  * NOTE: The backend returns a raw object without the ApiResponse wrapper.
  * We manually wrap it and map the fields to match the PropertyStats interface.
  */
@@ -242,9 +232,13 @@ export async function saveDraft(tenantId: string, data: DraftPayload): Promise<A
  * Update an existing property draft.
  */
 export async function updateDraft(tenantId: string, id: string, data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPatch(`${API_BASE}/properties/drafts`, { id, ...data }, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiPatch(
+    `${API_BASE}/properties/drafts`,
+    { id, ...data },
+    {
+      headers: { 'X-Tenant-ID': tenantId }
+    }
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -274,7 +268,11 @@ interface UploadResponse {
  * @param files - Array of files to upload
  * @param propertyId - Optional property ID to organize files
  */
-export async function uploadPropertyImages(tenantId: string, files: File[], propertyId?: string): Promise<UploadResponse> {
+export async function uploadPropertyImages(
+  tenantId: string,
+  files: File[],
+  propertyId?: string
+): Promise<UploadResponse> {
   const formData = new FormData()
 
   files.forEach(file => {

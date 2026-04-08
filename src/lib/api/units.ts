@@ -125,16 +125,16 @@ export async function getAllUnits(tenantId: string, query: UnitQuery = {}): Prom
     // If it's a raw object with no data field but looks like a unit or unit list
     // (Wait, if it's not an array and doesn't have data, it's likely a single unit or an error)
     if (response && !response.data && !Array.isArray(response) && typeof response === 'object') {
-       // Check if it's an error from Spring Cloud Gateway or similar
-       if (response.status && response.status >= 400) {
-         throw new Error(response.message || 'Backend returned an error')
-       }
+      // Check if it's an error from Spring Cloud Gateway or similar
+      if (response.status && response.status >= 400) {
+        throw new Error(response.message || 'Backend returned an error')
+      }
     }
 
     return response as PaginatedResponse<Unit>
   } catch (error: any) {
     console.error(`getAllUnits failed for URL [${url}]:`, error)
-    
+
     return {
       success: false,
       data: [],
@@ -178,19 +178,48 @@ export async function getUnitById(tenantId: string, id: string): Promise<ApiResp
  * Create a new unit for a property
  * Guide: Section 5.1
  */
-export async function createUnit(tenantId: string, propertyId: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
-  return apiPost(`${API_BASE}/properties/${propertyId}/units`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+export async function createUnit(
+  tenantId: string,
+  propertyId: string,
+  data: Partial<Unit>
+): Promise<ApiResponse<Unit>> {
+  try {
+    const response = await apiPost<any>(`${API_BASE}/properties/${propertyId}/units`, data, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    if (response && response.success === false) return response as ApiResponse<Unit>
+
+    // Backend returned the unit object directly (no envelope)
+    if (response && response.id) return { success: true, data: response as Unit }
+
+    if (response && response.data) return { success: true, data: response.data as Unit }
+
+    return { success: true, data: response as Unit }
+  } catch (error: any) {
+    return { success: false, data: null, error: { code: 'CREATE_UNIT_ERROR', message: error.message || 'Failed to create unit' } }
+  }
 }
 
 /**
  * Update an existing unit
  */
 export async function updateUnit(tenantId: string, id: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
-  return apiPatch(`${API_BASE}/units/${id}`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  try {
+    const response = await apiPatch<any>(`${API_BASE}/units/${id}`, data, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    if (response && response.success === false) return response as ApiResponse<Unit>
+
+    if (response && response.id) return { success: true, data: response as Unit }
+
+    if (response && response.data) return { success: true, data: response.data as Unit }
+
+    return { success: true, data: response as Unit }
+  } catch (error: any) {
+    return { success: false, data: null, error: { code: 'UPDATE_UNIT_ERROR', message: error.message || 'Failed to update unit' } }
+  }
 }
 
 /**

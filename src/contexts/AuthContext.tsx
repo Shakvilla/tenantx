@@ -94,20 +94,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, isRefreshing: !!event.detail?.isRefreshing }))
     }
 
-    // const handleForbidden = () => {
-    //   router.push('/403')
-    // }
+    const handleForbidden = (_event: any) => {
+      router.push('/403')
+    }
 
     window.addEventListener('AUTH_SESSION_EXPIRED', handleSessionExpired)
     window.addEventListener('AUTH_REFRESHING', handleRefreshing)
-
-    // window.addEventListener('AUTH_FORBIDDEN', handleForbidden)
+    window.addEventListener('AUTH_FORBIDDEN', handleForbidden)
 
     return () => {
       window.removeEventListener('AUTH_SESSION_EXPIRED', handleSessionExpired)
       window.removeEventListener('AUTH_REFRESHING', handleRefreshing)
-
-      // window.removeEventListener('AUTH_FORBIDDEN', handleForbidden)
+      window.removeEventListener('AUTH_FORBIDDEN', handleForbidden)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -138,7 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (
               res.error?.code === 'UNAUTHORIZED' ||
               res.error?.message?.toLowerCase().includes('unauthorized') ||
-              res.error?.message?.toLowerCase().includes('401')
+              res.error?.message?.toLowerCase().includes('401') ||
+              res.error?.code === 'FORBIDDEN' ||
+              res.error?.message?.toLowerCase().includes('forbidden') ||
+              res.error?.message?.toLowerCase().includes('403')
             ) {
               clearStoredTokens()
               setState(prev => ({ ...prev, isLoading: false, isAuthenticated: false }))
