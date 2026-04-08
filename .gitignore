@@ -46,6 +46,11 @@ src/assets/iconify-icons/generated-icons.css
 .agents
 .cursor
 .vscode
+CLAUDE.md
+CODE_REVIEW_AUDIT_PLAN.md
+__doctor_output.txt
+__lint_output.txt
+__test_output.txt
 
 /docs
 
