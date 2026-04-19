@@ -38,6 +38,10 @@ type UnitViewData = {
   features: Record<string, any>
 }
 
+// API Imports
+import { deleteUnit } from '@/lib/api/units'
+import { getStoredTenantId } from '@/lib/api/storage'
+
 const UnitDetailHeader = ({
   unitData,
   unitId,
@@ -50,6 +54,7 @@ const UnitDetailHeader = ({
   // States
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
   // Vars
@@ -59,6 +64,35 @@ const UnitDetailHeader = ({
     available: 'warning',
     maintenance: 'error',
     reserved: 'info'
+  }
+
+  // Handle unit deletion
+  const handleDeleteConfirm = async () => {
+    try {
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) {
+        console.error('Tenant ID not found')
+
+        return
+      }
+
+      setIsDeleting(true)
+
+      await deleteUnit(tenantId, unitId)
+
+      setDeleteDialogOpen(false)
+
+      // Redirect back to units list or property details
+      router.push('/properties/units')
+    } catch (error) {
+      console.error('Failed to delete unit:', error)
+
+      // In a real app we'd show a toast here
+      alert('Failed to delete unit. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   // Prepare edit data
@@ -136,11 +170,7 @@ const UnitDetailHeader = ({
         open={deleteDialogOpen}
         setOpen={setDeleteDialogOpen}
         type='delete-unit'
-        onConfirm={() => {
-          // TODO: Implement API call to delete unit
-          // For now, just navigate back to units list
-          router.push('/properties/units')
-        }}
+        onConfirm={handleDeleteConfirm}
       />
     </>
   )

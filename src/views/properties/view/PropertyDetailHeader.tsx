@@ -17,6 +17,10 @@ import type { ThemeColor } from '@core/types'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import AddPropertyDialog from '../AddPropertyDialog'
 
+// API Imports
+import { deleteProperty } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
+
 type PropertyData = {
   id: string
   name: string
@@ -54,6 +58,7 @@ const PropertyDetailHeader = ({ propertyData, propertyId }: { propertyData?: Pro
   // States
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
   const _statusColor = propertyData?.stock ? 'success' : 'error'
@@ -97,11 +102,32 @@ const PropertyDetailHeader = ({ propertyData, propertyId }: { propertyData?: Pro
       }
     : null
 
-  const handleDelete = () => {
-    // Implement delete logic
-    console.log('Deleting property:', propertyId)
-    setDeleteDialogOpen(false)
-    router.push('/properties')
+  const handleDelete = async () => {
+    try {
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) {
+        console.error('Tenant ID not found')
+
+        return
+      }
+
+      setIsDeleting(true)
+
+      await deleteProperty(tenantId, propertyId)
+
+      setDeleteDialogOpen(false)
+
+      // Redirect back to properties list
+      router.push('/properties')
+    } catch (error) {
+      console.error('Failed to delete property:', error)
+
+      // In a real app we'd show a toast here
+      alert('Failed to delete property. Please try again.')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (

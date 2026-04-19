@@ -13,10 +13,6 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
-import Dialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
-import DialogContent from '@mui/material/DialogContent'
-import DialogActions from '@mui/material/DialogActions'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -36,6 +32,7 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import OptionMenu from '@core/components/option-menu'
 import CustomAvatar from '@core/components/mui/Avatar'
 import AddUnitDialog from './AddUnitDialog'
+import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // API Imports
 import { getUnitsByProperty as getPropertyUnits, deleteUnit } from '@/lib/api/units'
@@ -453,28 +450,12 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Unit</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete {unitToDelete?.unitNumber}? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-            Cancel
-          </Button>
-          <Button
-            color='error'
-            variant='contained'
-            onClick={handleDeleteConfirm}
-            disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={20} /> : null}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        setOpen={setDeleteDialogOpen}
+        type='delete-unit'
+        onConfirm={handleDeleteConfirm}
+      />
     </>
   )
 }
