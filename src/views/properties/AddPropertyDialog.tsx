@@ -1,7 +1,9 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
+
+import { useRouter } from 'next/navigation'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -168,6 +170,16 @@ const amenitiesList: Amenity[] = [
     id: 'wifi',
     name: 'WiFi',
     description: 'High-speed internet connection'
+  },
+  {
+    id: 'pool',
+    name: 'Swimming Pool',
+    description: 'Clean and well-maintained swimming pool'
+  },
+  {
+    id: 'gym',
+    name: 'Gym',
+    description: 'Fully equipped fitness center'
   }
 ]
 
@@ -183,11 +195,14 @@ const initialData: FormDataType = {
   bedrooms: '',
   bathrooms: '',
   rooms: '',
-  amenities: amenitiesList.reduce((acc, amenity) => {
-    acc[amenity.id] = false
+  amenities: amenitiesList.reduce(
+    (acc, amenity) => {
+      acc[amenity.id] = false
 
-    return acc
-  }, {} as Record<string, boolean>),
+      return acc
+    },
+    {} as Record<string, boolean>
+  ),
   images: [],
   thumbnailIndex: null
 }
@@ -264,6 +279,9 @@ const AddPropertyDialog = ({
   editData,
   mode = 'add'
 }: Props) => {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+
   // States
   const [activeStep, setActiveStep] = useState(0)
 
@@ -284,11 +302,14 @@ const AddPropertyDialog = ({
         rooms: editData.rooms?.toString() || '',
         amenities:
           editData.amenities ||
-          amenitiesList.reduce((acc, amenity) => {
-            acc[amenity.id] = false
+          amenitiesList.reduce(
+            (acc, amenity) => {
+              acc[amenity.id] = false
 
-            return acc
-          }, {} as Record<string, boolean>),
+              return acc
+            },
+            {} as Record<string, boolean>
+          ),
         images: [], // Will be handled separately for existing images
         thumbnailIndex: editData.thumbnailIndex ?? null
       }
@@ -298,11 +319,14 @@ const AddPropertyDialog = ({
       ...initialData,
       amenities:
         initialData.amenities ||
-        amenitiesList.reduce((acc, amenity) => {
-          acc[amenity.id] = false
+        amenitiesList.reduce(
+          (acc, amenity) => {
+            acc[amenity.id] = false
 
-          return acc
-        }, {} as Record<string, boolean>),
+            return acc
+          },
+          {} as Record<string, boolean>
+        ),
       images: initialData.images || [],
       thumbnailIndex: initialData.thumbnailIndex ?? null
     }
@@ -336,11 +360,14 @@ const AddPropertyDialog = ({
 
       // Ensure amenities is always defined
       if (!updated.amenities) {
-        updated.amenities = amenitiesList.reduce((acc, amenity) => {
-          acc[amenity.id] = false
+        updated.amenities = amenitiesList.reduce(
+          (acc, amenity) => {
+            acc[amenity.id] = false
 
-          return acc
-        }, {} as Record<string, boolean>)
+            return acc
+          },
+          {} as Record<string, boolean>
+        )
       }
 
       return updated
@@ -500,44 +527,67 @@ const AddPropertyDialog = ({
         .map(([id]) => id)
 
       // Step 3: Build property payload matching API schema
+      // Map UI type labels back to backend enum values
+      const typeMap: Record<string, string> = {
+        House: 'residential',
+        Apartment: 'apartment'
+      }
+
+      const conditionMap: Record<string, string> = {
+        New: 'new',
+        Good: 'good',
+        Fair: 'fair',
+        Poor: 'poor'
+      }
+
+      const backendType = typeMap[formData.propertyType] || formData.propertyType?.toLowerCase() || 'residential'
+      const backendCondition = conditionMap[formData.condition] || formData.condition?.toLowerCase() || 'new'
+
       const propertyPayload = {
         name: formData.propertyName,
         address: {
-          street: formData.city,
-          city: formData.city,
+          street: (mode === 'edit' && editData?.street) || formData.city,
+          city: formData.city || 'Accra',
+          state: (mode === 'edit' && editData?.rawRegion) || formData.region,
+          zip: (mode === 'edit' && editData?.zip) || '00233',
           country: 'Ghana'
         },
-        type: (formData.propertyType?.toLowerCase() || 'residential') as
-          | 'residential'
-          | 'commercial'
-          | 'mixed'
-          | 'house'
-          | 'apartment',
-        ownership: 'own' as const,
-        region: formData.region,
-        district: formData.district,
+        type: backendType as 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment',
+        ownership: ((mode === 'edit' && editData?.ownership) || 'own') as 'own' | 'lease',
+        region: (mode === 'edit' && editData?.rawRegion) || formData.region,
+        district: (mode === 'edit' && editData?.rawDistrict) || formData.district,
         gpsCode: formData.gpsCode || undefined,
         description: formData.description || undefined,
-        condition: (formData.condition?.toLowerCase() || undefined) as 'new' | 'good' | 'fair' | 'poor' | undefined,
+        condition: backendCondition as 'new' | 'good' | 'fair' | 'poor',
         bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
         bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
         rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
-        thumbnailIndex: formData.thumbnailIndex ?? undefined
+        thumbnailIndex: formData.thumbnailIndex ?? undefined,
+
+        // Preserve financial and inventory data from original property
+        totalUnits: (mode === 'edit' && editData?.totalUnits) ?? 0,
+        occupiedUnits: (mode === 'edit' && editData?.occupiedUnits) ?? 0,
+        purchasePrice: (mode === 'edit' && editData?.purchasePrice) ?? undefined,
+        currentValue: (mode === 'edit' && editData?.currentValue) ?? undefined,
+        currency: (mode === 'edit' && editData?.currency) || 'GHS'
       }
 
       // Step 4: Call API to create or update property
       const existingPropertyId = mode === 'edit' && editData?.id ? editData.id : draftId
 
+      console.log('[PropertyDialog] Payload:', JSON.stringify(propertyPayload, null, 2))
+      console.log('[PropertyDialog] Mode:', mode, '| PropertyId:', existingPropertyId)
+
       let response
 
       if (existingPropertyId) {
-        // Editing existing draft - update it and change status to active
+        // Editing existing property - update it and preserve status
         console.log('Updating existing property:', existingPropertyId)
         response = await updateProperty(tenantId, existingPropertyId, {
           ...propertyPayload,
-          status: 'active' // Publish the draft
+          status: 'active'
         })
       } else {
         // Creating new property
@@ -557,27 +607,41 @@ const AddPropertyDialog = ({
         })
       }
 
+      // Success sequence
       handleClose()
 
-      const resetData: FormDataType = {
-        ...initialData,
-        amenities: amenitiesList.reduce((acc, amenity) => {
-          acc[amenity.id] = false
+      startTransition(() => {
+        router.refresh()
+      })
 
-          return acc
-        }, {} as Record<string, boolean>),
-        images: [],
-        thumbnailIndex: null
+      // Only reset if we are NOT in edit mode to avoid flickering before close
+      if (mode !== 'edit') {
+        const resetData: FormDataType = {
+          ...initialData,
+          amenities: amenitiesList.reduce(
+            (acc, amenity) => {
+              acc[amenity.id] = false
+
+              return acc
+            },
+            {} as Record<string, boolean>
+          ),
+          images: [],
+          thumbnailIndex: null
+        }
+
+        setFormData(resetData)
+        setActiveStep(0)
+        setDraftId(null)
       }
 
-      setFormData(resetData)
-      setActiveStep(0)
       setErrors({})
-      setDraftId(null)
-    } catch (error) {
-      console.error('Failed to create property:', error)
+    } catch (error: any) {
+      console.error('[PropertyDialog] Submit failed:', error?.message || error)
+      console.error('[PropertyDialog] Full error:', error)
 
-      // Show error (you could add a toast notification here)
+      // We could use a proper toast here, but for now just logging is safer than an alert
+      // which can block the browser subagent
     } finally {
       setIsSaving(false)
     }
@@ -1032,7 +1096,12 @@ const AddPropertyDialog = ({
                     Supports: JPG, PNG, GIF (Max 10MB per image)
                   </Typography>
                 </div>
-                <Button variant='outlined' color='primary' size='small' startIcon={<i className='ri-upload-cloud-line' />}>
+                <Button
+                  variant='outlined'
+                  color='primary'
+                  size='small'
+                  startIcon={<i className='ri-upload-cloud-line' />}
+                >
                   Choose Files
                 </Button>
               </div>
@@ -1410,8 +1479,8 @@ const AddPropertyDialog = ({
               </CardContent>
             </Card>
 
-            {/* Step 3: Uploaded Images */}
-            {formData.images && formData.images.length > 0 && (
+            {/* Step 3: Property Images */}
+            {(existingImages.length > 0 || (formData.images && formData.images.length > 0)) && (
               <Card variant='outlined'>
                 <CardContent>
                   <div className='flex items-center gap-2 mbe-4'>
@@ -1427,13 +1496,13 @@ const AddPropertyDialog = ({
                       <i className='ri-image-line' />
                     </Avatar>
                     <Typography variant='h6' className='font-semibold' color='text.primary'>
-                      Uploaded Images
+                      Property Images
                     </Typography>
                   </div>
                   <Divider className='mbe-4' />
                   <div className='flex flex-col gap-2'>
                     <Typography variant='body2' color='text.secondary'>
-                      Total Images: {formData.images.length}
+                      Total Images: {existingImages.length + (formData.images?.length || 0)}
                       {formData.thumbnailIndex !== null && (
                         <span className='text-primary ml-2'>
                           <i className='ri-check-line mr-1' />
@@ -1442,8 +1511,8 @@ const AddPropertyDialog = ({
                       )}
                     </Typography>
                     <Grid container spacing={2}>
-                      {formData.images.slice(0, 6).map((image, index) => {
-                        const imageUrl = URL.createObjectURL(image)
+                      {[...existingImages, ...(formData.images || [])].slice(0, 8).map((image, index) => {
+                        const imageUrl = typeof image === 'string' ? image : URL.createObjectURL(image)
                         const isThumbnail = formData.thumbnailIndex === index
 
                         return (
@@ -1452,7 +1521,9 @@ const AddPropertyDialog = ({
                               sx={{
                                 position: 'relative',
                                 border: isThumbnail ? '2px solid' : '1px solid',
-                                borderColor: isThumbnail ? 'var(--mui-palette-primary-main)' : 'var(--mui-palette-divider)',
+                                borderColor: isThumbnail
+                                  ? 'var(--mui-palette-primary-main)'
+                                  : 'var(--mui-palette-divider)',
                                 borderRadius: 1,
                                 overflow: 'hidden'
                               }}
@@ -1491,9 +1562,9 @@ const AddPropertyDialog = ({
                         )
                       })}
                     </Grid>
-                    {formData.images.length > 6 && (
+                    {existingImages.length + (formData.images?.length || 0) > 8 && (
                       <Typography variant='caption' color='text.secondary' className='mts-2'>
-                        + {formData.images.length - 6} more images
+                        + {existingImages.length + (formData.images?.length || 0) - 8} more images
                       </Typography>
                     )}
                   </div>

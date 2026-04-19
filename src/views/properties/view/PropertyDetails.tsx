@@ -17,9 +17,9 @@ type PropertyData = {
   stock: boolean
   address: string
   price: string
-  bedroom: number
-  bathroom: number
-  rooms: number
+  bedrooms: string
+  bathrooms: string
+  rooms: string
   facilities: string[]
   condition: string
   region: string

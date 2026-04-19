@@ -3,7 +3,7 @@
  * Handles all API calls for properties and units
  */
 
-import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from './client'
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete, API_BASE } from './client'
 import type { Property, PropertyStats } from '@/types/property'
 
 // ---------------------------------------------------------------------------
@@ -126,15 +126,34 @@ export async function createProperty(tenantId: string, data: Partial<Property>):
 
 /**
  * Update a property.
+ *
+ * NOTE: Backend uses @PutMapping and returns PropertyResponse directly
+ * (not wrapped in ApiResponse). We wrap it here for consistency.
  */
 export async function updateProperty(
   tenantId: string,
   id: string,
   data: Partial<Property>
 ): Promise<ApiResponse<Property>> {
-  return apiPatch(`${API_BASE}/properties/${id}`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  try {
+    const result = await apiPut<Property>(`${API_BASE}/properties/${id}`, data, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return {
+      success: true,
+      data: result
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'UPDATE_FAILED',
+        message: error.message || 'Failed to update property'
+      }
+    }
+  }
 }
 
 /**

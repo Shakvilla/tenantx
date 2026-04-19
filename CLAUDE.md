@@ -28,6 +28,10 @@ npm run test:coverage # Vitest with coverage report
 
 Special states: `needsWorkspaceSelection` (multiple workspaces), `needsPasswordSetup` (first-time login with OTP flow).
 
+### Middleware Authentication
+
+`src/middleware.ts` runs on every request and considers a user "fully authenticated" only when both `auth_token` AND `tenant_id` cookies are present. It redirects unauthenticated users to `/login?redirectTo=<path>` and injects `Authorization` / `X-Tenant-ID` headers for Server Components. Auth pages redirect authenticated users to `/dashboard`.
+
 ### Route Groups
 
 - `/(blank-layout-pages)/` — Auth pages (login, register, forgot-password, 403) with no sidebar
@@ -48,13 +52,11 @@ Special states: `needsWorkspaceSelection` (multiple workspaces), `needsPasswordS
 
 ### API Client Pattern
 
-`src/lib/api/client.ts` exports an axios instance with interceptors and helper functions:
+**Client components** use `src/lib/api/client.ts` (axios with interceptors):
 
 ```typescript
-// Use these helpers — they auto-inject auth headers
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from '@/lib/api/client'
 
-// Wrap in ApiResponse<T> for consistent error handling
 export async function getProperties(): Promise<ApiResponse<Property[]>> {
   try {
     const data = await apiGet<Property[]>(`${API_BASE}/properties`)
@@ -65,15 +67,50 @@ export async function getProperties(): Promise<ApiResponse<Property[]>> {
 }
 ```
 
-**Token Refresh:** On 401, the interceptor automatically attempts refresh using `refresh_token`, queues concurrent requests, and dispatches `AUTH_SESSION_EXPIRED` if refresh fails.
+**Server components / Route Handlers** use `src/lib/api/server-api.ts` (native `fetch` + `next/headers`):
+
+```typescript
+import { serverApiGet } from '@/lib/api/server-api'
+
+// In a Server Component or Route Handler
+const data = await serverApiGet<Property[]>(`${API_BASE}/properties`)
+```
+
+Use the `.server.ts` suffix for server-only API modules (e.g., `properties.server.ts`).
+
+**Token Refresh:** On 401, the client interceptor queues concurrent requests, attempts refresh, replays queued requests on success, and dispatches `AUTH_SESSION_EXPIRED` to `window` if refresh fails. Also dispatches `AUTH_REFRESHING` and `AUTH_FORBIDDEN` events that `AuthContext` listens to.
 
 ### Token & Tenant Storage
 
-`src/lib/api/storage.ts` — tokens persist in both `localStorage` and cookies (SameSite=Lax, 24h). Use:
+`src/lib/api/storage.ts` — cookies are the source of truth (middleware reads them); localStorage is a fallback. Both are kept in sync automatically. Use:
 - `getStoredToken()` / `getStoredRefreshToken()`
 - `getStoredTenantId()`
 - `setStoredTokens(token, refreshToken)` / `setStoredTenantId(tenantId)`
 - `clearStoredTokens()`
+
+### Error Handling
+
+`src/lib/errors/` defines a typed error hierarchy:
+
+```typescript
+// Throw typed errors in service layer
+throw new ValidationError('Invalid input', details)
+throw new UnauthorizedError()
+throw new NotFoundError('Property not found')
+
+// Catch all at API boundary
+import { handleError } from '@/lib/errors'
+try { ... } catch (err) { return handleError(err) }
+```
+
+`handleError()` converts Zod errors, `AppError` subclasses, and generic errors into the standard `ErrorResponse` shape. Predefined codes live in `ErrorCode` enum (`VALIDATION_ERROR`, `TOKEN_EXPIRED`, `INSUFFICIENT_PERMISSIONS`, `RESOURCE_CONFLICT`, etc.).
+
+### Pagination
+
+`src/lib/api/pagination.ts` provides:
+- `parsePaginationParams(searchParams)` — validates URL params, returns `QueryOptions`
+- `DEFAULT_PAGE_SIZE = 10`, `MAX_PAGE_SIZE = 100`
+- `PaginationMeta` interface used in list responses (`page`, `pageSize`, `total`, `totalPages`, `hasNext`, `hasPrev`)
 
 ### Key Providers Stack
 
@@ -100,7 +137,7 @@ BASEPATH=
 
 1. `src/app/(dashboard)/feature/page.tsx` — server component page
 2. `src/views/feature/FeatureView.tsx` — client component with `'use client'`
-3. `src/lib/api/feature.ts` — API functions returning `ApiResponse<T>`
+3. `src/lib/api/feature.ts` — API functions returning `ApiResponse<T>` (use `feature.server.ts` for server-only)
 4. `src/types/feature/` — domain types
 5. `src/lib/validation/schemas/feature.schema.ts` — Zod schema if needed
 
@@ -119,13 +156,26 @@ useEffect(() => {
 - **Use parallel requests** — `Promise.all()` instead of sequential awaits to avoid waterfalls
 - **Business logic in service layer** — not in components; components call functions from `src/lib/api/`
 - **`X-Tenant-ID` is automatic** — the axios interceptor handles it; never pass it manually
+- **No state management library** — use Context API (`AuthContext`) + local `useState`; no React Query, Zustand, or Formik
+- **Forms use Zod schemas** — validate with `src/lib/validation/schemas/`; controlled inputs with `useState`
 - **Avoid barrel `index.ts` files** for large modules — hurts tree-shaking
 - **`'use client'`** must be explicit on components that use hooks, browser APIs, or event handlers
+
+## Testing
+
+- **Runner**: Vitest with `happy-dom` environment
+- **Setup**: `src/__tests__/setup.ts` mocks `window.matchMedia`
+- **Coverage thresholds**: 80% statements, branches, functions, lines on business logic
+- **Pattern**: mock API helpers with `vi.mock('@/lib/api/client')`; test files in `src/__tests__/`
+
+```bash
+npx vitest run src/__tests__/specific.test.ts  # Run a single test file
+```
 
 ## UI Stack
 
 - **MUI v6** for components (`@mui/material`)
-- **Tailwind CSS v3** for utility classes
+- **Tailwind CSS v3** for utility classes — `corePlugins.preflight: false` (MUI owns base styles), `important: '#__next'` for specificity, `tailwindcss-logical` for RTL support
 - **Emotion** for CSS-in-JS (MUI's styling engine)
 - **Iconify** with custom CSS build (`npm run build:icons`, auto-runs on postinstall)
 - **ApexCharts** via `react-apexcharts` for data visualization

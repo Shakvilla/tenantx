@@ -12,6 +12,28 @@ type Props = {
 }
 
 /**
+ * Helper to convert a string to Title Case (handles multiple words).
+ */
+function toTitleCase(str: string | undefined | null) {
+  if (!str) return ''
+
+  return str
+    .split(/[\s_-]+/)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
+
+/**
+ * Maps numbers to UI select strings (e.g., 6 -> "6+").
+ */
+function mapToSelectValue(val: number | undefined | null, max: number) {
+  if (val === undefined || val === null) return ''
+  if (val >= max) return `${max}+`
+
+  return val.toString()
+}
+
+/**
  * Transform a backend Property object into the shape expected by
  * the PropertyDetails view component.
  */
@@ -24,27 +46,52 @@ function toPropertyViewData(property: Record<string, any>) {
     })
   }
 
+  // Handle Type matching
+  let type = toTitleCase(property.type)
+
+  if (type === 'Residential') type = 'House' // fallback for common backend value
+
+  // Handle District matching (e.g. "Accra Metropolitan" -> "Accra")
+  let district = toTitleCase(property.district)
+
+  if (district.includes('Accra')) district = 'Accra'
+  if (district.includes('Tema')) district = 'Tema'
+
   return {
     id: property.id,
     name: property.name || 'Unnamed Property',
     location: property.district || property.region || 'Unknown',
-    type: property.type || 'residential',
+    type: type || 'House',
     stock: property.status === 'active',
     address: property.gpsCode || property.address?.street || '',
-    price: property.currentValue ? `₵${property.currentValue.toLocaleString()}` : 'N/A',
-    bedroom: property.bedrooms || 0,
-    bathroom: property.bathrooms || 0,
-    rooms: property.rooms || 0,
+    price: property.currentValue ? `${property.currency ?? '₵'}${property.currentValue.toLocaleString()}` : 'N/A',
+    bedrooms: mapToSelectValue(property.bedrooms, 6),
+    bathrooms: mapToSelectValue(property.bathrooms, 5),
+    rooms: mapToSelectValue(property.rooms, 6),
     facilities: property.amenities || [],
-    condition: property.condition || 'Unknown',
-    region: property.region || '',
-    district: property.district || '',
-    city: property.address?.city || '',
+    condition: toTitleCase(property.condition) || 'New',
+    region: toTitleCase(property.region) || '',
+    district: district || '',
+    city: toTitleCase(property.address?.city) || '',
     gpsCode: property.gpsCode || '',
     description: property.description || '',
     images: property.images || [],
     thumbnailIndex: property.thumbnailIndex ?? 0,
-    amenities: amenitiesRecord
+    amenities: amenitiesRecord,
+
+    // Raw backend fields preserved for the edit dialog payload
+    ownership: property.ownership || 'own',
+    totalUnits: property.totalUnits ?? 0,
+    occupiedUnits: property.occupiedUnits ?? 0,
+    purchasePrice: property.purchasePrice ?? undefined,
+    currentValue: property.currentValue ?? undefined,
+    currency: property.currency || 'GHS',
+    street: property.address?.street || '',
+    zip: property.address?.zip || '00233',
+    rawType: property.type || 'residential',
+    rawCondition: property.condition || 'new',
+    rawRegion: property.region || '',
+    rawDistrict: property.district || ''
   }
 }
 

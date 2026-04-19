@@ -55,6 +55,12 @@ export interface Property {
   currentValue?: number | null
   currency?: string | null
 
+  // Documents
+  documents?: string[] | null
+
+  // Arbitrary metadata from backend
+  metadata?: Record<string, string> | null
+
   // Timestamps
   createdAt: string
   updatedAt: string | null
@@ -105,6 +111,10 @@ export interface Unit {
 
   // Media
   images?: string[] | null
+
+  // Meta
+  features?: Record<string, any> | null
+  metadata?: Record<string, any> | null
 
   // Timestamps
   createdAt: string
@@ -161,5 +171,7 @@ export interface CreateUnitPayload {
   status?: Unit['status']
   amenities?: string[]
   images?: string[]
+  features?: Record<string, any>
+  metadata?: Record<string, any>
   tenantRecordId?: string
 }

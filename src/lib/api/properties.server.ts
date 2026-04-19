@@ -18,3 +18,12 @@ import { serverApiGet } from './server-api'
 export async function serverGetPropertyById(tenantId: string, id: string): Promise<Property | null> {
   return serverApiGet<Property>(tenantId, `/properties/${id}`)
 }
+
+/**
+ * Get all properties (server-side — uses cookies).
+ */
+export async function serverGetProperties(tenantId: string): Promise<Property[]> {
+  const result = await serverApiGet<Property[]>(tenantId, '/properties')
+
+  return result || []
+}

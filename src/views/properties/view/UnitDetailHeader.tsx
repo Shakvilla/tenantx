@@ -12,39 +12,40 @@ import Typography from '@mui/material/Typography'
 
 // Type Imports
 import type { ThemeColor } from '@core/types'
+import type { Unit, Property } from '@/types/property'
 
 // Component Imports
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import AddUnitDialog from '../AddUnitDialog'
 
-type UnitData = {
+type UnitViewData = {
   id: string
   unitNumber: string
   propertyName: string
   propertyId: string
   tenantName: string | null
-  status: 'occupied' | 'vacant' | 'maintenance'
+  status: 'occupied' | 'vacant' | 'maintenance' | 'available' | 'reserved'
   rent: string
+  rentPeriod: string
   bedrooms: number
   bathrooms: number
   size: string
+  floor: number | null
+  type: string
+  images: string[]
+  amenities: string[]
+  metadata: Record<string, any>
+  features: Record<string, any>
 }
-
-// Sample properties for edit dialog
-const sampleProperties = [
-  { id: 1, name: 'Xorla House' },
-  { id: 2, name: 'Sunset Apartments' },
-  { id: 3, name: 'Green Valley' },
-  { id: 4, name: 'Ocean View' },
-  { id: 5, name: 'Mountain Heights' }
-]
 
 const UnitDetailHeader = ({
   unitData,
-  unitId
+  unitId,
+  properties = []
 }: {
-  unitData?: UnitData
+  unitData?: UnitViewData
   unitId: string
+  properties?: Property[]
 }) => {
   // States
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -55,7 +56,9 @@ const UnitDetailHeader = ({
   const statusColor: Record<string, ThemeColor> = {
     occupied: 'success',
     vacant: 'warning',
-    maintenance: 'error'
+    available: 'warning',
+    maintenance: 'error',
+    reserved: 'info'
   }
 
   // Prepare edit data
@@ -70,6 +73,12 @@ const UnitDetailHeader = ({
         bedrooms: unitData.bedrooms,
         bathrooms: unitData.bathrooms,
         size: unitData.size,
+        floor: unitData.floor,
+        type: unitData.type,
+        images: unitData.images,
+        amenities: unitData.amenities,
+        metadata: unitData.metadata,
+        features: unitData.features,
         tenantName: unitData.tenantName
       }
     : null
@@ -117,7 +126,7 @@ const UnitDetailHeader = ({
       <AddUnitDialog
         open={editDialogOpen}
         handleClose={() => setEditDialogOpen(false)}
-        properties={sampleProperties}
+        properties={properties}
         editData={editData}
         mode='edit'
         unitsData={[]}

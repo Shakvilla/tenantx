@@ -22,7 +22,9 @@ const amenitiesList = [
   { id: 'diningArea', name: 'Dining Area', icon: 'ri-restaurant-line' },
   { id: 'parking', name: 'Parking Space', icon: 'ri-parking-line' },
   { id: 'security', name: 'Security', icon: 'ri-shield-check-line' },
-  { id: 'wifi', name: 'WiFi', icon: 'ri-wifi-line' }
+  { id: 'wifi', name: 'WiFi', icon: 'ri-wifi-line' },
+  { id: 'pool', name: 'Swimming Pool', icon: 'ri-water-flash-line' },
+  { id: 'gym', name: 'Fitness Gym', icon: 'ri-mickey-line' }
 ]
 
 const PropertyFeaturesCard = ({ propertyData }: { propertyData?: PropertyData }) => {

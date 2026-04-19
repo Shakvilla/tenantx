@@ -29,22 +29,28 @@ type PropertyData = {
   city?: string
   gpsCode?: string
   description?: string
-  bedrooms?: number
-  bathrooms?: number
-  rooms?: number
+  bedrooms?: string
+  bathrooms?: string
+  rooms?: string
   amenities?: Record<string, boolean>
   images?: string[]
   thumbnailIndex?: number | null
   price?: string
+  ownership?: string
+  totalUnits?: number
+  occupiedUnits?: number
+  purchasePrice?: number
+  currentValue?: number
+  currency?: string
+  street?: string
+  zip?: string
+  rawType?: string
+  rawCondition?: string
+  rawRegion?: string
+  rawDistrict?: string
 }
 
-const PropertyDetailHeader = ({
-  propertyData,
-  propertyId
-}: {
-  propertyData?: PropertyData
-  propertyId: string
-}) => {
+const PropertyDetailHeader = ({ propertyData, propertyId }: { propertyData?: PropertyData; propertyId: string }) => {
   // States
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -73,7 +79,21 @@ const PropertyDetailHeader = ({
         images: propertyData.images,
         thumbnailIndex: propertyData.thumbnailIndex,
         price: propertyData.price,
-        address: propertyData.address
+        address: propertyData.address,
+
+        // Raw backend fields for payload
+        ownership: propertyData.ownership,
+        totalUnits: propertyData.totalUnits,
+        occupiedUnits: propertyData.occupiedUnits,
+        purchasePrice: propertyData.purchasePrice,
+        currentValue: propertyData.currentValue,
+        currency: propertyData.currency,
+        street: propertyData.street,
+        zip: propertyData.zip,
+        rawType: propertyData.rawType,
+        rawCondition: propertyData.rawCondition,
+        rawRegion: propertyData.rawRegion,
+        rawDistrict: propertyData.rawDistrict
       }
     : null
 
@@ -97,7 +117,13 @@ const PropertyDetailHeader = ({
               size='small'
               className='capitalize'
             />
-            <Chip variant='tonal' label={propertyData?.type || '-'} color='primary' size='small' className='capitalize' />
+            <Chip
+              variant='tonal'
+              label={propertyData?.type || '-'}
+              color='primary'
+              size='small'
+              className='capitalize'
+            />
           </div>
           <Typography variant='body2' color='text.secondary'>
             {propertyData?.address || 'Address not available'}

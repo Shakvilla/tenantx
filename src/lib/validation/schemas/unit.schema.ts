@@ -43,12 +43,13 @@ export const CreateUnitSchema = z.object({
   currency: z.string().default('GHS'),
   status: UnitStatusEnum.default('available'),
   
-  // Features
+  // Features & Meta
   amenities: z.array(z.string()).optional(),
   features: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   
   // Media
-  images: z.array(z.string().url()).optional(),
+  images: z.array(z.string()).optional(),
   
   // Tenant assignment
   tenantRecordId: z.string().uuid().optional(),

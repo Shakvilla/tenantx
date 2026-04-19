@@ -18,9 +18,9 @@ type PropertyData = {
   condition: string
   description: string
   price: string
-  bedroom: number
-  bathroom: number
-  rooms: number
+  bedrooms: string
+  bathrooms: string
+  rooms: string
 }
 
 const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => {
@@ -75,7 +75,7 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
                 Bedrooms
               </Typography>
               <Typography variant='h6' className='font-medium' color='text.primary'>
-                {propertyData.bedroom}
+                {propertyData.bedrooms}
               </Typography>
             </div>
           </Grid>
@@ -85,7 +85,7 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
                 Bathrooms
               </Typography>
               <Typography variant='h6' className='font-medium' color='text.primary'>
-                {propertyData.bathroom}
+                {propertyData.bathrooms}
               </Typography>
             </div>
           </Grid>
