@@ -4,6 +4,7 @@
  */
 
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete, API_BASE } from './client'
+import { getStoredToken } from './storage'
 import type { Property, PropertyStats } from '@/types/property'
 
 // ---------------------------------------------------------------------------
@@ -117,11 +118,27 @@ export async function getMyProperty(tenantId: string): Promise<ApiResponse<Prope
  *
  * API: POST /properties
  * Guide: Section 4.1
+ *
+ * NOTE: The backend returns PropertyResponse directly (no ApiResponse wrapper).
+ * We wrap it here for consistency with the rest of the API layer.
  */
 export async function createProperty(tenantId: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
-  return apiPost(`${API_BASE}/properties`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  try {
+    const result = await apiPost<Property>(`${API_BASE}/properties`, data, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return { success: true, data: result }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'CREATE_FAILED',
+        message: error.message || 'Failed to create property'
+      }
+    }
+  }
 }
 
 /**
@@ -306,10 +323,13 @@ export async function uploadPropertyImages(
   // axios will automatically set Content-Type: multipart/form-data with boundary
   const { default: axios } = await import('axios')
 
+  const token = getStoredToken()
+
   const response = await axios.post<UploadResponse>(`${API_BASE}/properties/upload`, formData, {
     withCredentials: true,
     headers: {
-      'X-Tenant-ID': tenantId
+      'X-Tenant-ID': tenantId,
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
 
       // Don't set Content-Type - let axios detect from FormData
     }

@@ -18,14 +18,6 @@ const horizontalMenuData = (): HorizontalMenuDataType[] => [
       {
         label: 'All Unit',
         href: '/properties/units'
-      },
-      {
-        label: 'Own Property',
-        href: '/properties/own'
-      },
-      {
-        label: 'Lease Property',
-        href: '/properties/lease'
       }
     ]
   },

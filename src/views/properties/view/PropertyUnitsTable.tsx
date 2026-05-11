@@ -287,6 +287,11 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
             iconButtonProps={{ size: 'small' }}
             options={[
               {
+                text: 'View',
+                icon: 'ri-eye-line',
+                href: `/properties/units/${row.original.id}`
+              },
+              {
                 text: 'Edit',
                 icon: 'ri-pencil-line',
                 menuItemProps: { onClick: () => handleEdit(row.original) }

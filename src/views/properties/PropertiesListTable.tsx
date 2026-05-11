@@ -46,6 +46,9 @@ import type { Property, PropertyStats } from '@/types/property'
 import { getProperties, getPropertyStats, deleteProperty } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 
+// Context Imports
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
+
 // Component Imports
 import OptionMenu from '@core/components/option-menu'
 import PageBanner from '@components/banner/PageBanner'
@@ -97,6 +100,8 @@ const propertyTypeObj: PropertyTypeObj = {
 const columnHelper = createColumnHelper<PropertyWithAction>()
 
 const PropertiesListTable = () => {
+  const { ref } = useReferenceData()
+
   // States
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState<Property[]>([])
@@ -464,11 +469,9 @@ const PropertiesListTable = () => {
                 sx={{ minWidth: 180 }}
               >
                 <MenuItem value=''>All Types</MenuItem>
-                <MenuItem value='house'>House</MenuItem>
-                <MenuItem value='apartment'>Apartment</MenuItem>
-                <MenuItem value='residential'>Residential</MenuItem>
-                <MenuItem value='commercial'>Commercial</MenuItem>
-                <MenuItem value='mixed'>Mixed</MenuItem>
+                {ref.propertyTypes.map(pt => (
+                  <MenuItem key={pt.value} value={pt.value}>{pt.label}</MenuItem>
+                ))}
               </TextField>
               <TextField
                 select
@@ -482,9 +485,9 @@ const PropertiesListTable = () => {
                 sx={{ minWidth: 150 }}
               >
                 <MenuItem value=''>All Status</MenuItem>
-                <MenuItem value='active'>Active</MenuItem>
-                <MenuItem value='inactive'>Inactive</MenuItem>
-                <MenuItem value='maintenance'>Maintenance</MenuItem>
+                {ref.propertyStatuses.map(s => (
+                  <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                ))}
               </TextField>
               <TextField
                 select
@@ -697,12 +700,20 @@ const PropertiesListTable = () => {
                 region: selectedProperty.region || '',
                 district: selectedProperty.district || '',
                 city: selectedProperty.address?.city || '',
+                street: selectedProperty.address?.street || '',
+                zip: selectedProperty.address?.zip || '',
                 gpsCode: selectedProperty.gpsCode || '',
                 description: selectedProperty.description || '',
                 bedrooms: selectedProperty.bedrooms || 0,
                 bathrooms: selectedProperty.bathrooms || 0,
                 rooms: selectedProperty.rooms || 0,
                 condition: selectedProperty.condition || '',
+                totalUnits: selectedProperty.totalUnits,
+                occupiedUnits: selectedProperty.occupiedUnits,
+                purchasePrice: selectedProperty.purchasePrice || undefined,
+                currentValue: selectedProperty.currentValue || undefined,
+                currency: selectedProperty.currency || 'GHS',
+                ownership: selectedProperty.ownership,
                 amenities: selectedProperty.amenities?.reduce((acc, amenity) => {
                   acc[amenity] = true
 

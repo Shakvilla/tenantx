@@ -49,13 +49,14 @@ import {
 } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 
+// Context Imports
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
+
 type PropertyEditData = {
   id?: string
   name?: string
   type?: string
   condition?: string
-  region?: string
-  district?: string
   city?: string
   gpsCode?: string
   description?: string
@@ -67,6 +68,23 @@ type PropertyEditData = {
   thumbnailIndex?: number | null
   price?: string
   address?: string
+  // Fields used in payload mapping
+  street?: string
+  region?: string
+  district?: string
+  zip?: string
+  totalUnits?: number
+  occupiedUnits?: number
+  purchasePrice?: number
+  currentValue?: number
+  currency?: string
+  ownership?: 'own' | 'lease'
+  // Raw lowercase API values — used when coming from the property detail page
+  // (which title-cases the display values for rendering)
+  rawType?: string
+  rawCondition?: string
+  rawRegion?: string
+  rawDistrict?: string
 }
 
 type Props = {
@@ -107,12 +125,6 @@ const steps: StepProps[] = [
   }
 ]
 
-type Amenity = {
-  id: string
-  name: string
-  description: string
-}
-
 type FormDataType = {
   propertyName: string
   propertyType: string
@@ -130,59 +142,6 @@ type FormDataType = {
   thumbnailIndex: number | null
 }
 
-const amenitiesList: Amenity[] = [
-  {
-    id: 'electricity',
-    name: '24-hour Electricity',
-    description: 'Uninterrupted electricity supply'
-  },
-  {
-    id: 'kitchenCabinets',
-    name: 'Kitchen Cabinets',
-    description: 'Ultra modern kitchen cabinets'
-  },
-  {
-    id: 'popCeiling',
-    name: 'POP Ceiling',
-    description: 'Modern Pop ceiling'
-  },
-  {
-    id: 'tiledFloor',
-    name: 'Tiled Floor',
-    description: 'Standard and beautiful tiled floor'
-  },
-  {
-    id: 'diningArea',
-    name: 'Dining Area',
-    description: 'Spacious dining area'
-  },
-  {
-    id: 'parking',
-    name: 'Parking Space',
-    description: 'Dedicated parking space'
-  },
-  {
-    id: 'security',
-    name: 'Security',
-    description: '24/7 security surveillance'
-  },
-  {
-    id: 'wifi',
-    name: 'WiFi',
-    description: 'High-speed internet connection'
-  },
-  {
-    id: 'pool',
-    name: 'Swimming Pool',
-    description: 'Clean and well-maintained swimming pool'
-  },
-  {
-    id: 'gym',
-    name: 'Gym',
-    description: 'Fully equipped fitness center'
-  }
-]
-
 const initialData: FormDataType = {
   propertyName: '',
   propertyType: '',
@@ -195,14 +154,7 @@ const initialData: FormDataType = {
   bedrooms: '',
   bathrooms: '',
   rooms: '',
-  amenities: amenitiesList.reduce(
-    (acc, amenity) => {
-      acc[amenity.id] = false
-
-      return acc
-    },
-    {} as Record<string, boolean>
-  ),
+  amenities: {},
   images: [],
   thumbnailIndex: null
 }
@@ -280,56 +232,40 @@ const AddPropertyDialog = ({
   mode = 'add'
 }: Props) => {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [_, startTransition] = useTransition()
+
+  // Reference data from context (enums, amenities, regions)
+  const { ref } = useReferenceData()
 
   // States
   const [activeStep, setActiveStep] = useState(0)
+
+  // Builds a fresh amenities map from current ref data (all false)
+  const buildEmptyAmenities = (): Record<string, boolean> =>
+    ref.amenities.reduce((acc, a) => ({ ...acc, [a.id]: false }), {} as Record<string, boolean>)
 
   // Initialize form data based on mode
   const getInitialFormData = (): FormDataType => {
     if (mode === 'edit' && editData) {
       return {
         propertyName: editData.name || '',
-        propertyType: editData.type || '',
-        condition: editData.condition || '',
-        region: editData.region || '',
-        district: editData.district || '',
+        propertyType: editData.rawType || editData.type || '',
+        condition: editData.rawCondition || editData.condition || '',
+        region: editData.rawRegion || editData.region || '',
+        district: editData.rawDistrict || editData.district || '',
         city: editData.city || '',
         gpsCode: editData.gpsCode || '',
         description: editData.description || '',
         bedrooms: editData.bedrooms?.toString() || '',
         bathrooms: editData.bathrooms?.toString() || '',
         rooms: editData.rooms?.toString() || '',
-        amenities:
-          editData.amenities ||
-          amenitiesList.reduce(
-            (acc, amenity) => {
-              acc[amenity.id] = false
-
-              return acc
-            },
-            {} as Record<string, boolean>
-          ),
-        images: [], // Will be handled separately for existing images
+        amenities: editData.amenities || buildEmptyAmenities(),
+        images: [],
         thumbnailIndex: editData.thumbnailIndex ?? null
       }
     }
 
-    return {
-      ...initialData,
-      amenities:
-        initialData.amenities ||
-        amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
-
-            return acc
-          },
-          {} as Record<string, boolean>
-        ),
-      images: initialData.images || [],
-      thumbnailIndex: initialData.thumbnailIndex ?? null
-    }
+    return { ...initialData, amenities: buildEmptyAmenities() }
   }
 
   const [formData, setFormData] = useState<FormDataType>(getInitialFormData)
@@ -337,6 +273,10 @@ const AddPropertyDialog = ({
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
+
+  // Derived location data — computed from current formData (must come after useState)
+  const districtsForRegion = ref.regions.find(r => r.value === formData.region)?.districts ?? []
+  const citiesForDistrict = districtsForRegion.find(d => d.value === formData.district)?.cities ?? []
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
@@ -358,16 +298,17 @@ const AddPropertyDialog = ({
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
 
+      // Cascade location resets
+      if (field === 'region') {
+        updated.district = ''
+        updated.city = ''
+      } else if (field === 'district') {
+        updated.city = ''
+      }
+
       // Ensure amenities is always defined
       if (!updated.amenities) {
-        updated.amenities = amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
-
-            return acc
-          },
-          {} as Record<string, boolean>
-        )
+        updated.amenities = buildEmptyAmenities()
       }
 
       return updated
@@ -527,51 +468,43 @@ const AddPropertyDialog = ({
         .map(([id]) => id)
 
       // Step 3: Build property payload matching API schema
-      // Map UI type labels back to backend enum values
-      const typeMap: Record<string, string> = {
-        House: 'residential',
-        Apartment: 'apartment'
-      }
+      // Values come directly from the API as lowercase strings
+      const backendType = formData.propertyType || 'residential'
+      const backendCondition = formData.condition || 'new'
 
-      const conditionMap: Record<string, string> = {
-        New: 'new',
-        Good: 'good',
-        Fair: 'fair',
-        Poor: 'poor'
-      }
-
-      const backendType = typeMap[formData.propertyType] || formData.propertyType?.toLowerCase() || 'residential'
-      const backendCondition = conditionMap[formData.condition] || formData.condition?.toLowerCase() || 'new'
-
-      const propertyPayload = {
+      const propertyPayload: any = {
         name: formData.propertyName,
         address: {
           street: (mode === 'edit' && editData?.street) || formData.city,
           city: formData.city || 'Accra',
-          state: (mode === 'edit' && editData?.rawRegion) || formData.region,
+          state: (mode === 'edit' && editData?.region) || formData.region,
           zip: (mode === 'edit' && editData?.zip) || '00233',
           country: 'Ghana'
         },
         type: backendType as 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment',
         ownership: ((mode === 'edit' && editData?.ownership) || 'own') as 'own' | 'lease',
-        region: (mode === 'edit' && editData?.rawRegion) || formData.region,
-        district: (mode === 'edit' && editData?.rawDistrict) || formData.district,
+        region: (mode === 'edit' && editData?.region) || formData.region,
+        district: (mode === 'edit' && editData?.district) || formData.district,
         gpsCode: formData.gpsCode || undefined,
         description: formData.description || undefined,
         condition: backendCondition as 'new' | 'good' | 'fair' | 'poor',
         bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
         bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
         rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
-        amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
-        images: imageUrls.length > 0 ? imageUrls : undefined,
+        amenities: amenitiesArray,
+        images: imageUrls,
         thumbnailIndex: formData.thumbnailIndex ?? undefined,
 
-        // Preserve financial and inventory data from original property
-        totalUnits: (mode === 'edit' && editData?.totalUnits) ?? 0,
-        occupiedUnits: (mode === 'edit' && editData?.occupiedUnits) ?? 0,
-        purchasePrice: (mode === 'edit' && editData?.purchasePrice) ?? undefined,
-        currentValue: (mode === 'edit' && editData?.currentValue) ?? undefined,
+        // Financial data
+        purchasePrice: (mode === 'edit' && editData?.purchasePrice) ? Number(editData.purchasePrice) : undefined,
+        currentValue: (mode === 'edit' && editData?.currentValue) ? Number(editData.currentValue) : undefined,
         currency: (mode === 'edit' && editData?.currency) || 'GHS'
+      }
+
+      // Add inventory data only for existing properties
+      if (mode === 'edit') {
+        propertyPayload.totalUnits = editData?.totalUnits ?? 0
+        propertyPayload.occupiedUnits = editData?.occupiedUnits ?? 0
       }
 
       // Step 4: Call API to create or update property
@@ -582,7 +515,7 @@ const AddPropertyDialog = ({
 
       let response
 
-      if (existingPropertyId) {
+      if (mode === 'edit' && existingPropertyId) {
         // Editing existing property - update it and preserve status
         console.log('Updating existing property:', existingPropertyId)
         response = await updateProperty(tenantId, existingPropertyId, {
@@ -590,7 +523,9 @@ const AddPropertyDialog = ({
           status: 'active'
         })
       } else {
-        // Creating new property
+        // Creating new property (even if we have a draftId, we use createProperty)
+        // If the backend requires a draftId in the payload, we'd add it here
+        console.log('Creating new property...')
         response = await createProperty(tenantId, propertyPayload)
       }
 
@@ -618,14 +553,7 @@ const AddPropertyDialog = ({
       if (mode !== 'edit') {
         const resetData: FormDataType = {
           ...initialData,
-          amenities: amenitiesList.reduce(
-            (acc, amenity) => {
-              acc[amenity.id] = false
-
-              return acc
-            },
-            {} as Record<string, boolean>
-          ),
+          amenities: buildEmptyAmenities(),
           images: [],
           thumbnailIndex: null
         }
@@ -795,8 +723,9 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('propertyType', e.target.value)}
                   >
                     <MenuItem value=''>Select Property Type</MenuItem>
-                    <MenuItem value='House'>House</MenuItem>
-                    <MenuItem value='Apartment'>Apartment</MenuItem>
+                    {ref.propertyTypes.map(pt => (
+                      <MenuItem key={pt.value} value={pt.value}>{pt.label}</MenuItem>
+                    ))}
                   </Select>
                   {errors.propertyType && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -816,10 +745,9 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('condition', e.target.value)}
                   >
                     <MenuItem value=''>Select Condition</MenuItem>
-                    <MenuItem value='New'>New</MenuItem>
-                    <MenuItem value='Good'>Good</MenuItem>
-                    <MenuItem value='Fair'>Fair</MenuItem>
-                    <MenuItem value='Poor'>Poor</MenuItem>
+                    {ref.propertyConditions.map(c => (
+                      <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>
+                    ))}
                   </Select>
                   {errors.condition && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -839,10 +767,9 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('region', e.target.value)}
                   >
                     <MenuItem value=''>Select Region</MenuItem>
-                    <MenuItem value='Greater Accra'>Greater Accra</MenuItem>
-                    <MenuItem value='Ashanti'>Ashanti</MenuItem>
-                    <MenuItem value='Western'>Western</MenuItem>
-                    <MenuItem value='Central'>Central</MenuItem>
+                    {ref.regions.map(r => (
+                      <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>
+                    ))}
                   </Select>
                   {errors.region && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -862,9 +789,9 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('district', e.target.value)}
                   >
                     <MenuItem value=''>Select District</MenuItem>
-                    <MenuItem value='Adenta'>Adenta</MenuItem>
-                    <MenuItem value='Tema'>Tema</MenuItem>
-                    <MenuItem value='Accra'>Accra</MenuItem>
+                    {districtsForRegion.map(d => (
+                      <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>
+                    ))}
                   </Select>
                   {errors.district && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -883,9 +810,9 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('city', e.target.value)}
                   >
                     <MenuItem value=''>Select City</MenuItem>
-                    <MenuItem value='Accra'>Accra</MenuItem>
-                    <MenuItem value='Kumasi'>Kumasi</MenuItem>
-                    <MenuItem value='Tema'>Tema</MenuItem>
+                    {citiesForDistrict.map(city => (
+                      <MenuItem key={city} value={city}>{city}</MenuItem>
+                    ))}
                   </Select>
                   {errors.city && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -1013,7 +940,7 @@ const AddPropertyDialog = ({
               </div>
 
               <div className='flex flex-col gap-4'>
-                {amenitiesList.map(amenity => (
+                {ref.amenities.map(amenity => (
                   <Box
                     key={amenity.id}
                     className='flex items-center justify-between p-4 border rounded-lg hover:bg-actionHover transition-colors'
@@ -1283,7 +1210,7 @@ const AddPropertyDialog = ({
           </div>
         )
       case 3:
-        const selectedAmenities = amenitiesList.filter(amenity => formData.amenities[amenity.id])
+        const selectedAmenities = ref.amenities.filter(amenity => formData.amenities[amenity.id])
 
         return (
           <div className='flex flex-col gap-6'>

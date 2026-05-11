@@ -30,14 +30,7 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
 
   return (
     <Card>
-      <CardHeader
-        title='Property Information'
-        action={
-          <Typography component='a' color='primary.main' className='font-medium cursor-pointer'>
-            Edit
-          </Typography>
-        }
-      />
+      <CardHeader title='Property Information' />
       <Divider />
       <CardContent>
         <Grid container spacing={4}>

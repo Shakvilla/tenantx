@@ -18,28 +18,20 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
       {
         label: 'All Unit',
         href: '/properties/units'
-      },
-      {
-        label: 'Own Property',
-        href: '/properties/own'
-      },
-      {
-        label: 'Lease Property',
-        href: '/properties/lease'
       }
     ]
   },
   {
-    label: 'Tenants',
+    label: 'Occupants',
     icon: 'ri-group-line',
     children: [
       {
-        label: 'All Tenants',
-        href: '/tenants'
+        label: 'All Occupants',
+        href: '/occupants'
       },
       {
-        label: 'Tenant History',
-        href: '/tenants/history'
+        label: 'Occupant History',
+        href: '/occupants/history'
       }
     ]
   },

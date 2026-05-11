@@ -9,30 +9,22 @@ import Chip from '@mui/material/Chip'
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 
+// Context Imports
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
+
 type PropertyData = {
   amenities: Record<string, boolean>
   facilities: string[]
 }
 
-const amenitiesList = [
-  { id: 'electricity', name: '24-hour Electricity', icon: 'ri-flashlight-line' },
-  { id: 'kitchenCabinets', name: 'Kitchen Cabinets', icon: 'ri-home-4-line' },
-  { id: 'popCeiling', name: 'POP Ceiling', icon: 'ri-building-line' },
-  { id: 'tiledFloor', name: 'Tiled Floor', icon: 'ri-layout-grid-line' },
-  { id: 'diningArea', name: 'Dining Area', icon: 'ri-restaurant-line' },
-  { id: 'parking', name: 'Parking Space', icon: 'ri-parking-line' },
-  { id: 'security', name: 'Security', icon: 'ri-shield-check-line' },
-  { id: 'wifi', name: 'WiFi', icon: 'ri-wifi-line' },
-  { id: 'pool', name: 'Swimming Pool', icon: 'ri-water-flash-line' },
-  { id: 'gym', name: 'Fitness Gym', icon: 'ri-mickey-line' }
-]
-
 const PropertyFeaturesCard = ({ propertyData }: { propertyData?: PropertyData }) => {
+  const { ref } = useReferenceData()
+
   if (!propertyData) {
     return null
   }
 
-  const selectedAmenities = amenitiesList.filter(amenity => propertyData.amenities[amenity.id])
+  const selectedAmenities = ref.amenities.filter(amenity => propertyData.amenities[amenity.id])
 
   return (
     <Card>
