@@ -33,8 +33,9 @@ const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogP
 
   // Handle Download
   const handleDownload = () => {
-    // In a real app, this would trigger a download
-    console.log(`Downloading document: ${document.documentType}`)
+    if (document.fileUrl) {
+      window.open(document.fileUrl, '_blank')
+    }
   }
 
   return (
@@ -98,32 +99,47 @@ const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogP
             </CardContent>
           </Card>
 
-          {/* Document Preview Placeholder */}
-          <Box
-            sx={{
-              height: 400,
-              width: '100%',
-              backgroundColor: 'var(--mui-palette-action-hover)',
-              borderRadius: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              border: '1px dashed var(--mui-palette-divider)'
-            }}
-          >
-            <i className='ri-file-text-line text-[100px] text-secondary opacity-20' />
-            <Typography color='text.secondary'>Document preview is not available in this demo</Typography>
-            <Button
-              variant='outlined'
-              size='small'
-              startIcon={<i className='ri-download-line' />}
-              onClick={handleDownload}
+          {/* Reject reason */}
+          {document.status === 'rejected' && document.rejectReason && (
+            <Box sx={{ p: 2, bgcolor: 'error.lighterOpacity', borderRadius: 1, border: '1px solid', borderColor: 'error.light' }}>
+              <Typography variant='body2' color='error' fontWeight={600} className='mbe-1'>
+                Rejection reason
+              </Typography>
+              <Typography variant='body2' color='text.secondary'>
+                {document.rejectReason}
+              </Typography>
+            </Box>
+          )}
+
+          {/* Document Preview */}
+          {document.fileUrl ? (
+            <Box
+              component='iframe'
+              src={document.fileUrl}
+              sx={{ width: '100%', height: 480, border: '1px solid var(--mui-palette-divider)', borderRadius: 1 }}
+              title='Document preview'
+            />
+          ) : (
+            <Box
+              sx={{
+                height: 400,
+                width: '100%',
+                backgroundColor: 'var(--mui-palette-action-hover)',
+                borderRadius: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4,
+                border: '1px dashed var(--mui-palette-divider)'
+              }}
             >
-              Download to view full content
-            </Button>
-          </Box>
+              <i className='ri-file-text-line text-[100px] text-secondary opacity-20' />
+              <Typography color='text.secondary'>
+                {document.fileName || 'No file attached'}
+              </Typography>
+            </Box>
+          )}
         </div>
       </DialogContent>
       <DialogActions className='gap-2 pbs-4'>

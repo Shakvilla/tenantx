@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -29,8 +29,8 @@ import Alert from '@mui/material/Alert'
 
 import type { EmailTemplateType } from '@/types/settings/notificationTypes'
 
-// Utils Imports
-import { notificationSettingsApi } from '@/utils/settings/api'
+// API Imports
+import { notificationSettingsApi } from '@/lib/api/settings'
 
 // MUI Imports
 
@@ -75,6 +75,16 @@ const EmailTemplatesSettings = () => {
     message: '',
     severity: 'success'
   })
+
+  useEffect(() => {
+    notificationSettingsApi.get().then(settings => {
+      const template = settings.emailTemplates?.find(t => t.type === selectedTemplate)
+      if (template) {
+        setSubject(template.subject)
+        setBody(template.body)
+      }
+    }).catch(console.error)
+  }, [selectedTemplate])
 
   const handleSave = async () => {
     setLoading(true)

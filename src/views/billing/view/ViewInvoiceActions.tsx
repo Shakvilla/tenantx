@@ -3,7 +3,8 @@
 // React Imports
 import { useState } from 'react'
 
-import type { Dispatch, SetStateAction } from 'react'
+// Next.js Imports
+import { useRouter } from 'next/navigation'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -15,50 +16,17 @@ import SendInvoiceDrawer from '@/views/billing/shared/SendInvoiceDrawer'
 import AddPaymentDrawer from '@/views/billing/shared/AddPaymentDrawer'
 import AddInvoiceDialog from '@/views/billing/AddInvoiceDialog'
 
-type InvoiceData = {
-  id: number
-  invoiceNumber: string
-  tenantName: string
-  tenantEmail: string
-  tenantAvatar?: string
-  propertyName: string
-  unitName: string
-  amount: string
-  issuedDate: string
-  dueDate: string
-  status: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
-  balance: string
-  invoiceMonth?: string
-  invoiceType?: string
-  description?: string
-  invoiceItems?: Array<{
-    id: number
-    description: string
-    quantity: number
-    price: number
-  }>
-}
+// API Imports
+import type { Invoice } from '@/lib/api/invoices'
 
 type Props = {
   invoiceId: string
-  invoiceData?: InvoiceData
-  properties?: Array<{ id: number | string; name: string }>
-  units?: Array<{ id: number | string; unitNumber: string; propertyId: string; propertyName: string }>
-  tenants?: Array<{ id: number; name: string; email: string; roomNo: string; propertyName: string; avatar?: string }>
-  invoicesData?: InvoiceData[]
-  setData?: Dispatch<SetStateAction<InvoiceData[]>>
+  invoiceData?: Invoice
+  onPaymentRecorded?: () => void
 }
 
-
-const ViewInvoiceActions = ({
-  invoiceId: _invoiceId,
-  invoiceData,
-  properties = [],
-  units = [],
-  tenants = [],
-  invoicesData = [],
-  setData
-}: Props) => {
+const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecorded }: Props) => {
+  const router = useRouter()
   // States
   const [sendDrawerOpen, setSendDrawerOpen] = useState(false)
   const [paymentDrawerOpen, setPaymentDrawerOpen] = useState(false)
@@ -121,20 +89,6 @@ const ViewInvoiceActions = ({
           flex: 1;
           min-width: 250px;
           text-align: right;
-        }
-        .logo-section {
-          margin-bottom: 24px;
-        }
-        .logo-section img {
-          max-width: 150px;
-          height: auto;
-        }
-        .address-section {
-          color: #262b43;
-        }
-        .address-section p {
-          margin: 4px 0;
-          font-size: 14px;
         }
         .invoice-title {
           font-size: 24px;
@@ -315,16 +269,6 @@ const ViewInvoiceActions = ({
           font-weight: 600;
           margin-right: 8px;
         }
-        .footer-section {
-          margin-top: 32px;
-          padding-top: 16px;
-          border-top: 2px dashed #e0e0e0;
-        }
-        .footer-section p {
-          font-size: 12px;
-          color: #6c757d;
-          text-align: center;
-        }
         @media print {
           body {
             padding: 20px;
@@ -338,7 +282,7 @@ const ViewInvoiceActions = ({
 
     // Build the HTML content
     const subtotal = invoiceData.invoiceItems?.reduce((sum, item) => sum + item.quantity * item.price, 0) || 0
-    const total = subtotal
+    const total = invoiceData.amount ?? subtotal
 
     const formatDate = (dateString: string): string => {
       const date = new Date(dateString)
@@ -346,11 +290,12 @@ const ViewInvoiceActions = ({
       const month = String(date.getMonth() + 1).padStart(2, '0')
       const year = date.getFullYear()
 
-      
-return `${day}/${month}/${year}`
+      return `${day}/${month}/${year}`
     }
 
-    const tenantInitials = invoiceData.tenantName
+    const formatAmt = (n: number | undefined | null) => `₵${(n ?? 0).toFixed(2)}`
+
+    const occupantInitials = invoiceData.occupantName
       ?.split(' ')
       .map(n => n[0])
       .join('')
@@ -362,7 +307,7 @@ return `${day}/${month}/${year}`
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>Invoice ${invoiceData.invoiceNumber}</title>
+          <title>Invoice ${invoiceData.invoiceNumber || _invoiceId}</title>
           ${styles}
         </head>
         <body>
@@ -371,21 +316,14 @@ return `${day}/${month}/${year}`
             <div class="invoice-header">
               <div class="header-content">
                 <div class="header-left">
-                  <div class="logo-section">
-                    <h1 style="font-size: 24px; font-weight: 600; color: #262b43;">Your Company</h1>
-                  </div>
-                  <div class="address-section">
-                    <p>Office 149, 450 South Brand Brooklyn</p>
-                    <p>San Diego County, CA 91905, USA</p>
-                    <p>+1 (123) 456 7891, +44 (876) 543 2198</p>
-                  </div>
                 </div>
                 <div class="header-right">
-                  <div class="invoice-title">Invoice #${invoiceData.invoiceNumber}</div>
+                  <div class="invoice-title">Invoice #${invoiceData.invoiceNumber || _invoiceId}</div>
                   <div class="invoice-details">
                     <p>Date Issued: ${formatDate(invoiceData.issuedDate)}</p>
                     <p>Date Due: ${formatDate(invoiceData.dueDate)}</p>
                     ${invoiceData.invoiceMonth ? `<p>Invoice Month: ${invoiceData.invoiceMonth}</p>` : ''}
+
                   </div>
                 </div>
               </div>
@@ -396,15 +334,15 @@ return `${day}/${month}/${year}`
               <div class="invoice-to">
                 <div class="section-title">Invoice To:</div>
                 <div class="tenant-info">
-                  ${invoiceData.tenantAvatar ? `<img src="${invoiceData.tenantAvatar}" alt="${invoiceData.tenantName}" class="tenant-avatar" />` : `<div class="tenant-initials">${tenantInitials}</div>`}
+                  <div class="tenant-initials">${occupantInitials}</div>
                   <div class="tenant-details">
-                    <div class="tenant-name">${invoiceData.tenantName}</div>
-                    <div class="tenant-email">${invoiceData.tenantEmail}</div>
+                    <div class="tenant-name">${invoiceData.occupantName || '—'}</div>
+                    <div class="tenant-email">${invoiceData.occupantEmail || '—'}</div>
                   </div>
                 </div>
                 <div class="property-info">
-                  <p>${invoiceData.propertyName}</p>
-                  <p>${invoiceData.unitName}</p>
+                  <p>${invoiceData.propertyName || ''}</p>
+                  ${invoiceData.unitNo ? `<p>Unit ${invoiceData.unitNo}</p>` : ''}
                 </div>
               </div>
               <div class="bill-to">
@@ -412,15 +350,15 @@ return `${day}/${month}/${year}`
                 <div class="bill-to-details">
                   <div class="bill-to-row">
                     <span class="bill-to-label">Total Due:</span>
-                    <span class="bill-to-value">${invoiceData.amount}</span>
+                    <span class="bill-to-value">${formatAmt(invoiceData.amount)}</span>
                   </div>
                   <div class="bill-to-row">
                     <span class="bill-to-label">Balance:</span>
-                    <span class="bill-to-value">${invoiceData.balance}</span>
+                    <span class="bill-to-value">${formatAmt(invoiceData.balance)}</span>
                   </div>
                   <div class="bill-to-row">
                     <span class="bill-to-label">Status:</span>
-                    <span class="bill-to-value" style="text-transform: capitalize;">${invoiceData.status}</span>
+                    <span class="bill-to-value" style="text-transform: capitalize;">${invoiceData.status?.toLowerCase() || ''}</span>
                   </div>
                   ${invoiceData.invoiceType ? `
                   <div class="bill-to-row">
@@ -473,19 +411,15 @@ return `
               <div class="summary-right">
                 <div class="summary-row">
                   <span class="summary-label">Subtotal:</span>
-                  <span class="summary-value">₵${subtotal.toFixed(2)}</span>
+                  <span class="summary-value">&#8373;${subtotal.toFixed(2)}</span>
                 </div>
                 <div class="summary-total">
                   <span class="summary-total-label">Total:</span>
-                  <span class="summary-total-value">₵${total.toFixed(2)}</span>
+                  <span class="summary-total-value">&#8373;${(typeof total === 'number' ? total : subtotal).toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
-            <!-- Footer -->
-            <div class="footer-section">
-              <p>Thank you for your business!</p>
-            </div>
           </div>
         </body>
       </html>
@@ -567,9 +501,9 @@ return `
           invoiceData
             ? {
                 invoiceNumber: invoiceData.invoiceNumber,
-                tenantEmail: invoiceData.tenantEmail,
-                tenantName: invoiceData.tenantName,
-                amount: invoiceData.amount,
+                tenantEmail: invoiceData.occupantEmail ?? '',
+                tenantName: invoiceData.occupantName ?? '',
+                amount: `₵${(invoiceData.amount ?? 0).toFixed(2)}`,
                 dueDate: invoiceData.dueDate
               }
             : undefined
@@ -580,50 +514,31 @@ return `
       <AddPaymentDrawer
         open={paymentDrawerOpen}
         handleClose={() => setPaymentDrawerOpen(false)}
+        onPaymentRecorded={onPaymentRecorded}
         invoiceData={
           invoiceData
             ? {
-                balance: invoiceData.balance,
-                amount: invoiceData.amount,
-                invoiceNumber: invoiceData.invoiceNumber
+                id: invoiceData.id,
+                balance: `₵${(invoiceData.balance ?? 0).toFixed(2)}`,
+                amount: `₵${(invoiceData.amount ?? 0).toFixed(2)}`,
+                invoiceNumber: invoiceData.invoiceNumber,
+                occupantId: invoiceData.occupantId ?? undefined,
+                occupantName: invoiceData.occupantName ?? undefined
               }
             : undefined
         }
       />
 
       {/* Edit Invoice Dialog */}
-      {setData && (
-        <AddInvoiceDialog
-          open={editDialogOpen}
-          handleClose={() => setEditDialogOpen(false)}
-          properties={properties}
-          units={units}
-          tenants={tenants}
-          invoicesData={invoicesData}
-          setData={setData}
-          mode='edit'
-          editData={
-            invoiceData
-              ? {
-                  id: invoiceData.id,
-                  invoiceNumber: invoiceData.invoiceNumber,
-                  tenantName: invoiceData.tenantName,
-                  tenantEmail: invoiceData.tenantEmail,
-                  propertyName: invoiceData.propertyName,
-                  unitName: invoiceData.unitName,
-                  amount: invoiceData.amount,
-                  issuedDate: invoiceData.issuedDate,
-                  dueDate: invoiceData.dueDate,
-                  status: invoiceData.status,
-                  balance: invoiceData.balance,
-                  invoiceMonth: invoiceData.invoiceMonth,
-                  invoiceType: invoiceData.invoiceType,
-                  description: invoiceData.description
-                }
-              : null
-          }
-        />
-      )}
+      <AddInvoiceDialog
+        open={editDialogOpen}
+        handleClose={() => setEditDialogOpen(false)}
+        editInvoice={invoiceData ?? null}
+        onSaved={() => {
+          setEditDialogOpen(false)
+          router.refresh()
+        }}
+      />
     </>
   )
 }

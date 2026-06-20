@@ -11,14 +11,16 @@ import Divider from '@mui/material/Divider'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import Avatar from '@mui/material/Avatar'
-import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import TablePagination from '@mui/material/TablePagination'
+import Skeleton from '@mui/material/Skeleton'
+import Alert from '@mui/material/Alert'
+import IconButton from '@mui/material/IconButton'
+import Checkbox from '@mui/material/Checkbox'
 import type { TextFieldProps } from '@mui/material/TextField'
 
 // Third-party Imports
@@ -36,11 +38,14 @@ import {
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
+// API Imports
+import { getExpenses, getExpenseStats, deleteExpense, type ExpenseStats } from '@/lib/api/expenses'
+
 // Type Imports
 import type { ExpenseType } from '@/types/expenses/expenseTypes'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import ExpenseStatsCard from './ExpenseStatsCard'
 import AddExpenseDrawer from './AddExpenseDrawer'
@@ -58,16 +63,14 @@ declare module '@tanstack/table-core' {
   }
 }
 
-type ExpenseTypeWithAction = ExpenseType & {
-  action?: string
-}
+type ExpenseTypeWithAction = ExpenseType & { action?: string }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -98,363 +101,125 @@ const DebouncedInput = ({
   return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
 }
 
-// Format date helper
 const formatDate = (dateString: string) => {
+  if (!dateString) return '-'
   const date = new Date(dateString)
-  const day = date.getDate()
-  const month = date.toLocaleString('en-US', { month: 'long' })
-  const year = date.getFullYear()
 
-  
-return `${day} ${month} ${year}`
+  return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
 }
 
-// Sample data with property, unit, and responsibility
-const sampleExpenses: ExpenseType[] = [
-  {
-    id: 1,
-    item: 'Electricity water gas',
-    amount: 800.0,
-    date: '2024-06-15',
-    comment: 'Monthly utility bill',
-    propertyName: 'A living room with mexican mansion blue',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 3',
-    responsibility: 'Tenant',
-    status: 'unpaid'
-  },
-  {
-    id: 2,
-    item: 'Plumbing repairs',
-    amount: 200.0,
-    date: '2024-05-20',
-    comment: 'Fixed leaky faucet',
-    propertyName: 'Rendering of a modern villa',
-    propertyImage:
-      'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 6',
-    responsibility: 'Owner',
-    status: 'paid'
-  },
-  {
-    id: 3,
-    item: 'Legal/professional fees',
-    amount: 150.0,
-    date: '2024-06-10',
-    comment: 'Legal consultation',
-    propertyName: 'Beautiful modern style luxury home exterior sunset',
-    propertyImage:
-      'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 2',
-    responsibility: 'Owner',
-    status: 'paid'
-  },
-  {
-    id: 4,
-    item: 'Property management',
-    amount: 350.0,
-    date: '2024-08-15',
-    comment: 'Monthly management fee',
-    propertyName: 'A house with a lot of windows and a lot of plants',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 4',
-    responsibility: 'Owner',
-    status: 'pending'
-  },
-  {
-    id: 5,
-    item: 'Appraisal fees',
-    amount: 410.0,
-    date: '2024-05-05',
-    comment: 'Property appraisal',
-    propertyName: 'Design of a modern house as mansion blue couch',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 1',
-    responsibility: 'Owner',
-    status: 'paid'
-  },
-  {
-    id: 6,
-    item: 'Depreciation expense',
-    amount: 188.0,
-    date: '2024-07-01',
-    comment: 'Monthly depreciation',
-    propertyName: 'Depending on the location and design',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 8',
-    responsibility: 'Owner',
-    status: 'unpaid'
-  },
-  {
-    id: 7,
-    item: 'Window repairs',
-    amount: 600.0,
-    date: '2024-06-25',
-    comment: 'Fixed broken window',
-    propertyName: 'A living room with mexican mansion blue',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 9',
-    responsibility: 'Owner',
-    status: 'paid'
-  },
-  {
-    id: 8,
-    item: 'Pest control',
-    amount: 411.0,
-    date: '2024-08-20',
-    comment: 'Monthly pest control service',
-    propertyName: 'Rendering of a modern villa',
-    propertyImage:
-      'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 5',
-    responsibility: 'Owner',
-    status: 'pending'
-  },
-  {
-    id: 9,
-    item: 'Maintenance',
-    amount: 209.0,
-    date: '2024-05-30',
-    comment: 'General maintenance',
-    propertyName: 'Beautiful modern style luxury home exterior sunset',
-    propertyImage:
-      'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 7',
-    responsibility: 'Owner',
-    status: 'paid'
-  },
-  {
-    id: 10,
-    item: 'Cleaning services',
-    amount: 388.0,
-    date: '2024-07-05',
-    comment: 'Monthly cleaning',
-    propertyName: 'A house with a lot of windows and a lot of plants',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?q=80&w=2053&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 10',
-    responsibility: 'Tenant',
-    status: 'unpaid'
-  },
-  {
-    id: 11,
-    item: 'Insurance',
-    amount: 500.0,
-    date: '2024-09-01',
-    comment: 'Property insurance',
-    propertyName: 'Design of a modern house as mansion blue couch',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 11',
-    responsibility: 'Owner',
-    status: 'pending'
-  },
-  {
-    id: 12,
-    item: 'Taxes',
-    amount: 300.0,
-    date: '2024-04-15',
-    comment: 'Property taxes',
-    propertyName: 'Depending on the location and design',
-    propertyImage:
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0',
-    unitNo: 'Unit no 12',
-    responsibility: 'Owner',
-    status: 'unpaid'
-  }
-]
+const statusChipColor: Record<string, 'success' | 'error' | 'warning'> = {
+  PAID: 'success',
+  UNPAID: 'error',
+  PENDING: 'warning'
+}
 
-// Sample properties and units for edit data mapping
-const sampleProperties = [
-  { id: 1, name: 'A living room with mexican mansion blue' },
-  { id: 2, name: 'Rendering of a modern villa' },
-  { id: 3, name: 'Beautiful modern style luxury home exterior sunset' },
-  { id: 4, name: 'A house with a lot of windows and a lot of plants' },
-  { id: 5, name: 'Design of a modern house as mansion blue couch' },
-  { id: 6, name: 'Depending on the location and design' }
-]
-
-const sampleUnits = [
-  { id: 1, unitNumber: 'Unit no 1', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
-  {
-    id: 2,
-    unitNumber: 'Unit no 2',
-    propertyId: '3',
-    propertyName: 'Beautiful modern style luxury home exterior sunset'
-  },
-  { id: 3, unitNumber: 'Unit no 3', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
-  {
-    id: 4,
-    unitNumber: 'Unit no 4',
-    propertyId: '4',
-    propertyName: 'A house with a lot of windows and a lot of plants'
-  },
-  { id: 5, unitNumber: 'Unit no 5', propertyId: '2', propertyName: 'Rendering of a modern villa' },
-  { id: 6, unitNumber: 'Unit no 6', propertyId: '2', propertyName: 'Rendering of a modern villa' },
-  {
-    id: 7,
-    unitNumber: 'Unit no 7',
-    propertyId: '3',
-    propertyName: 'Beautiful modern style luxury home exterior sunset'
-  },
-  { id: 8, unitNumber: 'Unit no 8', propertyId: '6', propertyName: 'Depending on the location and design' },
-  { id: 9, unitNumber: 'Unit no 9', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
-  {
-    id: 10,
-    unitNumber: 'Unit no 10',
-    propertyId: '4',
-    propertyName: 'A house with a lot of windows and a lot of plants'
-  },
-  { id: 11, unitNumber: 'Unit no 11', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
-  { id: 12, unitNumber: 'Unit no 12', propertyId: '6', propertyName: 'Depending on the location and design' }
-]
-
-const ExpensesListTable = ({ tableData }: { tableData?: ExpenseType[] }) => {
-  // States
+const ExpensesListTable = () => {
   const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(tableData || sampleExpenses)
-  const [filteredData, setFilteredData] = useState(data)
+  const [data, setData] = useState<ExpenseType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
-  const [addExpenseOpen, setAddExpenseOpen] = useState(false)
-  const [selectedProperty, setSelectedProperty] = useState<string>('')
-  const [selectedUnit, setSelectedUnit] = useState<string>('')
-  const [deleteExpenseOpen, setDeleteExpenseOpen] = useState(false)
-  const [selectedExpense, setSelectedExpense] = useState<ExpenseType | null>(null)
-  const [editExpenseOpen, setEditExpenseOpen] = useState(false)
-  const [selectedExpenseForEdit, setSelectedExpenseForEdit] = useState<ExpenseType | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<ExpenseStats | null>(null)
 
-  // Get unique properties and units
-  const uniqueProperties = useMemo(() => {
-    const props = Array.from(new Set(data.map(e => e.propertyName).filter(Boolean)))
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('')
 
-    
-return props as string[]
-  }, [data])
+  // Add / Edit
+  const [addOpen, setAddOpen] = useState(false)
+  const [editExpense, setEditExpense] = useState<ExpenseType | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
 
-  const uniqueUnits = useMemo(() => {
-    const units = Array.from(new Set(data.map(e => e.unitNo).filter(Boolean)))
+  // Delete
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [toDelete, setToDelete] = useState<ExpenseType | null>(null)
 
-    
-return units as string[]
-  }, [data])
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [expenses, expStats] = await Promise.all([
+        getExpenses(statusFilter ? { status: statusFilter } : {}),
+        getExpenseStats()
+      ])
 
-  // Filter data
+      setData(expenses.map(e => ({
+        id: e.id,
+        item: e.item,
+        amount: e.amount,
+        date: e.date,
+        description: e.description,
+        propertyId: e.propertyId,
+        propertyName: e.propertyName,
+        unitId: e.unitId,
+        unitNo: e.unitNo,
+        expenseConfigId: e.expenseConfigId,
+        responsibility: e.responsibility,
+        status: e.status,
+        currency: e.currency,
+        imageUrl: e.imageUrl,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt
+      })))
+      setStats(expStats)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to load expenses')
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter])
+
   useEffect(() => {
-    let filtered = data
+    fetchData()
+  }, [fetchData])
 
-    if (globalFilter) {
-      filtered = filtered.filter(
-        expense =>
-          expense.item?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-          expense.propertyName?.toLowerCase().includes(globalFilter.toLowerCase()) ||
-          expense.unitNo?.toLowerCase().includes(globalFilter.toLowerCase())
-      )
+  const handleSaved = useCallback((saved: ExpenseType) => {
+    setData(prev => {
+      const idx = prev.findIndex(e => e.id === saved.id)
+
+      if (idx >= 0) {
+        const updated = [...prev]
+
+        updated[idx] = saved
+
+        return updated
+      }
+
+      return [saved, ...prev]
+    })
+    // Refresh stats
+    getExpenseStats().then(setStats).catch(() => {})
+  }, [])
+
+  const handleDeleteConfirm = async () => {
+    if (!toDelete) return
+    try {
+      await deleteExpense(toDelete.id)
+      setData(prev => prev.filter(e => e.id !== toDelete.id))
+      setDeleteOpen(false)
+      setToDelete(null)
+      getExpenseStats().then(setStats).catch(() => {})
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to delete expense')
     }
+  }
 
-    if (selectedProperty) {
-      filtered = filtered.filter(expense => expense.propertyName === selectedProperty)
-    }
+  // Derive unique properties from data for filter dropdown
+  const uniquePropertyIds = useMemo(() => {
+    const seen = new Set<string>()
+    const result: { id: string; name: string }[] = []
 
-    if (selectedUnit) {
-      filtered = filtered.filter(expense => expense.unitNo === selectedUnit)
-    }
-
-    setFilteredData(filtered)
-  }, [data, globalFilter, selectedProperty, selectedUnit])
-
-  // Calculate expense statistics
-  const expenseStats = useMemo(() => {
-    const today = new Date()
-
-    today.setHours(0, 0, 0, 0)
-
-    let total = 0
-    let upcoming = 0
-    let unfulfilled = 0
-    let paid = 0
-
-    filteredData.forEach(expense => {
-      const expenseDate = new Date(expense.date)
-
-      expenseDate.setHours(0, 0, 0, 0)
-      const amount = expense.amount
-
-      total += amount
-
-      // Check status first if available
-      if (expense.status === 'paid') {
-        paid += amount
-      } else if (expense.status === 'unpaid' || expense.status === 'pending') {
-        if (expenseDate > today) {
-          // Upcoming expenses (future dates)
-          upcoming += amount
-        } else {
-          // Unfulfilled expenses (past or today's dates - overdue/debt)
-          unfulfilled += amount
-        }
-      } else {
-        // No status field - use date-based logic
-        if (expenseDate > today) {
-          // Upcoming expenses (future dates)
-          upcoming += amount
-        } else if (expenseDate < today) {
-          // Unfulfilled expenses (past dates - overdue/debt)
-          unfulfilled += amount
-        } else {
-          // Today's expenses - consider as unpaid for now
-          unfulfilled += amount
-        }
+    data.forEach(e => {
+      if (e.propertyId && !seen.has(e.propertyId)) {
+        seen.add(e.propertyId)
+        result.push({ id: e.propertyId, name: e.propertyName ?? e.propertyId })
       }
     })
 
-    return { total, upcoming, unfulfilled, paid }
-  }, [filteredData])
-
-  // Handle delete expense
-  const handleDeleteExpense = (expenseId: number) => {
-    setData(data.filter(expense => expense.id !== expenseId))
-    setDeleteExpenseOpen(false)
-    setSelectedExpense(null)
-  }
-
-  // Get expense edit data
-  const getExpenseEditData = useCallback((expense: ExpenseType | null) => {
-    if (!expense) return null
-
-    // Find property and unit IDs from names
-    const property = sampleProperties.find(p => p.name === expense.propertyName)
-    const unit = sampleUnits.find(u => u.unitNumber === expense.unitNo)
-
-    return {
-      id: expense.id,
-      expenseName: expense.item,
-      propertyId: property?.id.toString() || '',
-      unitId: unit?.id.toString() || '',
-      date: expense.date,
-      responsibility: expense.responsibility || '',
-      amount: expense.amount.toString(),
-      image: expense.propertyImage || '',
-      description: expense.comment
-    }
-  }, [])
+    return result
+  }, [data])
 
   const columnHelper = createColumnHelper<ExpenseTypeWithAction>()
-
-  // Status color mapping
-  const expenseStatusObj: {
-    [key: string]: {
-      color: 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'
-    }
-  } = {
-    paid: { color: 'success' },
-    unpaid: { color: 'error' },
-    pending: { color: 'warning' }
-  }
 
   const columns = useMemo<ColumnDef<ExpenseTypeWithAction, any>[]>(
     () => [
@@ -483,8 +248,7 @@ return units as string[]
           const pageIndex = table.getState().pagination.pageIndex
           const pageSize = table.getState().pagination.pageSize
 
-          
-return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+          return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
         }
       }),
       columnHelper.accessor('item', {
@@ -495,27 +259,21 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
           </Typography>
         )
       }),
-      columnHelper.accessor('propertyName', {
+      columnHelper.accessor('propertyId', {
         header: 'Property',
         cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <Avatar
-              variant='rounded'
-              src={row.original.propertyImage}
-              alt={row.original.propertyName}
-              sx={{ width: 40, height: 40 }}
-            >
-              {row.original.propertyName?.[0]?.toUpperCase() || 'P'}
-            </Avatar>
-            <Typography color='text.primary' className='font-medium max-w-[200px] truncate'>
-              {row.original.propertyName || '-'}
-            </Typography>
-          </div>
+          <Typography color='text.primary' className='max-w-[180px] truncate'>
+            {row.original.propertyName ?? row.original.propertyId ?? '-'}
+          </Typography>
         )
       }),
-      columnHelper.accessor('unitNo', {
-        header: 'Unit No',
-        cell: ({ row }) => <Typography color='text.primary'>{row.original.unitNo || '-'}</Typography>
+      columnHelper.accessor('unitId', {
+        header: 'Unit',
+        cell: ({ row }) => (
+          <Typography color='text.primary'>
+            {row.original.unitNo ?? row.original.unitId ?? '-'}
+          </Typography>
+        )
       }),
       columnHelper.accessor('date', {
         header: 'Date',
@@ -531,22 +289,33 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
       }),
       columnHelper.accessor('responsibility', {
         header: 'Responsibility',
-        cell: ({ row }) => <Typography color='text.primary'>{row.original.responsibility || '-'}</Typography>
+        cell: ({ row }) => (
+          <Typography color='text.primary' className='capitalize'>
+            {row.original.responsibility ? row.original.responsibility.toLowerCase() : '-'}
+          </Typography>
+        )
       }),
       columnHelper.accessor('status', {
         header: 'Status',
         cell: ({ row }) => {
-          const status = row.original.status || 'pending'
-          const statusConfig = expenseStatusObj[status] || { color: 'secondary' }
+          const status = row.original.status ?? 'PENDING'
 
-          return <Chip variant='tonal' label={status} size='small' color={statusConfig.color} className='capitalize' />
+          return (
+            <Chip
+              variant='tonal'
+              label={status.toLowerCase()}
+              size='small'
+              color={statusChipColor[status] ?? 'default'}
+              className='capitalize'
+            />
+          )
         }
       }),
       columnHelper.display({
         id: 'action',
         header: 'Action',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -554,8 +323,8 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
                 icon: 'ri-pencil-line',
                 menuItemProps: {
                   onClick: () => {
-                    setSelectedExpenseForEdit(row.original)
-                    setEditExpenseOpen(true)
+                    setEditExpense(row.original)
+                    setEditOpen(true)
                   }
                 }
               },
@@ -564,8 +333,8 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
                 icon: 'ri-delete-bin-line',
                 menuItemProps: {
                   onClick: () => {
-                    setSelectedExpense(row.original)
-                    setDeleteExpenseOpen(true)
+                    setToDelete(row.original)
+                    setDeleteOpen(true)
                   }
                 }
               }
@@ -580,20 +349,11 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
   )
 
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
+    filterFns: { fuzzy: fuzzyFilter },
+    state: { rowSelection, globalFilter },
+    initialState: { pagination: { pageSize: 10 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -611,12 +371,15 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
         description='View and manage all expenses for your properties'
         icon='ri-money-dollar-circle-line'
       />
+
+      {/* Stats Card */}
       <ExpenseStatsCard
-        totalExpenses={expenseStats.total}
-        upcomingExpenses={expenseStats.upcoming}
-        unfulfilledExpenses={expenseStats.unfulfilled}
-        paidExpenses={expenseStats.paid}
+        totalExpenses={stats?.totalAmount ?? 0}
+        upcomingExpenses={0}
+        unfulfilledExpenses={stats?.unpaidAmount ?? 0}
+        paidExpenses={stats?.paidAmount ?? 0}
       />
+
       <Card className='mbs-6'>
         <CardHeader
           title='Expenses List'
@@ -625,44 +388,40 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
               <Button
                 variant='contained'
                 color='primary'
-                onClick={() => setAddExpenseOpen(true)}
+                onClick={() => setAddOpen(true)}
                 startIcon={<i className='ri-add-line' />}
               >
                 Add Expenses
               </Button>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <IconButton size='small' title='Refresh' onClick={fetchData} disabled={loading}>
+                <i className={classnames('ri-refresh-line', { 'animate-spin': loading })} />
+              </IconButton>
+              <RowActions options={['Share']} />
             </div>
           }
         />
         <Divider />
         <CardContent className='flex flex-col gap-4'>
+          {error && (
+            <Alert severity='error' onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+
           {/* Filters */}
           <div className='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
             <div className='flex flex-wrap gap-4 items-center'>
-              <FormControl size='small' sx={{ minWidth: 180 }}>
-                <InputLabel>Select Property</InputLabel>
-                <Select
-                  value={selectedProperty}
-                  onChange={e => setSelectedProperty(e.target.value)}
-                  label='Select Property'
-                >
-                  <MenuItem value=''>All Properties</MenuItem>
-                  {uniqueProperties.map(prop => (
-                    <MenuItem key={prop} value={prop}>
-                      {prop}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
               <FormControl size='small' sx={{ minWidth: 150 }}>
-                <InputLabel>Select Unit No</InputLabel>
-                <Select value={selectedUnit} onChange={e => setSelectedUnit(e.target.value)} label='Select Unit No'>
-                  <MenuItem value=''>All Units</MenuItem>
-                  {uniqueUnits.map(unit => (
-                    <MenuItem key={unit} value={unit}>
-                      {unit}
-                    </MenuItem>
-                  ))}
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  label='Status'
+                >
+                  <MenuItem value=''>All Statuses</MenuItem>
+                  <MenuItem value='PAID'>Paid</MenuItem>
+                  <MenuItem value='UNPAID'>Unpaid</MenuItem>
+                  <MenuItem value='PENDING'>Pending</MenuItem>
                 </Select>
               </FormControl>
             </div>
@@ -702,25 +461,35 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
                   </tr>
                 ))}
               </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
+              {loading ? (
+                <tbody>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 10 }).map((__, j) => (
+                        <td key={j}>
+                          <Skeleton variant='text' />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              ) : table.getFilteredRowModel().rows.length === 0 ? (
                 <tbody>
                   <tr>
                     <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
+                      No expenses found
                     </td>
                   </tr>
                 </tbody>
               ) : (
                 <tbody>
-                  {table.getRowModel().rows.map(row => {
-                    return (
-                      <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                        {row.getVisibleCells().map(cell => (
-                          <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                        ))}
-                      </tr>
-                    )
-                  })}
+                  {table.getRowModel().rows.map(row => (
+                    <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               )}
             </table>
@@ -732,48 +501,37 @@ return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
             count={table.getFilteredRowModel().rows.length}
             rowsPerPage={table.getState().pagination.pageSize}
             page={table.getState().pagination.pageIndex}
-            SelectProps={{
-              inputProps: { 'aria-label': 'rows per page' }
-            }}
-            onPageChange={(_, page) => {
-              table.setPageIndex(page)
-            }}
+            SelectProps={{ inputProps: { 'aria-label': 'rows per page' } }}
+            onPageChange={(_, page) => table.setPageIndex(page)}
             onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
           />
         </CardContent>
       </Card>
-      {/* Add Expense Dialog */}
+
+      {/* Add Expense */}
       <AddExpenseDrawer
-        open={addExpenseOpen}
-        handleClose={() => setAddExpenseOpen(false)}
-        expenseData={data}
-        setData={setData}
-        mode='add'
+        open={addOpen}
+        handleClose={() => setAddOpen(false)}
+        onSaved={handleSaved}
       />
 
-      {/* Edit Expense Dialog */}
+      {/* Edit Expense */}
       <AddExpenseDrawer
-        open={editExpenseOpen}
+        open={editOpen}
         handleClose={() => {
-          setEditExpenseOpen(false)
-          setSelectedExpenseForEdit(null)
+          setEditOpen(false)
+          setEditExpense(null)
         }}
-        expenseData={data}
-        setData={setData}
-        editData={getExpenseEditData(selectedExpenseForEdit)}
-        mode='edit'
+        editExpense={editExpense}
+        onSaved={handleSaved}
       />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <ConfirmationDialog
-        open={deleteExpenseOpen}
-        setOpen={setDeleteExpenseOpen}
+        open={deleteOpen}
+        setOpen={setDeleteOpen}
         type='delete-expense'
-        onConfirm={() => {
-          if (selectedExpense) {
-            handleDeleteExpense(selectedExpense.id)
-          }
-        }}
+        onConfirm={handleDeleteConfirm}
       />
     </>
   )

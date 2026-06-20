@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Button from '@mui/material/Button'
@@ -15,6 +15,17 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid2'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
+import Switch from '@mui/material/Switch'
+import FormControlLabel from '@mui/material/FormControlLabel'
+
+// API Imports
+import {
+  createExpenseConfig,
+  updateExpenseConfig,
+  type ExpenseConfig
+} from '@/lib/api/expenses'
 
 // Type Imports
 import type { ExpenseConfigType } from '@/types/expenses/expenseConfigTypes'
@@ -22,80 +33,112 @@ import type { ExpenseConfigType } from '@/types/expenses/expenseConfigTypes'
 type Props = {
   open: boolean
   handleClose: () => void
-  expenseConfigData?: ExpenseConfigType[]
-  setData: (data: ExpenseConfigType[]) => void
+  editConfig?: ExpenseConfigType | null
+  onSaved: (config: ExpenseConfigType) => void
 }
 
-type FormValidateType = {
+type FormData = {
   item: string
   category: string
+  isActive: boolean
 }
 
-// Vars
-const initialData: FormValidateType = {
+const initialData: FormData = {
   item: '',
-  category: ''
+  category: '',
+  isActive: true
 }
 
-// Sample categories for dropdown
-const expenseCategories = ['Administrative', 'Occupancy']
+const expenseCategories = [
+  { label: 'Administrative', value: 'ADMINISTRATIVE' },
+  { label: 'Occupancy',      value: 'OCCUPANCY' },
+  { label: 'Maintenance',    value: 'MAINTENANCE' },
+  { label: 'Utilities',      value: 'UTILITIES' },
+  { label: 'Other',          value: 'OTHER' }
+]
 
-const AddExpenseConfigDrawer = (props: Props) => {
-  // Props
-  const { open, handleClose, expenseConfigData, setData } = props
+const AddExpenseConfigDrawer = ({ open, handleClose, editConfig, onSaved }: Props) => {
+  const [formData, setFormData] = useState<FormData>(initialData)
+  const [errors, setErrors] = useState<Partial<Record<keyof FormData, boolean>>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
-  // States
-  const [formData, setFormData] = useState<FormValidateType>(initialData)
-  const [errors, setErrors] = useState<Partial<Record<keyof FormValidateType, boolean>>>({})
+  const isEdit = Boolean(editConfig)
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormValidateType, boolean>> = {}
-    const requiredFields: (keyof FormValidateType)[] = ['item']
-
-    requiredFields.forEach(field => {
-      if (!formData[field] || formData[field].trim() === '') {
-        newErrors[field] = true
+  useEffect(() => {
+    if (open) {
+      if (editConfig) {
+        setFormData({
+          item: editConfig.item,
+          category: editConfig.category ?? '',
+          isActive: editConfig.isActive
+        })
+      } else {
+        setFormData(initialData)
       }
-    })
+      setErrors({})
+      setApiError(null)
+    }
+  }, [open, editConfig])
 
+  const validate = (): boolean => {
+    const newErrors: Partial<Record<keyof FormData, boolean>> = {}
+
+    if (!formData.item.trim()) newErrors.item = true
     setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+
+    return Object.keys(newErrors).length === 0
   }
 
-  const handleInputChange = (field: keyof FormValidateType, value: string) => {
+  const handleChange = (field: keyof FormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: false }))
-    }
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
   }
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validate()) return
 
-    if (!validateForm()) {
-      return
+    setSubmitting(true)
+    setApiError(null)
+
+    try {
+      let saved: ExpenseConfig
+
+      if (isEdit && editConfig) {
+        saved = await updateExpenseConfig(editConfig.id, {
+          item: formData.item.trim(),
+          category: formData.category || undefined,
+          isActive: formData.isActive
+        })
+      } else {
+        saved = await createExpenseConfig({
+          item: formData.item.trim(),
+          category: formData.category || undefined
+        })
+      }
+
+      onSaved({
+        id: saved.id,
+        item: saved.item,
+        category: saved.category,
+        isActive: saved.isActive,
+        createdAt: saved.createdAt,
+        updatedAt: saved.updatedAt
+      })
+      handleClose()
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Failed to save expense config')
+    } finally {
+      setSubmitting(false)
     }
-
-    const data = formData
-
-    const newExpenseConfig: ExpenseConfigType = {
-      id: (expenseConfigData?.length && expenseConfigData?.length + 1) || 1,
-      item: data.item,
-      category: data.category || ''
-    }
-
-    setData([...(expenseConfigData ?? []), newExpenseConfig])
-    handleClose()
-    setFormData(initialData)
-    setErrors({})
   }
 
   const handleReset = () => {
     handleClose()
     setFormData(initialData)
     setErrors({})
+    setApiError(null)
   }
 
   return (
@@ -108,57 +151,80 @@ return Object.keys(newErrors).length === 0
       sx={{ '& .MuiDrawer-paper': { width: { xs: '100%', sm: 500, md: 600 } } }}
     >
       <div className='flex items-center justify-between pli-5 plb-4'>
-        <Typography variant='h5'>Add Expense Item</Typography>
+        <Typography variant='h5'>{isEdit ? 'Edit Expense Item' : 'Add Expense Item'}</Typography>
         <IconButton size='small' onClick={handleReset}>
           <i className='ri-close-line text-2xl' />
         </IconButton>
       </div>
       <Divider />
       <div className='overflow-y-auto p-5' style={{ maxHeight: 'calc(100vh - 80px)' }}>
+        {apiError && (
+          <Alert severity='error' className='mbe-4'>
+            {apiError}
+          </Alert>
+        )}
         <form onSubmit={onSubmit} className='flex flex-col gap-5'>
           <Grid container spacing={4}>
-            {/* Left Column */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label='Expense Item'
-                placeholder='Expense Item'
+                label='Expense Item *'
+                placeholder='e.g. Electricity'
                 value={formData.item}
-                onChange={e => handleInputChange('item', e.target.value)}
+                onChange={e => handleChange('item', e.target.value)}
                 error={Boolean(errors.item)}
                 helperText={errors.item ? 'This field is required.' : ''}
               />
             </Grid>
 
-            {/* Right Column */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
-                <InputLabel id='category-select'>Select Category</InputLabel>
+                <InputLabel id='category-select'>Category</InputLabel>
                 <Select
-                  label='Select Category'
+                  label='Category'
                   value={formData.category}
-                  onChange={e => handleInputChange('category', e.target.value)}
+                  onChange={e => handleChange('category', e.target.value)}
                   labelId='category-select'
-                  displayEmpty
                 >
                   <MenuItem value=''>
-                    <em>Select Category</em>
+                    <em>None</em>
                   </MenuItem>
-                  {expenseCategories.map(category => (
-                    <MenuItem key={category} value={category}>
-                      {category}
+                  {expenseCategories.map(cat => (
+                    <MenuItem key={cat.value} value={cat.value}>
+                      {cat.label}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Grid>
+
+            {isEdit && (
+              <Grid size={{ xs: 12 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.isActive}
+                      onChange={e => handleChange('isActive', e.target.checked)}
+                    />
+                  }
+                  label='Active'
+                />
+              </Grid>
+            )}
           </Grid>
 
           <div className='flex items-center gap-4 mts-4'>
-            <Button variant='contained' type='submit' color='primary' fullWidth>
-              Submit
+            <Button
+              variant='contained'
+              type='submit'
+              color='primary'
+              fullWidth
+              disabled={submitting}
+              startIcon={submitting ? <CircularProgress size={16} color='inherit' /> : undefined}
+            >
+              {submitting ? 'Saving…' : 'Submit'}
             </Button>
-            <Button variant='outlined' color='error' type='reset' onClick={handleReset} fullWidth>
+            <Button variant='outlined' color='error' type='reset' onClick={handleReset} fullWidth disabled={submitting}>
               Cancel
             </Button>
           </div>

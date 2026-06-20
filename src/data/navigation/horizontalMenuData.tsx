@@ -22,18 +22,9 @@ const horizontalMenuData = (): HorizontalMenuDataType[] => [
     ]
   },
   {
-    label: 'Tenants',
-    icon: 'ri-group-line',
-    children: [
-      {
-        label: 'All Tenants',
-        href: '/tenants'
-      },
-      {
-        label: 'Tenant History',
-        href: '/tenants/history'
-      }
-    ]
+    label: 'Occupants',
+    href: '/occupants',
+    icon: 'ri-group-line'
   },
   {
     label: 'Billing Center',
@@ -47,8 +38,17 @@ const horizontalMenuData = (): HorizontalMenuDataType[] => [
   },
   {
     label: 'Expenses',
-    href: '/expenses',
-    icon: 'ri-money-dollar-circle-line'
+    icon: 'ri-money-dollar-circle-line',
+    children: [
+      {
+        label: 'All Expenses',
+        href: '/expenses'
+      },
+      {
+        label: 'Expense Config',
+        href: '/expenses/config'
+      }
+    ]
   },
   {
     label: 'Documents',
@@ -65,12 +65,20 @@ const horizontalMenuData = (): HorizontalMenuDataType[] => [
     icon: 'ri-tools-line',
     children: [
       {
+        label: 'Categories',
+        href: '/maintenance/categories'
+      },
+      {
         label: 'Maintainers',
         href: '/maintenance/maintainers'
       },
       {
         label: 'Maintenance Request',
         href: '/maintenance/requests'
+      },
+      {
+        label: 'Preventative Schedules',
+        href: '/maintenance/preventative-schedules'
       }
     ]
   },

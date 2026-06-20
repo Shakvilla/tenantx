@@ -270,8 +270,10 @@ const AddPropertyDialog = ({
 
   const [formData, setFormData] = useState<FormDataType>(getInitialFormData)
   const [existingImages, setExistingImages] = useState<string[]>(editData?.images || [])
+  const [existingImageFileIds, setExistingImageFileIds] = useState<string[]>(editData?.imageFileIds || [])
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [isSaving, setIsSaving] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
 
   // Derived location data — computed from current formData (must come after useState)
@@ -285,8 +287,10 @@ const AddPropertyDialog = ({
 
       setFormData(newFormData)
       setExistingImages(editData?.images || [])
+      setExistingImageFileIds(editData?.imageFileIds || [])
       setActiveStep(0)
       setErrors({})
+      setSubmitError(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
@@ -442,24 +446,26 @@ const AddPropertyDialog = ({
     }
 
     setIsSaving(true)
+    setSubmitError(null)
 
     try {
       // Step 1: Upload images first (if any)
       let imageUrls: string[] = [...existingImages] // Start with existing images
+      let imageFileIds: string[] = [...existingImageFileIds]
 
       if (formData.images && formData.images.length > 0) {
-        console.log('Uploading', formData.images.length, 'images...')
         const uploadResponse = await uploadPropertyImages(tenantId, formData.images)
 
         if (!uploadResponse.success || !uploadResponse.data) {
           throw new Error(uploadResponse.error?.message || 'Failed to upload images')
         }
 
-        // Add newly uploaded image URLs
+        // Add newly uploaded image URLs and fileIds
         const newUrls = uploadResponse.data.images.map(img => img.url)
+        const newFileIds = uploadResponse.data.images.map(img => img.fileId)
 
         imageUrls = [...imageUrls, ...newUrls]
-        console.log('Images uploaded:', newUrls)
+        imageFileIds = [...imageFileIds, ...newFileIds]
       }
 
       // Step 2: Transform amenities from Record<string, boolean> to string[]
@@ -493,6 +499,7 @@ const AddPropertyDialog = ({
         rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
         amenities: amenitiesArray,
         images: imageUrls,
+        imageFileIds: imageFileIds,
         thumbnailIndex: formData.thumbnailIndex ?? undefined,
 
         // Financial data
@@ -566,10 +573,7 @@ const AddPropertyDialog = ({
       setErrors({})
     } catch (error: any) {
       console.error('[PropertyDialog] Submit failed:', error?.message || error)
-      console.error('[PropertyDialog] Full error:', error)
-
-      // We could use a proper toast here, but for now just logging is safer than an alert
-      // which can block the browser subagent
+      setSubmitError(error?.message || 'Something went wrong. Check the browser console for details.')
     } finally {
       setIsSaving(false)
     }
@@ -596,20 +600,21 @@ const AddPropertyDialog = ({
     try {
       // Step 1: Upload images first (if any new images)
       let imageUrls: string[] = [...existingImages] // Start with existing images
+      let imageFileIds: string[] = [...existingImageFileIds]
 
       if (formData.images && formData.images.length > 0) {
-        console.log('Uploading', formData.images.length, 'images for draft...')
         const uploadResponse = await uploadPropertyImages(tenantId, formData.images, draftId || undefined)
 
         if (!uploadResponse.success || !uploadResponse.data) {
           throw new Error(uploadResponse.error?.message || 'Failed to upload images')
         }
 
-        // Add newly uploaded image URLs
+        // Add newly uploaded image URLs and fileIds
         const newUrls = uploadResponse.data.images.map(img => img.url)
+        const newFileIds = uploadResponse.data.images.map(img => img.fileId)
 
         imageUrls = [...imageUrls, ...newUrls]
-        console.log('Images uploaded:', newUrls)
+        imageFileIds = [...imageFileIds, ...newFileIds]
       }
 
       // Step 2: Transform amenities from Record<string, boolean> to string[]
@@ -637,6 +642,7 @@ const AddPropertyDialog = ({
         rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
+        imageFileIds: imageFileIds.length > 0 ? imageFileIds : undefined,
         thumbnailIndex: formData.thumbnailIndex ?? undefined
       }
 
@@ -690,6 +696,7 @@ const AddPropertyDialog = ({
 
     setFormData(resetData)
     setExistingImages(editData?.images || [])
+    setExistingImageFileIds(editData?.imageFileIds || [])
     setActiveStep(0)
     setErrors({})
   }
@@ -1086,10 +1093,12 @@ const AddPropertyDialog = ({
                             className='remove-button'
                             size='small'
                             onClick={() => {
-                              // Remove from existing images
+                              // Remove from existing images and their fileIds
                               const newExisting = existingImages.filter((_, i) => i !== index)
+                              const newExistingFileIds = existingImageFileIds.filter((_, i) => i !== index)
 
                               setExistingImages(newExisting)
+                              setExistingImageFileIds(newExistingFileIds)
 
                               // Adjust thumbnail index if needed
                               if (formData.thumbnailIndex === totalIndex) {
@@ -1585,6 +1594,22 @@ const AddPropertyDialog = ({
           </StepperWrapper>
           <div className='flex-1 flex flex-col gap-4'>
             {renderStepContent()}
+            {submitError && (
+              <Box
+                sx={{
+                  p: 2,
+                  mt: 1,
+                  borderRadius: 1,
+                  backgroundColor: 'var(--mui-palette-error-lightOpacity)',
+                  border: '1px solid',
+                  borderColor: 'var(--mui-palette-error-main)',
+                  color: 'var(--mui-palette-error-main)',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <strong>Upload error:</strong> {submitError}
+              </Box>
+            )}
             <div className='flex items-center justify-between gap-4 mts-4 pt-4 border-t'>
               <Button
                 variant='outlined'

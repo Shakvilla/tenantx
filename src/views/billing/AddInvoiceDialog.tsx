@@ -20,529 +20,338 @@ import Grid from '@mui/material/Grid2'
 import InputAdornment from '@mui/material/InputAdornment'
 import Divider from '@mui/material/Divider'
 import Autocomplete from '@mui/material/Autocomplete'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
+
+// API Imports
+import { createInvoice, updateInvoice, type Invoice, type InvoiceItem } from '@/lib/api/invoices'
+import { getProperties } from '@/lib/api/properties'
+import { getAllUnits } from '@/lib/api/units'
+import { getOccupants } from '@/lib/api/occupants'
+import { getStoredTenantId } from '@/lib/api/storage'
+import type { Property, Unit } from '@/types/property'
+import type { OccupantRecord } from '@/lib/api/occupants'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 
-type Property = {
-  id: number | string
-  name: string
-}
-
-type Unit = {
-  id: number | string
-  unitNumber: string
-  propertyId: string
-  propertyName: string
-}
-
-type Tenant = {
-  id: number
-  name: string
-  email: string
-  roomNo: string
-  propertyName: string
-  avatar?: string
-}
-
-type Invoice = {
-  id: number
-  invoiceNumber: string
-  tenantName: string
-  tenantEmail: string
-  tenantAvatar?: string
-  propertyName: string
-  unitName: string
-  amount: string
-  issuedDate: string
-  dueDate: string
-  status: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
-  balance: string
-}
-
-type InvoiceEditData = {
-  id?: number
-  invoiceNumber?: string
-  tenantName?: string
-  tenantEmail?: string
-  propertyName?: string
-  unitName?: string
-  amount?: string
-  issuedDate?: string
-  dueDate?: string
-  status?: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
-  balance?: string
-  invoiceMonth?: string
-  invoiceType?: string
-  description?: string
-}
-
 type Props = {
   open: boolean
   handleClose: () => void
-  properties: Property[]
-  units: Unit[]
-  tenants: Tenant[]
-  invoicesData: Invoice[]
-  setData: (data: Invoice[]) => void
-  editData?: InvoiceEditData | null
-  mode?: 'add' | 'edit'
+  editInvoice?: Invoice | null
+  onSaved: (invoice: Invoice) => void
 }
 
-type InvoiceItem = {
-  id: number
+type LocalItem = {
+  id: number   // temp local id for list key
   description: string
   quantity: number
   price: number
 }
 
-type FormDataType = {
-  invoiceNumber: string
+type FormData = {
   propertyId: string
   unitId: string
-  tenantId: string
-  invoiceMonth: string
-  endDate: string
+  occupantId: string
+  invoiceMonth: string   // MM/YYYY
+  dueDate: string        // YYYY-MM-DD
   amount: string
   invoiceType: string
-  status: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
+  status: string
   description: string
-  invoiceItems: InvoiceItem[]
+  invoiceItems: LocalItem[]
 }
 
-const initialData: FormDataType = {
-  invoiceNumber: '',
+const initialData: FormData = {
   propertyId: '',
   unitId: '',
-  tenantId: '',
+  occupantId: '',
   invoiceMonth: '',
-  endDate: '',
+  dueDate: '',
   amount: '',
   invoiceType: '',
-  status: 'draft',
+  status: 'DRAFT',
   description: '',
   invoiceItems: []
 }
 
-const AddInvoiceDialog = ({
-  open,
-  handleClose,
-  properties,
-  units,
-  tenants,
-  invoicesData,
-  setData,
-  editData,
-  mode = 'add'
-}: Props) => {
-  // States
-  const [formData, setFormData] = useState<FormDataType>(initialData)
-  const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) => {
+  const [formData, setFormData] = useState<FormData>(initialData)
+  const [errors, setErrors] = useState<Partial<Record<keyof FormData, boolean>>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
-  // Generate invoice number
-  const generateInvoiceNumber = (): string => {
-    const year = new Date().getFullYear()
+  // Reference data
+  const [properties, setProperties] = useState<Property[]>([])
+  const [units, setUnits] = useState<Unit[]>([])
+  const [occupants, setOccupants] = useState<OccupantRecord[]>([])
+  const [loadingRefs, setLoadingRefs] = useState(false)
 
-    const lastInvoice = invoicesData
-      .filter(inv => inv.invoiceNumber.startsWith(`INV-${year}-`))
-      .sort((a, b) => {
-        const numA = parseInt(a.invoiceNumber.split('-')[2] || '0')
-        const numB = parseInt(b.invoiceNumber.split('-')[2] || '0')
+  const isEdit = Boolean(editInvoice)
 
-        
-return numB - numA
-      })[0]
-
-    let nextNumber = 1
-
-    if (lastInvoice) {
-      const lastNum = parseInt(lastInvoice.invoiceNumber.split('-')[2] || '0')
-
-      nextNumber = lastNum + 1
-    }
-
-    return `INV-${year}-${String(nextNumber).padStart(3, '0')}`
-  }
-
-  // Filter units by property
-  const filteredUnits = useMemo(() => {
-    if (!formData.propertyId) return []
-    
-return units.filter(unit => unit.propertyId === formData.propertyId)
-  }, [units, formData.propertyId])
-
-  // Filter tenants by property and unit
-  const filteredTenants = useMemo(() => {
-    if (!formData.propertyId && !formData.unitId) return tenants
-
-    let filtered = tenants
-
-    if (formData.propertyId) {
-      const property = properties.find(p => p.id.toString() === formData.propertyId)
-
-      if (property) {
-        filtered = filtered.filter(t => t.propertyName === property.name)
-      }
-    }
-
-    if (formData.unitId) {
-      const unit = units.find(u => u.id.toString() === formData.unitId)
-
-      if (unit) {
-        filtered = filtered.filter(t => t.roomNo === unit.unitNumber)
-      }
-    }
-
-    return filtered
-  }, [tenants, properties, units, formData.propertyId, formData.unitId])
-
-  // Get initial form data based on mode
-  const getInitialFormData = (): FormDataType => {
-    if (mode === 'edit' && editData) {
-      // Find property, unit, and tenant from editData
-      const property = properties.find(p => p.name === editData.propertyName)
-      const unit = units.find(u => u.unitNumber === editData.unitName)
-
-      const tenant = tenants.find(
-        t => t.name === editData.tenantName && t.email === editData.tenantEmail
-      )
-
-      // Extract month from issuedDate (YYYY-MM-DD format)
-      const issuedDate = editData.issuedDate || ''
-      const invoiceMonth = issuedDate ? `${issuedDate.slice(5, 7)}/${issuedDate.slice(0, 4)}` : ''
-
-      return {
-        invoiceNumber: editData.invoiceNumber || '',
-        propertyId: property?.id.toString() || '',
-        unitId: unit?.id.toString() || '',
-        tenantId: tenant?.id.toString() || '',
-        invoiceMonth: editData.invoiceMonth || invoiceMonth,
-        endDate: editData.dueDate || '',
-        amount: editData.amount?.replace(/[₵,]/g, '') || '',
-        invoiceType: editData.invoiceType || '',
-        status: editData.status || 'draft',
-        description: editData.description || '',
-        invoiceItems: []
-      }
-    }
-
-    
-return initialData
-  }
-
-  // Reset form when dialog opens
+  // Load reference data when dialog opens
   useEffect(() => {
-    if (open) {
-      if (mode === 'add') {
-        const invoiceNumber = generateInvoiceNumber()
-        const today = new Date()
-        const invoiceMonth = `${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`
+    if (!open) return
+    const tenantId = getStoredTenantId() ?? ''
 
-        setFormData({
-          ...initialData,
-          invoiceNumber,
-          invoiceMonth,
-          endDate: today.toISOString().split('T')[0] // Today's date
-        })
-      } else {
-        const newFormData = getInitialFormData()
+    setLoadingRefs(true)
+    Promise.all([
+      getProperties(tenantId, { size: 200 }),
+      getAllUnits(tenantId, { size: 500 }),
+      getOccupants(tenantId, { size: 500 })
+    ])
+      .then(([propsRes, unitsRes, occupantsRes]) => {
+        setProperties(Array.isArray(propsRes.data) ? propsRes.data : [])
+        setUnits(Array.isArray(unitsRes.data) ? unitsRes.data : [])
+        const occ = occupantsRes.data
+        setOccupants(Array.isArray(occ) ? occ : [])
+      })
+      .catch(() => {})
+      .finally(() => setLoadingRefs(false))
+  }, [open])
 
-        setFormData(newFormData)
-      }
+  // Pre-fill form for edit mode
+  useEffect(() => {
+    if (!open) return
+    setApiError(null)
+    setErrors({})
 
-      setErrors({})
+    if (isEdit && editInvoice) {
+      const today = editInvoice.issuedDate || new Date().toISOString().split('T')[0]
+      const [year, month] = today.split('-')
+      const invoiceMonth = editInvoice.invoiceMonth || `${month}/${year}`
+
+      setFormData({
+        propertyId: editInvoice.propertyId ?? '',
+        unitId: editInvoice.unitId ?? '',
+        occupantId: editInvoice.occupantId ?? '',
+        invoiceMonth,
+        dueDate: editInvoice.dueDate ?? '',
+        amount: editInvoice.amount.toString(),
+        invoiceType: editInvoice.invoiceType ?? '',
+        status: editInvoice.status ?? 'DRAFT',
+        description: editInvoice.description ?? '',
+        invoiceItems: (editInvoice.invoiceItems ?? []).map((item, i) => ({ ...item, id: i }))
+      })
+    } else {
+      const today = new Date()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const yyyy = today.getFullYear()
+      setFormData({
+        ...initialData,
+        invoiceMonth: `${mm}/${yyyy}`,
+        dueDate: today.toISOString().split('T')[0]
+      })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editData, mode])
+  }, [open, editInvoice, isEdit])
 
-  const handleInputChange = (field: keyof FormDataType, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+  // Derived: filter units by selected property
+  const filteredUnits = useMemo(
+    () => (formData.propertyId ? units.filter(u => u.propertyId === formData.propertyId) : []),
+    [units, formData.propertyId]
+  )
 
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: false }))
-    }
+  // Derived: filter occupants by selected unit
+  const filteredOccupants = useMemo(() => {
+    if (!formData.unitId) return occupants
+    return occupants.filter(o => o.unitId === formData.unitId)
+  }, [occupants, formData.unitId])
 
-    // Reset dependent fields when property changes
-    if (field === 'propertyId') {
-      setFormData(prev => ({ ...prev, unitId: '', tenantId: '' }))
-    }
+  const calculateTotal = useMemo(
+    () => formData.invoiceItems.reduce((sum, item) => sum + item.quantity * item.price, 0),
+    [formData.invoiceItems]
+  )
 
-    if (field === 'unitId') {
-      setFormData(prev => ({ ...prev, tenantId: '' }))
-    }
+  const handleChange = (field: keyof FormData, value: string) => {
+    setFormData(prev => {
+      const next: FormData = { ...prev, [field]: value }
+      if (field === 'propertyId') { next.unitId = ''; next.occupantId = '' }
+      if (field === 'unitId') next.occupantId = ''
+      return next
+    })
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
   }
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormDataType, boolean>> = {}
-
-    if (!formData.invoiceNumber.trim()) {
-      newErrors.invoiceNumber = true
-    }
-
-    if (!formData.propertyId) {
-      newErrors.propertyId = true
-    }
-
-    if (!formData.unitId) {
-      newErrors.unitId = true
-    }
-
-    if (!formData.tenantId) {
-      newErrors.tenantId = true
-    }
-
-    if (!formData.invoiceMonth) {
-      newErrors.invoiceMonth = true
-    }
-
-    if (!formData.endDate) {
-      newErrors.endDate = true
-    }
-
-    // Validate amount - either from items or manual entry
-    const amountValue =
-      formData.invoiceItems.length > 0
-        ? calculateTotalAmount
-        : parseFloat(formData.amount.replace(/[₵,]/g, '')) || 0
-
-    if (amountValue <= 0) {
-      newErrors.amount = true
-    }
-
-    // Validate invoice items if any are added
-    if (formData.invoiceItems.length > 0) {
-      const hasInvalidItems = formData.invoiceItems.some(
-        item => !item.description.trim() || item.quantity <= 0 || item.price <= 0
-      )
-
-      if (hasInvalidItems) {
-        newErrors.invoiceItems = true
-      }
-    }
-
-    if (!formData.invoiceType.trim()) {
-      newErrors.invoiceType = true
-    }
-
-    if (!formData.description.trim()) {
-      newErrors.description = true
-    }
-
-    setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+  // Invoice month input: auto-format to MM/YYYY
+  const handleMonthChange = (value: string) => {
+    const digits = value.replace(/\D/g, '')
+    let formatted = digits
+    if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 6)}`
+    if (formatted.length <= 7) handleChange('invoiceMonth', formatted)
   }
 
-  const handleSubmit = () => {
-    if (!validateForm()) return
+  // Line items
+  const addItem = () =>
+    setFormData(prev => ({
+      ...prev,
+      invoiceItems: [...prev.invoiceItems, { id: Date.now(), description: '', quantity: 1, price: 0 }]
+    }))
 
-    const selectedProperty = properties.find(p => p.id.toString() === formData.propertyId)
-    const selectedUnit = units.find(u => u.id.toString() === formData.unitId)
-    const selectedTenant = tenants.find(t => t.id.toString() === formData.tenantId)
+  const removeItem = (id: number) =>
+    setFormData(prev => ({ ...prev, invoiceItems: prev.invoiceItems.filter(i => i.id !== id) }))
 
-    if (!selectedProperty || !selectedUnit || !selectedTenant) return
+  const updateItem = (id: number, field: keyof LocalItem, value: string | number) =>
+    setFormData(prev => ({
+      ...prev,
+      invoiceItems: prev.invoiceItems.map(i => (i.id === id ? { ...i, [field]: value } : i))
+    }))
 
-    // Format amount - use calculated total from items if items exist, otherwise use manual entry
-    const amountValue =
-      formData.invoiceItems.length > 0
-        ? calculateTotalAmount
-        : parseFloat(formData.amount.replace(/[₵,]/g, '')) || 0
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof FormData, boolean>> = {}
+    if (!formData.propertyId) e.propertyId = true
+    if (!formData.unitId) e.unitId = true
+    if (!formData.invoiceMonth) e.invoiceMonth = true
+    if (!formData.dueDate) e.dueDate = true
+    if (!formData.invoiceType.trim()) e.invoiceType = true
+    if (!formData.description.trim()) e.description = true
+    const amt = formData.invoiceItems.length > 0 ? calculateTotal : parseFloat(formData.amount) || 0
+    if (amt <= 0) e.amount = true
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
 
-    const formattedAmount = `₵${amountValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const onSubmit = async () => {
+    if (!validate()) return
+    setSubmitting(true)
+    setApiError(null)
 
-    // Calculate balance based on status
-    const balance = formData.status === 'paid' ? '₵0' : formattedAmount
+    // Resolve display names
+    const selectedProperty = properties.find(p => p.id === formData.propertyId)
+    const selectedUnit = units.find(u => u.id === formData.unitId)
+    const selectedOccupant = formData.occupantId
+      ? occupants.find(o => o.id === formData.occupantId)
+      : null
 
-    // Convert invoiceMonth (MM/YYYY) to issuedDate (YYYY-MM-DD)
+    // Build issuedDate from invoiceMonth (MM/YYYY → YYYY-MM-01)
     const [month, year] = formData.invoiceMonth.split('/')
     const issuedDate = `${year}-${month}-01`
 
-    if (mode === 'edit' && editData?.id) {
-      // Update existing invoice
-      const updatedInvoice: Invoice = {
-        id: editData.id,
-        invoiceNumber: formData.invoiceNumber,
-        tenantName: selectedTenant?.name || '',
-        tenantEmail: selectedTenant?.email || '',
-        tenantAvatar: selectedTenant?.avatar,
-        propertyName: selectedProperty.name,
-        unitName: selectedUnit.unitNumber,
-        amount: formattedAmount,
-        issuedDate: issuedDate,
-        dueDate: formData.endDate,
-        status: formData.status,
-        balance
-      }
+    const amountValue =
+      formData.invoiceItems.length > 0 ? calculateTotal : parseFloat(formData.amount) || 0
 
-      setData(invoicesData.map(invoice => (invoice.id === editData.id ? updatedInvoice : invoice)))
-    } else {
-      // Create new invoice
-      const newInvoice: Invoice = {
-        id: invoicesData.length > 0 ? Math.max(...invoicesData.map(i => i.id)) + 1 : 1,
-        invoiceNumber: formData.invoiceNumber,
-        tenantName: selectedTenant?.name || '',
-        tenantEmail: selectedTenant?.email || '',
-        tenantAvatar: selectedTenant?.avatar,
-        propertyName: selectedProperty.name,
-        unitName: selectedUnit.unitNumber,
-        amount: formattedAmount,
-        issuedDate: issuedDate,
-        dueDate: formData.endDate,
-        status: formData.status,
-        balance
-      }
-
-      setData([...invoicesData, newInvoice])
+    const payload = {
+      occupantId: selectedOccupant?.id,
+      occupantName: selectedOccupant
+        ? `${selectedOccupant.firstName} ${selectedOccupant.lastName}`
+        : undefined,
+      occupantEmail: selectedOccupant?.email,
+      propertyId: formData.propertyId,
+      propertyName: selectedProperty?.name,
+      unitId: formData.unitId,
+      unitNo: selectedUnit?.unitNo,
+      invoiceMonth: formData.invoiceMonth,
+      issuedDate,
+      dueDate: formData.dueDate,
+      amount: amountValue,
+      status: formData.status,
+      invoiceType: formData.invoiceType,
+      description: formData.description,
+      invoiceItems:
+        formData.invoiceItems.length > 0
+          ? formData.invoiceItems.map(({ description, quantity, price }) => ({
+              description,
+              quantity,
+              price
+            }))
+          : undefined
     }
 
-    handleReset()
-  }
-
-  // Calculate total amount from invoice items
-  const calculateTotalAmount = useMemo(() => {
-    const total = formData.invoiceItems.reduce((sum, item) => {
-      return sum + item.quantity * item.price
-    }, 0)
-
-    
-return total
-  }, [formData.invoiceItems])
-
-  const handleAddInvoiceItem = () => {
-    const newItem: InvoiceItem = {
-      id: Date.now(),
-      description: '',
-      quantity: 1,
-      price: 0
+    try {
+      let saved: Invoice
+      if (isEdit && editInvoice) {
+        saved = await updateInvoice(editInvoice.id, payload)
+      } else {
+        saved = await createInvoice(payload as any)
+      }
+      onSaved(saved)
+      handleClose()
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Failed to save invoice')
+    } finally {
+      setSubmitting(false)
     }
-
-    setFormData(prev => ({
-      ...prev,
-      invoiceItems: [...prev.invoiceItems, newItem]
-    }))
-  }
-
-  const handleRemoveInvoiceItem = (itemId: number) => {
-    setFormData(prev => ({
-      ...prev,
-      invoiceItems: prev.invoiceItems.filter(item => item.id !== itemId)
-    }))
-  }
-
-  const handleInvoiceItemChange = (itemId: number, field: keyof InvoiceItem, value: string | number) => {
-    setFormData(prev => ({
-      ...prev,
-      invoiceItems: prev.invoiceItems.map(item =>
-        item.id === itemId ? { ...item, [field]: value } : item
-      )
-    }))
   }
 
   const handleReset = () => {
     setFormData(initialData)
     setErrors({})
+    setApiError(null)
     handleClose()
   }
 
-  // Format date for month picker (MM/YYYY)
-  const formatMonthInput = (value: string): string => {
-    // Remove all non-digits
-    const digits = value.replace(/\D/g, '')
-    
-    if (digits.length === 0) return ''
-    if (digits.length <= 2) return digits
-    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-    
-    return `${digits.slice(0, 2)}/${digits.slice(2, 6)}`
-  }
-
-  const handleMonthChange = (value: string) => {
-    const formatted = formatMonthInput(value)
-
-    if (formatted.length <= 7) {
-      handleInputChange('invoiceMonth', formatted)
-    }
-  }
+  const selectedOccupantObj = formData.occupantId
+    ? occupants.find(o => o.id === formData.occupantId) ?? null
+    : null
 
   return (
     <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
       <DialogTitle className='flex items-center justify-between'>
-        <span>{mode === 'edit' ? 'Edit Invoice' : 'Create Invoice'}</span>
+        <span>{isEdit ? 'Edit Invoice' : 'Create Invoice'}</span>
         <IconButton size='small' onClick={handleReset}>
           <i className='ri-close-line' />
         </IconButton>
       </DialogTitle>
+
       <DialogContent>
         <div className='flex flex-col gap-4 mbs-4'>
-          {/* Invoice Details Section - 3 Columns */}
+          {apiError && <Alert severity='error'>{apiError}</Alert>}
+
+          {/* Row 1: Property, Unit, Tenant */}
           <Grid container spacing={6}>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth error={Boolean(errors.propertyId)} size='small'>
+              <FormControl fullWidth size='small' error={Boolean(errors.propertyId)} disabled={loadingRefs}>
                 <InputLabel id='property-label'>Select Property *</InputLabel>
                 <Select
-                  size='small'
                   labelId='property-label'
                   label='Select Property *'
                   value={formData.propertyId}
-                  onChange={e => handleInputChange('propertyId', e.target.value)}
+                  onChange={e => handleChange('propertyId', e.target.value)}
                 >
                   <MenuItem value=''>Select property</MenuItem>
-                  {properties.map(property => (
-                    <MenuItem key={property.id} value={property.id.toString()}>
-                      {property.name}
-                    </MenuItem>
+                  {properties.map(p => (
+                    <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
                   ))}
                 </Select>
                 {errors.propertyId && (
-                  <Typography variant='caption' color='error' className='mts-1'>
-                    This field is required.
-                  </Typography>
+                  <Typography variant='caption' color='error' className='mts-1'>This field is required.</Typography>
                 )}
               </FormControl>
             </Grid>
+
             <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth error={Boolean(errors.unitId)} size='small' disabled={!formData.propertyId}>
+              <FormControl fullWidth size='small' error={Boolean(errors.unitId)} disabled={!formData.propertyId || loadingRefs}>
                 <InputLabel id='unit-label'>Select Unit *</InputLabel>
                 <Select
-                  size='small'
                   labelId='unit-label'
                   label='Select Unit *'
                   value={formData.unitId}
-                  onChange={e => handleInputChange('unitId', e.target.value)}
+                  onChange={e => handleChange('unitId', e.target.value)}
                 >
                   <MenuItem value=''>Select Unit</MenuItem>
-                  {filteredUnits.map(unit => (
-                    <MenuItem key={unit.id} value={unit.id.toString()}>
-                      {unit.unitNumber}
-                    </MenuItem>
+                  {filteredUnits.map(u => (
+                    <MenuItem key={u.id} value={u.id}>{u.unitNo}</MenuItem>
                   ))}
                 </Select>
                 {errors.unitId && (
-                  <Typography variant='caption' color='error' className='mts-1'>
-                    This field is required.
-                  </Typography>
+                  <Typography variant='caption' color='error' className='mts-1'>This field is required.</Typography>
                 )}
               </FormControl>
             </Grid>
+
             <Grid size={{ xs: 12, sm: 4 }}>
               <Autocomplete
                 size='small'
                 fullWidth
-                disabled={!formData.propertyId || !formData.unitId}
-                options={filteredTenants}
-                getOptionLabel={option => `${option.name} (${option.email})`}
-                value={filteredTenants.find(t => t.id.toString() === formData.tenantId) || null}
-                onChange={(_, newValue) => {
-                  handleInputChange('tenantId', newValue?.id.toString() || '')
-                }}
+                disabled={!formData.unitId || loadingRefs}
+                options={filteredOccupants}
+                getOptionLabel={o => `${o.firstName} ${o.lastName} (${o.email})`}
+                value={selectedOccupantObj}
+                onChange={(_, val) => handleChange('occupantId', val?.id ?? '')}
                 renderInput={params => (
                   <TextField
                     {...params}
-                    label='Select Tenant *'
-                    placeholder='Search tenant...'
-                    error={Boolean(errors.tenantId)}
-                    helperText={errors.tenantId ? 'This field is required.' : ''}
-                    required
+                    label='Select Tenant'
+                    placeholder='Search tenant…'
                     slotProps={{
                       input: {
                         ...params.InputProps,
@@ -561,20 +370,11 @@ return total
                 renderOption={(props, option) => (
                   <li {...props} key={option.id}>
                     <div className='flex items-center gap-2'>
-                      {option.avatar ? (
-                        <CustomAvatar src={option.avatar} skin='light' size={32} />
-                      ) : (
-                        <CustomAvatar skin='light' size={32}>
-                          {option.name
-                            .split(' ')
-                            .map(n => n[0])
-                            .join('')
-                            .toUpperCase()
-                            .slice(0, 2)}
-                        </CustomAvatar>
-                      )}
+                      <CustomAvatar skin='light' size={32}>
+                        {`${option.firstName[0]}${option.lastName[0]}`.toUpperCase()}
+                      </CustomAvatar>
                       <div className='flex flex-col'>
-                        <span className='text-sm font-medium'>{option.name}</span>
+                        <span className='text-sm font-medium'>{option.firstName} {option.lastName}</span>
                         <span className='text-xs text-textSecondary'>{option.email}</span>
                       </div>
                     </div>
@@ -582,21 +382,10 @@ return total
                 )}
               />
             </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                size='small'
-                fullWidth
-                label='InvoiceSL *'
-                value={formData.invoiceNumber}
-                onChange={e => handleInputChange('invoiceNumber', e.target.value)}
-                error={Boolean(errors.invoiceNumber)}
-                helperText={errors.invoiceNumber ? 'This field is required.' : ''}
-                required
-                InputProps={{
-                  readOnly: mode === 'edit'
-                }}
-              />
-            </Grid>
+          </Grid>
+
+          {/* Row 2: Invoice Month, Due Date, Invoice# (read-only in edit) */}
+          <Grid container spacing={6}>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size='small'
@@ -607,241 +396,181 @@ return total
                 onChange={e => handleMonthChange(e.target.value)}
                 error={Boolean(errors.invoiceMonth)}
                 helperText={errors.invoiceMonth ? 'This field is required.' : ''}
-                required
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position='end'>
-                      <i className='ri-calendar-line text-textSecondary' />
-                    </InputAdornment>
-                  )
+                slotProps={{
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position='end'>
+                        <i className='ri-calendar-line text-textSecondary' />
+                      </InputAdornment>
+                    )
+                  }
                 }}
               />
             </Grid>
+
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size='small'
                 fullWidth
-                label='End Date *'
+                label='Due Date *'
                 type='date'
-                value={formData.endDate}
-                onChange={e => handleInputChange('endDate', e.target.value)}
-                error={Boolean(errors.endDate)}
-                helperText={errors.endDate ? 'This field is required.' : ''}
+                value={formData.dueDate}
+                onChange={e => handleChange('dueDate', e.target.value)}
+                error={Boolean(errors.dueDate)}
+                helperText={errors.dueDate ? 'This field is required.' : ''}
                 InputLabelProps={{ shrink: true }}
-                required
               />
             </Grid>
+
+            {isEdit && editInvoice && (
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  size='small'
+                  fullWidth
+                  label='Invoice #'
+                  value={editInvoice.invoiceNumber}
+                  InputProps={{ readOnly: true }}
+                />
+              </Grid>
+            )}
           </Grid>
 
-          {/* Amount, Type, Status Section - 3 Columns */}
+          {/* Row 3: Amount, Type, Status */}
           <Grid container spacing={6}>
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size='small'
                 fullWidth
                 label='Amount *'
-                placeholder='Amount here'
-                value={formData.invoiceItems.length > 0 ? `₵${calculateTotalAmount.toFixed(2)}` : formData.amount}
-                onChange={e => {
-                  const value = e.target.value.replace(/[₵,]/g, '')
-
-                  handleInputChange('amount', value)
-                }}
+                placeholder='0.00'
+                value={formData.invoiceItems.length > 0 ? calculateTotal.toFixed(2) : formData.amount}
+                onChange={e => handleChange('amount', e.target.value.replace(/[^0-9.]/g, ''))}
                 error={Boolean(errors.amount)}
-                helperText={
-                  errors.amount
-                    ? 'This field is required and must be greater than 0.'
-                    : formData.invoiceItems.length > 0
-                      ? 'Calculated from invoice items'
-                      : ''
-                }
-                required
-                InputProps={{
-                  readOnly: formData.invoiceItems.length > 0
-                }}
+                helperText={errors.amount ? 'Must be greater than 0.' : formData.invoiceItems.length > 0 ? 'From line items' : ''}
+                InputProps={{ readOnly: formData.invoiceItems.length > 0 }}
               />
             </Grid>
+
             <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 size='small'
                 fullWidth
                 label='Invoice Type *'
-                placeholder='Invoice type'
+                placeholder='e.g. Monthly Rent'
                 value={formData.invoiceType}
-                onChange={e => handleInputChange('invoiceType', e.target.value)}
+                onChange={e => handleChange('invoiceType', e.target.value)}
                 error={Boolean(errors.invoiceType)}
                 helperText={errors.invoiceType ? 'This field is required.' : ''}
-                required
               />
             </Grid>
+
             <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth error={Boolean(errors.status)} size='small'>
-                <InputLabel id='status-label'>Status Update</InputLabel>
+              <FormControl fullWidth size='small'>
+                <InputLabel id='status-label'>Status</InputLabel>
                 <Select
-                  size='small'
                   labelId='status-label'
-                  label='Status Update'
+                  label='Status'
                   value={formData.status}
-                  onChange={e => handleInputChange('status', e.target.value)}
+                  onChange={e => handleChange('status', e.target.value)}
                 >
-                  <MenuItem value='draft'>Draft</MenuItem>
-                  <MenuItem value='pending'>Pending</MenuItem>
-                  <MenuItem value='paid'>Paid</MenuItem>
-                  <MenuItem value='overdue'>Overdue</MenuItem>
-                  <MenuItem value='cancelled'>Cancelled</MenuItem>
+                  <MenuItem value='DRAFT'>Draft</MenuItem>
+                  <MenuItem value='PENDING'>Pending</MenuItem>
+                  <MenuItem value='PAID'>Paid</MenuItem>
+                  <MenuItem value='OVERDUE'>Overdue</MenuItem>
+                  <MenuItem value='CANCELLED'>Cancelled</MenuItem>
                 </Select>
-                {errors.status && (
-                  <Typography variant='caption' color='error' className='mts-1'>
-                    This field is required.
-                  </Typography>
-                )}
               </FormControl>
             </Grid>
+
             <Grid size={{ xs: 12 }}>
               <TextField
                 size='small'
                 fullWidth
                 multiline
-                rows={4}
+                rows={3}
                 label='Description *'
                 placeholder='Write here'
                 value={formData.description}
-                onChange={e => handleInputChange('description', e.target.value)}
+                onChange={e => handleChange('description', e.target.value)}
                 error={Boolean(errors.description)}
                 helperText={errors.description ? 'This field is required.' : ''}
-                required
               />
             </Grid>
           </Grid>
 
-          {/* Invoice Items Section */}
+          {/* Line Items */}
           <Divider className='border-dashed' />
           <div className='flex flex-col gap-4'>
-            <div className='flex items-center gap-2'>
-              <Button
-                size='small'
-                variant='contained'
-                color='primary'
-                startIcon={<i className='ri-add-line' />}
-                onClick={handleAddInvoiceItem}
-              >
-                Add Items +
-              </Button>
-            </div>
+            <Button
+              size='small'
+              variant='outlined'
+              startIcon={<i className='ri-add-line' />}
+              onClick={addItem}
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              Add Line Item
+            </Button>
 
             {formData.invoiceItems.length > 0 && (
               <div className='flex flex-col gap-4'>
-                {/* Header Row */}
-                <Grid container spacing={6} className='items-center'>
-                  <Grid size={{ xs: 12, md: 5 }}>
-                    <Typography variant='body2' className='font-medium' color='text.primary'>
-                      Description
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 2 }}>
-                    <Typography variant='body2' className='font-medium' color='text.primary'>
-                      Quantity
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 2 }}>
-                    <Typography variant='body2' className='font-medium' color='text.primary'>
-                      Price
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 2 }}>
-                    <Typography variant='body2' className='font-medium' color='text.primary'>
-                      Total
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 1 }}>
-                    <Typography variant='body2' className='font-medium' color='text.primary'>
-                      Action
-                    </Typography>
-                  </Grid>
+                <Grid container spacing={2} className='items-center'>
+                  <Grid size={{ xs: 12, md: 5 }}><Typography variant='body2' className='font-medium'>Description</Typography></Grid>
+                  <Grid size={{ xs: 12, md: 2 }}><Typography variant='body2' className='font-medium'>Qty</Typography></Grid>
+                  <Grid size={{ xs: 12, md: 2 }}><Typography variant='body2' className='font-medium'>Price</Typography></Grid>
+                  <Grid size={{ xs: 12, md: 2 }}><Typography variant='body2' className='font-medium'>Total</Typography></Grid>
+                  <Grid size={{ xs: 12, md: 1 }} />
                 </Grid>
 
-                {/* Invoice Items */}
-                {formData.invoiceItems.map((item, _index) => {
-                  const itemTotal = item.quantity * item.price
-
-                  return (
-                    <Grid container spacing={6} key={item.id} className='items-start'>
-                      <Grid size={{ xs: 12, md: 5 }}>
-                        <TextField
-                          size='small'
-                          fullWidth
-                          placeholder='Item description'
-                          value={item.description}
-                          onChange={e => handleInvoiceItemChange(item.id, 'description', e.target.value)}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 2 }}>
-                        <TextField
-                          size='small'
-                          fullWidth
-                          type='number'
-                          placeholder='1'
-                          value={item.quantity || ''}
-                          onChange={e => handleInvoiceItemChange(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                          slotProps={{
-                            input: {
-                              inputProps: { min: 0, step: 1 }
-                            }
-                          }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 2 }}>
-                        <TextField
-                          size='small'
-                          fullWidth
-                          type='number'
-                          placeholder='0.00'
-                          value={item.price || ''}
-                          onChange={e => handleInvoiceItemChange(item.id, 'price', parseFloat(e.target.value) || 0)}
-                          slotProps={{
-                            input: {
-                              inputProps: { min: 0, step: 0.01 }
-                            }
-                          }}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 2 }}>
-                        <Typography variant='body2' color='text.primary' className='flex items-center h-full'>
-                          ₵{itemTotal.toFixed(2)}
-                        </Typography>
-                      </Grid>
-                      <Grid size={{ xs: 12, md: 1 }}>
-                        <IconButton
-                          size='small'
-                          onClick={() => handleRemoveInvoiceItem(item.id)}
-                          color='error'
-                        >
-                          <i className='ri-close-line text-xl' />
-                        </IconButton>
-                      </Grid>
+                {formData.invoiceItems.map(item => (
+                  <Grid container spacing={2} key={item.id} className='items-start'>
+                    <Grid size={{ xs: 12, md: 5 }}>
+                      <TextField
+                        size='small'
+                        fullWidth
+                        placeholder='Item description'
+                        value={item.description}
+                        onChange={e => updateItem(item.id, 'description', e.target.value)}
+                      />
                     </Grid>
-                  )
-                })}
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <TextField
+                        size='small'
+                        fullWidth
+                        type='number'
+                        value={item.quantity || ''}
+                        onChange={e => updateItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
+                        slotProps={{ input: { inputProps: { min: 1 } } }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <TextField
+                        size='small'
+                        fullWidth
+                        type='number'
+                        value={item.price || ''}
+                        onChange={e => updateItem(item.id, 'price', parseFloat(e.target.value) || 0)}
+                        slotProps={{ input: { inputProps: { min: 0, step: 0.01 } } }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 2 }}>
+                      <Typography variant='body2' color='text.primary' className='flex items-center' style={{ height: 40 }}>
+                        ₵{(item.quantity * item.price).toFixed(2)}
+                      </Typography>
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 1 }}>
+                      <IconButton size='small' color='error' onClick={() => removeItem(item.id)}>
+                        <i className='ri-close-line' />
+                      </IconButton>
+                    </Grid>
+                  </Grid>
+                ))}
 
-                {/* Total Summary */}
                 <Divider className='border-dashed' />
                 <div className='flex justify-end'>
-                  <div className='flex flex-col gap-2' style={{ minWidth: '200px' }}>
-                    <div className='flex justify-between items-center'>
-                      <Typography variant='body2' color='text.secondary'>
-                        Subtotal:
-                      </Typography>
-                      <Typography variant='body2' color='text.primary' className='font-medium'>
-                        ₵{calculateTotalAmount.toFixed(2)}
-                      </Typography>
-                    </div>
-                    <div className='flex justify-between items-center'>
-                      <Typography variant='body1' className='font-medium' color='text.primary'>
-                        Total:
-                      </Typography>
-                      <Typography variant='body1' className='font-medium' color='text.primary'>
-                        ₵{calculateTotalAmount.toFixed(2)}
-                      </Typography>
+                  <div className='flex flex-col gap-1' style={{ minWidth: 180 }}>
+                    <div className='flex justify-between'>
+                      <Typography variant='body2' color='text.secondary'>Total:</Typography>
+                      <Typography variant='body2' className='font-medium'>₵{calculateTotal.toFixed(2)}</Typography>
                     </div>
                   </div>
                 </div>
@@ -850,12 +579,19 @@ return total
           </div>
         </div>
       </DialogContent>
+
       <DialogActions className='gap-2 pbs-4'>
-        <Button variant='outlined' color='warning' onClick={handleReset} endIcon={<i className='ri-arrow-right-line' />}>
+        <Button variant='outlined' color='secondary' onClick={handleReset} disabled={submitting}>
           Cancel
         </Button>
-        <Button variant='contained' color='primary' onClick={handleSubmit} endIcon={<i className='ri-arrow-right-line' />}>
-          {mode === 'edit' ? 'Update Invoice' : 'Save Invoice'}
+        <Button
+          variant='contained'
+          color='primary'
+          onClick={onSubmit}
+          disabled={submitting || loadingRefs}
+          startIcon={submitting ? <CircularProgress size={16} color='inherit' /> : undefined}
+        >
+          {submitting ? 'Saving…' : isEdit ? 'Update Invoice' : 'Save Invoice'}
         </Button>
       </DialogActions>
     </Dialog>
@@ -863,4 +599,3 @@ return total
 }
 
 export default AddInvoiceDialog
-

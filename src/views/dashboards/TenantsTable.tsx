@@ -1,21 +1,23 @@
 'use client'
 
 // React Imports
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+
+// Next Imports
+import Link from 'next/link'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
-import Button from '@mui/material/Button'
-
-// import { styled } from '@mui/material/styles'
+import Chip from '@mui/material/Chip'
 import TablePagination from '@mui/material/TablePagination'
+import Box from '@mui/material/Box'
+import Skeleton from '@mui/material/Skeleton'
 
 // Third-party Imports
 import classnames from 'classnames'
-import { rankItem } from '@tanstack/match-sorter-utils'
 import {
   createColumnHelper,
   flexRender,
@@ -25,12 +27,14 @@ import {
   getPaginationRowModel,
   getSortedRowModel
 } from '@tanstack/react-table'
-import type { ColumnDef, FilterFn } from '@tanstack/react-table'
-import type { RankingInfo } from '@tanstack/match-sorter-utils'
+import type { ColumnDef } from '@tanstack/react-table'
+
+// API Imports
+import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
-import OptionMenu from '@core/components/option-menu'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -38,162 +42,101 @@ import { getInitials } from '@/utils/getInitials'
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
-declare module '@tanstack/table-core' {
-  interface FilterFns {
-    fuzzy: FilterFn<unknown>
-  }
-  interface FilterMeta {
-    itemRank: RankingInfo
-  }
+const STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 'secondary'> = {
+  active: 'success',
+  inactive: 'error',
+  pending: 'warning'
 }
 
-type Tenant = {
-  id: number
-  name: string
-  roomNo: string
-  phone: string
-  numberOfUnits: number
-  costPerMonth: string
-  leasePeriod: string
-  totalAmount: string
-  avatar?: string
-}
-
-const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
-  const itemRank = rankItem(row.getValue(columnId), value)
-
-  addMeta({ itemRank })
-  
-return itemRank.passed
-}
-
-// Sample data
-const tenantsData: Tenant[] = [
-  {
-    id: 1,
-    name: 'Jordan Stevenson',
-    roomNo: 'A-101',
-    phone: '+1 234 567 8900',
-    numberOfUnits: 2,
-    costPerMonth: '₵1,200',
-    leasePeriod: '12 Months',
-    totalAmount: '₵14,400'
-  },
-  {
-    id: 2,
-    name: 'Jordan Stevenson',
-    roomNo: 'B-205',
-    phone: '+1 234 567 8901',
-    numberOfUnits: 1,
-    costPerMonth: '₵800',
-    leasePeriod: '6 Months',
-    totalAmount: '₵4,800'
-  },
-  {
-    id: 3,
-    name: 'Benedetto Rossiter',
-    roomNo: 'C-301',
-    phone: '+1 234 567 8902',
-    numberOfUnits: 3,
-    costPerMonth: '₵2,500',
-    leasePeriod: '24 Months',
-    totalAmount: '₵60,000'
-  },
-  {
-    id: 4,
-    name: 'Jordan Stevenson',
-    roomNo: 'D-401',
-    phone: '+1 234 567 8903',
-    numberOfUnits: 1,
-    costPerMonth: '₵950',
-    leasePeriod: '12 Months',
-    totalAmount: '₵11,400'
-  },
-  {
-    id: 5,
-    name: 'Benedetto Rossiter',
-    roomNo: 'E-501',
-    phone: '+1 234 567 8904',
-    numberOfUnits: 2,
-    costPerMonth: '₵1,500',
-    leasePeriod: '18 Months',
-    totalAmount: '₵27,000'
-  }
-]
-
-const columnHelper = createColumnHelper<Tenant>()
+const columnHelper = createColumnHelper<OccupantRecord>()
 
 const TenantsTable = () => {
-  const [rowSelection, setRowSelection] = useState({})
-  const [data] = useState(tenantsData)
+  const [occupants, setOccupants] = useState<OccupantRecord[]>([])
+  const [loading, setLoading] = useState(true)
   const [globalFilter, setGlobalFilter] = useState('')
 
-  const columns = useMemo<ColumnDef<Tenant, any>[]>(
-    () => [
-      columnHelper.accessor('name', {
-        header: 'TENANTS',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <CustomAvatar skin='light' size={34}>
-              {getInitials(row.original.name)}
-            </CustomAvatar>
-            <Typography color='text.primary' className='font-medium'>
-              {row.original.name}
-            </Typography>
-          </div>
+  useEffect(() => {
+    const tenantId = getStoredTenantId()
+    if (!tenantId) { setLoading(false); return }
+
+    getOccupants(tenantId, { size: 50 })
+      .then(res => setOccupants(res.data ?? []))
+      .catch(() => setOccupants([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const columns = useMemo<ColumnDef<OccupantRecord, any>[]>(() => [
+    columnHelper.accessor(row => `${row.firstName} ${row.lastName}`, {
+      id: 'name',
+      header: 'OCCUPANT',
+      cell: ({ row }) => {
+        const fullName = `${row.original.firstName} ${row.original.lastName}`
+        return (
+          <Link href={`/occupants/${row.original.id}`} style={{ textDecoration: 'none' }}>
+            <div className='flex items-center gap-3'>
+              <CustomAvatar skin='light' size={34} src={row.original.avatar}>
+                {!row.original.avatar ? getInitials(fullName) : undefined}
+              </CustomAvatar>
+              <div>
+                <Typography color='text.primary' className='font-medium hover:text-primary'>
+                  {fullName}
+                </Typography>
+                <Typography variant='body2' color='text.secondary'>
+                  {row.original.email}
+                </Typography>
+              </div>
+            </div>
+          </Link>
         )
-      }),
-      columnHelper.accessor('roomNo', {
-        header: 'ROOM NO',
-        cell: ({ row }) => <Typography>{row.original.roomNo}</Typography>
-      }),
-      columnHelper.accessor('phone', {
-        header: 'PHONE',
-        cell: ({ row }) => <Typography>{row.original.phone}</Typography>
-      }),
-      columnHelper.accessor('numberOfUnits', {
-        header: 'NUMBER OF UNITS',
-        cell: ({ row }) => <Typography>{row.original.numberOfUnits}</Typography>
-      }),
-      columnHelper.accessor('costPerMonth', {
-        header: 'COST PER MONTH',
-        cell: ({ row }) => <Typography>{row.original.costPerMonth}</Typography>
-      }),
-      columnHelper.accessor('leasePeriod', {
-        header: 'LEASE PERIOD',
-        cell: ({ row }) => <Typography>{row.original.leasePeriod}</Typography>
-      }),
-      columnHelper.accessor('totalAmount', {
-        header: 'TOTAL AMOUNT',
-        cell: ({ row }) => <Typography className='font-medium'>{row.original.totalAmount}</Typography>
-      }),
-      columnHelper.display({
-        id: 'actions',
-        header: 'ACTION',
-        cell: () => <OptionMenu iconButtonProps={{ size: 'small' }} options={['View', 'Edit', 'Delete']} />
-      })
-    ],
-    []
-  )
+      }
+    }),
+    columnHelper.accessor('unitNo', {
+      header: 'UNIT',
+      cell: ({ row }) => (
+        <Typography variant='body2'>{row.original.unitNo ?? '-'}</Typography>
+      )
+    }),
+    columnHelper.accessor('phone', {
+      header: 'PHONE',
+      cell: ({ row }) => (
+        <Typography variant='body2'>{row.original.phone ?? '-'}</Typography>
+      )
+    }),
+    columnHelper.accessor('status', {
+      header: 'STATUS',
+      cell: ({ row }) => {
+        const status = row.original.status ?? 'inactive'
+        return (
+          <Chip
+            variant='tonal'
+            label={status}
+            color={STATUS_COLOR[status] ?? 'secondary'}
+            size='small'
+            className='capitalize'
+          />
+        )
+      }
+    }),
+    columnHelper.accessor('moveInDate', {
+      header: 'MOVE IN',
+      cell: ({ row }) => {
+        const d = row.original.moveInDate
+        if (!d) return <Typography variant='body2'>-</Typography>
+        const date = new Date(d)
+        return (
+          <Typography variant='body2'>
+            {date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </Typography>
+        )
+      }
+    })
+  ], [])
 
   const table = useReactTable({
-    data,
+    data: occupants,
     columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
-    enableRowSelection: true,
-    globalFilterFn: fuzzyFilter,
-    onRowSelectionChange: setRowSelection,
+    state: { globalFilter },
+    initialState: { pagination: { pageSize: 10 } },
     getCoreRowModel: getCoreRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
@@ -204,7 +147,7 @@ const TenantsTable = () => {
   return (
     <Card>
       <CardHeader
-        title='Tenants'
+        title='Recent Occupants'
         action={
           <div className='flex items-center gap-2'>
             <TextField
@@ -214,66 +157,60 @@ const TenantsTable = () => {
               onChange={e => setGlobalFilter(e.target.value)}
               className='is-[200px]'
             />
-            <TextField select size='small' defaultValue='10' className='is-[100px]'>
-              <option value='10'>10</option>
-              <option value='25'>25</option>
-              <option value='50'>50</option>
-            </TextField>
-            <Button variant='outlined' size='small'>
-              Export
-            </Button>
-            <Button variant='contained' color='primary' size='small'>
-              + Add Tenant
-            </Button>
+            <Link href='/occupants' style={{ textDecoration: 'none' }}>
+              <Typography variant='body2' color='primary' className='cursor-pointer'>
+                View All
+              </Typography>
+            </Link>
           </div>
         }
       />
-      <div className='overflow-x-auto'>
-        <table className={tableStyles.table}>
-          <thead>
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th key={header.id}>
-                    {header.isPlaceholder ? null : (
-                      <div
-                        className={classnames({
-                          'flex items-center': header.column.getIsSorted(),
-                          'cursor-pointer select-none': header.column.getCanSort()
-                        })}
-                        onClick={header.column.getToggleSortingHandler()}
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {{
-                          asc: <i className='ri-arrow-up-s-line text-xl' />,
-                          desc: <i className='ri-arrow-down-s-line text-xl' />
-                        }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                      </div>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                  No data available
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map(row => (
-                <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+      {loading ? (
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {[0, 1, 2, 3, 4].map(i => <Skeleton key={i} variant='rectangular' height={52} />)}
+        </Box>
+      ) : (
+        <div className='overflow-x-auto'>
+          <table className={tableStyles.table}>
+            <thead>
+              {table.getHeaderGroups().map(headerGroup => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map(header => (
+                    <th key={header.id}>
+                      {header.isPlaceholder ? null : (
+                        <div
+                          className={classnames({ 'flex items-center': header.column.getIsSorted(), 'cursor-pointer select-none': header.column.getCanSort() })}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {{ asc: <i className='ri-arrow-up-s-line text-xl' />, desc: <i className='ri-arrow-down-s-line text-xl' /> }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                        </div>
+                      )}
+                    </th>
                   ))}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length} className='text-center py-8'>
+                    <Typography color='text.secondary'>No occupants found</Typography>
+                  </td>
+                </tr>
+              ) : (
+                table.getRowModel().rows.map(row => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map(cell => (
+                      <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
       <TablePagination
         component='div'
         count={table.getFilteredRowModel().rows.length}

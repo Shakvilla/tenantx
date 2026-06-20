@@ -43,7 +43,7 @@ import type { CustomerType } from '@/types/members/customerTypes'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import TableFilters from './TableFilters'
 import PageBanner from '@components/banner/PageBanner'
 import AddCustomerDrawer from './AddCustomerDrawer'
@@ -338,7 +338,7 @@ const CustomersListTable = ({ tableData }: { tableData?: CustomerType[] }) => {
                   Download List of All Customers
                 </Typography>
               </Link>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <RowActions options={['Refresh', 'Share']} />
             </div>
           }
         />

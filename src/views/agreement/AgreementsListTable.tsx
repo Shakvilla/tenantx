@@ -1,9 +1,7 @@
-// Documentation: /docs/agreement/agreement-module.md
-
 'use client'
 
 // React Imports
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -18,7 +16,8 @@ import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
-import Avatar from '@mui/material/Avatar'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -36,7 +35,7 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import AgreementsStatsCard from './AgreementsStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -44,11 +43,18 @@ import AddAgreementDialog from './AddAgreementDialog'
 import ViewAgreementDialog from './ViewAgreementDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
-// Type Imports
-import type { Agreement, AgreementWithAction } from '@/types/agreement/agreementTypes'
+// API Imports
+import {
+  getAgreements,
+  deleteAgreement,
+  updateAgreementStatus,
+  type Agreement,
+  type AgreementStatus
+} from '@/lib/api/agreements'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
+import { formatCurrency } from '@/utils/currency'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -64,229 +70,99 @@ declare module '@tanstack/table-core' {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
-
   addMeta({ itemRank })
-  
-return itemRank.passed
+  return itemRank.passed
 }
 
-// Sample data
-const sampleAgreements: Agreement[] = [
-  {
-    id: 1,
-    agreementNumber: 'AGR-001',
-    type: 'lease',
-    status: 'active',
-    tenantName: 'John Doe',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyName: 'Xorla House',
-    unitNo: 'Unit 101',
-    startDate: '2024-01-01',
-    endDate: '2024-12-31',
-    signedDate: '2023-12-15',
-    amount: '₵14,400',
-    rent: '₵1,200',
-    securityDeposit: '₵2,400',
-    lateFee: '₵50',
-    paymentFrequency: 'monthly',
-    duration: '12 months'
-  },
-  {
-    id: 2,
-    agreementNumber: 'AGR-002',
-    type: 'lease',
-    status: 'active',
-    tenantName: 'Jane Smith',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyName: 'Xorla House',
-    unitNo: 'Unit 102',
-    startDate: '2024-02-01',
-    endDate: '2024-07-31',
-    signedDate: '2024-01-20',
-    amount: '₵9,000',
-    rent: '₵1,500',
-    securityDeposit: '₵3,000',
-    lateFee: '₵75',
-    paymentFrequency: 'monthly',
-    duration: '6 months'
-  },
-  {
-    id: 3,
-    agreementNumber: 'AGR-003',
-    type: 'contract',
-    status: 'active',
-    tenantName: 'Mike Johnson',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyName: 'Xorla House',
-    unitNo: 'Unit 201',
-    startDate: '2023-06-01',
-    endDate: '2025-05-31',
-    signedDate: '2023-05-15',
-    amount: '₵57,600',
-    rent: '₵2,400',
-    securityDeposit: '₵4,800',
-    lateFee: '₵100',
-    paymentFrequency: 'monthly',
-    duration: '24 months'
-  },
-  {
-    id: 4,
-    agreementNumber: 'AGR-004',
-    type: 'lease',
-    status: 'expired',
-    tenantName: 'Sarah Williams',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyName: 'Sunset Apartments',
-    unitNo: 'Unit 301',
-    startDate: '2023-01-01',
-    endDate: '2023-12-31',
-    signedDate: '2022-12-10',
-    amount: '₵21,600',
-    rent: '₵1,800',
-    securityDeposit: '₵3,600',
-    lateFee: '₵60',
-    paymentFrequency: 'monthly',
-    duration: '12 months'
-  },
-  {
-    id: 5,
-    agreementNumber: 'AGR-005',
-    type: 'lease',
-    status: 'pending',
-    tenantName: 'David Brown',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyName: 'Xorla House',
-    unitNo: 'Unit 202',
-    startDate: '2024-03-01',
-    endDate: '2024-08-31',
-    signedDate: '',
-    amount: '₵7,800',
-    rent: '₵1,300',
-    securityDeposit: '₵2,600',
-    lateFee: '₵55',
-    paymentFrequency: 'monthly',
-    duration: '6 months'
-  }
-]
+type AgreementWithAction = Agreement & { action?: string }
 
 const columnHelper = createColumnHelper<AgreementWithAction>()
 
+const agreementStatusObj: Record<AgreementStatus, { label: string; color: 'success' | 'warning' | 'info' | 'error' }> = {
+  ACTIVE:     { label: 'Active',     color: 'success' },
+  PENDING:    { label: 'Pending',    color: 'info'    },
+  EXPIRED:    { label: 'Expired',    color: 'warning' },
+  TERMINATED: { label: 'Terminated', color: 'error'   }
+}
+
+const agreementTypeObj: Record<string, { label: string; color: 'primary' | 'info' | 'secondary' }> = {
+  LEASE:    { label: 'Lease',    color: 'primary'   },
+  CONTRACT: { label: 'Contract', color: 'info'      },
+  OTHER:    { label: 'Other',    color: 'secondary' }
+}
+
 const AgreementsListTable = () => {
-  // States
+  const [data, setData] = useState<Agreement[]>([])
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState<string | null>(null)
+
   const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(sampleAgreements)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [status, setStatus] = useState('')
-  const [type, setType] = useState('')
-  const [property, setProperty] = useState('')
-  const [addAgreementOpen, setAddAgreementOpen] = useState(false)
-  const [editAgreementOpen, setEditAgreementOpen] = useState(false)
-  const [viewAgreementOpen, setViewAgreementOpen] = useState(false)
-  const [deleteAgreementOpen, setDeleteAgreementOpen] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+
+  const [addOpen, setAddOpen] = useState(false)
+  const [editAgreement, setEditAgreement] = useState<Agreement | null>(null)
+  const [viewAgreement, setViewAgreement] = useState<Agreement | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    const activeAgreements = data.filter(a => a.status === 'active').length
-    const expiredAgreements = data.filter(a => a.status === 'expired').length
-    const pendingAgreements = data.filter(a => a.status === 'pending').length
+  const [statusUpdateOpen, setStatusUpdateOpen] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState<AgreementStatus | ''>('')
+  const [statusUpdating, setStatusUpdating] = useState(false)
 
-    const totalRevenue = data
-      .filter(a => a.status === 'active' && a.amount)
-      .reduce((sum, agreement) => {
-        const amount = parseFloat((agreement.amount || '0').replace(/[₵,]/g, ''))
+  const fetchData = useCallback(() => {
+    setLoading(true)
+    setApiError(null)
+    const params: { status?: string; type?: string } = {}
+    if (statusFilter) params.status = statusFilter
+    if (typeFilter) params.type = typeFilter
+    getAgreements(params)
+      .then(setData)
+      .catch(err => setApiError(err?.message ?? 'Failed to load agreements'))
+      .finally(() => setLoading(false))
+  }, [statusFilter, typeFilter])
 
-        
-return sum + amount
-      }, 0)
+  useEffect(() => { fetchData() }, [fetchData])
 
-    return {
-      totalAgreements: data.length,
-      activeAgreements,
-      expiredAgreements,
-      pendingAgreements,
-      totalRevenue: `₵${totalRevenue.toLocaleString()}`
-    }
-  }, [data])
-
-  // Get unique values for filters
-  const uniqueProperties = useMemo(() => {
-    const properties = Array.from(new Set(data.map(a => a.propertyName)))
-
-    
-return properties
-  }, [data])
-
-  // Sample properties, units, and tenants data (in a real app, these would come from API)
-  const properties = useMemo(
-    () => [
-      { id: 1, name: 'Xorla House' },
-      { id: 2, name: 'Sunset Apartments' }
-    ],
-    []
-  )
-
-  const units = useMemo(
-    () => [
-      { id: '1', unitNumber: 'Unit 101', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '2', unitNumber: 'Unit 102', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '3', unitNumber: 'Unit 201', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '4', unitNumber: 'Unit 202', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '5', unitNumber: 'Unit 301', propertyId: '2', propertyName: 'Sunset Apartments' }
-    ],
-    []
-  )
-
-  const tenants = useMemo(
-    () => [
-      { id: 1, name: 'John Doe' },
-      { id: 2, name: 'Jane Smith' },
-      { id: 3, name: 'Mike Johnson' },
-      { id: 4, name: 'Sarah Williams' },
-      { id: 5, name: 'David Brown' }
-    ],
-    []
-  )
-
-  const handleDeleteAgreement = (agreementId: number) => {
-    setData(data.filter(a => a.id !== agreementId))
-    setDeleteAgreementOpen(false)
-    setSelectedAgreement(null)
+  const handleSaved = (agreement: Agreement) => {
+    setData(prev => {
+      const idx = prev.findIndex(a => a.id === agreement.id)
+      return idx >= 0 ? prev.map(a => a.id === agreement.id ? agreement : a) : [agreement, ...prev]
+    })
   }
 
-  const handleEditAgreement = (agreement: Agreement) => {
-    setSelectedAgreement(agreement)
-    setEditAgreementOpen(true)
+  const handleDeleteConfirm = async () => {
+    if (!selectedAgreement) return
+    setDeleting(true)
+    try {
+      await deleteAgreement(selectedAgreement.id)
+      setData(prev => prev.filter(a => a.id !== selectedAgreement.id))
+      setDeleteOpen(false)
+      setSelectedAgreement(null)
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Failed to delete agreement')
+    } finally {
+      setDeleting(false)
+    }
   }
 
-  const handleViewAgreement = (agreement: Agreement) => {
-    setSelectedAgreement(agreement)
-    setViewAgreementOpen(true)
+  const handleStatusUpdate = async () => {
+    if (!selectedAgreement || !pendingStatus) return
+    setStatusUpdating(true)
+    try {
+      const updated = await updateAgreementStatus(selectedAgreement.id, pendingStatus)
+      handleSaved(updated)
+      setStatusUpdateOpen(false)
+      setSelectedAgreement(null)
+      setPendingStatus('')
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Failed to update status')
+    } finally {
+      setStatusUpdating(false)
+    }
   }
-
-  // Filter data
-  const filteredData = useMemo(() => {
-    let filtered = data
-
-    if (status) {
-      filtered = filtered.filter(a => a.status === status)
-    }
-
-    if (type) {
-      filtered = filtered.filter(a => a.type === type)
-    }
-
-    if (property) {
-      filtered = filtered.filter(a => a.propertyName === property)
-    }
-
-    return filtered
-  }, [data, status, type, property])
 
   const columns = useMemo<ColumnDef<AgreementWithAction, any>[]>(
     () => [
@@ -299,7 +175,9 @@ return properties
             onChange={table.getToggleAllRowsSelectedHandler()}
           />
         ),
-        cell: ({ row }) => <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+        cell: ({ row }) => (
+          <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+        )
       }),
       columnHelper.accessor('agreementNumber', {
         header: 'AGREEMENT #',
@@ -311,42 +189,36 @@ return properties
       }),
       columnHelper.accessor('type', {
         header: 'TYPE',
-        cell: ({ row }) => (
-          <Chip
-            variant='tonal'
-            label={row.original.type}
-            size='small'
-            color={row.original.type === 'lease' ? 'primary' : 'info'}
-            className='capitalize'
-          />
-        )
+        cell: ({ row }) => {
+          const t = agreementTypeObj[row.original.type] ?? { label: row.original.type, color: 'default' }
+          return <Chip variant='tonal' label={t.label} size='small' color={t.color} />
+        }
       }),
-      columnHelper.accessor('tenantName', {
-        header: 'TENANT',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            {row.original.tenantAvatar ? (
-              <Avatar src={row.original.tenantAvatar} sx={{ width: 34, height: 34 }} />
-            ) : (
+      columnHelper.accessor('occupantName', {
+        header: 'OCCUPANT',
+        cell: ({ row }) => {
+          const name = row.original.occupantName ?? '—'
+          return (
+            <div className='flex items-center gap-3'>
               <CustomAvatar skin='light' color='primary' size={34}>
-                {getInitials(row.original.tenantName)}
+                {getInitials(name)}
               </CustomAvatar>
-            )}
-            <Typography color='text.primary' className='font-medium'>
-              {row.original.tenantName}
-            </Typography>
-          </div>
-        )
+              <Typography color='text.primary' className='font-medium'>
+                {name}
+              </Typography>
+            </div>
+          )
+        }
       }),
       columnHelper.accessor('propertyName', {
-        header: 'PROPERTY/UNIT',
+        header: 'PROPERTY / UNIT',
         cell: ({ row }) => (
           <div className='flex flex-col'>
             <Typography color='text.primary' className='font-medium'>
-              {row.original.propertyName}
+              {row.original.propertyName ?? '—'}
             </Typography>
             <Typography variant='body2' color='text.secondary'>
-              {row.original.unitNo}
+              {row.original.unitNo ?? ''}
             </Typography>
           </div>
         )
@@ -354,48 +226,27 @@ return properties
       columnHelper.accessor('status', {
         header: 'STATUS',
         cell: ({ row }) => {
-          const statusColors: Record<string, 'success' | 'warning' | 'info' | 'error'> = {
-            active: 'success',
-            expired: 'warning',
-            pending: 'info',
-            terminated: 'error'
-          }
-
-          
-return (
-            <Chip
-              variant='tonal'
-              label={row.original.status}
-              size='small'
-              color={statusColors[row.original.status] || 'default'}
-              className='capitalize'
-            />
-          )
+          const s = agreementStatusObj[row.original.status] ?? { label: row.original.status, color: 'default' }
+          return <Chip variant='tonal' label={s.label} size='small' color={s.color} />
         }
       }),
       columnHelper.accessor('startDate', {
-        header: 'START DATE',
-        cell: ({ row }) => {
-          const date = new Date(row.original.startDate)
-
-          
-return <Typography>{date.toLocaleDateString()}</Typography>
-        }
+        header: 'START',
+        cell: ({ row }) => (
+          <Typography>{row.original.startDate ? new Date(row.original.startDate).toLocaleDateString() : '—'}</Typography>
+        )
       }),
       columnHelper.accessor('endDate', {
-        header: 'END DATE',
-        cell: ({ row }) => {
-          const date = new Date(row.original.endDate)
-
-          
-return <Typography>{date.toLocaleDateString()}</Typography>
-        }
+        header: 'END',
+        cell: ({ row }) => (
+          <Typography>{row.original.endDate ? new Date(row.original.endDate).toLocaleDateString() : '—'}</Typography>
+        )
       }),
-      columnHelper.accessor('amount', {
+      columnHelper.accessor('totalAmount', {
         header: 'AMOUNT',
         cell: ({ row }) => (
           <Typography color='text.primary' className='font-medium'>
-            {row.original.amount}
+            {formatCurrency(row.original.totalAmount ?? undefined)}
           </Typography>
         )
       }),
@@ -403,30 +254,28 @@ return <Typography>{date.toLocaleDateString()}</Typography>
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
                 text: 'View',
                 icon: 'ri-eye-line',
-                menuItemProps: {
-                  onClick: () => handleViewAgreement(row.original)
-                }
+                menuItemProps: { onClick: () => setViewAgreement(row.original) }
               },
               {
                 text: 'Edit',
                 icon: 'ri-pencil-line',
                 menuItemProps: {
-                  onClick: () => handleEditAgreement(row.original)
+                  onClick: () => setEditAgreement(row.original)
                 }
               },
               {
-                text: 'Download',
-                icon: 'ri-download-line',
+                text: 'Update Status',
+                icon: 'ri-refresh-line',
                 menuItemProps: {
                   onClick: () => {
-                    // Handle download
-                    console.log('Download agreement:', row.original.agreementNumber)
+                    setSelectedAgreement(row.original)
+                    setStatusUpdateOpen(true)
                   }
                 }
               },
@@ -436,7 +285,7 @@ return <Typography>{date.toLocaleDateString()}</Typography>
                 menuItemProps: {
                   onClick: () => {
                     setSelectedAgreement(row.original)
-                    setDeleteAgreementOpen(true)
+                    setDeleteOpen(true)
                   }
                 }
               }
@@ -449,20 +298,11 @@ return <Typography>{date.toLocaleDateString()}</Typography>
   )
 
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
+    filterFns: { fuzzy: fuzzyFilter },
+    state: { rowSelection, globalFilter },
+    initialState: { pagination: { pageSize: 10 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -473,6 +313,19 @@ return <Typography>{date.toLocaleDateString()}</Typography>
     getPaginationRowModel: getPaginationRowModel()
   })
 
+  // Next valid status options
+  const statusOptions = useMemo<AgreementStatus[]>(() => {
+    if (!selectedAgreement) return []
+    const current = selectedAgreement.status
+    const transitions: Record<string, AgreementStatus[]> = {
+      PENDING:    ['ACTIVE', 'TERMINATED'],
+      ACTIVE:     ['EXPIRED', 'TERMINATED'],
+      EXPIRED:    ['TERMINATED'],
+      TERMINATED: []
+    }
+    return transitions[current] ?? []
+  }, [selectedAgreement])
+
   return (
     <>
       <PageBanner
@@ -480,82 +333,60 @@ return <Typography>{date.toLocaleDateString()}</Typography>
         description='Manage and view all your agreements in one place'
         icon='ri-file-contract-line'
       />
-      <AgreementsStatsCard
-        totalAgreements={stats.totalAgreements}
-        activeAgreements={stats.activeAgreements}
-        expiredAgreements={stats.expiredAgreements}
-        pendingAgreements={stats.pendingAgreements}
-        totalRevenue={stats.totalRevenue}
-      />
+      <AgreementsStatsCard />
+
       <Card className='mbs-6'>
         <CardHeader
           title='Agreements List'
           action={
             <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <RowActions options={['Refresh', 'Share']} />
             </div>
           }
         />
         <CardContent className='flex flex-col gap-4'>
-          {/* Filters Section */}
+          {apiError && <Alert severity='error'>{apiError}</Alert>}
+
+          {/* Filters */}
           <Box className='flex flex-col gap-4 p-4 rounded-lg'>
             <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-center gap-2'>
               <TextField
                 select
                 size='small'
-                label='Select Property'
-                value={property}
-                onChange={e => setProperty(e.target.value)}
-                sx={{ minWidth: 180 }}
-              >
-                <MenuItem value=''>All Properties</MenuItem>
-                {uniqueProperties.map(prop => (
-                  <MenuItem key={prop} value={prop}>
-                    {prop}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                size='small'
                 label='Type'
-                value={type}
-                onChange={e => setType(e.target.value)}
+                value={typeFilter}
+                onChange={e => setTypeFilter(e.target.value)}
                 sx={{ minWidth: 150 }}
               >
                 <MenuItem value=''>All Types</MenuItem>
-                <MenuItem value='lease'>Lease</MenuItem>
-                <MenuItem value='contract'>Contract</MenuItem>
-                <MenuItem value='other'>Other</MenuItem>
+                <MenuItem value='LEASE'>Lease</MenuItem>
+                <MenuItem value='CONTRACT'>Contract</MenuItem>
+                <MenuItem value='OTHER'>Other</MenuItem>
               </TextField>
               <TextField
                 select
                 size='small'
                 label='Status'
-                value={status}
-                onChange={e => setStatus(e.target.value)}
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
                 sx={{ minWidth: 150 }}
               >
                 <MenuItem value=''>All Status</MenuItem>
-                <MenuItem value='active'>Active</MenuItem>
-                <MenuItem value='expired'>Expired</MenuItem>
-                <MenuItem value='pending'>Pending</MenuItem>
-                <MenuItem value='terminated'>Terminated</MenuItem>
+                <MenuItem value='ACTIVE'>Active</MenuItem>
+                <MenuItem value='PENDING'>Pending</MenuItem>
+                <MenuItem value='EXPIRED'>Expired</MenuItem>
+                <MenuItem value='TERMINATED'>Terminated</MenuItem>
               </TextField>
             </div>
             <Divider />
-
             <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search'
-                  value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
-
+              <TextField
+                size='small'
+                placeholder='Search'
+                value={globalFilter}
+                onChange={e => setGlobalFilter(e.target.value)}
+                className='flex-1 min-w-[200px]'
+              />
               <div className='flex items-center gap-2 ml-auto'>
                 <TextField
                   select
@@ -576,7 +407,7 @@ return <Typography>{date.toLocaleDateString()}</Typography>
                   color='primary'
                   size='small'
                   startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddAgreementOpen(true)}
+                  onClick={() => setAddOpen(true)}
                 >
                   Add Agreement
                 </Button>
@@ -612,32 +443,36 @@ return <Typography>{date.toLocaleDateString()}</Typography>
                   </tr>
                 ))}
               </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
+              {loading ? (
                 <tbody>
                   <tr>
-                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
+                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center py-8'>
+                      <CircularProgress size={28} />
+                    </td>
+                  </tr>
+                </tbody>
+              ) : table.getFilteredRowModel().rows.length === 0 ? (
+                <tbody>
+                  <tr>
+                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center py-8'>
+                      No agreements found
                     </td>
                   </tr>
                 </tbody>
               ) : (
                 <tbody>
-                  {table
-                    .getRowModel()
-                    .rows.slice(0, table.getState().pagination.pageSize)
-                    .map(row => {
-                      return (
-                        <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                          {row.getVisibleCells().map(cell => (
-                            <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                          ))}
-                        </tr>
-                      )
-                    })}
+                  {table.getRowModel().rows.map(row => (
+                    <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               )}
             </table>
           </div>
+
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
@@ -645,69 +480,84 @@ return <Typography>{date.toLocaleDateString()}</Typography>
             count={table.getFilteredRowModel().rows.length}
             rowsPerPage={table.getState().pagination.pageSize}
             page={table.getState().pagination.pageIndex}
-            SelectProps={{
-              inputProps: { 'aria-label': 'rows per page' }
-            }}
-            onPageChange={(_, page) => {
-              table.setPageIndex(page)
-            }}
+            SelectProps={{ inputProps: { 'aria-label': 'rows per page' } }}
+            onPageChange={(_, page) => table.setPageIndex(page)}
             onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
           />
         </CardContent>
       </Card>
 
-      {/* Add Agreement Dialog */}
+      {/* Add / Edit Dialog */}
       <AddAgreementDialog
-        open={addAgreementOpen}
-        handleClose={() => setAddAgreementOpen(false)}
-        properties={properties}
-        units={units}
-        tenants={tenants}
-        agreementsData={data}
-        setData={setData}
-        mode='add'
+        open={addOpen || editAgreement !== null}
+        handleClose={() => { setAddOpen(false); setEditAgreement(null) }}
+        editAgreement={editAgreement}
+        onSaved={handleSaved}
       />
 
-      {/* Edit Agreement Dialog */}
-      <AddAgreementDialog
-        open={editAgreementOpen}
-        handleClose={() => {
-          setEditAgreementOpen(false)
-          setSelectedAgreement(null)
-        }}
-        properties={properties}
-        units={units}
-        tenants={tenants}
-        agreementsData={data}
-        setData={setData}
-        editData={selectedAgreement}
-        mode='edit'
-      />
-
-      {/* View Agreement Dialog */}
+      {/* View Dialog */}
       <ViewAgreementDialog
-        open={viewAgreementOpen}
-        handleClose={() => {
-          setViewAgreementOpen(false)
-          setSelectedAgreement(null)
-        }}
-        agreement={selectedAgreement}
+        open={viewAgreement !== null}
+        handleClose={() => setViewAgreement(null)}
+        agreement={viewAgreement}
       />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Status Update Dialog */}
+      {statusUpdateOpen && selectedAgreement && (
+        <Card
+          sx={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+            zIndex: 1300, p: 4, minWidth: 320, boxShadow: 24
+          }}
+        >
+          <Typography variant='h6' className='mbe-4'>
+            Update Status — {selectedAgreement.agreementNumber}
+          </Typography>
+          <TextField
+            select
+            fullWidth
+            size='small'
+            label='New Status'
+            value={pendingStatus}
+            onChange={e => setPendingStatus(e.target.value as AgreementStatus)}
+            className='mbe-4'
+          >
+            <MenuItem value=''>Select status</MenuItem>
+            {statusOptions.map(s => (
+              <MenuItem key={s} value={s}>
+                {agreementStatusObj[s]?.label ?? s}
+              </MenuItem>
+            ))}
+          </TextField>
+          <div className='flex gap-2 justify-end'>
+            <Button
+              variant='outlined'
+              onClick={() => { setStatusUpdateOpen(false); setPendingStatus('') }}
+              disabled={statusUpdating}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant='contained'
+              onClick={handleStatusUpdate}
+              disabled={!pendingStatus || statusUpdating}
+              startIcon={statusUpdating ? <CircularProgress size={16} color='inherit' /> : undefined}
+            >
+              Update
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Delete Confirmation */}
       <ConfirmationDialog
-        open={deleteAgreementOpen}
-        setOpen={setDeleteAgreementOpen}
+        open={deleteOpen}
+        setOpen={setDeleteOpen}
         type='delete-tenant'
-        onConfirm={() => {
-          if (selectedAgreement) {
-            handleDeleteAgreement(selectedAgreement.id)
-          }
-        }}
+        onConfirm={handleDeleteConfirm}
       />
     </>
   )
 }
 
 export default AgreementsListTable
-

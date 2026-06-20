@@ -4,7 +4,7 @@ import Grid from '@mui/material/Grid2'
 
 // Component Imports
 import PageBanner from '@/components/banner/PageBanner'
-import PropertyStatsCard from '@/components/card-statistics/PropertyStatsCard'
+import DashboardStatsCards from '@views/dashboards/DashboardStatsCards'
 import RentCollectedCard from '@views/dashboards/RentCollectedCard'
 import PendingPaymentCard from '@views/dashboards/PendingPaymentCard'
 import ExpensesOverviewCard from '@views/dashboards/ExpensesOverviewCard'
@@ -30,43 +30,8 @@ const DashboardPage = () => {
         />
       </Grid>
 
-      {/* Row 1: Summary Cards */}
-      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-        <PropertyStatsCard
-          title='Total Properties'
-          value='210'
-          description='Total Number of properties managed'
-          icon='ri-building-line'
-          iconColor='success'
-        />
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-        <PropertyStatsCard
-          title='Total Tenants'
-          value='530'
-          description='Total Number of tenants'
-          icon='ri-group-line'
-          iconColor='warning'
-        />
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-        <PropertyStatsCard
-          title='Occupied Units'
-          value='300'
-          description='Total number of occupied units'
-          icon='ri-layout-grid-line'
-          iconColor='info'
-        />
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-        <PropertyStatsCard
-          title='Vacant Units'
-          value='140'
-          description='Total number of vacant units'
-          icon='ri-home-line'
-          iconColor='error'
-        />
-      </Grid>
+      {/* Row 1: Summary Cards (live from API) */}
+      <DashboardStatsCards />
 
       {/* Row 2: Financial Cards with Charts */}
       <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -87,7 +52,7 @@ const DashboardPage = () => {
         <RecentActivity />
       </Grid>
 
-      {/* Row 4: Tenants Table */}
+      {/* Row 4: Occupants Table */}
       <Grid size={{ xs: 12 }}>
         <TenantsTable />
       </Grid>

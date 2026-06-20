@@ -13,6 +13,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
+import Avatar from '@mui/material/Avatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -29,13 +30,14 @@ import {
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
 import AddUnitDialog from './AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // API Imports
 import { getUnitsByProperty as getPropertyUnits, deleteUnit } from '@/lib/api/units'
+import { getOccupantById } from '@/lib/api/occupants'
 import { getStoredTenantId } from '@/lib/api/storage'
 import type { Unit as PropertyUnit } from '@/types/property'
 import { formatCurrency } from '@/utils/currency'
@@ -62,6 +64,7 @@ type UnitType = {
   bedrooms: number | string
   bathrooms: number | string
   size: string
+  images: string[] | null
   originalData: PropertyUnit
 }
 
@@ -73,20 +76,45 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
   reserved: 'info'
 }
 
-function transformUnits(units: PropertyUnit[]): UnitType[] {
-  return units.map(unit => ({
-    id: unit.id,
-    unitNumber: unit.unitNo,
-    type: unit.type,
-    status: unit.status,
-    bedrooms: unit.bedrooms || '-',
-    bathrooms: unit.bathrooms || '-',
-    rent: unit.rent,
-    formattedRent: formatCurrency(unit.rent),
-    size: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-',
-    tenantName: unit.tenantRecordId ? 'Has Tenant' : 'Vacant',
-    originalData: unit
-  }))
+function transformUnits(units: PropertyUnit[], nameMap: Record<string, string> = {}): UnitType[] {
+  return units.map(unit => {
+    const oId = unit.occupantId || unit.tenantRecordId || null
+    return {
+      id: unit.id,
+      unitNumber: unit.unitNo,
+      type: unit.type,
+      status: unit.status,
+      bedrooms: unit.bedrooms || '-',
+      bathrooms: unit.bathrooms || '-',
+      rent: unit.rent,
+      formattedRent: formatCurrency(unit.rent, unit.currency),
+      size: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-',
+      tenantName: oId ? (nameMap[oId] ?? 'Loading…') : null,
+      images: unit.images || null,
+      originalData: unit
+    }
+  })
+}
+
+async function resolveOccupantNames(
+  units: PropertyUnit[],
+  tenantId: string
+): Promise<Record<string, string>> {
+  const ids = [...new Set(
+    units.map(u => u.occupantId || u.tenantRecordId).filter(Boolean) as string[]
+  )]
+
+  const results = await Promise.allSettled(
+    ids.map(id => getOccupantById(tenantId, id))
+  )
+
+  const map: Record<string, string> = {}
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value?.firstName) {
+      map[ids[i]] = `${r.value.firstName} ${r.value.lastName}`
+    }
+  })
+  return map
 }
 
 const columnHelper = createColumnHelper<UnitType>()
@@ -142,10 +170,17 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
         })
 
         if (response.success && response.data) {
-          setData(transformUnits(response.data))
-          setTotal(response.meta?.pagination?.total || response.data.length || 0)
+          const units = response.data
+          // Show units immediately, then patch names in once resolved
+          setData(transformUnits(units))
+          setTotal(response.meta?.pagination?.total || units.length || 0)
           setCursor(response.meta?.pagination?.cursor ?? null)
           setHasNext(response.meta?.pagination?.hasNext ?? false)
+
+          // Resolve occupant names in parallel (non-blocking)
+          resolveOccupantNames(units, tenantId)
+            .then(nameMap => setData(transformUnits(units, nameMap)))
+            .catch(() => { /* non-critical — names stay as "Loading…" */ })
         } else {
           setError('Failed to load units')
         }
@@ -219,9 +254,25 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       columnHelper.accessor('unitNumber', {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
-          <Typography color='text.primary' className='font-medium'>
-            {row.original.unitNumber}
-          </Typography>
+          <div className='flex items-center gap-3'>
+            <Avatar
+              variant='rounded'
+              sx={{ width: 34, height: 34 }}
+              src={row.original.images?.[0] ?? undefined}
+            >
+              <i className='ri-home-3-line text-base' />
+            </Avatar>
+            <div className='flex flex-col'>
+              <Typography color='text.primary' className='font-medium'>
+                {row.original.unitNumber}
+              </Typography>
+              {row.original.type && (
+                <Typography variant='caption' color='text.secondary' className='capitalize'>
+                  {row.original.type}
+                </Typography>
+              )}
+            </div>
+          </div>
         )
       }),
       columnHelper.accessor('tenantName', {
@@ -283,7 +334,7 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -447,9 +498,30 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       {propertyId && (
         <AddUnitDialog
           open={addDialogOpen}
-          onClose={handleDialogClose}
-          propertyId={propertyId}
-          editUnit={editUnit}
+          handleClose={handleDialogClose}
+          properties={[{ id: propertyId, name: '' }]}
+          mode={editUnit ? 'edit' : 'add'}
+          editData={
+            editUnit
+              ? {
+                  id: editUnit.id,
+                  unitNumber: editUnit.unitNo,
+                  propertyId,
+                  status: editUnit.status,
+                  rent: editUnit.rent?.toString() || '',
+                  currency: editUnit.currency || 'GHS',
+                  bedrooms: editUnit.bedrooms,
+                  bathrooms: editUnit.bathrooms,
+                  size: editUnit.sizeSqft?.toString() || '',
+                  floor: (editUnit as any).floor,
+                  type: editUnit.type,
+                  images: editUnit.images || [],
+                  imageFileIds: editUnit.imageFileIds || [],
+                  features: (editUnit as any).features,
+                  metadata: (editUnit as any).metadata
+                }
+              : null
+          }
           onSuccess={handleAddSuccess}
         />
       )}

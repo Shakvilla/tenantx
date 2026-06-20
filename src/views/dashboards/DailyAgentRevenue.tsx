@@ -1,29 +1,38 @@
 'use client'
 
-// Next Imports
-import { useState, useMemo } from 'react'
+// React Imports
+import { useState, useEffect, useMemo } from 'react'
 
+// Next Imports
 import dynamic from 'next/dynamic'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
-
-// import Typography from '@mui/material/Typography'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
+import CircularProgress from '@mui/material/CircularProgress'
+import Box from '@mui/material/Box'
 import { styled } from '@mui/material/styles'
 
 // Third-party Imports
 import type { ApexOptions } from 'apexcharts'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
+
+// API Imports
+import { getInvoices, type Invoice } from '@/lib/api/invoices'
 
 // Styled Component Imports
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+]
 
 const StyledCard = styled(Card)(() => ({
   position: 'relative',
@@ -40,62 +49,69 @@ const StyledCard = styled(Card)(() => ({
   }
 }))
 
-// Helper function to get days in a month
-const getDaysInMonth = (month: string) => {
-  const monthIndex = new Date(Date.parse(`${month} 1, 2024`)).getMonth()
+/** Get daily invoice totals for a given month/year */
+function getDailyData(
+  invoices: Invoice[],
+  monthIndex: number,
+  year: number
+): { revenueData: number[]; dates: string[] } {
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
+  const monthShort = new Date(year, monthIndex, 1).toLocaleString('default', { month: 'short' })
 
-  
-return new Date(2024, monthIndex + 1, 0).getDate()
-}
+  const dailyMap: Record<number, number> = {}
 
-// Generate daily data for a month
-const generateDailyData = (month: string) => {
-  const daysInMonth = getDaysInMonth(month)
-  const monthIndex = new Date(Date.parse(`${month} 1, 2024`)).getMonth()
-  const monthName = new Date(2024, monthIndex, 1).toLocaleString('default', { month: 'short' })
+  invoices.forEach(inv => {
+    const d = new Date(inv.issuedDate)
+
+    if (isNaN(d.getTime())) return
+    if (d.getFullYear() !== year || d.getMonth() !== monthIndex) return
+    const day = d.getDate()
+
+    dailyMap[day] = (dailyMap[day] || 0) + inv.amount
+  })
 
   const revenueData: number[] = []
-  const targetData: number[] = []
   const dates: string[] = []
 
   for (let day = 1; day <= daysInMonth; day++) {
-    // Generate realistic daily revenue data (varying between 25-50)
-    const baseRevenue = 25 + Math.floor(Math.random() * 25)
-    const baseTarget = 20 + Math.floor(Math.random() * 20)
-
-    revenueData.push(baseRevenue)
-    targetData.push(baseTarget)
-    dates.push(`${day} ${monthName}`)
+    revenueData.push(dailyMap[day] || 0)
+    dates.push(`${day} ${monthShort}`)
   }
 
-  return { revenueData, targetData, dates }
+  return { revenueData, dates }
 }
 
 const DailyAgentRevenue = () => {
-  // Hooks
-  // const theme = useTheme()
-  const [selectedMonth, setSelectedMonth] = useState('January')
+  const currentMonth = MONTHS[new Date().getMonth()]
+  const currentYear = new Date().getFullYear()
 
-  // Generate data based on selected month (memoized)
-  const { revenueData, targetData, dates } = useMemo(() => generateDailyData(selectedMonth), [selectedMonth])
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const series: any[] = useMemo(
-    () => [
-      {
-        name: 'Revenue Collected',
-        type: 'column',
-        data: revenueData
-      },
-      {
-        name: 'Target',
-        type: 'line',
-        data: targetData
-      }
-    ],
-    [revenueData, targetData]
+  useEffect(() => {
+    setLoading(true)
+    getInvoices()
+      .then(setInvoices)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const { revenueData, dates } = useMemo(() => {
+    const monthIndex = MONTHS.indexOf(selectedMonth)
+
+    return getDailyData(invoices, monthIndex, currentYear)
+  }, [invoices, selectedMonth, currentYear])
+
+  const totalRevenue = useMemo(
+    () => revenueData.reduce((sum, val) => sum + val, 0),
+    [revenueData]
   )
 
-  const totalRevenue = useMemo(() => revenueData.reduce((sum, val) => sum + val, 0), [revenueData])
+  const series = useMemo(
+    () => [{ name: 'Revenue', type: 'column', data: revenueData }],
+    [revenueData]
+  )
 
   const options: ApexOptions = useMemo(
     () => ({
@@ -105,52 +121,25 @@ const DailyAgentRevenue = () => {
         stacked: false
       },
       stroke: {
-        width: [0, 3],
-        curve: 'smooth',
-        colors: ['var(--mui-palette-info-main)']
+        width: [0],
+        curve: 'smooth'
       },
-      markers: {
-        size: 4,
-        strokeWidth: 3,
-        fillOpacity: 1,
-        strokeOpacity: 1,
-        colors: ['var(--mui-palette-background-paper)'],
-        strokeColors: 'var(--mui-palette-info-main)',
-        hover: {
-          size: 5
-        }
-      },
-      colors: ['var(--mui-palette-warning-main)', 'var(--mui-palette-info-main)'],
+      colors: ['var(--mui-palette-warning-main)'],
       dataLabels: { enabled: false },
       legend: {
         show: true,
         position: 'bottom',
         horizontalAlign: 'center',
         fontSize: '13px',
-        labels: {
-          colors: 'var(--mui-palette-text-secondary)'
-        },
-        markers: {
-          width: 8,
-          height: 8,
-          radius: 4
-        }
+        labels: { colors: 'var(--mui-palette-text-secondary)' },
+        markers: { width: 8, height: 8, radius: 4 }
       },
       grid: {
         strokeDashArray: 6,
         borderColor: 'var(--mui-palette-divider)',
-        xaxis: {
-          lines: { show: false }
-        },
-        yaxis: {
-          lines: { show: true }
-        },
-        padding: {
-          top: 10,
-          left: -10,
-          right: -10,
-          bottom: 0
-        }
+        xaxis: { lines: { show: false } },
+        yaxis: { lines: { show: true } },
+        padding: { top: 10, left: -10, right: -10, bottom: 0 }
       },
       plotOptions: {
         bar: {
@@ -166,46 +155,46 @@ const DailyAgentRevenue = () => {
         labels: {
           style: {
             colors: 'var(--mui-palette-text-disabled)',
-            fontSize: '13px'
+            fontSize: '12px'
           }
         }
       },
       yaxis: {
         min: 0,
-        max: Math.max(...revenueData, ...targetData) + 10,
-        tickAmount: 6,
         labels: {
           style: {
             colors: 'var(--mui-palette-text-disabled)',
             fontSize: '13px'
           },
-          formatter: (val: number) => val.toString()
+          formatter: (val: number) =>
+            val >= 1000 ? `₵${(val / 1000).toFixed(0)}k` : `₵${val}`
         }
       },
       tooltip: {
         shared: true,
         intersect: false,
         y: {
-          formatter: (val: number) => `GH₵ ${val.toLocaleString()}`
+          formatter: (val: number) =>
+            `₵${val.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         }
       },
       states: {
-        hover: {
-          filter: { type: 'none' }
-        },
-        active: {
-          filter: { type: 'none' }
-        }
+        hover: { filter: { type: 'none' } },
+        active: { filter: { type: 'none' } }
       }
     }),
-    [revenueData, targetData, dates]
+    [revenueData, dates]
   )
+
+  const totalDisplay = totalRevenue >= 1000
+    ? `${(totalRevenue / 1000).toFixed(1)}k`
+    : totalRevenue.toFixed(0)
 
   return (
     <StyledCard>
       <CardHeader
-        title='Daily Agent Revenue Collection'
-        subheader={`Total number of revenue collections ${(totalRevenue / 1000).toFixed(1)}k`}
+        title='Daily Revenue — Invoices Issued'
+        subheader={`${selectedMonth} ${currentYear} · Total: ₵${totalDisplay}`}
         action={
           <div className='flex items-center gap-2'>
             <FormControl size='small' sx={{ minWidth: 120 }}>
@@ -213,31 +202,28 @@ const DailyAgentRevenue = () => {
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(e.target.value)}
                 sx={{
-                  '& .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'var(--mui-palette-info-main)'
-                  },
-                  '&:hover .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'var(--mui-palette-info-main)'
-                  },
-                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                    borderColor: 'var(--mui-palette-info-main)'
-                  }
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--mui-palette-warning-main)' },
+                  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--mui-palette-warning-main)' },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--mui-palette-warning-main)' }
                 }}
               >
-                <MenuItem value='January'>January</MenuItem>
-                <MenuItem value='February'>February</MenuItem>
-                <MenuItem value='March'>March</MenuItem>
-                <MenuItem value='April'>April</MenuItem>
-                <MenuItem value='May'>May</MenuItem>
-                <MenuItem value='June'>June</MenuItem>
+                {MONTHS.map(m => (
+                  <MenuItem key={m} value={m}>{m}</MenuItem>
+                ))}
               </Select>
             </FormControl>
-            <OptionMenu options={['Refresh', 'Export', 'Share']} />
+            <RowActions options={['Refresh', 'Export', 'Share']} />
           </div>
         }
       />
       <CardContent className='p-4'>
-        <AppReactApexCharts type='line' height={350} width='100%' series={series} options={options} />
+        {loading ? (
+          <Box className='flex justify-center py-10'>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <AppReactApexCharts type='bar' height={350} width='100%' series={series} options={options} />
+        )}
       </CardContent>
     </StyledCard>
   )

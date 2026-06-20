@@ -1,6 +1,8 @@
 export type ExpenseConfigType = {
-  id: number
+  id: string
   item: string
-  category: string
+  category?: string | null
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string | null
 }
-

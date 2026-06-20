@@ -50,7 +50,7 @@ import { getStoredTenantId } from '@/lib/api/storage'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import PropertiesStatsCard from './PropertiesStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -356,7 +356,7 @@ const PropertiesListTable = () => {
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -443,7 +443,7 @@ const PropertiesListTable = () => {
               >
                 Refresh
               </Button>
-              <OptionMenu options={['Share', 'Export']} />
+              <RowActions options={['Share', 'Export']} />
             </div>
           }
         />

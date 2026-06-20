@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -22,11 +22,15 @@ import AccordionSummary from '@mui/material/AccordionSummary'
 import AccordionDetails from '@mui/material/AccordionDetails'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import Avatar from '@mui/material/Avatar'
+import Tooltip from '@mui/material/Tooltip'
+import Box from '@mui/material/Box'
 
 // API Imports
 import {
   createOccupant,
   updateOccupant,
+  uploadOccupantAvatar,
   type CreateOccupantPayload,
   type UpdateOccupantPayload,
   type OccupantRecord
@@ -52,7 +56,8 @@ type FormDataType = {
   occupation: string
   dob: string
   familyMembers: string
-  avatarUrl: string
+  ghanaCardId: string
+  idType: string
   // Emergency contact
   ecName: string
   ecPhone: string
@@ -76,7 +81,8 @@ const initialData: FormDataType = {
   occupation: '',
   dob: '',
   familyMembers: '',
-  avatarUrl: '',
+  ghanaCardId: '',
+  idType: '',
   ecName: '',
   ecPhone: '',
   ecRelationship: '',
@@ -105,6 +111,26 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
   const [apiError, setApiError] = useState<string | null>(null)
   const [availableUnits, setAvailableUnits] = useState<Array<{ id: string; unitNo: string }>>([])
   const [isLoadingUnits, setIsLoadingUnits] = useState(false)
+
+  // Avatar state — separate from form fields
+  const [existingAvatarUrl, setExistingAvatarUrl] = useState<string | null>(null)
+  const [existingAvatarFileId, setExistingAvatarFileId] = useState<string | null>(null)
+  const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null)
+  const [newAvatarPreview, setNewAvatarPreview] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  // ID card image state
+  const [existingFrontUrl, setExistingFrontUrl] = useState<string | null>(null)
+  const [existingFrontFileId, setExistingFrontFileId] = useState<string | null>(null)
+  const [newFrontFile, setNewFrontFile] = useState<File | null>(null)
+  const [newFrontPreview, setNewFrontPreview] = useState<string | null>(null)
+  const frontInputRef = useRef<HTMLInputElement>(null)
+
+  const [existingBackUrl, setExistingBackUrl] = useState<string | null>(null)
+  const [existingBackFileId, setExistingBackFileId] = useState<string | null>(null)
+  const [newBackFile, setNewBackFile] = useState<File | null>(null)
+  const [newBackPreview, setNewBackPreview] = useState<string | null>(null)
+  const backInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch available units for a given property
   const fetchUnitsForProperty = useCallback(async (propertyId: string) => {
@@ -139,7 +165,20 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
     else setAvailableUnits([])
   }, [formData.propertyId, fetchUnitsForProperty])
 
-  const filteredUnits = useMemo(() => availableUnits, [availableUnits])
+  // In edit mode, always include the occupant's currently-assigned unit even if it's not
+  // "available" (it will be "occupied"). Without this, the reset-unitId effect clears the
+  // field and validation fails before the form can submit.
+  const filteredUnits = useMemo(() => {
+    if (mode === 'edit' && editData?.unitId && editData?.unitNo) {
+      const alreadyPresent = availableUnits.some(u => u.id === editData.unitId)
+
+      if (!alreadyPresent) {
+        return [{ id: editData.unitId, unitNo: editData.unitNo }, ...availableUnits]
+      }
+    }
+
+    return availableUnits
+  }, [availableUnits, mode, editData?.unitId, editData?.unitNo])
 
   // Populate form when dialog opens
   useEffect(() => {
@@ -155,7 +194,8 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
           occupation: (ec.occupation as string) || '',
           dob: (ec.dob as string) || '',
           familyMembers: ec.familyMembersCount?.toString() || '',
-          avatarUrl: editData.avatar || '',
+          ghanaCardId: editData.ghanaCardId || '',
+          idType: editData.idType || '',
           ecName: (ec.name as string) || '',
           ecPhone: (ec.phone as string) || '',
           ecRelationship: (ec.relationship as string) || '',
@@ -179,14 +219,38 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
           moveInDate: editData.moveInDate ? editData.moveInDate.split('T')[0] : '',
           moveOutDate: editData.moveOutDate ? editData.moveOutDate.split('T')[0] : ''
         })
+        setExistingAvatarUrl(editData.avatar || null)
+        setExistingAvatarFileId(editData.avatarFileId || null)
+        setExistingFrontUrl(editData.idCardFrontUrl || null)
+        setExistingFrontFileId(editData.idCardFrontFileId || null)
+        setExistingBackUrl(editData.idCardBackUrl || null)
+        setExistingBackFileId(editData.idCardBackFileId || null)
       } else {
         setFormData({ ...initialData, previousAddress: { ...emptyAddress }, permanentAddress: { ...emptyAddress } })
+        setExistingAvatarUrl(null)
+        setExistingAvatarFileId(null)
+        setExistingFrontUrl(null)
+        setExistingFrontFileId(null)
+        setExistingBackUrl(null)
+        setExistingBackFileId(null)
       }
+
+      // Clear any pending new avatar/ID card images
+      if (newAvatarPreview) URL.revokeObjectURL(newAvatarPreview)
+      setNewAvatarFile(null)
+      setNewAvatarPreview(null)
+      if (newFrontPreview) URL.revokeObjectURL(newFrontPreview)
+      setNewFrontFile(null)
+      setNewFrontPreview(null)
+      if (newBackPreview) URL.revokeObjectURL(newBackPreview)
+      setNewBackFile(null)
+      setNewBackPreview(null)
 
       setErrors({})
       setExpanded('occupant-info')
       setApiError(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
 
   // Reset unitId if no longer valid after property change
@@ -220,6 +284,22 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
 
   const handleAccordionChange = (panel: string) => (_: React.SyntheticEvent, isExpanded: boolean) => {
     setExpanded(isExpanded ? panel : false)
+  }
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+
+    if (!file) return
+    if (newAvatarPreview) URL.revokeObjectURL(newAvatarPreview)
+    setNewAvatarFile(file)
+    setNewAvatarPreview(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  const handleRemoveNewAvatar = () => {
+    if (newAvatarPreview) URL.revokeObjectURL(newAvatarPreview)
+    setNewAvatarFile(null)
+    setNewAvatarPreview(null)
   }
 
   const validateForm = (): boolean => {
@@ -275,34 +355,79 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
 
       if (hasPermAddr) emergencyContact.permanentAddress = formData.permanentAddress
 
+      // Upload new avatar if selected
+      let avatarUrl: string | undefined = existingAvatarUrl || undefined
+      let avatarFileId: string | undefined = existingAvatarFileId || undefined
+
+      if (newAvatarFile) {
+        const occupantId = mode === 'edit' ? editData?.id : undefined
+        const uploaded = await uploadOccupantAvatar(tenantId, newAvatarFile, occupantId)
+
+        avatarUrl = uploaded.url
+        avatarFileId = uploaded.fileId
+      }
+
+      // Upload ID card images if selected
+      const { uploadImages } = await import('@/lib/imagekit')
+      const occupantFolder = mode === 'edit' && editData?.id
+        ? `/tenantx/${tenantId}/occupants/${editData.id}/id`
+        : `/tenantx/${tenantId}/occupants/id`
+
+      let frontUrl: string | undefined = existingFrontUrl || undefined
+      let frontFileId: string | undefined = existingFrontFileId || undefined
+      if (newFrontFile) {
+        const [uploaded] = await uploadImages([newFrontFile], { folder: occupantFolder })
+        frontUrl = uploaded.url
+        frontFileId = uploaded.fileId
+      }
+
+      let backUrl: string | undefined = existingBackUrl || undefined
+      let backFileId: string | undefined = existingBackFileId || undefined
+      if (newBackFile) {
+        const [uploaded] = await uploadImages([newBackFile], { folder: occupantFolder })
+        backUrl = uploaded.url
+        backFileId = uploaded.fileId
+      }
+
       const payload: CreateOccupantPayload = {
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
         phone: formData.phone,
-        avatar: formData.avatarUrl || undefined,
+        avatar: avatarUrl,
+        avatarFileId,
         status: 'active',
         propertyId: formData.propertyId || undefined,
         unitId: formData.unitId || undefined,
         unitNo: formData.unitNo || undefined,
         moveInDate: formData.moveInDate ? new Date(formData.moveInDate).toISOString() : undefined,
         moveOutDate: formData.moveOutDate ? new Date(formData.moveOutDate).toISOString() : undefined,
-        emergencyContact: Object.keys(emergencyContact).length > 0 ? emergencyContact : undefined
+        emergencyContact: Object.keys(emergencyContact).length > 0 ? emergencyContact : undefined,
+        ghanaCardId: formData.ghanaCardId || undefined,
+        idType: formData.idType || undefined,
+        idCardFrontUrl: frontUrl,
+        idCardFrontFileId: frontFileId,
+        idCardBackUrl: backUrl,
+        idCardBackFileId: backFileId
       }
 
       if (mode === 'edit' && editData?.id) {
-        const updatePayload: UpdateOccupantPayload = { ...payload }
-        const response = await updateOccupant(tenantId, editData.id, updatePayload)
-
-        if (!response.success) throw new Error(response.error?.message || 'Failed to update occupant')
+        await updateOccupant(tenantId, editData.id, payload as UpdateOccupantPayload)
       } else {
-        const response = await createOccupant(tenantId, payload)
-
-        if (!response.success) throw new Error(response.error?.message || 'Failed to create occupant')
+        await createOccupant(tenantId, payload)
       }
 
+      if (newAvatarPreview) URL.revokeObjectURL(newAvatarPreview)
+      if (newFrontPreview) URL.revokeObjectURL(newFrontPreview)
+      if (newBackPreview) URL.revokeObjectURL(newBackPreview)
       handleClose()
       setFormData({ ...initialData, previousAddress: { ...emptyAddress }, permanentAddress: { ...emptyAddress } })
+      setNewAvatarFile(null)
+      setNewAvatarPreview(null)
+      setNewFrontFile(null)
+      setNewFrontPreview(null)
+      setNewBackFile(null)
+      setNewBackPreview(null)
       setErrors({})
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Failed to save occupant')
@@ -312,6 +437,15 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
   }
 
   const handleReset = () => {
+    if (newAvatarPreview) URL.revokeObjectURL(newAvatarPreview)
+    setNewAvatarFile(null)
+    setNewAvatarPreview(null)
+    if (newFrontPreview) URL.revokeObjectURL(newFrontPreview)
+    setNewFrontFile(null)
+    setNewFrontPreview(null)
+    if (newBackPreview) URL.revokeObjectURL(newBackPreview)
+    setNewBackFile(null)
+    setNewBackPreview(null)
     handleClose()
     setFormData({ ...initialData, previousAddress: { ...emptyAddress }, permanentAddress: { ...emptyAddress } })
     setErrors({})
@@ -437,15 +571,71 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                     onChange={e => handleInputChange('familyMembers', e.target.value)}
                   />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 8 }}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField
                     size='small'
                     fullWidth
-                    label='Avatar URL'
-                    placeholder='https://example.com/avatar.jpg'
-                    value={formData.avatarUrl}
-                    onChange={e => handleInputChange('avatarUrl', e.target.value)}
+                    label='Ghana Card ID'
+                    placeholder='GHA-XXXXXXXXX-X'
+                    value={formData.ghanaCardId}
+                    onChange={e => handleInputChange('ghanaCardId', e.target.value)}
+                    inputProps={{ maxLength: 20 }}
+                    helperText='National ID number (optional)'
                   />
+                </Grid>
+
+                {/* Avatar upload */}
+                <Grid size={{ xs: 12 }}>
+                  <input
+                    ref={avatarInputRef}
+                    type='file'
+                    accept='image/*'
+                    style={{ display: 'none' }}
+                    onChange={handleAvatarFileChange}
+                  />
+                  <Box className='flex items-center gap-4'>
+                    <Tooltip title='Click to change photo' placement='top'>
+                      <Avatar
+                        src={newAvatarPreview ?? existingAvatarUrl ?? undefined}
+                        sx={{ width: 80, height: 80, cursor: 'pointer', border: '2px dashed', borderColor: 'divider' }}
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        <i className='ri-user-3-line text-3xl' />
+                      </Avatar>
+                    </Tooltip>
+                    <Box className='flex flex-col gap-2'>
+                      <Typography variant='body2' color='text.primary' className='font-medium'>
+                        {newAvatarFile ? newAvatarFile.name : 'Profile Photo'}
+                      </Typography>
+                      <Typography variant='caption' color='text.secondary'>
+                        JPG, PNG or GIF. Max 5MB.
+                      </Typography>
+                      <Box className='flex gap-2'>
+                        <Button
+                          size='small'
+                          variant='outlined'
+                          startIcon={<i className='ri-upload-cloud-line' />}
+                          onClick={() => avatarInputRef.current?.click()}
+                        >
+                          {newAvatarFile || existingAvatarUrl ? 'Change' : 'Upload'}
+                        </Button>
+                        {(newAvatarFile || existingAvatarUrl) && (
+                          <Button
+                            size='small'
+                            variant='outlined'
+                            color='error'
+                            onClick={() => {
+                              handleRemoveNewAvatar()
+                              setExistingAvatarUrl(null)
+                              setExistingAvatarFileId(null)
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </Box>
+                    </Box>
+                  </Box>
                 </Grid>
               </Grid>
             </AccordionDetails>
@@ -493,6 +683,110 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                     value={formData.ecRelationship}
                     onChange={e => handleInputChange('ecRelationship', e.target.value)}
                   />
+                </Grid>
+              </Grid>
+            </AccordionDetails>
+          </Accordion>
+
+          {/* ID Document */}
+          <Accordion
+            expanded={expanded === 'id-document'}
+            onChange={handleAccordionChange('id-document')}
+          >
+            <AccordionSummary expandIcon={<i className='ri-arrow-down-s-line' />}>
+              <div className='flex items-center gap-2'>
+                <i className='ri-id-card-line text-xl' />
+                <Typography variant='h6'>ID Document</Typography>
+              </div>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Grid container spacing={6}>
+                {/* ID type */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <FormControl fullWidth size='small'>
+                    <InputLabel id='id-type-label'>ID Type</InputLabel>
+                    <Select
+                      labelId='id-type-label'
+                      label='ID Type'
+                      value={formData.idType}
+                      onChange={e => handleInputChange('idType', e.target.value)}
+                    >
+                      <MenuItem value=''>— Select ID type —</MenuItem>
+                      {['Ghana Card', 'Passport', 'Voter ID', 'NHIS Card', "Driver's Licence", 'Other'].map(t => (
+                        <MenuItem key={t} value={t}>{t}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* hidden file inputs */}
+                <input ref={frontInputRef} type='file' accept='image/*,application/pdf' style={{ display: 'none' }}
+                  onChange={e => {
+                    const f = e.target.files?.[0]; if (!f) return
+                    if (newFrontPreview) URL.revokeObjectURL(newFrontPreview)
+                    setNewFrontFile(f); setNewFrontPreview(URL.createObjectURL(f)); e.target.value = ''
+                  }} />
+                <input ref={backInputRef} type='file' accept='image/*,application/pdf' style={{ display: 'none' }}
+                  onChange={e => {
+                    const f = e.target.files?.[0]; if (!f) return
+                    if (newBackPreview) URL.revokeObjectURL(newBackPreview)
+                    setNewBackFile(f); setNewBackPreview(URL.createObjectURL(f)); e.target.value = ''
+                  }} />
+
+                {/* Front */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Box className='flex flex-col gap-2'>
+                    <Typography variant='body2' color='text.secondary' className='font-medium'>Front of ID</Typography>
+                    {(newFrontPreview || existingFrontUrl) && (
+                      <Box
+                        component='img'
+                        src={newFrontPreview ?? existingFrontUrl ?? undefined}
+                        alt='ID front'
+                        sx={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                      />
+                    )}
+                    <Box className='flex gap-2'>
+                      <Button size='small' variant='outlined' startIcon={<i className='ri-upload-cloud-line' />}
+                        onClick={() => frontInputRef.current?.click()}>
+                        {(newFrontFile || existingFrontUrl) ? 'Change' : 'Upload Front'}
+                      </Button>
+                      {(newFrontFile || existingFrontUrl) && (
+                        <Button size='small' variant='outlined' color='error' onClick={() => {
+                          if (newFrontPreview) URL.revokeObjectURL(newFrontPreview)
+                          setNewFrontFile(null); setNewFrontPreview(null); setExistingFrontUrl(null); setExistingFrontFileId(null)
+                        }}>Remove</Button>
+                      )}
+                    </Box>
+                    <Typography variant='caption' color='text.secondary'>JPG, PNG or PDF. Max 5MB.</Typography>
+                  </Box>
+                </Grid>
+
+                {/* Back */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Box className='flex flex-col gap-2'>
+                    <Typography variant='body2' color='text.secondary' className='font-medium'>Back of ID</Typography>
+                    {(newBackPreview || existingBackUrl) && (
+                      <Box
+                        component='img'
+                        src={newBackPreview ?? existingBackUrl ?? undefined}
+                        alt='ID back'
+                        sx={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}
+                      />
+                    )}
+                    <Box className='flex gap-2'>
+                      <Button size='small' variant='outlined' startIcon={<i className='ri-upload-cloud-line' />}
+                        onClick={() => backInputRef.current?.click()}>
+                        {(newBackFile || existingBackUrl) ? 'Change' : 'Upload Back'}
+                      </Button>
+                      {(newBackFile || existingBackUrl) && (
+                        <Button size='small' variant='outlined' color='error' onClick={() => {
+                          if (newBackPreview) URL.revokeObjectURL(newBackPreview)
+                          setNewBackFile(null); setNewBackPreview(null); setExistingBackUrl(null); setExistingBackFileId(null)
+                        }}>Remove</Button>
+                      )}
+                    </Box>
+                    <Typography variant='caption' color='text.secondary'>JPG, PNG or PDF. Max 5MB.</Typography>
+                  </Box>
                 </Grid>
               </Grid>
             </AccordionDetails>

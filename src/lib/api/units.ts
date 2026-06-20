@@ -169,9 +169,19 @@ export async function getAvailableUnits(tenantId: string, query: UnitQuery = {})
  * Get a single unit by ID
  */
 export async function getUnitById(tenantId: string, id: string): Promise<ApiResponse<Unit>> {
-  return apiGet(`${API_BASE}/units/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  try {
+    const response = await apiGet<any>(`${API_BASE}/units/${id}`, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    if (response && response.success === false) return response as ApiResponse<Unit>
+    if (response && response.id) return { success: true, data: response as Unit }
+    if (response && response.data) return { success: true, data: response.data as Unit }
+
+    return { success: false, data: null, error: { code: 'NOT_FOUND', message: 'Unit not found' } }
+  } catch (error: any) {
+    return { success: false, data: null, error: { code: 'GET_UNIT_ERROR', message: error.message || 'Failed to fetch unit' } }
+  }
 }
 
 /**
@@ -231,5 +241,65 @@ export async function deleteUnit(tenantId: string, id: string): Promise<void> {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Image upload
+// ---------------------------------------------------------------------------
+
+interface UploadedImage {
+  path: string
+  url: string
+  fileId: string
+}
+
+interface UploadResponse {
+  success: boolean
+  data: {
+    images: UploadedImage[]
+    count: number
+  } | null
+  error?: {
+    code: string
+    message: string
+  }
+}
+
+/**
+ * Upload unit images to ImageKit CDN.
+ * Files are uploaded directly from the browser to ImageKit using a
+ * short-lived auth token from the Spring Boot backend.
+ */
+export async function uploadUnitImages(
+  tenantId: string,
+  files: File[],
+  unitId?: string
+): Promise<UploadResponse> {
+  try {
+    const { uploadImages } = await import('@/lib/imagekit')
+
+    const folder = unitId
+      ? `/tenantx/${tenantId}/units/${unitId}`
+      : `/tenantx/${tenantId}/units`
+
+    const uploaded = await uploadImages(files, { folder })
+
+    return {
+      success: true,
+      data: {
+        images: uploaded.map(f => ({ path: f.filePath, url: f.url, fileId: f.fileId })),
+        count: uploaded.length
+      }
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'UPLOAD_FAILED',
+        message: error.message ?? 'Failed to upload images'
+      }
+    }
+  }
+}
+
 // Re-export types
-export type { Unit, UnitQuery, PaginatedResponse, ApiResponse }
+export type { Unit, UnitQuery, PaginatedResponse, ApiResponse, UploadResponse }

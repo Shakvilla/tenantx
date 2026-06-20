@@ -3,12 +3,13 @@
 'use client'
 
 // React Imports
-import { useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 
 // MUI Imports
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Component Imports
 import DateRangeFilter from '@/components/reports/DateRangeFilter'
@@ -16,117 +17,154 @@ import ReportSummaryCards from '@/components/reports/ReportSummaryCards'
 import ExportButtons from '@/components/reports/ExportButtons'
 import { LineChart, BarChart, DonutChart } from '@/components/reports/ReportCharts'
 
+// API Imports
+import { getOccupantStats, getOccupants, type OccupantStats, type OccupantRecord } from '@/lib/api/occupants'
+import { getPropertyStats } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
+
 // Type Imports
-import type { DateRange, TenantsReportData, ReportSummary } from '@/types/reports/reportTypes'
+import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
 
 type Props = {
   dateRange: DateRange
   onDateRangeChange: (dateRange: DateRange) => void
 }
 
+/** Group occupants by month of createdAt, counting new additions per month */
+function groupByMonthCount(
+  items: OccupantRecord[],
+  getDate: (item: OccupantRecord) => string
+): { date: string; value: number }[] {
+  const map: Record<string, { display: string; value: number }> = {}
+
+  items.forEach(item => {
+    const d = new Date(getDate(item))
+
+    if (isNaN(d.getTime())) return
+    const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const display = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+
+    if (!map[sortKey]) map[sortKey] = { display, value: 0 }
+    map[sortKey].value += 1
+  })
+
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, { display, value }]) => ({ date: display, value }))
+}
+
 const TenantsReport = ({ dateRange, onDateRangeChange }: Props) => {
   const contentRef = useRef<HTMLDivElement>(null)
 
-  // Mock data - replace with actual API call
-  const reportData: TenantsReportData = useMemo(() => {
-    // Generate sample data based on date range
-    const trends = []
-    const startDate = dateRange.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const endDate = dateRange.endDate || new Date()
+  const [occupantStats, setOccupantStats] = useState<OccupantStats | null>(null)
+  const [occupants, setOccupants] = useState<OccupantRecord[]>([])
+  const [occupancyRate, setOccupancyRate] = useState<number>(0)
+  const [loading, setLoading] = useState(true)
 
-    // Ensure valid date range
-    if (startDate && endDate && startDate <= endDate) {
-      const currentDate = new Date(startDate)
-      let iterationCount = 0
-      const maxIterations = 100 // Prevent infinite loops
+  useEffect(() => {
+    const tenantId = getStoredTenantId()
 
-      while (currentDate <= endDate && iterationCount < maxIterations) {
-        trends.push({
-          date: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          active: Math.floor(Math.random() * 50) + 400,
-          inactive: Math.floor(Math.random() * 20) + 50
-        })
-        currentDate.setDate(currentDate.getDate() + 7)
-        iterationCount++
-      }
+    if (!tenantId) {
+      setLoading(false)
+
+      return
     }
 
-    // Ensure we have at least some data
-    if (trends.length === 0) {
-      trends.push({
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        active: 450,
-        inactive: 80
+    setLoading(true)
+
+    Promise.all([
+      getOccupantStats(tenantId),
+      getOccupants(tenantId, { size: 500 }),
+      getPropertyStats(tenantId)
+    ])
+      .then(([oStats, occupantsRes, propStatsRes]) => {
+        setOccupantStats(oStats)
+        setOccupants(occupantsRes.data ?? [])
+        setOccupancyRate(propStatsRes.data?.occupancyRate ?? 0)
       })
-    }
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
 
-    return {
-      totalTenants: 530,
-      activeTenants: 450,
-      inactiveTenants: 80,
-      occupancyRate: 85,
-      newTenants: 25,
-      trends,
-      distribution: [
-        { label: 'Active', value: 450 },
-        { label: 'Inactive', value: 80 }
-      ],
-      leaseStatus: [
-        { label: 'Active Lease', value: 450 },
-        { label: 'Expired', value: 50 },
-        { label: 'Pending', value: 30 }
-      ]
-    }
-  }, [dateRange])
+  // Filter occupants by dateRange using createdAt
+  const filteredOccupants = useMemo(() => {
+    return occupants.filter(occ => {
+      if (!occ.createdAt) return false
+      const d = new Date(occ.createdAt)
 
-  const summaries: ReportSummary[] = useMemo(
-    () => [
-      {
-        label: 'Total Tenants',
-        value: reportData.totalTenants,
-        change: 5.2,
-        changeType: 'increase',
-        icon: 'ri-group-line',
-        color: 'primary'
-      },
-      {
-        label: 'Active Tenants',
-        value: reportData.activeTenants,
-        change: 3.1,
-        changeType: 'increase',
-        icon: 'ri-user-check-line',
-        color: 'success'
-      },
-      {
-        label: 'Occupancy Rate',
-        value: `${reportData.occupancyRate}%`,
-        change: 2.5,
-        changeType: 'increase',
-        icon: 'ri-home-line',
-        color: 'info'
-      },
-      {
-        label: 'New Tenants',
-        value: reportData.newTenants,
-        change: -2.3,
-        changeType: 'decrease',
-        icon: 'ri-user-add-line',
-        color: 'warning'
-      }
-    ],
-    [reportData]
+      if (isNaN(d.getTime())) return false
+      if (dateRange.startDate && d < dateRange.startDate) return false
+      if (dateRange.endDate && d > dateRange.endDate) return false
+
+      return true
+    })
+  }, [occupants, dateRange])
+
+  // New tenants per month trend
+  const trends = useMemo(
+    () => groupByMonthCount(filteredOccupants, occ => occ.createdAt),
+    [filteredOccupants]
   )
 
-  const tableData = useMemo(
-    () => [
-      { name: 'Total Tenants', value: reportData.totalTenants },
-      { name: 'Active Tenants', value: reportData.activeTenants },
-      { name: 'Inactive Tenants', value: reportData.inactiveTenants },
-      { name: 'Occupancy Rate', value: `${reportData.occupancyRate}%` },
-      { name: 'New Tenants', value: reportData.newTenants }
-    ],
-    [reportData]
-  )
+  // Distribution donut: Active vs Inactive vs Pending
+  const distribution = useMemo(() => {
+    if (!occupantStats) return []
+
+    return [
+      { label: 'Active', value: occupantStats.active },
+      { label: 'Inactive', value: occupantStats.inactive },
+      { label: 'Pending', value: occupantStats.pending }
+    ].filter(s => s.value > 0)
+  }, [occupantStats])
+
+  // Lease status bar chart from occupant stats
+  const leaseStatus = useMemo(() => {
+    if (!occupantStats) return []
+
+    return [
+      { label: 'Active', value: occupantStats.active },
+      { label: 'Pending', value: occupantStats.pending },
+      { label: 'Inactive', value: occupantStats.inactive }
+    ]
+  }, [occupantStats])
+
+  const totalTenants = occupantStats?.total ?? 0
+  const activeTenants = occupantStats?.active ?? 0
+
+  const summaries: ReportSummary[] = [
+    {
+      label: 'Total Tenants',
+      value: totalTenants,
+      icon: 'ri-group-line',
+      color: 'primary'
+    },
+    {
+      label: 'Active Tenants',
+      value: activeTenants,
+      icon: 'ri-user-check-line',
+      color: 'success'
+    },
+    {
+      label: 'Occupancy Rate',
+      value: `${occupancyRate}%`,
+      icon: 'ri-home-line',
+      color: 'info'
+    },
+    {
+      label: 'Pending',
+      value: occupantStats?.pending ?? 0,
+      icon: 'ri-user-add-line',
+      color: 'warning'
+    }
+  ]
+
+  const tableData = [
+    { name: 'Total Tenants', value: totalTenants },
+    { name: 'Active Tenants', value: activeTenants },
+    { name: 'Inactive Tenants', value: occupantStats?.inactive ?? 0 },
+    { name: 'Occupancy Rate', value: `${occupancyRate}%` },
+    { name: 'Pending', value: occupantStats?.pending ?? 0 }
+  ]
 
   return (
     <Box ref={contentRef} className='flex flex-col gap-6'>
@@ -137,27 +175,34 @@ const TenantsReport = ({ dateRange, onDateRangeChange }: Props) => {
 
       <DateRangeFilter dateRange={dateRange} onDateRangeChange={onDateRangeChange} />
 
-      <ReportSummaryCards summaries={summaries} />
+      {loading ? (
+        <Box className='flex justify-center py-10'>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          <ReportSummaryCards summaries={summaries} />
 
-      <Grid container spacing={4}>
-        <Grid size={{ xs: 12, md: 8 }}>
-          <LineChart
-            title='Tenant Trends'
-            data={reportData.trends.map(t => ({ date: t.date, value: t.active }))}
-            dataKey='Active Tenants'
-            color='primary'
-          />
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <DonutChart title='Tenant Distribution' data={reportData.distribution} />
-        </Grid>
-        <Grid size={{ xs: 12 }}>
-          <BarChart title='Lease Status' data={reportData.leaseStatus} color='info' />
-        </Grid>
-      </Grid>
+          <Grid container spacing={4}>
+            <Grid size={{ xs: 12, md: 8 }}>
+              <LineChart
+                title='New Tenants per Month'
+                data={trends}
+                dataKey='New Tenants'
+                color='primary'
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <DonutChart title='Tenant Distribution' data={distribution} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <BarChart title='Status Breakdown' data={leaseStatus} color='info' />
+            </Grid>
+          </Grid>
+        </>
+      )}
     </Box>
   )
 }
 
 export default TenantsReport
-

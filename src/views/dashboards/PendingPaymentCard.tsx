@@ -1,5 +1,8 @@
 'use client'
 
+// React Imports
+import { useState, useEffect, useMemo } from 'react'
+
 // Next Imports
 import dynamic from 'next/dynamic'
 
@@ -7,19 +10,67 @@ import dynamic from 'next/dynamic'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
+import Skeleton from '@mui/material/Skeleton'
 
 // Third-party Imports
 import type { ApexOptions } from 'apexcharts'
 
+// API Imports
+import { getInvoiceStats, getInvoices, type InvoiceStats, type Invoice } from '@/lib/api/invoices'
+
 // Styled Component Imports
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
 
-// Vars
-const series = [{ data: [0, 15, 8, 25, 12, 30, 18, 35, 22, 40, 28, 45] }]
+/** Get last N months of outstanding (PENDING + OVERDUE) invoice amounts */
+function getOutstandingMonthlyTrend(invoices: Invoice[], months = 12): number[] {
+  const map: Record<string, number> = {}
+
+  invoices.forEach(inv => {
+    if (inv.status !== 'PENDING' && inv.status !== 'OVERDUE') return
+    const d = new Date(inv.issuedDate)
+
+    if (isNaN(d.getTime())) return
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+    map[key] = (map[key] || 0) + (inv.balance ?? inv.amount)
+  })
+
+  const sorted = Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-months)
+    .map(([, v]) => v)
+
+  while (sorted.length < months) sorted.unshift(0)
+
+  return sorted
+}
 
 const PendingPaymentCard = () => {
-  // Vars
   const errorColor = 'var(--mui-palette-error-main)'
+
+  const [stats, setStats] = useState<InvoiceStats | null>(null)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    Promise.all([getInvoiceStats(), getInvoices()])
+      .then(([s, inv]) => {
+        setStats(s)
+        setInvoices(inv)
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const trend = useMemo(() => getOutstandingMonthlyTrend(invoices, 12), [invoices])
+
+  const outstanding = stats?.outstandingAmount ?? 0
+  const displayAmount = outstanding >= 1000
+    ? `₵${(outstanding / 1000).toFixed(2)}K`
+    : `₵${outstanding.toFixed(2)}`
+
+  const series = [{ data: trend }]
 
   const options: ApexOptions = {
     chart: {
@@ -30,24 +81,11 @@ const PendingPaymentCard = () => {
     grid: {
       strokeDashArray: 6,
       borderColor: 'var(--mui-palette-divider)',
-      xaxis: {
-        lines: { show: true }
-      },
-      yaxis: {
-        lines: { show: false }
-      },
-      padding: {
-        top: -27,
-        left: -8,
-        right: 7,
-        bottom: -11
-      }
+      xaxis: { lines: { show: true } },
+      yaxis: { lines: { show: false } },
+      padding: { top: -27, left: -8, right: 7, bottom: -11 }
     },
-    stroke: {
-      width: 3,
-      lineCap: 'butt',
-      curve: 'smooth'
-    },
+    stroke: { width: 3, lineCap: 'butt', curve: 'smooth' },
     colors: [errorColor],
     markers: {
       size: 6,
@@ -62,7 +100,7 @@ const PendingPaymentCard = () => {
           seriesIndex: 0,
           strokeColor: errorColor,
           fillColor: 'var(--mui-palette-background-paper)',
-          dataPointIndex: series[0].data.length - 1
+          dataPointIndex: trend.length - 1
         }
       ]
     },
@@ -71,17 +109,11 @@ const PendingPaymentCard = () => {
       axisTicks: { show: false },
       axisBorder: { show: false }
     },
-    yaxis: {
-      labels: { show: false }
-    },
+    yaxis: { labels: { show: false } },
     responsive: [
       {
         breakpoint: 1296,
-        options: {
-          chart: {
-            height: 88
-          }
-        }
+        options: { chart: { height: 88 } }
       }
     ]
   }
@@ -97,12 +129,18 @@ const PendingPaymentCard = () => {
             Amount due and overdue payments
           </Typography>
         </div>
-        <Typography variant='h4' className='font-bold' color='text.primary'>
-          ₵8.45K
-        </Typography>
+        {loading ? (
+          <Skeleton variant='text' width={120} height={40} />
+        ) : (
+          <Typography variant='h4' className='font-bold' color='text.primary'>
+            {displayAmount}
+          </Typography>
+        )}
       </CardContent>
       <CardContent className='pt-0'>
-        <AppReactApexCharts type='line' height={100} width='100%' options={options} series={series} />
+        {!loading && (
+          <AppReactApexCharts type='line' height={100} width='100%' options={options} series={series} />
+        )}
       </CardContent>
     </Card>
   )

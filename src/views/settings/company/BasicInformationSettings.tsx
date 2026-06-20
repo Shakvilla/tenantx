@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -22,8 +22,8 @@ import Avatar from '@mui/material/Avatar'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 
-// Utils Imports
-import { companySettingsApi } from '@/utils/settings/api'
+// API Imports
+import { companySettingsApi } from '@/lib/api/settings'
 
 const COUNTRIES = [
   { code: 'GH', name: 'Ghana' },
@@ -63,6 +63,24 @@ const BasicInformationSettings = () => {
     message: '',
     severity: 'success'
   })
+
+  useEffect(() => {
+    companySettingsApi.get().then(settings => {
+      const b = (settings as any).basic
+      if (!b) return
+      setCompanyName(b.companyName || '')
+      setStreet(b.address?.street || '')
+      setCity(b.address?.city || '')
+      setState(b.address?.state || '')
+      setZipCode(b.address?.zipCode || '')
+      setCountry(b.address?.country || 'GH')
+      setPhone(b.phone || '')
+      setEmail(b.email || '')
+      setWebsite(b.website || '')
+      setTimezone(b.timezone || 'Africa/Accra')
+      if (b.logo) setLogo(b.logo)
+    }).catch(console.error)
+  }, [])
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]

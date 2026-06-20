@@ -94,8 +94,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, isRefreshing: !!event.detail?.isRefreshing }))
     }
 
-    const handleForbidden = (_event: any) => {
-      router.push('/403')
+    const handleForbidden = (event: any) => {
+      const message: string = event.detail?.message ?? ''
+
+      // Backend returns 403 with a specific message for token-type mismatches.
+      // These are unrecoverable with the current session — clear tokens and force re-login.
+      const isTokenError =
+        message.toLowerCase().includes('global token') ||
+        message.toLowerCase().includes('tenant mismatch') ||
+        message.toLowerCase().includes('cannot be used for tenant')
+
+      if (isTokenError) {
+        // Clear the bad session and redirect to login so the user re-authenticates
+        logout('Your session is invalid. Please log in again.')
+      } else {
+        // Genuine permission error — send to 403 page
+        router.push('/403')
+      }
     }
 
     window.addEventListener('AUTH_SESSION_EXPIRED', handleSessionExpired)

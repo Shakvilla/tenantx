@@ -1,20 +1,21 @@
 'use client'
 
-// React Imports
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 
-// MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import MenuItem from '@mui/material/MenuItem'
+import Button from '@mui/material/Button'
 import TablePagination from '@mui/material/TablePagination'
 import Chip from '@mui/material/Chip'
 import Avatar from '@mui/material/Avatar'
+import Skeleton from '@mui/material/Skeleton'
+import Box from '@mui/material/Box'
+import type { TextFieldProps } from '@mui/material/TextField'
 
-// Third-party Imports
 import classnames from 'classnames'
 import { rankItem } from '@tanstack/match-sorter-utils'
 import {
@@ -29,403 +30,387 @@ import {
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
-// Type Imports
 import type { DocumentType } from '@/types/documents/documentTypes'
+import { getDocuments, deleteDocument, updateDocumentStatus, type DocumentItem } from '@/lib/api/documents'
 
-// Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
+import PageBanner from '@components/banner/PageBanner'
 import ViewDocumentDialog from './ViewDocumentDialog'
 import AcceptDocumentDialog from './AcceptDocumentDialog'
 import RejectDocumentDialog from './RejectDocumentDialog'
+import AddDocumentDialog from './AddDocumentDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
-// Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
-declare module '@tanstack/table-core' {
-  interface FilterFns {
-    fuzzy: FilterFn<unknown>
-  }
-  interface FilterMeta {
-    itemRank: RankingInfo
-  }
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-type DocumentTypeWithAction = DocumentType & {
-  action?: string
+declare module '@tanstack/table-core' {
+  interface FilterFns { fuzzy: FilterFn<unknown> }
+  interface FilterMeta { itemRank: RankingInfo }
 }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
-
   addMeta({ itemRank })
-
   return itemRank.passed
 }
 
-// Sample document data
-const sampleDocuments: DocumentType[] = [
-  {
-    id: 1,
-    documentType: 'Lease Agreement',
-    status: 'accepted',
-    tenantName: 'Brokin Simon',
-    propertyName: 'A living room with mexican mansion blue',
-    unitNo: 'Unit no 3',
-    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 2,
-    documentType: 'ID Card',
-    status: 'pending',
-    tenantName: 'Andrew Paul',
-    propertyName: 'Rendering of a modern villa',
-    unitNo: 'Unit no 5',
-    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 3,
-    documentType: 'Other',
-    status: 'rejected',
-    tenantName: 'Mrtle Hale',
-    propertyName: 'Beautiful modern style luxury home exterior sunset',
-    unitNo: 'Unit no 2',
-    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 4,
-    documentType: 'Other',
-    status: 'accepted',
-    tenantName: 'Timothy',
-    propertyName: 'Design of a modern house as mansion blue couch',
-    unitNo: 'Unit no 1',
-    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 5,
-    documentType: 'Other',
-    status: 'pending',
-    tenantName: 'John Doe',
-    propertyName: 'A house with a lot of windows and a lot of plants',
-    unitNo: 'Unit no 6',
-    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 6,
-    documentType: 'Other',
-    status: 'accepted',
-    tenantName: 'Jane Smith',
-    propertyName: 'Depending on the location and design',
-    unitNo: 'Unit no 12',
-    tenantAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
+function apiToDisplay(item: DocumentItem): DocumentType {
+  return {
+    id:           item.id,
+    documentType: item.documentType,
+    status:       item.status,
+    rejectReason: item.rejectReason,
+    propertyId:   item.propertyId,
+    propertyName: item.propertyName,
+    unitId:       item.unitId,
+    unitNo:       item.unitNo,
+    occupantId:   item.occupantId,
+    tenantName:   item.occupantName,
+    fileUrl:      item.fileUrl,
+    fileName:     item.fileName
   }
-]
+}
 
-// Vars
-const statusObj: Record<string, { title: string; color: 'success' | 'warning' | 'error' | 'secondary' }> = {
+const statusObj: Record<string, { title: string; color: 'success' | 'warning' | 'error' }> = {
   accepted: { title: 'Accepted', color: 'success' },
-  pending: { title: 'Pending', color: 'warning' },
+  pending:  { title: 'Pending',  color: 'warning' },
   rejected: { title: 'Rejected', color: 'error' }
 }
 
 const typeIconObj: Record<string, { icon: string; color: string }> = {
   'Lease Agreement': { icon: 'ri-file-list-3-line', color: 'primary' },
-  'ID Card': { icon: 'ri-user-star-line', color: 'info' },
-  'Passport': { icon: 'ri-shield-check-line', color: 'success' },
-  'Contract': { icon: 'ri-file-text-line', color: 'warning' },
-  'Other': { icon: 'ri-file-line', color: 'secondary' }
+  'ID Card':         { icon: 'ri-user-star-line',   color: 'info' },
+  'Passport':        { icon: 'ri-shield-check-line', color: 'success' },
+  'Contract':        { icon: 'ri-file-text-line',    color: 'warning' },
+  'Other':           { icon: 'ri-file-line',          color: 'secondary' }
 }
 
+type DocumentTypeWithAction = DocumentType & { action?: string }
+
+const DebouncedInput = ({
+  value: initialValue,
+  onChange,
+  debounce = 500,
+  ...props
+}: { value: string | number; onChange: (v: string | number) => void; debounce?: number } & Omit<TextFieldProps, 'onChange'>) => {
+  const [value, setValue] = useState(initialValue)
+  useEffect(() => { setValue(initialValue) }, [initialValue])
+  useEffect(() => {
+    const t = setTimeout(() => onChange(value), debounce)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
 const DocumentsListTable = () => {
-  // States
-  const [data, setData] = useState(sampleDocuments)
-  const [filteredData, setFilteredData] = useState(data)
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [selectedProperty, setSelectedProperty] = useState('')
-  const [selectedUnit, setSelectedUnit] = useState('')
-  const [viewDocumentOpen, setViewDocumentOpen] = useState(false)
+  const [data,    setData]    = useState<DocumentType[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const [globalFilter,      setGlobalFilter]      = useState('')
+  const [selectedStatus,    setSelectedStatus]     = useState('')
+  const [selectedProperty,  setSelectedProperty]  = useState('')
+
+  const [addDocumentOpen,    setAddDocumentOpen]    = useState(false)
+  const [viewDocumentOpen,   setViewDocumentOpen]   = useState(false)
   const [acceptDocumentOpen, setAcceptDocumentOpen] = useState(false)
   const [rejectDocumentOpen, setRejectDocumentOpen] = useState(false)
   const [deleteDocumentOpen, setDeleteDocumentOpen] = useState(false)
-  const [selectedDocument, setSelectedDocument] = useState<DocumentType | null>(null)
+  const [selectedDocument,   setSelectedDocument]   = useState<DocumentType | null>(null)
 
-  // Get unique properties and units for filters
-  const properties = useMemo(() => Array.from(new Set(data.map(d => d.propertyName).filter(Boolean))), [data])
-  const units = useMemo(() => Array.from(new Set(data.map(d => d.unitNo).filter(Boolean))), [data])
+  // ---- Fetch ----
 
-  // Filter data
-  useEffect(() => {
-    const filtered = data.filter(document => {
-      if (globalFilter && !document.documentType.toLowerCase().includes(globalFilter.toLowerCase()) && 
-          !document.tenantName.toLowerCase().includes(globalFilter.toLowerCase())) {
-        return false
-      }
+  const fetchDocuments = useCallback(async () => {
+    setLoading(true)
+    try {
+      const raw = await getDocuments()
+      const items = Array.isArray(raw) ? raw : []
+      setData(items.map(apiToDisplay))
+    } catch (err) {
+      console.error('Failed to load documents:', err)
+      setData([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-      if (selectedProperty && document.propertyName !== selectedProperty) {
-        return false
-      }
+  useEffect(() => { fetchDocuments() }, [fetchDocuments])
 
-      if (selectedUnit && document.unitNo !== selectedUnit) {
-        return false
-      }
+  // ---- Derived filter lists ----
 
-      return true
-    })
+  const properties = useMemo(
+    () => Array.from(new Set(data.map(d => d.propertyName).filter(Boolean) as string[])),
+    [data]
+  )
 
-    setFilteredData(filtered)
-  }, [data, globalFilter, selectedProperty, selectedUnit])
+  const filteredData = useMemo(() => {
+    let result = data
+    if (selectedStatus)   result = result.filter(d => d.status === selectedStatus)
+    if (selectedProperty) result = result.filter(d => d.propertyName === selectedProperty)
+    return result
+  }, [data, selectedStatus, selectedProperty])
 
-  // Handle delete document
-  const handleDeleteDocument = (documentId: number) => {
-    setData(data.filter(document => document.id !== documentId))
-    setDeleteDocumentOpen(false)
-    setSelectedDocument(null)
+  // ---- Handlers ----
+
+  const handleAccept = async () => {
+    if (!selectedDocument) return
+    try {
+      await updateDocumentStatus(selectedDocument.id, { status: 'accepted' })
+      fetchDocuments()
+    } catch (err) {
+      console.error('Failed to accept document:', err)
+    }
   }
 
-  // Handle status update
-  const handleStatusUpdate = (documentId: number, newStatus: 'accepted' | 'rejected', _rejectReason?: string) => {
-    setData(
-      data.map(document =>
-        document.id === documentId ? { ...document, status: newStatus } : document
-      )
-    )
+  const handleReject = async (reason: string) => {
+    if (!selectedDocument) return
+    try {
+      await updateDocumentStatus(selectedDocument.id, { status: 'rejected', rejectReason: reason })
+      fetchDocuments()
+    } catch (err) {
+      console.error('Failed to reject document:', err)
+    }
   }
 
-  // Column Helper
+  const handleDelete = async () => {
+    if (!selectedDocument) return
+    try {
+      await deleteDocument(selectedDocument.id)
+      fetchDocuments()
+    } catch (err) {
+      console.error('Failed to delete document:', err)
+    } finally {
+      setDeleteDocumentOpen(false)
+      setSelectedDocument(null)
+    }
+  }
+
+  // ---- Columns ----
+
   const columnHelper = createColumnHelper<DocumentTypeWithAction>()
 
-  const columns = useMemo<ColumnDef<DocumentTypeWithAction, any>[]>(
-    () => [
-      columnHelper.accessor('documentType', {
-        header: 'DOCUMENT TYPE',
-        cell: ({ row }) => (
+  const columns = useMemo<ColumnDef<DocumentTypeWithAction, any>[]>(() => [
+    columnHelper.accessor('documentType', {
+      header: 'Document Type',
+      cell: ({ row }) => {
+        const cfg = typeIconObj[row.original.documentType] ?? typeIconObj['Other']
+        return (
           <div className='flex items-center gap-3'>
-            <CustomAvatar
-              skin='light'
-              color={(typeIconObj[row.original.documentType] || typeIconObj.Other).color as any}
-              size={34}
-            >
-              <i className={classnames((typeIconObj[row.original.documentType] || typeIconObj.Other).icon, 'text-xl')} />
+            <CustomAvatar skin='light' color={cfg.color as any} size={34}>
+              <i className={classnames(cfg.icon, 'text-xl')} />
             </CustomAvatar>
-            <div className='flex flex-col'>
-              <Typography color='text.primary' className='font-medium'>
-                {row.original.documentType}
-              </Typography>
-            </div>
-          </div>
-        )
-      }),
-      columnHelper.accessor('tenantName', {
-        header: 'TENANT',
-        cell: ({ row }) => (
-          <div className='flex items-center gap-3'>
-            <Avatar src={row.original.tenantAvatar} sx={{ width: 30, height: 30 }} />
-            <Typography color='text.primary'>{row.original.tenantName}</Typography>
-          </div>
-        )
-      }),
-      columnHelper.accessor('propertyName', {
-        header: 'PROPERTY & UNIT',
-        cell: ({ row }) => (
-          <div className='flex flex-col'>
-            <Typography color='text.primary' className='font-medium max-w-[200px] truncate'>
-              {row.original.propertyName}
-            </Typography>
-            <Typography variant='body2' color='text.secondary'>
-              {row.original.unitNo}
+            <Typography color='text.primary' className='font-medium'>
+              {row.original.documentType}
             </Typography>
           </div>
         )
-      }),
-      columnHelper.accessor('status', {
-        header: 'STATUS',
-        cell: ({ row }) => (
-          <Chip
-            variant='tonal'
-            label={statusObj[row.original.status].title}
-            size='small'
-            color={statusObj[row.original.status].color}
-            className='capitalize'
-          />
+      }
+    }),
+    columnHelper.accessor('tenantName', {
+      header: 'Tenant',
+      cell: ({ row }) => (
+        <div className='flex items-center gap-3'>
+          <Avatar src={row.original.tenantAvatar} sx={{ width: 30, height: 30 }}>
+            {row.original.tenantName?.charAt(0) ?? '?'}
+          </Avatar>
+          <Typography color='text.primary'>{row.original.tenantName || '-'}</Typography>
+        </div>
+      )
+    }),
+    columnHelper.accessor('propertyName', {
+      header: 'Property & Unit',
+      cell: ({ row }) => (
+        <div className='flex flex-col'>
+          <Typography color='text.primary' className='font-medium max-w-[200px] truncate'>
+            {row.original.propertyName || '-'}
+          </Typography>
+          <Typography variant='body2' color='text.secondary'>
+            {row.original.unitNo || ''}
+          </Typography>
+        </div>
+      )
+    }),
+    columnHelper.accessor('status', {
+      header: 'Status',
+      cell: ({ row }) => {
+        const cfg = statusObj[row.original.status] ?? { title: row.original.status, color: 'secondary' as const }
+        return (
+          <Chip variant='tonal' label={cfg.title} size='small' color={cfg.color} className='capitalize' />
         )
-      }),
-      columnHelper.display({
-        id: 'actions',
-        header: 'ACTIONS',
-        cell: ({ row }) => (
-          <OptionMenu
-            iconButtonProps={{ size: 'small' }}
-            options={[
-              {
-                text: 'View',
-                icon: 'ri-eye-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedDocument(row.original)
-                    setViewDocumentOpen(true)
-                  }
-                }
-              },
-              {
-                text: 'Download',
-                icon: 'ri-download-line'
-              },
-              {
-                text: 'Accept',
-                icon: 'ri-check-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedDocument(row.original)
-                    setAcceptDocumentOpen(true)
-                  },
-                  disabled: row.original.status === 'accepted'
-                }
-              },
-              {
-                text: 'Reject',
-                icon: 'ri-close-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedDocument(row.original)
-                    setRejectDocumentOpen(true)
-                  },
-                  disabled: row.original.status === 'rejected'
-                }
-              },
-              {
-                text: 'Delete',
-                icon: 'ri-delete-bin-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedDocument(row.original)
-                    setDeleteDocumentOpen(true)
-                  },
-                  sx: { color: 'error.main' }
-                }
+      }
+    }),
+    columnHelper.display({
+      id: 'actions',
+      header: 'Actions',
+      cell: ({ row }) => (
+        <RowActions
+          iconButtonProps={{ size: 'small' }}
+          options={[
+            {
+              text: 'View',
+              icon: 'ri-eye-line',
+              menuItemProps: { onClick: () => { setSelectedDocument(row.original); setViewDocumentOpen(true) } }
+            },
+            {
+              text: 'Accept',
+              icon: 'ri-check-line',
+              menuItemProps: {
+                onClick: () => { setSelectedDocument(row.original); setAcceptDocumentOpen(true) },
+                disabled: row.original.status === 'accepted'
               }
-            ]}
-          />
-        )
-      })
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  )
+            },
+            {
+              text: 'Reject',
+              icon: 'ri-close-line',
+              menuItemProps: {
+                onClick: () => { setSelectedDocument(row.original); setRejectDocumentOpen(true) },
+                disabled: row.original.status === 'rejected'
+              }
+            },
+            ...(row.original.fileUrl ? [{
+              text: 'Download',
+              icon: 'ri-download-line',
+              menuItemProps: { onClick: () => window.open(row.original.fileUrl, '_blank') }
+            }] : []),
+            {
+              text: 'Delete',
+              icon: 'ri-delete-bin-line',
+              menuItemProps: {
+                onClick: () => { setSelectedDocument(row.original); setDeleteDocumentOpen(true) },
+                sx: { color: 'error.main' }
+              }
+            }
+          ]}
+        />
+      )
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
 
   const table = useReactTable({
     data: filteredData,
     columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    filterFns:            { fuzzy: fuzzyFilter },
+    state:                { globalFilter },
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn:       'fuzzy',
+    getCoreRowModel:      getCoreRowModel(),
+    getFilteredRowModel:  getFilteredRowModel(),
+    getSortedRowModel:    getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel()
   })
 
   return (
     <>
-      <Card>
+      <PageBanner
+        title='Documents'
+        description='Review and manage tenant-submitted documents'
+        icon='ri-folder-3-line'
+      />
+      <Card className='mbs-6'>
         <CardHeader
           title='Documents'
           action={
-            <div className='flex items-center gap-2'>
-              <TextField
-                size='small'
-                placeholder='Search'
-                value={globalFilter}
-                onChange={e => setGlobalFilter(e.target.value)}
-                className='max-sm:is-full'
+            <div className='flex items-center gap-3'>
+              <DebouncedInput
+                value={globalFilter ?? ''}
+                onChange={v => setGlobalFilter(String(v))}
+                placeholder='Search…'
+                className='min-is-[220px]'
               />
+              <Button
+                variant='contained'
+                startIcon={<i className='ri-upload-2-line' />}
+                onClick={() => setAddDocumentOpen(true)}
+              >
+                Upload Document
+              </Button>
             </div>
           }
         />
         <CardContent className='flex flex-col gap-4'>
           {/* Filters */}
-          <div className='flex flex-wrap items-center gap-4'>
+          <div className='flex flex-wrap gap-4'>
             <TextField
-              select
-              size='small'
-              label='Property'
-              value={selectedProperty}
-              onChange={e => setSelectedProperty(e.target.value)}
-              sx={{ minWidth: 200 }}
+              select size='small' label='Status' value={selectedStatus}
+              onChange={e => setSelectedStatus(e.target.value)} sx={{ minWidth: 150 }}
             >
-              <MenuItem value=''>All Properties</MenuItem>
-              {properties.map(property => (
-                <MenuItem key={property} value={property}>
-                  {property}
-                </MenuItem>
-              ))}
+              <MenuItem value=''>All Statuses</MenuItem>
+              <MenuItem value='pending'>Pending</MenuItem>
+              <MenuItem value='accepted'>Accepted</MenuItem>
+              <MenuItem value='rejected'>Rejected</MenuItem>
             </TextField>
             <TextField
-              select
-              size='small'
-              label='Unit'
-              value={selectedUnit}
-              onChange={e => setSelectedUnit(e.target.value)}
-              sx={{ minWidth: 150 }}
+              select size='small' label='Property' value={selectedProperty}
+              onChange={e => setSelectedProperty(e.target.value)} sx={{ minWidth: 200 }}
             >
-              <MenuItem value=''>All Units</MenuItem>
-              {units.map(unit => (
-                <MenuItem key={unit} value={unit}>
-                  {unit}
-                </MenuItem>
-              ))}
+              <MenuItem value=''>All Properties</MenuItem>
+              {properties.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
             </TextField>
           </div>
 
           {/* Table */}
-          <div className='overflow-x-auto'>
-            <table className={tableStyles.table}>
-              <thead>
-                {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map(header => (
-                      <th key={header.id}>
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={classnames({
-                              'flex items-center': header.column.getIsSorted(),
-                              'cursor-pointer select-none': header.column.getCanSort()
-                            })}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <i className='ri-arrow-up-s-line text-xl' />,
-                              desc: <i className='ri-arrow-down-s-line text-xl' />
-                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                          </div>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No documents available
-                    </td>
-                  </tr>
-                ) : (
-                  table.getRowModel().rows.map(row => (
-                    <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                      {row.getVisibleCells().map(cell => (
-                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+          {loading ? (
+            <Box className='flex flex-col gap-2'>
+              {[0,1,2,3,4].map(i => <Skeleton key={i} variant='rectangular' height={44} />)}
+            </Box>
+          ) : (
+            <div className='overflow-x-auto'>
+              <table className={tableStyles.table}>
+                <thead>
+                  {table.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => (
+                        <th key={h.id}>
+                          {h.isPlaceholder ? null : (
+                            <div
+                              className={classnames({
+                                'flex items-center': h.column.getIsSorted(),
+                                'cursor-pointer select-none': h.column.getCanSort()
+                              })}
+                              onClick={h.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(h.column.columnDef.header, h.getContext())}
+                              {{ asc: <i className='ri-arrow-up-s-line text-xl' />, desc: <i className='ri-arrow-down-s-line text-xl' /> }[h.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                            </div>
+                          )}
+                        </th>
                       ))}
                     </tr>
-                  ))
+                  ))}
+                </thead>
+                {table.getRowModel().rows.length === 0 ? (
+                  <tbody>
+                    <tr>
+                      <td colSpan={table.getVisibleFlatColumns().length} className='text-center py-8'>
+                        <Typography color='text.secondary'>No documents found</Typography>
+                      </td>
+                    </tr>
+                  </tbody>
+                ) : (
+                  <tbody>
+                    {table.getRowModel().rows.map(row => (
+                      <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                        {row.getVisibleCells().map(cell => (
+                          <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </table>
+            </div>
+          )}
 
-          {/* Pagination */}
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
@@ -433,37 +418,30 @@ const DocumentsListTable = () => {
             count={table.getFilteredRowModel().rows.length}
             rowsPerPage={table.getState().pagination.pageSize}
             page={table.getState().pagination.pageIndex}
-            SelectProps={{
-              inputProps: { 'aria-label': 'rows per page' }
-            }}
-            onPageChange={(_, page) => {
-              table.setPageIndex(page)
-            }}
-            onRowsPerPageChange={e => {
-              table.setPageSize(Number(e.target.value))
-            }}
+            SelectProps={{ inputProps: { 'aria-label': 'rows per page' } }}
+            onPageChange={(_, page) => table.setPageIndex(page)}
+            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
           />
         </CardContent>
       </Card>
 
       {/* Dialogs */}
+      <AddDocumentDialog
+        open={addDocumentOpen}
+        setOpen={setAddDocumentOpen}
+        onSuccess={fetchDocuments}
+      />
+
       <ViewDocumentDialog
         open={viewDocumentOpen}
-        handleClose={() => {
-          setViewDocumentOpen(false)
-          setSelectedDocument(null)
-        }}
+        handleClose={() => { setViewDocumentOpen(false); setSelectedDocument(null) }}
         document={selectedDocument}
       />
 
       <AcceptDocumentDialog
         open={acceptDocumentOpen}
         setOpen={setAcceptDocumentOpen}
-        onConfirm={() => {
-          if (selectedDocument) {
-            handleStatusUpdate(selectedDocument.id, 'accepted')
-          }
-        }}
+        onConfirm={handleAccept}
         documentName={selectedDocument?.documentType}
       />
 
@@ -471,22 +449,14 @@ const DocumentsListTable = () => {
         open={rejectDocumentOpen}
         setOpen={setRejectDocumentOpen}
         documentData={selectedDocument}
-        onConfirm={(reason) => {
-          if (selectedDocument) {
-            handleStatusUpdate(selectedDocument.id, 'rejected', reason)
-          }
-        }}
+        onConfirm={handleReject}
       />
 
       <ConfirmationDialog
         open={deleteDocumentOpen}
         setOpen={setDeleteDocumentOpen}
         type='delete-customer'
-        onConfirm={() => {
-          if (selectedDocument) {
-            handleDeleteDocument(selectedDocument.id)
-          }
-        }}
+        onConfirm={handleDelete}
       />
     </>
   )

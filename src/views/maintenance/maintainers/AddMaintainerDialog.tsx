@@ -1,7 +1,6 @@
 'use client'
 
-// React Imports
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -11,56 +10,59 @@ import DialogActions from '@mui/material/DialogActions'
 import IconButton from '@mui/material/IconButton'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import Chip from '@mui/material/Chip'
 import Box from '@mui/material/Box'
+import OutlinedInput from '@mui/material/OutlinedInput'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
-// Type Imports
-import type { MaintainerType } from '@/types/maintenance/maintainerTypes'
+// API Imports
+import {
+  createMaintainer,
+  updateMaintainer,
+  type Maintainer,
+  type CreateMaintainerPayload,
+  type UpdateMaintainerPayload
+} from '@/lib/api/maintenance'
 
-// Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
-
-// Util Imports
-import { getInitials } from '@/utils/getInitials'
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type Props = {
   open: boolean
   handleClose: () => void
-  maintainerData?: MaintainerType[]
-  setData: (data: MaintainerType[]) => void
-  editData?: MaintainerType | null
+  onSuccess: () => void
+  editData?: Maintainer | null
   mode?: 'add' | 'edit'
 }
 
-type FormDataType = {
+type FormData = {
   name: string
   email: string
   phone: string
-  specialization: string
-  status: 'active' | 'inactive'
-  address: string
-  avatar: File | null
-  rating: number
+  companyName: string
+  specializations: string[]
+  status: string
+  insuranceExpiryDate: string
+  taxId: string
 }
 
-// Vars
-const initialData: FormDataType = {
+const BLANK: FormData = {
   name: '',
   email: '',
   phone: '',
-  specialization: '',
-  status: 'active',
-  address: '',
-  avatar: null,
-  rating: 0
+  companyName: '',
+  specializations: [],
+  status: 'ACTIVE',
+  insuranceExpiryDate: '',
+  taxId: ''
 }
 
-const specializations = [
+const SPECIALIZATION_OPTIONS = [
   'Plumbing',
   'Electrical',
   'HVAC',
@@ -69,359 +71,217 @@ const specializations = [
   'General Maintenance',
   'Roofing',
   'Flooring',
-  'Landscaping'
+  'Landscaping',
+  'Masonry',
+  'Welding',
+  'Pest Control'
 ]
 
-const AddMaintainerDialog = ({ open, handleClose, maintainerData, setData, editData, mode = 'add' }: Props) => {
-  // States
-  const [formData, setFormData] = useState<FormDataType>(initialData)
-  const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+// ─── Component ───────────────────────────────────────────────────────────────
 
-  // Reset form when dialog opens/closes or editData changes
+const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'add' }: Props) => {
+  const [formData, setFormData] = useState<FormData>(BLANK)
+  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
+
+  // ── Populate form on open ──────────────────────────────────────────────────
   useEffect(() => {
-    if (open) {
-      if (mode === 'edit' && editData) {
-        setFormData({
-          name: editData.name || '',
-          email: editData.email || '',
-          phone: editData.phone || '',
-          specialization: editData.specialization || '',
-          status: editData.status || 'active',
-          address: editData.address || '',
-          avatar: null,
-          rating: editData.rating || 0
-        })
-        setAvatarPreview(editData.avatar || null)
-      } else {
-        setFormData(initialData)
-        setAvatarPreview(null)
-      }
-
-      setErrors({})
-    } else {
-      // Clean up preview URL when dialog closes
-      if (avatarPreview && avatarPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(avatarPreview)
-      }
-
-      setFormData(initialData)
-      setErrors({})
-      setAvatarPreview(null)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editData, mode])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (avatarPreview && avatarPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(avatarPreview)
-      }
-    }
-  }, [avatarPreview])
-
-  // Handle input change
-  const handleInputChange = (field: keyof FormDataType, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: false }))
-    }
-  }
-
-  // Handle avatar upload
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        // 5MB limit
-        setErrors(prev => ({ ...prev, avatar: true }))
-        
-return
-      }
-
-
-      // Clean up previous preview URL
-      if (avatarPreview && avatarPreview.startsWith('blob:')) {
-        URL.revokeObjectURL(avatarPreview)
-      }
-
-      setFormData(prev => ({ ...prev, avatar: file }))
-      setAvatarPreview(URL.createObjectURL(file))
-
-      if (errors.avatar) {
-        setErrors(prev => ({ ...prev, avatar: false }))
-      }
-    }
-  }
-
-  // Handle remove avatar
-  const handleRemoveAvatar = () => {
-    // Clean up preview URL
-    if (avatarPreview && avatarPreview.startsWith('blob:')) {
-      URL.revokeObjectURL(avatarPreview)
-    }
-
-    setFormData(prev => ({ ...prev, avatar: null }))
-    setAvatarPreview(null)
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  // Validate form
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormDataType, boolean>> = {}
-
-    if (!formData.name.trim()) {
-      newErrors.name = true
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = true
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = true
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = true
-    }
-
-    if (!formData.specialization.trim()) {
-      newErrors.specialization = true
-    }
-
-    setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
-  }
-
-  // Handle submit
-  const handleSubmit = () => {
-    if (!validateForm()) return
-
-    const avatarUrl = avatarPreview || editData?.avatar
+    if (!open) return
+    setApiError(null)
+    setErrors({})
 
     if (mode === 'edit' && editData) {
-      // Update existing maintainer
-      const updatedMaintainer: MaintainerType = {
-        ...editData,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        specialization: formData.specialization,
-        status: formData.status,
-        address: formData.address,
-        avatar: avatarUrl,
-        rating: formData.rating || editData.rating || 0
-      }
-
-      if (maintainerData) {
-        setData(maintainerData.map(m => (m.id === editData.id ? updatedMaintainer : m)))
-      }
+      setFormData({
+        name: editData.name ?? '',
+        email: editData.email ?? '',
+        phone: editData.phone ?? '',
+        companyName: editData.companyName ?? '',
+        specializations: editData.specializations ?? [],
+        status: editData.status ?? 'ACTIVE',
+        insuranceExpiryDate: editData.insuranceExpiryDate
+          ? editData.insuranceExpiryDate.substring(0, 10) // ISO date → yyyy-MM-dd
+          : '',
+        taxId: editData.taxId ?? ''
+      })
     } else {
-      // Create new maintainer
-      const newMaintainer: MaintainerType = {
-        id: (maintainerData?.length || 0) + 1,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        specialization: formData.specialization,
-        status: formData.status,
-        address: formData.address,
-        avatar: avatarUrl,
-        rating: 0,
-        totalJobs: 0,
-        completedJobs: 0
-      }
-
-      if (maintainerData) {
-        setData([newMaintainer, ...maintainerData])
-      }
+      setFormData(BLANK)
     }
+  }, [open, editData, mode])
 
-    handleReset()
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const set = (field: keyof FormData, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
   }
 
-  // Handle reset
-  const handleReset = () => {
-    setFormData(initialData)
-    setErrors({})
-    setAvatarPreview(null)
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-
-    handleClose()
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof FormData, string>> = {}
+    if (!formData.name.trim()) e.name = 'Name is required'
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+      e.email = 'Enter a valid email address'
+    setErrors(e)
+    return Object.keys(e).length === 0
   }
 
+  // ── Submit ────────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!validate()) return
+    setSubmitting(true)
+    setApiError(null)
+
+    try {
+      if (mode === 'edit' && editData) {
+        const payload: UpdateMaintainerPayload = {
+          name: formData.name,
+          email: formData.email || undefined,
+          phone: formData.phone || undefined,
+          companyName: formData.companyName || undefined,
+          specializations: formData.specializations.length ? formData.specializations : undefined,
+          status: formData.status,
+          insuranceExpiryDate: formData.insuranceExpiryDate || undefined,
+          taxId: formData.taxId || undefined
+        }
+        await updateMaintainer(editData.id, payload)
+      } else {
+        const payload: CreateMaintainerPayload = {
+          name: formData.name,
+          email: formData.email || undefined,
+          phone: formData.phone || undefined,
+          companyName: formData.companyName || undefined,
+          specializations: formData.specializations.length ? formData.specializations : undefined,
+          insuranceExpiryDate: formData.insuranceExpiryDate || undefined,
+          taxId: formData.taxId || undefined
+        }
+        await createMaintainer(payload)
+      }
+
+      onSuccess()
+      handleClose()
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>{mode === 'edit' ? 'Edit Maintainer' : 'Add Maintainer'}</span>
-        <IconButton size='small' onClick={handleReset}>
+        <IconButton size='small' onClick={handleClose} disabled={submitting}>
           <i className='ri-close-line' />
         </IconButton>
       </DialogTitle>
-      <DialogContent className='flex flex-col gap-4'>
-        {/* Avatar Upload */}
-        <Box className='flex flex-col items-center gap-4'>
-          <CustomAvatar src={avatarPreview || editData?.avatar} skin='light' size={100}>
-            {getInitials(formData.name || 'MA')}
-          </CustomAvatar>
-          <div className='flex gap-2'>
-            <Button variant='outlined' size='small' component='label' startIcon={<i className='ri-upload-line' />}>
-              Upload Photo
-              <input ref={fileInputRef} type='file' hidden accept='image/*' onChange={handleAvatarChange} />
-            </Button>
-            {avatarPreview && (
-              <Button
-                variant='outlined'
-                color='error'
-                size='small'
-                startIcon={<i className='ri-delete-bin-line' />}
-                onClick={handleRemoveAvatar}
-              >
-                Remove
-              </Button>
-            )}
-          </div>
-          {errors.avatar && (
-            <Typography variant='caption' color='error'>
-              Image size should be less than 5MB
-            </Typography>
-          )}
-        </Box>
+
+      <DialogContent className='flex flex-col gap-4 pbs-4'>
+        {apiError && <Alert severity='error' onClose={() => setApiError(null)}>{apiError}</Alert>}
 
         <Grid container spacing={4}>
           {/* Name */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              fullWidth
-              size='small'
-              label='Name *'
-              placeholder='Enter maintainer name'
-              value={formData.name}
-              onChange={e => handleInputChange('name', e.target.value)}
-              error={Boolean(errors.name)}
-              helperText={errors.name ? 'This field is required.' : ''}
+              fullWidth size='small' label='Name *' placeholder='Full name'
+              value={formData.name} onChange={e => set('name', e.target.value)}
+              error={Boolean(errors.name)} helperText={errors.name}
             />
           </Grid>
 
           {/* Email */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              fullWidth
-              size='small'
-              label='Email *'
-              placeholder='Enter email address'
-              type='email'
-              value={formData.email}
-              onChange={e => handleInputChange('email', e.target.value)}
-              error={Boolean(errors.email)}
-              helperText={errors.email ? 'Please enter a valid email address.' : ''}
+              fullWidth size='small' label='Email' placeholder='email@example.com' type='email'
+              value={formData.email} onChange={e => set('email', e.target.value)}
+              error={Boolean(errors.email)} helperText={errors.email}
             />
           </Grid>
 
           {/* Phone */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              fullWidth
-              size='small'
-              label='Phone *'
-              placeholder='Enter phone number'
-              value={formData.phone}
-              onChange={e => handleInputChange('phone', e.target.value)}
-              error={Boolean(errors.phone)}
-              helperText={errors.phone ? 'This field is required.' : ''}
+              fullWidth size='small' label='Phone' placeholder='+233 XX XXX XXXX'
+              value={formData.phone} onChange={e => set('phone', e.target.value)}
             />
           </Grid>
 
-          {/* Specialization */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth size='small' error={Boolean(errors.specialization)}>
-              <InputLabel id='specialization-label'>Specialization *</InputLabel>
-              <Select
-                labelId='specialization-label'
-                label='Specialization *'
-                value={formData.specialization}
-                onChange={e => handleInputChange('specialization', e.target.value)}
-              >
-                <MenuItem value=''>Select Specialization</MenuItem>
-                {specializations.map(spec => (
-                  <MenuItem key={spec} value={spec}>
-                    {spec}
-                  </MenuItem>
-                ))}
-              </Select>
-              {errors.specialization && (
-                <Typography variant='caption' color='error' className='mts-1'>
-                  This field is required.
-                </Typography>
-              )}
-            </FormControl>
-          </Grid>
-
-          {/* Status */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth size='small'>
-              <InputLabel id='status-label'>Status</InputLabel>
-              <Select
-                labelId='status-label'
-                label='Status'
-                value={formData.status}
-                onChange={e => handleInputChange('status', e.target.value)}
-              >
-                <MenuItem value='active'>Active</MenuItem>
-                <MenuItem value='inactive'>Inactive</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Address */}
+          {/* Company */}
           <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
-              fullWidth
-              size='small'
-              label='Address'
-              placeholder='Enter address'
-              value={formData.address}
-              onChange={e => handleInputChange('address', e.target.value)}
+              fullWidth size='small' label='Company Name' placeholder='Company or business name'
+              value={formData.companyName} onChange={e => set('companyName', e.target.value)}
             />
           </Grid>
 
-          {/* Rating (only in edit mode) */}
+          {/* Specializations (multi-select) */}
+          <Grid size={{ xs: 12, sm: mode === 'edit' ? 6 : 12 }}>
+            <FormControl fullWidth size='small'>
+              <InputLabel id='spec-label'>Specializations</InputLabel>
+              <Select
+                labelId='spec-label'
+                multiple
+                value={formData.specializations}
+                onChange={e => set('specializations', typeof e.target.value === 'string' ? e.target.value.split(',') : e.target.value)}
+                input={<OutlinedInput label='Specializations' />}
+                renderValue={selected => (
+                  <Box className='flex flex-wrap gap-1'>
+                    {(selected as string[]).map(v => <Chip key={v} label={v} size='small' />)}
+                  </Box>
+                )}
+              >
+                {SPECIALIZATION_OPTIONS.map(s => (
+                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          {/* Status — edit mode only */}
           {mode === 'edit' && (
-            <Grid size={{ xs: 12 }}>
-              <Typography variant='body2' color='text.secondary' className='mbe-1'>
-                Rating
-              </Typography>
-              <Typography variant='body1' className='font-medium'>
-                {editData?.rating?.toFixed(1) || '0.0'} / 5.0
-              </Typography>
-              <Typography variant='caption' color='text.secondary'>
-                Rating is calculated based on completed jobs
-              </Typography>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size='small'>
+                <InputLabel id='status-label'>Status</InputLabel>
+                <Select
+                  labelId='status-label' label='Status'
+                  value={formData.status} onChange={e => set('status', e.target.value)}
+                >
+                  <MenuItem value='ACTIVE'>Active</MenuItem>
+                  <MenuItem value='INACTIVE'>Inactive</MenuItem>
+                  <MenuItem value='SUSPENDED'>Suspended</MenuItem>
+                </Select>
+              </FormControl>
             </Grid>
           )}
+
+          {/* Tax ID */}
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth size='small' label='Tax ID' placeholder='Tax identification number'
+              value={formData.taxId} onChange={e => set('taxId', e.target.value)}
+            />
+          </Grid>
+
+          {/* Insurance Expiry */}
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth size='small' label='Insurance Expiry Date' type='date'
+              InputLabelProps={{ shrink: true }}
+              value={formData.insuranceExpiryDate}
+              onChange={e => set('insuranceExpiryDate', e.target.value)}
+            />
+          </Grid>
         </Grid>
       </DialogContent>
+
       <DialogActions className='gap-2 pbs-4'>
-        <Button variant='outlined' color='secondary' onClick={handleReset}>
+        <Button variant='outlined' color='secondary' onClick={handleClose} disabled={submitting}>
           Cancel
         </Button>
         <Button
-          variant='contained'
-          color='primary'
-          onClick={handleSubmit}
-          startIcon={<i className={mode === 'edit' ? 'ri-save-line' : 'ri-add-line'} />}
+          variant='contained' color='primary' onClick={handleSubmit} disabled={submitting}
+          startIcon={submitting ? <CircularProgress size={16} color='inherit' /> : <i className={mode === 'edit' ? 'ri-save-line' : 'ri-add-line'} />}
         >
-          {mode === 'edit' ? 'Update Maintainer' : 'Add Maintainer'}
+          {submitting ? 'Saving…' : mode === 'edit' ? 'Update Maintainer' : 'Add Maintainer'}
         </Button>
       </DialogActions>
     </Dialog>

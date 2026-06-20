@@ -1,12 +1,16 @@
 export type DocumentType = {
-  id: number
-  propertyName: string
-  propertyImage?: string
-  unitNo: string
-  tenantName: string
+  id: string
+  propertyName?: string
+  propertyId?: string
+  unitNo?: string
+  unitId?: string
+  tenantName?: string
+  occupantId?: string
   tenantAvatar?: string
   documentImage?: string
-  documentType: 'ID Card' | 'Passport' | 'Lease Agreement' | 'Contract' | 'Other'
+  fileUrl?: string
+  fileName?: string
+  documentType: string
   status: 'accepted' | 'rejected' | 'pending'
+  rejectReason?: string
 }
-

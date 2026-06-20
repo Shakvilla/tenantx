@@ -1,6 +1,7 @@
-// Documentation: /docs/agreement/agreement-module.md
-
 'use client'
+
+// React Imports
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Grid from '@mui/material/Grid2'
@@ -8,6 +9,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Divider from '@mui/material/Divider'
 import Typography from '@mui/material/Typography'
+import Skeleton from '@mui/material/Skeleton'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import type { Theme } from '@mui/material/styles'
 
@@ -17,68 +19,67 @@ import classnames from 'classnames'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 
-type Props = {
-  totalAgreements: number
-  activeAgreements: number
-  expiredAgreements: number
-  pendingAgreements: number
-  totalRevenue: string
-}
+// API Imports
+import { getAgreementStats, type AgreementStats } from '@/lib/api/agreements'
 
-type StatsDataType = {
+type StatItem = {
   title: string
-  value: string
+  value: number
   icon: string
   desc: string
   iconColor: 'primary' | 'success' | 'warning' | 'info' | 'error'
 }
 
-const AgreementsStatsCard = ({
-  totalAgreements,
-  activeAgreements,
-  expiredAgreements,
-  pendingAgreements,
-  totalRevenue
-}: Props) => {
-  // Hooks
-  const isBelowMdScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
-  const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
+const AgreementsStatsCard = () => {
+  const [stats, setStats] = useState<AgreementStats | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const data: StatsDataType[] = [
+  const isBelowMdScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
+  const isSmallScreen   = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
+
+  useEffect(() => {
+    setLoading(true)
+    getAgreementStats()
+      .then(setStats)
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const data: StatItem[] = [
     {
       title: 'Total Agreements',
-      value: totalAgreements.toString(),
+      value: stats?.total ?? 0,
       icon: 'ri-file-contract-line',
       desc: 'Total number of agreements',
       iconColor: 'primary'
     },
     {
-      title: 'Active Agreements',
-      value: activeAgreements.toString(),
+      title: 'Active',
+      value: stats?.active ?? 0,
       icon: 'ri-checkbox-circle-line',
       desc: 'Currently active agreements',
       iconColor: 'success'
     },
     {
-      title: 'Expired Agreements',
-      value: expiredAgreements.toString(),
+      title: 'Pending',
+      value: stats?.pending ?? 0,
+      icon: 'ri-hourglass-line',
+      desc: 'Pending approval',
+      iconColor: 'info'
+    },
+    {
+      title: 'Expired',
+      value: stats?.expired ?? 0,
       icon: 'ri-time-line',
       desc: 'Expired agreements',
       iconColor: 'warning'
     },
     {
-      title: 'Pending Agreements',
-      value: pendingAgreements.toString(),
-      icon: 'ri-hourglass-line',
-      desc: 'Pending approval agreements',
-      iconColor: 'info'
-    },
-    {
-      title: 'Total Revenue',
-      value: totalRevenue,
-      icon: 'ri-money-dollar-circle-line',
-      desc: 'Total revenue from active agreements',
-      iconColor: 'success'
+      title: 'Terminated',
+      value: stats?.terminated ?? 0,
+      icon: 'ri-close-circle-line',
+      desc: 'Terminated agreements',
+      iconColor: 'error'
     }
   ]
 
@@ -99,7 +100,11 @@ const AgreementsStatsCard = ({
                 <div className='flex justify-between'>
                   <div className='flex flex-col gap-1'>
                     <Typography>{item.title}</Typography>
-                    <Typography variant='h4'>{item.value}</Typography>
+                    {loading ? (
+                      <Skeleton variant='text' width={48} height={40} />
+                    ) : (
+                      <Typography variant='h4'>{item.value}</Typography>
+                    )}
                   </div>
                   <CustomAvatar variant='rounded' skin='light' color={item.iconColor} size={44}>
                     <i className={classnames(item.icon, 'text-[28px]')} />
@@ -124,4 +129,3 @@ const AgreementsStatsCard = ({
 }
 
 export default AgreementsStatsCard
-

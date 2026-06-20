@@ -4,7 +4,6 @@
  */
 
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete, API_BASE } from './client'
-import { getStoredToken } from './storage'
 import type { Property, PropertyStats } from '@/types/property'
 
 // ---------------------------------------------------------------------------
@@ -252,6 +251,7 @@ interface DraftPayload {
   rooms?: number
   amenities?: string[]
   images?: string[]
+  imageFileIds?: string[]
   thumbnailIndex?: number
 }
 
@@ -284,6 +284,7 @@ export async function updateDraft(tenantId: string, id: string, data: DraftPaylo
 interface UploadedImage {
   path: string
   url: string
+  fileId: string
 }
 
 interface UploadResponse {
@@ -299,43 +300,45 @@ interface UploadResponse {
 }
 
 /**
- * Upload property images to storage.
- * @param tenantId - The tenant ID for authentication
- * @param files - Array of files to upload
- * @param propertyId - Optional property ID to organize files
+ * Upload property images to ImageKit CDN.
+ * Files are uploaded directly from the browser to ImageKit using a
+ * short-lived auth token from the Spring Boot backend.
+ *
+ * @param tenantId  - Used to scope the folder path (not sent to ImageKit)
+ * @param files     - Array of image files to upload
+ * @param propertyId - Optional property ID for sub-folder organisation
  */
 export async function uploadPropertyImages(
   tenantId: string,
   files: File[],
   propertyId?: string
 ): Promise<UploadResponse> {
-  const formData = new FormData()
+  try {
+    const { uploadImages } = await import('@/lib/imagekit')
 
-  files.forEach(file => {
-    formData.append('files', file)
-  })
+    const folder = propertyId
+      ? `/tenantx/${tenantId}/properties/${propertyId}`
+      : `/tenantx/${tenantId}/properties`
 
-  if (propertyId) {
-    formData.append('propertyId', propertyId)
-  }
+    const uploaded = await uploadImages(files, { folder })
 
-  // Use axios directly (not apiClient) to avoid default Content-Type header
-  // axios will automatically set Content-Type: multipart/form-data with boundary
-  const { default: axios } = await import('axios')
-
-  const token = getStoredToken()
-
-  const response = await axios.post<UploadResponse>(`${API_BASE}/properties/upload`, formData, {
-    withCredentials: true,
-    headers: {
-      'X-Tenant-ID': tenantId,
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-
-      // Don't set Content-Type - let axios detect from FormData
+    return {
+      success: true,
+      data: {
+        images: uploaded.map(f => ({ path: f.filePath, url: f.url, fileId: f.fileId })),
+        count: uploaded.length
+      }
     }
-  })
-
-  return response.data
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: {
+        code: 'UPLOAD_FAILED',
+        message: error.message ?? 'Failed to upload images'
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

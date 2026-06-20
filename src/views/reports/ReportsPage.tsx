@@ -20,6 +20,8 @@ import TenantsReport from './TenantsReport'
 import ExpensesReport from './ExpensesReport'
 import EarningsReport from './EarningsReport'
 import MaintenanceReport from './MaintenanceReport'
+import GraComplianceReport from './GraComplianceReport'
+import ArrearsReport from './ArrearsReport'
 
 // Type Imports
 import type { DateRange } from '@/types/reports/reportTypes'
@@ -58,6 +60,8 @@ const ReportsPage = () => {
                 <Tab value='expenses' label='Expenses' icon={<i className='ri-money-dollar-circle-line' />} iconPosition='start' />
                 <Tab value='earnings' label='Earnings' icon={<i className='ri-line-chart-line' />} iconPosition='start' />
                 <Tab value='maintenance' label='Maintenance' icon={<i className='ri-tools-line' />} iconPosition='start' />
+                <Tab value='gra' label='GRA Compliance' icon={<i className='ri-government-line' />} iconPosition='start' />
+                <Tab value='arrears' label='Arrears' icon={<i className='ri-alarm-warning-line' />} iconPosition='start' />
               </CustomTabList>
 
               <TabPanel value='tenants' className='p-0 mts-6'>
@@ -74,6 +78,14 @@ const ReportsPage = () => {
 
               <TabPanel value='maintenance' className='p-0 mts-6'>
                 <MaintenanceReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+              </TabPanel>
+
+              <TabPanel value='gra' className='p-0 mts-6'>
+                <GraComplianceReport />
+              </TabPanel>
+
+              <TabPanel value='arrears' className='p-0 mts-6'>
+                <ArrearsReport />
               </TabPanel>
             </TabContext>
           </CardContent>

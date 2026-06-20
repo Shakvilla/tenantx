@@ -36,7 +36,7 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 import type { SubscriptionPlan, SubscriptionPlanWithAction } from '@/types/subscription-plans/subscriptionPlanTypes'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
 import ViewPlanDialog from './ViewSubscriptionPlanDialog'
 import AddPlanDialog from './AddSubscriptionPlanDialog'
@@ -287,7 +287,7 @@ const SubscriptionPlansListTable = () => {
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {

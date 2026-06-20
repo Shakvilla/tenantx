@@ -1,7 +1,6 @@
 'use client'
 
-// React Imports
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -19,787 +18,777 @@ import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import Autocomplete from '@mui/material/Autocomplete'
 import InputAdornment from '@mui/material/InputAdornment'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
-import Avatar from '@mui/material/Avatar'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
+import Tooltip from '@mui/material/Tooltip'
+import { styled } from '@mui/material/styles'
 
-// Type Imports
-import type { MaintenanceRequestType } from '@/types/maintenance/maintenanceRequestTypes'
+// API Imports
+import { getProperties } from '@/lib/api/properties'
+import { getUnitsByProperty } from '@/lib/api/units'
+import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
+import {
+  getMaintainers,
+  getMaintenanceCategories,
+  createMaintenanceRequest,
+  updateMaintenanceRequest,
+  assignMaintainerToRequest,
+  updateMaintenanceRequestStatus,
+  uploadMaintenanceImages,
+  type MaintenanceRequest,
+  type Maintainer,
+  type MaintenanceCategory
+} from '@/lib/api/maintenance'
+import { getStoredTenantId } from '@/lib/api/storage'
+import type { Property, Unit } from '@/types/property'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
-
-// Util Imports
 import { getInitials } from '@/utils/getInitials'
 
-type Property = { id: number | string; name: string; image?: string }
-type Unit = { id: number | string; unitNumber: string; propertyId: string; propertyName: string }
-type Tenant = {
-  id: number | string
-  name: string
-  email?: string
-  avatar?: string
-  propertyId?: string
-  unitId?: string
-}
-type Maintainer = { id: number | string; name: string; email?: string; avatar?: string; specialization?: string }
+// ─── Styled Components ────────────────────────────────────────────────────────
+
+const UploadArea = styled(Box)(({ theme }) => ({
+  border: `2px dashed ${theme.palette.divider}`,
+  borderRadius: theme.shape.borderRadius * 2,
+  padding: theme.spacing(4),
+  textAlign: 'center',
+  cursor: 'pointer',
+  transition: 'border-color 0.2s, background-color 0.2s',
+  '&:hover': {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: theme.palette.action.hover
+  }
+}))
+
+const ImagePreviewCard = styled(Box)(({ theme }) => ({
+  position: 'relative',
+  borderRadius: theme.shape.borderRadius,
+  overflow: 'hidden',
+  border: `1px solid ${theme.palette.divider}`,
+  '& .remove-button': {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    opacity: 0,
+    transition: 'opacity 0.2s',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    color: 'white',
+    '&:hover': { backgroundColor: 'rgba(0,0,0,0.8)' }
+  },
+  '&:hover .remove-button': { opacity: 1 }
+}))
+
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type Props = {
   open: boolean
   handleClose: () => void
-  requestData?: MaintenanceRequestType[]
-  setData: (data: MaintenanceRequestType[]) => void
-  editData?: MaintenanceRequestType | null
+  onSuccess: () => void
+  editData?: MaintenanceRequest | null
   mode?: 'add' | 'edit'
-  properties?: Property[]
-  units?: Unit[]
-  tenants?: Tenant[]
-  maintainers?: Maintainer[]
 }
 
-type FormDataType = {
+type FormData = {
+  title: string
+  description: string
+  priority: string
+  status: string
   propertyId: string
   unitId: string
-  tenantId: string
-  issue: string
-  description: string
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  status: 'new' | 'pending' | 'in-progress' | 'completed' | 'rejected'
-  assignedToId: string
-  requestedDate: string
-  images: File[]
+  occupantId: string
+  categoryId: string
+  maintainerId: string
+  notes: string
 }
 
-// Vars
-const initialData: FormDataType = {
+type NewImageItem = { file: File; preview: string }
+
+const BLANK: FormData = {
+  title: '',
+  description: '',
+  priority: 'MEDIUM',
+  status: 'NEW',
   propertyId: '',
   unitId: '',
-  tenantId: '',
-  issue: '',
-  description: '',
-  priority: 'medium',
-  status: 'new',
-  assignedToId: '',
-  requestedDate: new Date().toISOString().split('T')[0],
-  images: []
+  occupantId: '',
+  categoryId: '',
+  maintainerId: '',
+  notes: ''
 }
 
-// Sample data
-const sampleProperties: Property[] = [
-  {
-    id: 1,
-    name: 'A living room with mexican mansion blue',
-    image:
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0'
-  },
-  {
-    id: 2,
-    name: 'Rendering of a modern villa',
-    image:
-      'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?q=80&w=2148&auto=format&fit=crop&ixlib=rb-4.1.0'
-  },
-  {
-    id: 3,
-    name: 'Beautiful modern style luxury home exterior sunset',
-    image:
-      'https://images.unsplash.com/photo-1583608205776-bfd35f0d9f83?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0'
-  },
-  {
-    id: 4,
-    name: 'A house with a lot of windows and a lot of plants',
-    image:
-      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0'
-  },
-  {
-    id: 5,
-    name: 'Design of a modern house as mansion blue couch',
-    image:
-      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2340&auto=format&fit=crop&ixlib=rb-4.1.0'
-  },
-  {
-    id: 6,
-    name: 'Depending on the location and design',
-    image:
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0'
-  }
-]
+// ─── Component ───────────────────────────────────────────────────────────────
 
-const sampleUnits: Unit[] = [
-  { id: 1, unitNumber: 'Unit no 1', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
-  {
-    id: 2,
-    unitNumber: 'Unit no 2',
-    propertyId: '3',
-    propertyName: 'Beautiful modern style luxury home exterior sunset'
-  },
-  { id: 3, unitNumber: 'Unit no 3', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
-  {
-    id: 4,
-    unitNumber: 'Unit no 4',
-    propertyId: '4',
-    propertyName: 'A house with a lot of windows and a lot of plants'
-  },
-  { id: 5, unitNumber: 'Unit no 5', propertyId: '2', propertyName: 'Rendering of a modern villa' },
-  { id: 6, unitNumber: 'Unit no 6', propertyId: '2', propertyName: 'Rendering of a modern villa' },
-  {
-    id: 7,
-    unitNumber: 'Unit no 7',
-    propertyId: '3',
-    propertyName: 'Beautiful modern style luxury home exterior sunset'
-  },
-  { id: 8, unitNumber: 'Unit no 8', propertyId: '6', propertyName: 'Depending on the location and design' },
-  { id: 9, unitNumber: 'Unit no 9', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
-  {
-    id: 10,
-    unitNumber: 'Unit no 10',
-    propertyId: '4',
-    propertyName: 'A house with a lot of windows and a lot of plants'
-  },
-  { id: 11, unitNumber: 'Unit no 11', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
-  { id: 12, unitNumber: 'Unit no 12', propertyId: '1', propertyName: 'A living room with mexican mansion blue' }
-]
+const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, mode = 'add' }: Props) => {
+  const [activeTab, setActiveTab] = useState(0)
+  const [formData, setFormData] = useState<FormData>(BLANK)
+  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
-const sampleTenants: Tenant[] = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyId: '1',
-    unitId: '3'
-  },
-  {
-    id: 2,
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyId: '2',
-    unitId: '6'
-  },
-  {
-    id: 3,
-    name: 'Bob Johnson',
-    email: 'bob.johnson@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyId: '3',
-    unitId: '2'
-  },
-  {
-    id: 4,
-    name: 'Alice Brown',
-    email: 'alice.brown@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyId: '4',
-    unitId: '4'
-  },
-  {
-    id: 5,
-    name: 'Charlie Wilson',
-    email: 'charlie.wilson@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyId: '5',
-    unitId: '11'
-  }
-]
-
-const sampleMaintainers: Maintainer[] = [
-  {
-    id: 1,
-    name: 'John Smith',
-    email: 'john.smith@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    specialization: 'Plumbing'
-  },
-  {
-    id: 2,
-    name: 'Sarah Johnson',
-    email: 'sarah.johnson@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    specialization: 'Electrical'
-  },
-  {
-    id: 3,
-    name: 'Michael Brown',
-    email: 'michael.brown@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    specialization: 'HVAC'
-  },
-  {
-    id: 4,
-    name: 'Emily Davis',
-    email: 'emily.davis@example.com',
-    avatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    specialization: 'Carpentry'
-  }
-]
-
-const AddMaintenanceRequestDialog = ({
-  open,
-  handleClose,
-  requestData,
-  setData,
-  editData,
-  mode = 'add',
-  properties = sampleProperties,
-  units = sampleUnits,
-  tenants = sampleTenants,
-  maintainers = sampleMaintainers
-}: Props) => {
-  // States
-  const [formData, setFormData] = useState<FormDataType>(initialData)
-  const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
-  const [imagePreviews, setImagePreviews] = useState<string[]>([])
+  // Image state
+  const [existingImages, setExistingImages] = useState<string[]>([])
+  const [existingImageFileIds, setExistingImageFileIds] = useState<string[]>([])
+  const [newImages, setNewImages] = useState<NewImageItem[]>([])
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Filter units and tenants based on property selection
-  const filteredUnits = useMemo(() => {
-    if (!formData.propertyId) return []
-    
-return units.filter(unit => unit.propertyId === formData.propertyId)
-  }, [formData.propertyId, units])
+  // Dropdown data
+  const [properties, setProperties] = useState<Property[]>([])
+  const [units, setUnits] = useState<Unit[]>([])
+  const [occupants, setOccupants] = useState<OccupantRecord[]>([])
+  const [maintainers, setMaintainers] = useState<Maintainer[]>([])
+  const [categories, setCategories] = useState<MaintenanceCategory[]>([])
 
-  const filteredTenants = useMemo(() => {
-    if (!formData.propertyId && !formData.unitId) return []
-    
-return tenants.filter(tenant => {
-      if (formData.unitId) {
-        return tenant.unitId === formData.unitId
-      }
+  // Loading states
+  const [loadingInit, setLoadingInit] = useState(false)
+  const [loadingUnits, setLoadingUnits] = useState(false)
+  const [loadingOccupants, setLoadingOccupants] = useState(false)
 
-      
-return tenant.propertyId === formData.propertyId
-    })
-  }, [formData.propertyId, formData.unitId, tenants])
-
-  // Reset form when dialog opens/closes or editData changes
-  useEffect(() => {
-    if (open) {
-      if (mode === 'edit' && editData) {
-        const property = properties.find(p => p.name === editData.propertyName)
-        const unit = units.find(u => u.unitNumber === editData.unitNo)
-        const tenant = tenants.find(t => t.name === editData.tenantName)
-        const maintainer = maintainers.find(m => m.name === editData.assignedTo)
-
-        setFormData({
-          propertyId: property?.id.toString() || '',
-          unitId: unit?.id.toString() || '',
-          tenantId: tenant?.id.toString() || '',
-          issue: editData.issue || '',
-          description: editData.description || '',
-          priority: editData.priority || 'medium',
-          status: editData.status || 'new',
-          assignedToId: maintainer?.id.toString() || '',
-          requestedDate: editData.requestedDate || new Date().toISOString().split('T')[0],
-          images: []
-        })
-        setImagePreviews(editData.images || [])
-      } else {
-        setFormData(initialData)
-        setImagePreviews([])
-      }
-
-      setErrors({})
-    } else {
-      // Clean up preview URLs
-      imagePreviews.forEach(preview => {
-        if (preview.startsWith('blob:')) {
-          URL.revokeObjectURL(preview)
-        }
-      })
-      setFormData(initialData)
-      setErrors({})
-      setImagePreviews([])
-
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editData, mode])
-
-  // Cleanup on unmount
+  // ── Cleanup blob URLs on unmount ──────────────────────────────────────────
   useEffect(() => {
     return () => {
-      imagePreviews.forEach(preview => {
-        if (preview.startsWith('blob:')) {
-          URL.revokeObjectURL(preview)
-        }
-      })
+      newImages.forEach(img => URL.revokeObjectURL(img.preview))
     }
-  }, [imagePreviews])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Handle input change
-  const handleInputChange = (field: keyof FormDataType, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+  // ── Fetch properties + maintainers + categories when dialog opens ─────────
+  useEffect(() => {
+    if (!open) return
 
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: false }))
-    }
-
-    // Reset dependent fields
-    if (field === 'propertyId') {
-      setFormData(prev => ({ ...prev, unitId: '', tenantId: '' }))
-    }
-
-    if (field === 'unitId') {
-      setFormData(prev => ({ ...prev, tenantId: '' }))
-    }
-  }
-
-  // Handle image upload
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-
-    if (files.length === 0) return
-
-    const validFiles = files.filter(file => {
-      if (file.size > 5 * 1024 * 1024) {
-        // 5MB limit
-        setErrors(prev => ({ ...prev, images: true }))
-        
-return false
-      }
-
-      
-return true
-    })
-
-    const newPreviews = validFiles.map(file => URL.createObjectURL(file))
-
-    setImagePreviews(prev => [...prev, ...newPreviews])
-    setFormData(prev => ({ ...prev, images: [...prev.images, ...validFiles] }))
-
-    if (errors.images) {
-      setErrors(prev => ({ ...prev, images: false }))
-    }
-  }
-
-  // Handle remove image
-  const handleRemoveImage = (index: number) => {
-    const previewToRemove = imagePreviews[index]
-
-    if (previewToRemove.startsWith('blob:')) {
-      URL.revokeObjectURL(previewToRemove)
-    }
-
-    setImagePreviews(prev => prev.filter((_, i) => i !== index))
-    setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }))
-  }
-
-  // Validate form
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormDataType, boolean>> = {}
-
-    if (!formData.propertyId.trim()) {
-      newErrors.propertyId = true
-    }
-
-    if (!formData.unitId.trim()) {
-      newErrors.unitId = true
-    }
-
-    if (!formData.tenantId.trim()) {
-      newErrors.tenantId = true
-    }
-
-    if (!formData.issue.trim()) {
-      newErrors.issue = true
-    }
-
-    if (!formData.requestedDate.trim()) {
-      newErrors.requestedDate = true
-    }
-
-    setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
-  }
-
-  // Handle submit
-  const handleSubmit = () => {
-    if (!validateForm()) return
-
-    const property = properties.find(p => p.id.toString() === formData.propertyId)
-    const unit = units.find(u => u.id.toString() === formData.unitId)
-    const tenant = tenants.find(t => t.id.toString() === formData.tenantId)
-    const maintainer = maintainers.find(m => m.id.toString() === formData.assignedToId)
-
-    const imageUrls = imagePreviews.filter(preview => !preview.startsWith('blob:'))
-
-    if (mode === 'edit' && editData) {
-      // Update existing request
-      const updatedRequest: MaintenanceRequestType = {
-        ...editData,
-        propertyName: property?.name || '',
-        propertyImage: property?.image,
-        unitNo: unit?.unitNumber || '',
-        tenantName: tenant?.name || '',
-        tenantAvatar: tenant?.avatar,
-        issue: formData.issue,
-        description: formData.description,
-        priority: formData.priority,
-        status: formData.status,
-        assignedTo: maintainer?.name,
-        assignedToAvatar: maintainer?.avatar,
-        requestedDate: formData.requestedDate,
-        images: imageUrls
-      }
-
-      if (requestData) {
-        setData(requestData.map(r => (r.id === editData.id ? updatedRequest : r)))
-      }
-    } else {
-      // Create new request
-      const newRequest: MaintenanceRequestType = {
-        id: (requestData?.length || 0) + 1,
-        propertyName: property?.name || '',
-        propertyImage: property?.image,
-        unitNo: unit?.unitNumber || '',
-        tenantName: tenant?.name || '',
-        tenantAvatar: tenant?.avatar,
-        issue: formData.issue,
-        description: formData.description,
-        priority: formData.priority,
-        status: formData.status,
-        assignedTo: maintainer?.name,
-        assignedToAvatar: maintainer?.avatar,
-        requestedDate: formData.requestedDate,
-        images: imageUrls
-      }
-
-      if (requestData) {
-        setData([newRequest, ...requestData])
-      }
-    }
-
-    handleReset()
-  }
-
-  // Handle reset
-  const handleReset = () => {
-    // Clean up preview URLs
-    imagePreviews.forEach(preview => {
-      if (preview.startsWith('blob:')) {
-        URL.revokeObjectURL(preview)
-      }
-    })
-    setFormData(initialData)
+    setApiError(null)
     setErrors({})
-    setImagePreviews([])
+    setActiveTab(0)
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    // Revoke any leftover blob URLs
+    newImages.forEach(img => URL.revokeObjectURL(img.preview))
+    setNewImages([])
+
+    // Populate form and images
+    if (mode === 'edit' && editData) {
+      setFormData({
+        title: editData.title ?? '',
+        description: editData.description ?? '',
+        priority: editData.priority ?? 'MEDIUM',
+        status: editData.status ?? 'NEW',
+        propertyId: editData.propertyId ?? '',
+        unitId: editData.unitId ?? '',
+        occupantId: editData.occupantId ?? '',
+        categoryId: editData.categoryId ?? '',
+        maintainerId: editData.maintainerId ?? '',
+        notes: editData.notes ?? ''
+      })
+      setExistingImages(editData.images || [])
+      setExistingImageFileIds(editData.imageFileIds || [])
+    } else {
+      setFormData(BLANK)
+      setExistingImages([])
+      setExistingImageFileIds([])
     }
 
-    handleClose()
+    const tenantId = getStoredTenantId() ?? ''
+
+    setLoadingInit(true)
+    Promise.all([
+      getProperties(tenantId, { size: 200 }),
+      getMaintainers({ size: 200 }, tenantId),
+      getMaintenanceCategories(true, tenantId)
+    ])
+      .then(([propsRes, maintainersRes, catsRes]) => {
+        setProperties(propsRes.data ?? [])
+        setMaintainers(maintainersRes.data ?? [])
+        setCategories(Array.isArray(catsRes) ? catsRes : [])
+      })
+      .catch(() => {})
+      .finally(() => setLoadingInit(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editData, mode])
+
+  // ── Fetch units when property changes ──────────────────────────────────────
+  useEffect(() => {
+    if (!formData.propertyId) {
+      setUnits([])
+      return
+    }
+    const tenantId = getStoredTenantId() ?? ''
+    setLoadingUnits(true)
+    setUnits([])
+    getUnitsByProperty(tenantId, formData.propertyId, { size: 200 })
+      .then(res => setUnits(res.data ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingUnits(false))
+  }, [formData.propertyId])
+
+  // ── Fetch occupants when property/unit changes ────────────────────────────
+  useEffect(() => {
+    if (!formData.propertyId) {
+      setOccupants([])
+      return
+    }
+    const tenantId = getStoredTenantId() ?? ''
+    setLoadingOccupants(true)
+    setOccupants([])
+    getOccupants(tenantId, { propertyId: formData.propertyId, size: 200 })
+      .then(res => {
+        let list = res.data ?? []
+        if (formData.unitId) {
+          list = list.filter(o => o.unitId === formData.unitId)
+        }
+        setOccupants(list)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingOccupants(false))
+  }, [formData.propertyId, formData.unitId])
+
+  // ── Field setter — resets dependent fields ─────────────────────────────────
+  const set = (field: keyof FormData, value: string) => {
+    setFormData(prev => {
+      const next = { ...prev, [field]: value }
+      if (field === 'propertyId') { next.unitId = ''; next.occupantId = '' }
+      if (field === 'unitId') { next.occupantId = '' }
+      return next
+    })
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
   }
 
+  // ── Image handling ─────────────────────────────────────────────────────────
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/'))
+    if (!arr.length) return
+    const newItems: NewImageItem[] = arr.map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }))
+    setNewImages(prev => [...prev, ...newItems])
+  }, [])
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      addFiles(e.target.files)
+    }
+    e.target.value = ''
+  }
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDraggingOver(false)
+    addFiles(e.dataTransfer.files)
+  }, [addFiles])
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDraggingOver(true) }
+  const handleDragLeave = () => setIsDraggingOver(false)
+
+  const removeExistingImage = (idx: number) => {
+    setExistingImages(prev => prev.filter((_, i) => i !== idx))
+    setExistingImageFileIds(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const removeNewImage = (idx: number) => {
+    setNewImages(prev => {
+      URL.revokeObjectURL(prev[idx].preview)
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
+
+  // ── Validation ─────────────────────────────────────────────────────────────
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof FormData, string>> = {}
+    if (!formData.propertyId) e.propertyId = 'Property is required'
+    if (!formData.title.trim()) e.title = 'Title is required'
+    setErrors(e)
+    return Object.keys(e).length === 0
+  }
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!validate()) return
+    setSubmitting(true)
+    setApiError(null)
+
+    try {
+      const tenantId = getStoredTenantId() ?? ''
+      let requestId: string
+
+      if (mode === 'edit' && editData) {
+        // Upload any new images first (no requestId folder yet — use existing id)
+        let allImages = [...existingImages]
+        let allFileIds = [...existingImageFileIds]
+
+        if (newImages.length > 0) {
+          const uploaded = await uploadMaintenanceImages(tenantId, newImages.map(i => i.file), editData.id)
+          newImages.forEach(img => URL.revokeObjectURL(img.preview))
+          setNewImages([])
+          allImages = [...allImages, ...uploaded.map(u => u.url)]
+          allFileIds = [...allFileIds, ...uploaded.map(u => u.fileId)]
+        }
+
+        await updateMaintenanceRequest(editData.id, {
+          title: formData.title,
+          description: formData.description || undefined,
+          priority: formData.priority,
+          propertyId: formData.propertyId,
+          unitId: formData.unitId || undefined,
+          occupantId: formData.occupantId || undefined,
+          categoryId: formData.categoryId || undefined,
+          notes: formData.notes || undefined,
+          images: allImages,
+          imageFileIds: allFileIds
+        })
+        requestId = editData.id
+
+        if (formData.status && formData.status !== editData.status) {
+          await updateMaintenanceRequestStatus(requestId, formData.status)
+        }
+      } else {
+        // Create first (need ID for folder), then upload, then update with image URLs
+        const created = await createMaintenanceRequest({
+          title: formData.title,
+          description: formData.description || '',
+          priority: formData.priority,
+          propertyId: formData.propertyId,
+          unitId: formData.unitId || undefined,
+          occupantId: formData.occupantId || undefined,
+          categoryId: formData.categoryId || undefined,
+          notes: formData.notes || undefined
+        })
+        requestId = created.id
+
+        if (newImages.length > 0) {
+          const uploaded = await uploadMaintenanceImages(tenantId, newImages.map(i => i.file), requestId)
+          newImages.forEach(img => URL.revokeObjectURL(img.preview))
+          setNewImages([])
+          await updateMaintenanceRequest(requestId, {
+            images: uploaded.map(u => u.url),
+            imageFileIds: uploaded.map(u => u.fileId)
+          })
+        }
+      }
+
+      // Assign maintainer if one is selected
+      if (formData.maintainerId) {
+        await assignMaintainerToRequest(requestId, formData.maintainerId)
+      }
+
+      onSuccess()
+      handleClose()
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Something went wrong. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const occupantFullName = (o: OccupantRecord) => `${o.firstName} ${o.lastName}`
+  const occupantLabel = (o: OccupantRecord) =>
+    `${occupantFullName(o)}${o.email ? ` (${o.email})` : ''}`
+  const maintainerLabel = (m: Maintainer) =>
+    `${m.name}${m.specializations?.length ? ` — ${m.specializations[0]}` : ''}`
+
+  const totalImages = existingImages.length + newImages.length
+
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
       <DialogTitle className='flex items-center justify-between'>
-        <span className='font-medium'>{mode === 'edit' ? 'Edit Maintenance Request' : 'Add Maintenance Request'}</span>
-        <IconButton size='small' onClick={handleReset}>
+        <span className='font-medium'>
+          {mode === 'edit' ? 'Edit Maintenance Request' : 'Add Maintenance Request'}
+        </span>
+        <IconButton size='small' onClick={handleClose} disabled={submitting}>
           <i className='ri-close-line' />
         </IconButton>
       </DialogTitle>
-      <DialogContent className='flex flex-col gap-4'>
-        <Grid container spacing={4}>
-          {/* Property */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth size='small' error={Boolean(errors.propertyId)}>
-              <InputLabel id='property-label'>Property *</InputLabel>
-              <Select
-                labelId='property-label'
-                label='Property *'
-                value={formData.propertyId}
-                onChange={e => handleInputChange('propertyId', e.target.value)}
-              >
-                <MenuItem value=''>Select Property</MenuItem>
-                {properties.map(property => (
-                  <MenuItem key={property.id} value={property.id.toString()}>
-                    {property.name}
+
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 3 }}>
+        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+          <Tab label='Details' />
+          <Tab label={`Photos${totalImages > 0 ? ` (${totalImages})` : ''}`} />
+        </Tabs>
+      </Box>
+
+      <DialogContent className='flex flex-col gap-4 pbs-4'>
+        {apiError && (
+          <Alert severity='error' onClose={() => setApiError(null)}>{apiError}</Alert>
+        )}
+
+        {/* ── Details tab ── */}
+        {activeTab === 0 && (
+          <Grid container spacing={4}>
+            {/* Property */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size='small' error={Boolean(errors.propertyId)} disabled={loadingInit}>
+                <InputLabel id='property-label'>Property *</InputLabel>
+                <Select
+                  labelId='property-label'
+                  label='Property *'
+                  value={formData.propertyId}
+                  onChange={e => set('propertyId', e.target.value)}
+                >
+                  <MenuItem value=''>Select Property</MenuItem>
+                  {properties.map(p => (
+                    <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                  ))}
+                </Select>
+                {errors.propertyId && (
+                  <Typography variant='caption' color='error' className='mts-1'>
+                    {errors.propertyId}
+                  </Typography>
+                )}
+              </FormControl>
+            </Grid>
+
+            {/* Unit */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size='small' disabled={!formData.propertyId || loadingUnits}>
+                <InputLabel id='unit-label'>Unit</InputLabel>
+                <Select
+                  labelId='unit-label'
+                  label='Unit'
+                  value={formData.unitId}
+                  onChange={e => set('unitId', e.target.value)}
+                >
+                  <MenuItem value=''>
+                    {loadingUnits ? 'Loading units…' : 'Select Unit'}
                   </MenuItem>
-                ))}
-              </Select>
-              {errors.propertyId && (
-                <Typography variant='caption' color='error' className='mts-1'>
-                  This field is required.
-                </Typography>
-              )}
-            </FormControl>
-          </Grid>
+                  {units.map(u => (
+                    <MenuItem key={u.id} value={u.id}>{u.unitNo}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
 
-          {/* Unit */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth size='small' error={Boolean(errors.unitId)} disabled={!formData.propertyId}>
-              <InputLabel id='unit-label'>Unit *</InputLabel>
-              <Select
-                labelId='unit-label'
-                label='Unit *'
-                value={formData.unitId}
-                onChange={e => handleInputChange('unitId', e.target.value)}
-              >
-                <MenuItem value=''>Select Unit</MenuItem>
-                {filteredUnits.map(unit => (
-                  <MenuItem key={unit.id} value={unit.id.toString()}>
-                    {unit.unitNumber}
-                  </MenuItem>
-                ))}
-              </Select>
-              {errors.unitId && (
-                <Typography variant='caption' color='error' className='mts-1'>
-                  This field is required.
-                </Typography>
-              )}
-            </FormControl>
-          </Grid>
-
-          {/* Tenant */}
-          <Grid size={{ xs: 12 }}>
-            <Autocomplete
-              size='small'
-              fullWidth
-              options={filteredTenants}
-              getOptionLabel={option => `${option.name} (${option.email || 'No Email'})`}
-              value={filteredTenants.find(t => t.id.toString() === formData.tenantId) || null}
-              onChange={(_, newValue) => {
-                handleInputChange('tenantId', newValue?.id.toString() || '')
-              }}
-              disabled={!formData.propertyId}
-              renderInput={params => (
-                <TextField
-                  {...params}
-                  label='Select Tenant *'
-                  placeholder='Search tenant...'
-                  error={Boolean(errors.tenantId)}
-                  helperText={errors.tenantId ? 'This field is required.' : ''}
-                  slotProps={{
-                    input: {
-                      ...params.InputProps,
-                      startAdornment: (
-                        <>
-                          <InputAdornment position='start'>
-                            <i className='ri-search-line text-textSecondary' />
-                          </InputAdornment>
-                          {params.InputProps.startAdornment}
-                        </>
-                      )
-                    }
-                  }}
-                />
-              )}
-              renderOption={(props, option) => (
-                <li {...props} key={option.id}>
-                  <div className='flex items-center gap-2'>
-                    <CustomAvatar src={option.avatar} skin='light' size={28}>
-                      {getInitials(option.name)}
-                    </CustomAvatar>
-                    <div className='flex flex-col'>
-                      <Typography className='font-medium' color='text.primary'>
-                        {option.name}
-                      </Typography>
-                      <Typography variant='caption'>{option.email}</Typography>
+            {/* Occupant */}
+            <Grid size={{ xs: 12 }}>
+              <Autocomplete
+                size='small'
+                fullWidth
+                loading={loadingOccupants}
+                disabled={!formData.propertyId}
+                options={occupants}
+                getOptionLabel={occupantLabel}
+                value={occupants.find(o => o.id === formData.occupantId) ?? null}
+                onChange={(_, v) => set('occupantId', v?.id ?? '')}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                renderInput={params => (
+                  <TextField
+                    {...params}
+                    label='Occupant / Tenant'
+                    placeholder='Search occupant…'
+                    slotProps={{
+                      input: {
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position='start'>
+                              <i className='ri-search-line text-textSecondary' />
+                            </InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id}>
+                    <div className='flex items-center gap-2'>
+                      <CustomAvatar skin='light' size={28}>
+                        {getInitials(occupantFullName(option))}
+                      </CustomAvatar>
+                      <div className='flex flex-col'>
+                        <Typography className='font-medium' color='text.primary'>
+                          {occupantFullName(option)}
+                        </Typography>
+                        <Typography variant='caption'>{option.email}</Typography>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              )}
-            />
-          </Grid>
+                  </li>
+                )}
+              />
+            </Grid>
 
-          {/* Issue */}
-          <Grid size={{ xs: 12 }}>
-            <TextField
-              fullWidth
-              size='small'
-              label='Issue *'
-              placeholder='Enter issue description'
-              value={formData.issue}
-              onChange={e => handleInputChange('issue', e.target.value)}
-              error={Boolean(errors.issue)}
-              helperText={errors.issue ? 'This field is required.' : ''}
-            />
-          </Grid>
+            {/* Title */}
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                size='small'
+                label='Title *'
+                placeholder='Brief description of the issue'
+                value={formData.title}
+                onChange={e => set('title', e.target.value)}
+                error={Boolean(errors.title)}
+                helperText={errors.title}
+              />
+            </Grid>
 
-          {/* Description */}
-          <Grid size={{ xs: 12 }}>
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              size='small'
-              label='Description'
-              placeholder='Enter detailed description'
-              value={formData.description}
-              onChange={e => handleInputChange('description', e.target.value)}
-            />
-          </Grid>
+            {/* Description */}
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                size='small'
+                label='Description'
+                placeholder='Detailed description of the issue'
+                value={formData.description}
+                onChange={e => set('description', e.target.value)}
+              />
+            </Grid>
 
-          {/* Priority */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth size='small'>
-              <InputLabel id='priority-label'>Priority</InputLabel>
-              <Select
-                labelId='priority-label'
-                label='Priority'
-                value={formData.priority}
-                onChange={e => handleInputChange('priority', e.target.value)}
-              >
-                <MenuItem value='low'>Low</MenuItem>
-                <MenuItem value='medium'>Medium</MenuItem>
-                <MenuItem value='high'>High</MenuItem>
-                <MenuItem value='urgent'>Urgent</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
+            {/* Priority */}
+            <Grid size={{ xs: 12, sm: mode === 'edit' ? 4 : 6 }}>
+              <FormControl fullWidth size='small'>
+                <InputLabel id='priority-label'>Priority</InputLabel>
+                <Select
+                  labelId='priority-label'
+                  label='Priority'
+                  value={formData.priority}
+                  onChange={e => set('priority', e.target.value)}
+                >
+                  <MenuItem value='LOW'>Low</MenuItem>
+                  <MenuItem value='MEDIUM'>Medium</MenuItem>
+                  <MenuItem value='HIGH'>High</MenuItem>
+                  <MenuItem value='URGENT'>Urgent</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-          {/* Status */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <FormControl fullWidth size='small'>
-              <InputLabel id='status-label'>Status</InputLabel>
-              <Select
-                labelId='status-label'
-                label='Status'
-                value={formData.status}
-                onChange={e => handleInputChange('status', e.target.value)}
-              >
-                <MenuItem value='new'>New</MenuItem>
-                <MenuItem value='pending'>Pending</MenuItem>
-                <MenuItem value='in-progress'>In Progress</MenuItem>
-                <MenuItem value='completed'>Completed</MenuItem>
-                <MenuItem value='rejected'>Rejected</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
+            {/* Status — edit mode only */}
+            {mode === 'edit' && (
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth size='small'>
+                  <InputLabel id='status-label'>Status</InputLabel>
+                  <Select
+                    labelId='status-label'
+                    label='Status'
+                    value={formData.status}
+                    onChange={e => set('status', e.target.value)}
+                  >
+                    <MenuItem value='NEW'>New</MenuItem>
+                    <MenuItem value='PENDING'>Pending</MenuItem>
+                    <MenuItem value='IN_PROGRESS'>In Progress</MenuItem>
+                    <MenuItem value='ON_HOLD'>On Hold</MenuItem>
+                    <MenuItem value='COMPLETED'>Completed</MenuItem>
+                    <MenuItem value='CANCELLED'>Cancelled</MenuItem>
+                    <MenuItem value='REJECTED'>Rejected</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
 
-          {/* Assigned To */}
-          <Grid size={{ xs: 12 }}>
-            <Autocomplete
-              size='small'
-              fullWidth
-              options={maintainers}
-              getOptionLabel={option => `${option.name} (${option.specialization || 'General'})`}
-              value={maintainers.find(m => m.id.toString() === formData.assignedToId) || null}
-              onChange={(_, newValue) => {
-                handleInputChange('assignedToId', newValue?.id.toString() || '')
-              }}
-              renderInput={params => (
-                <TextField
-                  {...params}
-                  label='Assign To (Optional)'
-                  placeholder='Search maintainer...'
-                  slotProps={{
-                    input: {
-                      ...params.InputProps,
-                      startAdornment: (
-                        <>
-                          <InputAdornment position='start'>
-                            <i className='ri-search-line text-textSecondary' />
-                          </InputAdornment>
-                          {params.InputProps.startAdornment}
-                        </>
-                      )
-                    }
-                  }}
-                />
-              )}
-              renderOption={(props, option) => (
-                <li {...props} key={option.id}>
-                  <div className='flex items-center gap-2'>
-                    <CustomAvatar src={option.avatar} skin='light' size={28}>
-                      {getInitials(option.name)}
-                    </CustomAvatar>
-                    <div className='flex flex-col'>
-                      <Typography className='font-medium' color='text.primary'>
-                        {option.name}
-                      </Typography>
-                      <Typography variant='caption'>{option.specialization}</Typography>
+            {/* Category */}
+            <Grid size={{ xs: 12, sm: mode === 'edit' ? 4 : 6 }}>
+              <FormControl fullWidth size='small' disabled={loadingInit}>
+                <InputLabel id='category-label'>Category</InputLabel>
+                <Select
+                  labelId='category-label'
+                  label='Category'
+                  value={formData.categoryId}
+                  onChange={e => set('categoryId', e.target.value)}
+                >
+                  <MenuItem value=''>None</MenuItem>
+                  {categories.map(c => (
+                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Assign To */}
+            <Grid size={{ xs: 12 }}>
+              <Autocomplete
+                size='small'
+                fullWidth
+                loading={loadingInit}
+                options={maintainers}
+                getOptionLabel={maintainerLabel}
+                value={maintainers.find(m => m.id === formData.maintainerId) ?? null}
+                onChange={(_, v) => set('maintainerId', v?.id ?? '')}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                renderInput={params => (
+                  <TextField
+                    {...params}
+                    label='Assign To (Optional)'
+                    placeholder='Search maintainer…'
+                    slotProps={{
+                      input: {
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <InputAdornment position='start'>
+                              <i className='ri-search-line text-textSecondary' />
+                            </InputAdornment>
+                            {params.InputProps.startAdornment}
+                          </>
+                        )
+                      }
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id}>
+                    <div className='flex items-center gap-2'>
+                      <CustomAvatar skin='light' size={28}>
+                        {getInitials(option.name)}
+                      </CustomAvatar>
+                      <div className='flex flex-col'>
+                        <Typography className='font-medium' color='text.primary'>
+                          {option.name}
+                        </Typography>
+                        <Typography variant='caption'>
+                          {option.specializations?.join(', ') || 'General'}
+                        </Typography>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              )}
-            />
-          </Grid>
+                  </li>
+                )}
+              />
+            </Grid>
 
-          {/* Requested Date */}
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField
-              fullWidth
-              size='small'
-              type='date'
-              label='Requested Date *'
-              value={formData.requestedDate}
-              onChange={e => handleInputChange('requestedDate', e.target.value)}
-              error={Boolean(errors.requestedDate)}
-              helperText={errors.requestedDate ? 'This field is required.' : ''}
-              InputLabelProps={{
-                shrink: true
-              }}
-            />
+            {/* Notes */}
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                size='small'
+                label='Notes'
+                placeholder='Additional notes or instructions'
+                value={formData.notes}
+                onChange={e => set('notes', e.target.value)}
+              />
+            </Grid>
           </Grid>
+        )}
 
-          {/* Images */}
-          <Grid size={{ xs: 12 }}>
-            <Box className='flex flex-col gap-2'>
-              <Typography variant='body2' color='text.secondary'>
-                Images (Optional)
+        {/* ── Photos tab ── */}
+        {activeTab === 1 && (
+          <Box className='flex flex-col gap-4'>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type='file'
+              accept='image/*'
+              multiple
+              hidden
+              onChange={handleFileInputChange}
+            />
+
+            {/* Drop zone */}
+            <UploadArea
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              sx={isDraggingOver ? { borderColor: 'primary.main', backgroundColor: 'action.hover' } : {}}
+            >
+              <i className='ri-upload-cloud-2-line text-4xl text-textSecondary mb-2 block' />
+              <Typography variant='body1' fontWeight={500}>
+                Drop photos here or click to browse
               </Typography>
-              <Button variant='outlined' size='small' component='label' startIcon={<i className='ri-upload-line' />}>
-                Upload Images
-                <input ref={fileInputRef} type='file' hidden accept='image/*' multiple onChange={handleImageChange} />
-              </Button>
-              {errors.images && (
-                <Typography variant='caption' color='error'>
-                  Image size should be less than 5MB each.
+              <Typography variant='caption' color='text.secondary'>
+                PNG, JPG, WEBP — multiple files supported
+              </Typography>
+            </UploadArea>
+
+            {/* Image grid */}
+            {totalImages > 0 && (
+              <Box>
+                <Typography variant='caption' color='text.secondary' className='mb-2 block'>
+                  {totalImages} photo{totalImages !== 1 ? 's' : ''} attached
                 </Typography>
-              )}
-              {imagePreviews.length > 0 && (
-                <Box className='flex flex-wrap gap-2 mts-2'>
-                  {imagePreviews.map((preview, index) => (
-                    <Box key={index} className='relative'>
-                      <Avatar variant='rounded' src={preview} sx={{ width: 80, height: 80 }}>
-                        <i className='ri-image-line text-2xl' />
-                      </Avatar>
-                      <IconButton
-                        size='small'
-                        className='absolute -top-2 -right-2'
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 1.5 }}>
+                  {/* Existing images */}
+                  {existingImages.map((url, idx) => (
+                    <ImagePreviewCard key={`existing-${idx}`}>
+                      <Box
+                        component='img'
+                        src={url}
+                        alt={`Image ${idx + 1}`}
+                        sx={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
+                      />
+                      <Tooltip title='Remove'>
+                        <IconButton
+                          size='small'
+                          className='remove-button'
+                          onClick={() => removeExistingImage(idx)}
+                          disabled={submitting}
+                        >
+                          <i className='ri-close-line text-sm' />
+                        </IconButton>
+                      </Tooltip>
+                    </ImagePreviewCard>
+                  ))}
+
+                  {/* New images (not yet uploaded) */}
+                  {newImages.map((item, idx) => (
+                    <ImagePreviewCard key={`new-${idx}`}>
+                      <Box
+                        component='img'
+                        src={item.preview}
+                        alt={`New ${idx + 1}`}
+                        sx={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
+                      />
+                      {/* Pending badge */}
+                      <Box
                         sx={{
-                          bgcolor: 'error.main',
+                          position: 'absolute',
+                          bottom: 4,
+                          left: 4,
+                          bgcolor: 'warning.main',
                           color: 'white',
-                          width: 24,
-                          height: 24,
-                          '&:hover': { bgcolor: 'error.dark' }
+                          borderRadius: 0.5,
+                          px: 0.5,
+                          py: 0.25,
+                          fontSize: '0.6rem',
+                          lineHeight: 1
                         }}
-                        onClick={() => handleRemoveImage(index)}
                       >
-                        <i className='ri-close-line text-sm' />
-                      </IconButton>
-                    </Box>
+                        new
+                      </Box>
+                      <Tooltip title='Remove'>
+                        <IconButton
+                          size='small'
+                          className='remove-button'
+                          onClick={() => removeNewImage(idx)}
+                          disabled={submitting}
+                        >
+                          <i className='ri-close-line text-sm' />
+                        </IconButton>
+                      </Tooltip>
+                    </ImagePreviewCard>
                   ))}
                 </Box>
-              )}
-            </Box>
-          </Grid>
-        </Grid>
+              </Box>
+            )}
+
+            {totalImages === 0 && (
+              <Typography variant='body2' color='text.secondary' textAlign='center'>
+                No photos added yet.
+              </Typography>
+            )}
+          </Box>
+        )}
       </DialogContent>
+
       <DialogActions className='gap-2 pbs-4'>
-        <Button variant='outlined' color='secondary' onClick={handleReset}>
+        <Button variant='outlined' color='secondary' onClick={handleClose} disabled={submitting}>
           Cancel
         </Button>
         <Button
           variant='contained'
           color='primary'
           onClick={handleSubmit}
-          startIcon={<i className={mode === 'edit' ? 'ri-save-line' : 'ri-add-line'} />}
+          disabled={submitting}
+          startIcon={
+            submitting
+              ? <CircularProgress size={16} color='inherit' />
+              : <i className={mode === 'edit' ? 'ri-save-line' : 'ri-add-line'} />
+          }
         >
-          {mode === 'edit' ? 'Update Request' : 'Add Request'}
+          {submitting ? 'Saving…' : mode === 'edit' ? 'Update Request' : 'Add Request'}
         </Button>
       </DialogActions>
     </Dialog>

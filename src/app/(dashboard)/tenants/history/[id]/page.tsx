@@ -1,33 +1,18 @@
-// Component Imports
-import TenantHistoryDetails from '@/views/tenants/view/TenantHistoryDetails'
+import OccupantViewClient from '@/views/occupants/view/OccupantViewClient'
 
 type Props = {
   params: Promise<{ id: string }>
 }
 
-const ViewTenantHistoryPage = async (props: Props) => {
-  const params = await props.params
-  const tenantId = params.id
+/**
+ * Former tenant / occupant history detail page.
+ *
+ * Reuses OccupantViewClient — same client-side fetch + 401-refresh pattern
+ * as the active occupant detail page. The occupant's status (inactive/active)
+ * is just data; the view is identical.
+ */
+export default async function ViewTenantHistoryPage(props: Props) {
+  const { id } = await props.params
 
-  // TODO: Fetch tenant data from API using tenantId
-  // For now, using sample data
-  const tenantData = {
-    id: tenantId,
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+233 24 123 4567',
-    roomNo: 'Unit 101',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,200',
-    leasePeriod: '12 months',
-    totalAmount: '₵14,400',
-    status: 'active' as const,
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  }
-
-  return <TenantHistoryDetails tenantData={tenantData} tenantId={tenantId} />
+  return <OccupantViewClient occupantId={id} />
 }
-
-export default ViewTenantHistoryPage

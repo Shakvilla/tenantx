@@ -1,14 +1,20 @@
+/**
+ * Maintainer types — mirrors backend MaintainerDto.Response
+ */
 export type MaintainerType = {
-  id: number
+  id: string
   name: string
-  email: string
-  phone: string
-  avatar?: string
-  specialization: string
-  status: 'active' | 'inactive'
-  address?: string
-  rating?: number
+  email?: string | null
+  phone?: string | null
+  companyName?: string | null
+  specializations?: string[]
+  status: string
+  rating?: number | null
   totalJobs?: number
   completedJobs?: number
+  insuranceExpiryDate?: string | null
+  taxId?: string | null
+  isCompliant?: boolean
+  createdAt: string
+  updatedAt: string
 }
-

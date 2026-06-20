@@ -65,6 +65,8 @@ export interface CurrencySettings {
   supportedCurrencies: string[]
   symbolPosition: CurrencySymbolPosition
   decimalPlaces: number
+  /** USD → GHS exchange rate (e.g. 15.5 means 1 USD = 15.5 GHS) */
+  usdToGhsRate?: number
 }
 
 export interface PaymentSettings {

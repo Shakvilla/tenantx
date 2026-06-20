@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -16,20 +16,61 @@ import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
+import Snackbar from '@mui/material/Snackbar'
+import Alert from '@mui/material/Alert'
+
+// API Imports
+import { recurringInvoiceSettingsApi } from '@/lib/api/settings'
 
 const DefaultInvoiceSettings = () => {
   // States
   const [defaultStatus, setDefaultStatus] = useState('draft')
   const [defaultInvoiceType, setDefaultInvoiceType] = useState('Rent')
   const [defaultDueDays, setDefaultDueDays] = useState('15')
+  const [loading, setLoading] = useState(false)
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Saving default invoice settings', {
-      defaultStatus,
-      defaultInvoiceType,
-      defaultDueDays
-    })
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  })
+
+  useEffect(() => {
+    recurringInvoiceSettingsApi.get().then(settings => {
+      const di = settings.defaultInvoice as any
+      if (!di) return
+      if (di.defaultStatus) setDefaultStatus(di.defaultStatus)
+      if (di.defaultInvoiceType) setDefaultInvoiceType(di.defaultInvoiceType)
+      if (di.defaultDueDays !== undefined) setDefaultDueDays(String(di.defaultDueDays))
+    }).catch(console.error)
+  }, [])
+
+  const handleSave = async () => {
+    setLoading(true)
+
+    try {
+      await recurringInvoiceSettingsApi.update({
+        defaultInvoice: {
+          defaultDueDays: parseInt(defaultDueDays, 10),
+          defaultNotes: '',
+          defaultFooter: '',
+          includeLateFee: false,
+          lateFeePercentage: 0,
+          defaultStatus,
+          defaultInvoiceType
+        } as any
+      })
+      setSnackbar({ open: true, message: 'Default invoice settings saved successfully', severity: 'success' })
+    } catch (error) {
+      console.error('Error saving default invoice settings:', error)
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to save default invoice settings',
+        severity: 'error'
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -83,14 +124,23 @@ const DefaultInvoiceSettings = () => {
         </Grid>
 
         <div className='flex justify-end'>
-          <Button variant='contained' color='primary' onClick={handleSave}>
-            Save Settings
+          <Button variant='contained' color='primary' onClick={handleSave} disabled={loading}>
+            {loading ? 'Saving...' : 'Save Settings'}
           </Button>
         </div>
       </CardContent>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Card>
   )
 }
 
 export default DefaultInvoiceSettings
-

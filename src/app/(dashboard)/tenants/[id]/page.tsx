@@ -37,6 +37,8 @@ function transformTenantData(record: TenantRecord) {
     job: undefined, // TODO: Add to tenant record if needed
     previousAddress: undefined, // TODO: Add to tenant record if needed
     permanentAddress: undefined, // TODO: Add to tenant record if needed
+    unitId: record.unit_id || record.unit?.id || undefined,
+    propertyId: record.property_id || record.property?.id || undefined,
     propertyImage: undefined, // TODO: Get from property data
     propertyAddress: undefined, // TODO: Get from property data
     unitName: record.unit_no || record.unit?.unit_no || '-',

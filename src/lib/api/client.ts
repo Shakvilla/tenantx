@@ -27,9 +27,15 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (typeof window === 'undefined') return config
 
   const token = getStoredToken()
+  const tenantId = getStoredTenantId()
 
   if (token && !config.headers?.Authorization) {
     config.headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  // Inject X-Tenant-ID if not already set (don't override if caller set it explicitly)
+  if (tenantId && !config.headers?.get('X-Tenant-ID')) {
+    config.headers.set('X-Tenant-ID', tenantId)
   }
 
   return config
@@ -96,10 +102,16 @@ apiClient.interceptors.response.use(
       }
 
       if (isRefreshing) {
-        // Queue until the token refresh completes
+        // Queue until the token refresh completes.
+        // The rejection handler ensures SESSION_EXPIRED never surfaces as an unhandled
+        // rejection — queued requests simply hang (same as the original request) while
+        // the AUTH_SESSION_EXPIRED redirect is in flight.
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
-        }).then(() => apiClient(originalRequest))
+        }).then(
+          () => apiClient(originalRequest),
+          () => new Promise(() => {})
+        )
       }
 
       isRefreshing = true
@@ -119,18 +131,22 @@ apiClient.interceptors.response.use(
         })
 
         setStoredTokens(data.accessToken, data.refreshToken)
-        
+
         // Update the original request's Authorization header with the new token
         originalRequest.headers.set('Authorization', `Bearer ${data.accessToken}`)
-        
+
         processQueue(null)
 
         return apiClient(originalRequest)
       } catch (refreshError) {
-        processQueue(refreshError)
+        // Reject queued requests with a sentinel so components can detect session expiry
+        const sessionExpiredError = new Error('SESSION_EXPIRED')
+        processQueue(sessionExpiredError)
         await handleUnauthorized()
 
-        return Promise.reject(refreshError)
+        // Return a promise that never settles — the redirect is in flight and will
+        // unmount all components, so there's no need to surface this error to them.
+        return new Promise(() => {})
       } finally {
         isRefreshing = false
 
@@ -184,14 +200,16 @@ export async function apiFetch(
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response = await apiClient.get<T>(url, config)
-
-
-return response.data
+    return response.data
   } catch (error) {
+    // SESSION_EXPIRED is thrown by queued requests when token refresh fails.
+    // The redirect is already in flight — swallow silently so components don't flash errors.
+    if (error instanceof Error && error.message === 'SESSION_EXPIRED') {
+      return new Promise(() => {})
+    }
     if (error instanceof AxiosError) {
       throw new Error(getErrorMessage(error))
     }
-
     throw error
   }
 }
@@ -202,14 +220,14 @@ return response.data
 export async function apiPost<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response = await apiClient.post<T>(url, data, config)
-
-
-return response.data
+    return response.data
   } catch (error) {
+    if (error instanceof Error && error.message === 'SESSION_EXPIRED') {
+      return new Promise(() => {})
+    }
     if (error instanceof AxiosError) {
       throw new Error(getErrorMessage(error))
     }
-
     throw error
   }
 }
@@ -220,14 +238,14 @@ return response.data
 export async function apiPatch<T>(url: string, data: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response = await apiClient.patch<T>(url, data, config)
-
-
-return response.data
+    return response.data
   } catch (error) {
+    if (error instanceof Error && error.message === 'SESSION_EXPIRED') {
+      return new Promise(() => {})
+    }
     if (error instanceof AxiosError) {
       throw new Error(getErrorMessage(error))
     }
-
     throw error
   }
 }
@@ -238,14 +256,14 @@ return response.data
 export async function apiPut<T>(url: string, data: unknown, config?: AxiosRequestConfig): Promise<T> {
   try {
     const response = await apiClient.put<T>(url, data, config)
-
-
-return response.data
+    return response.data
   } catch (error) {
+    if (error instanceof Error && error.message === 'SESSION_EXPIRED') {
+      return new Promise(() => {})
+    }
     if (error instanceof AxiosError) {
       throw new Error(getErrorMessage(error))
     }
-
     throw error
   }
 }
@@ -257,12 +275,12 @@ export async function apiDelete(url: string, config?: AxiosRequestConfig): Promi
   try {
     await apiClient.delete(url, config)
   } catch (error) {
+    if (error instanceof Error && error.message === 'SESSION_EXPIRED') {
+      return new Promise(() => {})
+    }
     if (error instanceof AxiosError && error.response?.status !== 204) {
       throw new Error(getErrorMessage(error))
     }
-
-
-    // For non-AxiosError, rethrow unless it's a 204
     if (!(error instanceof AxiosError)) {
       throw error
     }

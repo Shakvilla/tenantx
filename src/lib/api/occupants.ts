@@ -3,7 +3,7 @@
  * Handles all API calls for occupant management
  */
 
-import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from './client'
+import { apiGet, apiPost, apiPut, apiDelete, API_BASE } from './client'
 
 interface ApiResponse<T> {
   success: boolean
@@ -23,14 +23,22 @@ export interface OccupantRecord {
   email: string
   phone: string
   avatar?: string | null
+  avatarFileId?: string | null
   status: 'active' | 'inactive' | 'pending'
   propertyId?: string | null
+  propertyName?: string | null
   unitId?: string | null
   unitNo?: string | null
   moveInDate?: string | null
   moveOutDate?: string | null
   emergencyContact?: Record<string, any> | null
   documents?: string[] | null
+  ghanaCardId?: string | null
+  idType?: string | null
+  idCardFrontUrl?: string | null
+  idCardFrontFileId?: string | null
+  idCardBackUrl?: string | null
+  idCardBackFileId?: string | null
   createdAt: string
   updatedAt: string
 
@@ -54,6 +62,7 @@ export interface CreateOccupantPayload {
   email: string
   phone: string
   avatar?: string
+  avatarFileId?: string
   status?: 'active' | 'inactive' | 'pending'
   propertyId?: string
   unitId?: string
@@ -62,6 +71,12 @@ export interface CreateOccupantPayload {
   moveOutDate?: string
   emergencyContact?: Record<string, any>
   documents?: string[]
+  ghanaCardId?: string
+  idType?: string
+  idCardFrontUrl?: string
+  idCardFrontFileId?: string
+  idCardBackUrl?: string
+  idCardBackFileId?: string
 }
 
 export interface UpdateOccupantPayload {
@@ -70,6 +85,7 @@ export interface UpdateOccupantPayload {
   email?: string
   phone?: string
   avatar?: string
+  avatarFileId?: string
   status?: 'active' | 'inactive' | 'pending'
   propertyId?: string
   unitId?: string
@@ -78,6 +94,12 @@ export interface UpdateOccupantPayload {
   moveOutDate?: string
   emergencyContact?: Record<string, any>
   documents?: string[]
+  ghanaCardId?: string
+  idType?: string
+  idCardFrontUrl?: string
+  idCardFrontFileId?: string
+  idCardBackUrl?: string
+  idCardBackFileId?: string
 }
 
 /**
@@ -103,11 +125,12 @@ export async function getOccupants(
 
 /**
  * Get a single occupant by ID
+ * Backend returns OccupantResponse directly (no { success, data } wrapper)
  */
 export async function getOccupantById(
   tenantId: string,
   id: string
-): Promise<ApiResponse<OccupantRecord>> {
+): Promise<OccupantRecord> {
   return apiGet(`${API_BASE}/occupants/${id}`, {
     headers: { 'X-Tenant-ID': tenantId }
   })
@@ -115,25 +138,27 @@ export async function getOccupantById(
 
 /**
  * Create a new occupant
+ * Backend returns OccupantResponse directly (no { success, data } wrapper)
  */
 export async function createOccupant(
   tenantId: string,
   data: CreateOccupantPayload
-): Promise<ApiResponse<OccupantRecord>> {
+): Promise<OccupantRecord> {
   return apiPost(`${API_BASE}/occupants`, data, {
     headers: { 'X-Tenant-ID': tenantId }
   })
 }
 
 /**
- * Update an existing occupant
+ * Update an existing occupant (PUT — backend uses @PutMapping)
+ * Backend returns OccupantResponse directly (no { success, data } wrapper)
  */
 export async function updateOccupant(
   tenantId: string,
   id: string,
   data: UpdateOccupantPayload
-): Promise<ApiResponse<OccupantRecord>> {
-  return apiPatch(`${API_BASE}/occupants/${id}`, data, {
+): Promise<OccupantRecord> {
+  return apiPut(`${API_BASE}/occupants/${id}`, data, {
     headers: { 'X-Tenant-ID': tenantId }
   })
 }
@@ -145,4 +170,51 @@ export async function deleteOccupant(tenantId: string, id: string): Promise<void
   return apiDelete(`${API_BASE}/occupants/${id}`, {
     headers: { 'X-Tenant-ID': tenantId }
   })
+}
+
+export interface OccupantStats {
+  total: number
+  active: number
+  inactive: number
+  pending: number
+}
+
+/**
+ * Get occupant stats for the current tenant
+ */
+export async function getOccupantStats(tenantId: string): Promise<OccupantStats> {
+  return apiGet(`${API_BASE}/occupants/stats`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
+}
+
+/**
+ * Get the current occupant's own profile (occupant-scoped JWT required)
+ * Calls GET /api/v1/occupants/me
+ */
+export async function getMyOccupantProfile(tenantId: string): Promise<OccupantRecord> {
+  return apiGet(`${API_BASE}/occupants/me`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
+}
+
+export interface AvatarUploadResult {
+  url: string
+  fileId: string
+}
+
+/**
+ * Upload a single avatar image for an occupant via ImageKit.
+ */
+export async function uploadOccupantAvatar(
+  tenantId: string,
+  file: File,
+  occupantId?: string
+): Promise<AvatarUploadResult> {
+  const { uploadImages } = await import('@/lib/imagekit')
+  const folder = occupantId
+    ? `/tenantx/${tenantId}/occupants/${occupantId}`
+    : `/tenantx/${tenantId}/occupants`
+  const [uploaded] = await uploadImages([file], { folder })
+  return { url: uploaded.url, fileId: uploaded.fileId }
 }

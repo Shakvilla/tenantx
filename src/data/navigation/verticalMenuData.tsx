@@ -46,9 +46,23 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     ]
   },
   {
+    label: 'Wallet',
+    href: '/wallet',
+    icon: 'ri-wallet-3-line'
+  },
+  {
     label: 'Expenses',
-    href: '/expenses',
-    icon: 'ri-money-dollar-circle-line'
+    icon: 'ri-money-dollar-circle-line',
+    children: [
+      {
+        label: 'All Expenses',
+        href: '/expenses'
+      },
+      {
+        label: 'Expense Config',
+        href: '/expenses/config'
+      }
+    ]
   },
   {
     label: 'Documents',
@@ -65,14 +79,32 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     icon: 'ri-tools-line',
     children: [
       {
+        label: 'Categories',
+        href: '/maintenance/categories'
+      },
+      {
         label: 'Maintainers',
         href: '/maintenance/maintainers'
       },
       {
         label: 'Maintenance Request',
         href: '/maintenance/requests'
+      },
+      {
+        label: 'Preventative Schedules',
+        href: '/maintenance/preventative-schedules'
       }
     ]
+  },
+  {
+    label: 'Utilities',
+    href: '/utilities',
+    icon: 'ri-plug-line'
+  },
+  {
+    label: 'Rent Reviews',
+    href: '/rent-reviews',
+    icon: 'ri-percent-line'
   },
   {
     label: 'Reports',
@@ -84,19 +116,12 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     href: '/agreement',
     icon: 'ri-album-line'
   },
-  {
-    label: 'Subscription Plans',
-    href: '/subscription-plans',
-    icon: 'ri-vip-crown-line'
-  },
+  // NOTE: Subscription Plans is a platform-admin page — removed from landlord nav.
+  // TODO: Re-add to the system admin panel when that is built.
   {
     label: 'Settings',
     icon: 'ri-settings-3-line',
     children: [
-      {
-        label: 'Payment settings',
-        href: '/settings/payment'
-      },
       {
         label: 'Notification settings',
         href: '/settings/notification'

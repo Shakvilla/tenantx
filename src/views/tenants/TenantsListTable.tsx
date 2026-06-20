@@ -36,7 +36,7 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import TenantsStatsCard from './TenantsStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -331,7 +331,7 @@ const TenantsListTable = () => {
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -414,7 +414,7 @@ const TenantsListTable = () => {
               >
                 Refresh
               </Button>
-              <OptionMenu options={['Share', 'Export']} />
+              <RowActions options={['Share', 'Export']} />
             </div>
           }
         />

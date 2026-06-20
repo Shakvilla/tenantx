@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -28,8 +28,8 @@ import Alert from '@mui/material/Alert'
 
 import type { LegalEntityType } from '@/types/settings/companyTypes'
 
-// Utils Imports
-import { companySettingsApi } from '@/utils/settings/api'
+// API Imports
+import { companySettingsApi } from '@/lib/api/settings'
 
 // MUI Imports
 
@@ -78,6 +78,27 @@ const AdvancedInformationSettings = () => {
     message: '',
     severity: 'success'
   })
+
+  useEffect(() => {
+    companySettingsApi.get().then(settings => {
+      const a = (settings as any).advanced
+      if (!a) return
+      setTaxId(a.taxId || '')
+      setVatNumber(a.vatNumber || '')
+      setRegistrationNumber(a.registrationNumber || '')
+      if (a.legalEntityType) setLegalEntityType(a.legalEntityType)
+      setBusinessLicenseNumber(a.businessLicenseNumber || '')
+      if (a.fiscalYearStart) setFiscalYearStart(a.fiscalYearStart)
+      if (a.legalAddress) {
+        setUseDifferentLegalAddress(true)
+        setLegalStreet(a.legalAddress.street || '')
+        setLegalCity(a.legalAddress.city || '')
+        setLegalState(a.legalAddress.state || '')
+        setLegalZipCode(a.legalAddress.zipCode || '')
+        setLegalCountry(a.legalAddress.country || 'GH')
+      }
+    }).catch(console.error)
+  }, [])
 
   const handleSave = async () => {
     setLoading(true)

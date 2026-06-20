@@ -1,17 +1,18 @@
 'use client'
 
-// Next Imports
-import { useMemo } from 'react'
-
-import dynamic from 'next/dynamic'
-
 // React Imports
+import { useState, useEffect, useMemo } from 'react'
+
+// Next Imports
+import dynamic from 'next/dynamic'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CardHeader from '@mui/material/CardHeader'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
+import Box from '@mui/material/Box'
 import { styled } from '@mui/material/styles'
 import Chip from '@mui/material/Chip'
 
@@ -32,7 +33,10 @@ import type { ContributorData } from '@/types/dashboards/dashboardTypes'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
+
+// API Imports
+import { getInvoices, type Invoice } from '@/lib/api/invoices'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -60,24 +64,6 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   return itemRank.passed
 }
 
-
-// Vars
-const barSeries = [
-  {
-    name: 'Contribution',
-    data: [10080, 9409, 3588, 1500, 1300]
-  }
-]
-
-// Sample data - replace with actual data from API
-const contributorsData: ContributorData[] = [
-  { name: 'Pearl', agent: 'Agent Admin', contribution: 10080.0 },
-  { name: 'Kenneth Quaye', agent: 'Dolph', contribution: 9409.0 },
-  { name: 'Ama Bessah na', agent: 'Emmanuel Ani', contribution: 3588.0 },
-  { name: 'Alex Bonney', agent: 'Agent Admin', contribution: 1500.0 },
-  { name: 'Wiredu Kwabena', agent: '', contribution: 1300.0 }
-]
-
 const StyledCard = styled(Card)(() => ({
   position: 'relative',
   overflow: 'hidden',
@@ -93,57 +79,79 @@ const StyledCard = styled(Card)(() => ({
   }
 }))
 
+/** Derive top contributors from invoices: group by occupantName, sum amounts */
+function deriveContributors(invoices: Invoice[], limit = 5): ContributorData[] {
+  const map: Record<string, { contribution: number; agent: string }> = {}
+
+  invoices.forEach(inv => {
+    const name = inv.occupantName || 'Unknown'
+
+    if (!map[name]) map[name] = { contribution: 0, agent: inv.propertyName || '' }
+    map[name].contribution += inv.amount
+  })
+
+  return Object.entries(map)
+    .map(([name, { contribution, agent }]) => ({ name, agent, contribution }))
+    .sort((a, b) => b.contribution - a.contribution)
+    .slice(0, limit)
+}
+
 const TopContributors = () => {
-  // Hooks
-  // const theme = useTheme()
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Bar Chart Options
-  const barOptions: ApexOptions = {
-    chart: {
-      parentHeightOffset: 0,
-      toolbar: { show: false },
-      sparkline: { enabled: true }
-    },
-    grid: {
-      show: false,
-      padding: {
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0
-      }
-    },
-    legend: { show: false },
-    dataLabels: { enabled: false },
-    colors: ['var(--mui-palette-info-main)'],
-    plotOptions: {
-      bar: {
-        borderRadius: 6,
-        columnWidth: '60%',
-        borderRadiusApplication: 'end',
-        distributed: true
-      }
-    },
-    states: {
-      hover: {
-        filter: { type: 'none' }
+  useEffect(() => {
+    setLoading(true)
+    getInvoices()
+      .then(setInvoices)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const contributorsData = useMemo(() => deriveContributors(invoices, 5), [invoices])
+
+  const barSeries = useMemo(
+    () => [{ name: 'Contribution', data: contributorsData.map(c => c.contribution) }],
+    [contributorsData]
+  )
+
+  const barOptions: ApexOptions = useMemo(
+    () => ({
+      chart: {
+        parentHeightOffset: 0,
+        toolbar: { show: false },
+        sparkline: { enabled: true }
       },
-      active: {
-        filter: { type: 'none' }
-      }
-    },
-    xaxis: {
-      labels: { show: false },
-      axisTicks: { show: false },
-      axisBorder: { show: false },
-      categories: contributorsData.map(c => c.name)
-    },
-    yaxis: {
-      labels: { show: false }
-    }
-  }
+      grid: {
+        show: false,
+        padding: { top: 0, left: 0, right: 0, bottom: 0 }
+      },
+      legend: { show: false },
+      dataLabels: { enabled: false },
+      colors: ['var(--mui-palette-info-main)'],
+      plotOptions: {
+        bar: {
+          borderRadius: 6,
+          columnWidth: '60%',
+          borderRadiusApplication: 'end',
+          distributed: true
+        }
+      },
+      states: {
+        hover: { filter: { type: 'none' } },
+        active: { filter: { type: 'none' } }
+      },
+      xaxis: {
+        labels: { show: false },
+        axisTicks: { show: false },
+        axisBorder: { show: false },
+        categories: contributorsData.map(c => c.name)
+      },
+      yaxis: { labels: { show: false } }
+    }),
+    [contributorsData]
+  )
 
-  // Table Column Definitions
   const columnHelper = createColumnHelper<ContributorData>()
 
   const columns = useMemo<ColumnDef<ContributorData, any>[]>(
@@ -194,48 +202,58 @@ const TopContributors = () => {
   const table = useReactTable({
     data: contributorsData,
     columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
+    filterFns: { fuzzy: fuzzyFilter },
     getCoreRowModel: getCoreRowModel()
   })
 
   return (
     <StyledCard className='bs-full'>
       <CardHeader
-        title='Top 50 Contributors'
-        action={<OptionMenu options={['Refresh', 'Export', 'Share']} />}
+        title='Top Contributors'
+        action={<RowActions options={['Refresh', 'Export', 'Share']} />}
       />
       <CardContent className='flex flex-col gap-4'>
-        <div className='bs-[80px] rounded-lg overflow-hidden' style={{ backgroundColor: 'var(--mui-palette-info-lightOpacity)' }}>
-          <AppReactApexCharts type='bar' height={80} width='100%' options={barOptions} series={barSeries} />
-        </div>
-        <div className='overflow-x-auto'>
-          <table className={tableStyles.table}>
-            <thead>
-              {table.getHeaderGroups().map(headerGroup => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map(header => (
-                    <th key={header.id}>
-                      {header.isPlaceholder ? null : (
-                        <div>{flexRender(header.column.columnDef.header, header.getContext())}</div>
-                      )}
-                    </th>
+        {loading ? (
+          <Box className='flex justify-center py-6'>
+            <CircularProgress size={28} />
+          </Box>
+        ) : contributorsData.length === 0 ? (
+          <Typography variant='body2' color='text.secondary' className='text-center py-4'>
+            No invoice data available
+          </Typography>
+        ) : (
+          <>
+            <div className='bs-[80px] rounded-lg overflow-hidden' style={{ backgroundColor: 'var(--mui-palette-info-lightOpacity)' }}>
+              <AppReactApexCharts type='bar' height={80} width='100%' options={barOptions} series={barSeries} />
+            </div>
+            <div className='overflow-x-auto'>
+              <table className={tableStyles.table}>
+                <thead>
+                  {table.getHeaderGroups().map(headerGroup => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map(header => (
+                        <th key={header.id}>
+                          {header.isPlaceholder ? null : (
+                            <div>{flexRender(header.column.columnDef.header, header.getContext())}</div>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map(row => (
-                <tr key={row.id}>
-                  {row.getVisibleCells().map(cell => (
-                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.map(row => (
+                    <tr key={row.id}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </CardContent>
     </StyledCard>
   )

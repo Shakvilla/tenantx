@@ -48,6 +48,7 @@ export interface Property {
 
   // Media
   images?: string[] | null
+  imageFileIds?: string[] | null
   thumbnailIndex?: number | null
 
   // Financial
@@ -106,11 +107,13 @@ export interface Unit {
   // Status
   status: 'available' | 'occupied' | 'maintenance' | 'reserved'
 
-  // Tenant
+  // Occupant / Tenant
+  occupantId?: string | null
   tenantRecordId?: string | null
 
   // Media
   images?: string[] | null
+  imageFileIds?: string[] | null
 
   // Meta
   features?: Record<string, any> | null
@@ -149,6 +152,7 @@ export interface CreatePropertyPayload {
   rooms?: number
   amenities?: string[]
   images?: string[]
+  imageFileIds?: string[]
   thumbnailIndex?: number
   purchasePrice?: number
   currentValue?: number
@@ -171,6 +175,7 @@ export interface CreateUnitPayload {
   status?: Unit['status']
   amenities?: string[]
   images?: string[]
+  imageFileIds?: string[]
   features?: Record<string, any>
   metadata?: Record<string, any>
   tenantRecordId?: string

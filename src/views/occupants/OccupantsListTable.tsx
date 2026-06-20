@@ -36,7 +36,7 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import OccupantsStatsCard from './OccupantsStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -44,7 +44,7 @@ import AddOccupantDialog from './AddOccupantDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // API Imports
-import { getOccupants, deleteOccupant, type OccupantRecord } from '@/lib/api/occupants'
+import { getOccupants, deleteOccupant, getOccupantStats, type OccupantRecord } from '@/lib/api/occupants'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 
@@ -98,8 +98,11 @@ const OccupantsListTable = () => {
   const [deleteOccupantOpen, setDeleteOccupantOpen] = useState(false)
   const [selectedOccupant, setSelectedOccupant] = useState<OccupantRecord | null>(null)
 
-  // Properties for filter dropdown
+  // Properties for filter dropdown + name lookup
   const [properties, setProperties] = useState<Property[]>([])
+
+  // Accurate per-status counts fetched independently (no backend stats endpoint)
+  const [statusStats, setStatusStats] = useState({ active: 0, inactive: 0, pending: 0 })
 
   // Fetch occupants from API
   const fetchOccupants = useCallback(
@@ -154,6 +157,29 @@ const OccupantsListTable = () => {
     }
   }, [])
 
+  // Fetch accurate global counts from the dedicated stats endpoint
+  const fetchStats = useCallback(async () => {
+    try {
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      const stats = await getOccupantStats(tenantId)
+
+      setStatusStats({
+        active: stats.active,
+        inactive: stats.inactive,
+        pending: stats.pending
+      })
+      // Also update total from stats for accuracy when no filter is active
+      if (!status && !propertyFilter && !globalFilter) {
+        setTotal(stats.total)
+      }
+    } catch (err) {
+      console.error('Failed to fetch occupant stats:', err)
+    }
+  }, [status, propertyFilter, globalFilter])
+
   // Load data on mount and when filters change
   useEffect(() => {
     setCursor(null)
@@ -164,7 +190,8 @@ const OccupantsListTable = () => {
 
   useEffect(() => {
     fetchProperties()
-  }, [fetchProperties])
+    fetchStats()
+  }, [fetchProperties, fetchStats])
 
   // Handle delete
   const handleDelete = async () => {
@@ -176,9 +203,10 @@ const OccupantsListTable = () => {
       if (!tenantId) return
 
       await deleteOccupant(tenantId, selectedOccupant.id)
-      await fetchOccupants(null)
       setSelectedOccupant(null)
       setDeleteOccupantOpen(false)
+      fetchOccupants(null)
+      fetchStats()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete occupant')
     }
@@ -190,15 +218,16 @@ const OccupantsListTable = () => {
     setEditOccupantOpen(true)
   }
 
-  // Derive stats from loaded data (no backend stats endpoint)
+  // Property id → name lookup for the table column (backend doesn't join property name)
+  const propertyMap = useMemo(
+    () => Object.fromEntries(properties.map(p => [p.id, p.name])),
+    [properties]
+  )
+
+  // Stats use accurate global counts from fetchStats, not page-local data
   const stats = useMemo(
-    () => ({
-      total,
-      active: data.filter(o => o.status === 'active').length,
-      inactive: data.filter(o => o.status === 'inactive').length,
-      pending: data.filter(o => o.status === 'pending').length
-    }),
-    [data, total]
+    () => ({ total, ...statusStats }),
+    [total, statusStats]
   )
 
   const columns = useMemo<ColumnDef<OccupantWithAction, any>[]>(
@@ -250,7 +279,12 @@ const OccupantsListTable = () => {
       }),
       columnHelper.accessor('property', {
         header: 'PROPERTY',
-        cell: ({ row }) => <Typography>{row.original.property?.name || '-'}</Typography>
+        cell: ({ row }) => {
+          // prefer propertyName from response, then propertyMap lookup, then dash
+          const name = row.original.propertyName || row.original.property?.name || propertyMap[row.original.propertyId ?? ''] || '-'
+
+          return <Typography>{name}</Typography>
+        }
       }),
       columnHelper.accessor('moveInDate', {
         header: 'MOVE IN',
@@ -278,7 +312,7 @@ const OccupantsListTable = () => {
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -308,7 +342,7 @@ const OccupantsListTable = () => {
       })
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [propertyMap]
   )
 
   const table = useReactTable({
@@ -349,11 +383,14 @@ const OccupantsListTable = () => {
               <Button
                 size='small'
                 startIcon={<i className='ri-refresh-line' />}
-                onClick={() => fetchOccupants(null)}
+                onClick={() => {
+                  fetchOccupants(null)
+                  fetchStats()
+                }}
               >
                 Refresh
               </Button>
-              <OptionMenu options={['Share', 'Export']} />
+              <RowActions options={['Share', 'Export']} />
             </div>
           }
         />
@@ -549,6 +586,7 @@ const OccupantsListTable = () => {
         handleClose={() => {
           setAddOccupantOpen(false)
           fetchOccupants(null)
+          fetchStats()
         }}
         properties={properties}
         mode='add'
@@ -561,6 +599,7 @@ const OccupantsListTable = () => {
           setEditOccupantOpen(false)
           setSelectedOccupant(null)
           fetchOccupants(null)
+          fetchStats()
         }}
         properties={properties}
         editData={selectedOccupant}

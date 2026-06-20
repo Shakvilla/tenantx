@@ -50,7 +50,8 @@ export const CreateUnitSchema = z.object({
   
   // Media
   images: z.array(z.string()).optional(),
-  
+  imageFileIds: z.array(z.string()).optional(),
+
   // Tenant assignment
   tenantRecordId: z.string().uuid().optional(),
 })

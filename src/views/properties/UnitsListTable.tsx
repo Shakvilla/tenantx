@@ -17,6 +17,7 @@ import TablePagination from '@mui/material/TablePagination'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import Avatar from '@mui/material/Avatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -42,7 +43,7 @@ import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import UnitsStatsCard from './UnitsStatsCard'
 
@@ -249,9 +250,25 @@ const UnitsListTable = () => {
       columnHelper.accessor('unitNo', {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
-          <Typography color='text.primary' className='font-medium'>
-            {row.original.unitNo}
-          </Typography>
+          <div className='flex items-center gap-3'>
+            <Avatar
+              variant='rounded'
+              sx={{ width: 34, height: 34 }}
+              src={row.original.images?.[0] ?? undefined}
+            >
+              <i className='ri-home-3-line text-base' />
+            </Avatar>
+            <div className='flex flex-col'>
+              <Typography color='text.primary' className='font-medium'>
+                {row.original.unitNo}
+              </Typography>
+              {row.original.type && (
+                <Typography variant='caption' color='text.secondary' className='capitalize'>
+                  {row.original.type}
+                </Typography>
+              )}
+            </div>
+          </div>
         )
       }),
       columnHelper.accessor('propertyName', {
@@ -298,7 +315,7 @@ const UnitsListTable = () => {
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -374,7 +391,7 @@ const UnitsListTable = () => {
               <Button size='small' startIcon={<i className='ri-refresh-line' />} onClick={() => fetchUnits()}>
                 Refresh
               </Button>
-              <OptionMenu options={['Share', 'Export']} />
+              <RowActions options={['Share', 'Export']} />
             </div>
           }
         />
@@ -615,16 +632,17 @@ const UnitsListTable = () => {
                 unitNumber: selectedUnit.unitNo,
                 propertyId: selectedUnit.propertyId,
                 propertyName: selectedUnit.propertyName,
-                status:
-                  selectedUnit.status === 'available'
-                    ? 'vacant'
-                    : selectedUnit.status === 'reserved'
-                      ? 'vacant'
-                      : (selectedUnit.status as 'occupied' | 'maintenance' | 'vacant'),
-                rent: selectedUnit.formattedRent,
+                status: selectedUnit.status,
+                rent: selectedUnit.rent?.toString() || '',
                 bedrooms: selectedUnit.bedrooms || 0,
                 bathrooms: selectedUnit.bathrooms || 0,
-                size: selectedUnit.formattedSize,
+                size: selectedUnit.sizeSqft?.toString() || '',
+                floor: (selectedUnit as any).floor,
+                type: selectedUnit.type,
+                images: selectedUnit.images || [],
+                imageFileIds: selectedUnit.imageFileIds || [],
+                features: (selectedUnit as any).features,
+                metadata: (selectedUnit as any).metadata,
                 tenantName: null
               }
             : null

@@ -62,6 +62,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
     unitNo: '',
     type: '1br' as CreateUnitPayload['type'],
     rent: '',
+    currency: 'GHS',
     rentPeriod: 'monthly' as 'monthly' | 'biannual' | 'annual',
     deposit: '',
     floor: '',
@@ -95,6 +96,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         unitNo: editUnit.unitNo || '',
         type: (editUnit.type as CreateUnitPayload['type']) || '1br',
         rent: editUnit.rent?.toString() || '',
+        currency: editUnit.currency || 'GHS',
         rentPeriod: (editUnit.metadata?.rentPeriod as any) || 'monthly',
         deposit: editUnit.deposit?.toString() || '',
         floor: editUnit.floor?.toString() || '',
@@ -115,6 +117,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         unitNo: '',
         type: '1br',
         rent: '',
+        currency: 'GHS',
         rentPeriod: 'monthly',
         deposit: '',
         floor: '',
@@ -221,7 +224,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : undefined,
         sizeSqft: formData.sizeSqft ? parseFloat(formData.sizeSqft) : undefined,
         status: formData.status,
-        currency: 'GHS',
+        currency: formData.currency,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: allImages.length > 0 ? allImages : undefined,
         features: Object.keys(formData.features).length > 0 ? formData.features : undefined,
@@ -302,16 +305,23 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
-                  label='Rent (GHS)'
+                  label={`Rent (${formData.currency})`}
                   type='number'
                   value={formData.rent}
                   onChange={handleChange('rent')}
                   fullWidth
                   required
                   InputProps={{
-                    startAdornment: <InputAdornment position='start'>₵</InputAdornment>
+                    startAdornment: <InputAdornment position='start'>{formData.currency === 'USD' ? '$' : '₵'}</InputAdornment>
                   }}
                 />
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField select label='Currency' value={formData.currency} onChange={handleChange('currency')} fullWidth>
+                  <MenuItem value='GHS'>GHS — Ghana Cedi (₵)</MenuItem>
+                  <MenuItem value='USD'>USD — US Dollar ($)</MenuItem>
+                </TextField>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -332,7 +342,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
                   onChange={handleChange('deposit')}
                   fullWidth
                   InputProps={{
-                    startAdornment: <InputAdornment position='start'>₵</InputAdornment>
+                    startAdornment: <InputAdornment position='start'>{formData.currency === 'USD' ? '$' : '₵'}</InputAdornment>
                   }}
                 />
               </Grid>
