@@ -18,6 +18,8 @@ import VerticalFooter from '@components/layout/vertical/Footer'
 import HorizontalFooter from '@components/layout/horizontal/Footer'
 import Customizer from '@core/components/customizer'
 import ScrollToTop from '@core/components/scroll-to-top'
+import AnnouncementBanner from '@components/banner/AnnouncementBanner'
+import { ReferenceDataProvider } from '@/contexts/ReferenceDataContext'
 
 // Util Imports
 import { getMode, getSystemMode } from '@core/utils/serverHelpers'
@@ -32,6 +34,8 @@ const Layout = async (props: ChildrenType) => {
 
   return (
     <Providers direction={direction}>
+      <ReferenceDataProvider>
+      <AnnouncementBanner />
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={
@@ -51,6 +55,7 @@ const Layout = async (props: ChildrenType) => {
         </Button>
       </ScrollToTop>
       <Customizer dir={direction} />
+      </ReferenceDataProvider>
     </Providers>
   )
 }

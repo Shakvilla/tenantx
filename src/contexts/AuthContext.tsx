@@ -17,6 +17,12 @@ import {
   type Workspace,
   type UserProfile
 } from '@/lib/api/auth-client'
+import {
+  getStoredUserRole,
+  setStoredUserRole,
+  getStoredUserType,
+  setStoredUserType
+} from '@/lib/api/storage'
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -26,6 +32,8 @@ export interface AuthUser {
   email: string
   name: string
   role: string
+  /** UserType from backend: LANDLORD | STAFF | MAINTAINER | OCCUPANT */
+  userType: string
   avatarUrl?: string
   phone?: string
 }
@@ -131,11 +139,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tenantId = getStoredTenantId()
 
     if (token && tenantId) {
+      // Restore persisted role/userType so they survive page refresh
+      const savedRole     = getStoredUserRole()
+      const savedUserType = getStoredUserType()
+
       getCurrentUser(tenantId)
         .then(res => {
           if (res.success && res.data) {
             setState({
-              user: mapProfileToUser(res.data),
+              user: mapProfileToUser(res.data, savedRole, savedUserType),
               tenant: { id: tenantId, name: res.data.companyName ?? '' },
               isAuthenticated: true,
               isLoading: false,
@@ -166,6 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 ...prev,
                 isLoading: false,
                 isAuthenticated: true, // We have a token/tenantId, so assume valid for now
+                user: prev.user ?? { id: '', email: '', name: '', role: savedRole, userType: savedUserType },
                 tenant: { id: tenantId, name: '' }
               }))
             }
@@ -264,10 +277,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // No need for a separate getCurrentUser() call — eliminates the API waterfall.
     const tenantData = result.data
 
+    // Persist role + userType so they survive page refresh (getCurrentUser doesn't return them)
+    setStoredUserRole(workspace.role)
+    setStoredUserType(workspace.userType)
+
     setState({
       user: tenantData.user
-        ? mapProfileToUser(tenantData.user, workspace.role)
-        : { id: '', email: '', name: '', role: workspace.role },
+        ? mapProfileToUser(tenantData.user, workspace.role, workspace.userType)
+        : { id: '', email: '', name: '', role: workspace.role, userType: workspace.userType },
       tenant: {
         id: workspace.tenantId,
         name: workspace.tenantName
@@ -343,7 +360,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (res.success && res.data) {
       setState(prev => ({
         ...prev,
-        user: mapProfileToUser(res.data!),
+        user: mapProfileToUser(res.data!, getStoredUserRole(), getStoredUserType()),
         tenant: { id: tenantId, name: res.data!.companyName ?? '' },
         isAuthenticated: true
       }))
@@ -395,11 +412,12 @@ export function useRequireAuth(redirectTo = '/login') {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function mapProfileToUser(profile: UserProfile, role = ''): AuthUser {
+function mapProfileToUser(profile: UserProfile, role = '', userType = ''): AuthUser {
   return {
     id: profile.id,
     email: profile.email,
     name: profile.fullName,
-    role
+    role,
+    userType
   }
 }

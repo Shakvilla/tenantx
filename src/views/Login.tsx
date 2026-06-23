@@ -29,6 +29,9 @@ import Link from '@components/Link'
 import Logo from '@components/layout/shared/Logo'
 import WorkspaceSelection from '@views/auth/WorkspaceSelection'
 
+// Admin auth
+import { useAdminAuth } from '@/contexts/AdminAuthContext'
+
 // Config Imports
 import themeConfig from '@configs/themeConfig'
 
@@ -44,6 +47,9 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Admin auth
+  const { adminLogin } = useAdminAuth()
 
   // Vars
   const darkImg = '/images/pages/auth-v2-mask-1-dark.png'
@@ -76,6 +82,18 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     setError(null)
     setIsSubmitting(true)
 
+    // ── Try admin login first ─────────────────────────────────────────────────
+    // System admins use a completely separate JWT issued by /api/v1/admin/auth/login.
+    // If this succeeds, redirect to the admin dashboard and stop.
+    // If it fails (wrong credentials for admin, or not an admin account), fall through.
+    const adminResult = await adminLogin(email, password)
+    if (adminResult.success) {
+      router.push('/admin')
+      setIsSubmitting(false)
+      return
+    }
+
+    // ── Tenant login flow ─────────────────────────────────────────────────────
     const result = await login(email, password)
 
     if (!result.success) {

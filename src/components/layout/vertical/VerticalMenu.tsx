@@ -1,3 +1,5 @@
+'use client'
+
 // MUI Imports
 import { useTheme } from '@mui/material/styles'
 
@@ -16,6 +18,7 @@ import verticalMenuData from '@/data/navigation/verticalMenuData'
 
 // Hook Imports
 import useVerticalNav from '@menu/hooks/useVerticalNav'
+import { useAuth } from '@/contexts/AuthContext'
 
 // Styled Component Imports
 import StyledVerticalNavExpandIcon from '@menu/styles/vertical/StyledVerticalNavExpandIcon'
@@ -43,6 +46,7 @@ const VerticalMenu = ({ scrollMenu }: Props) => {
   // Hooks
   const theme = useTheme()
   const verticalNavOptions = useVerticalNav()
+  const { user } = useAuth()
 
   // Vars
   const { isBreakpointReached, transitionDuration } = verticalNavOptions
@@ -72,7 +76,7 @@ const VerticalMenu = ({ scrollMenu }: Props) => {
         renderExpandedMenuItemIcon={{ icon: <i className='ri-circle-fill' /> }}
         menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
       >
-        <GenerateVerticalMenu menuData={verticalMenuData()} />
+        <GenerateVerticalMenu menuData={verticalMenuData(user?.userType)} />
       </Menu>
     </ScrollWrapper>
   )

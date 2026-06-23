@@ -6,6 +6,8 @@
 const TOKEN_KEY = 'auth_token'
 const REFRESH_TOKEN_KEY = 'refresh_token'
 const TENANT_ID_KEY = 'tenant_id'
+const USER_ROLE_KEY = 'user_role'
+const USER_TYPE_KEY = 'user_type'
 
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null
@@ -92,11 +94,33 @@ export function setStoredTenantId(tenantId: string): void {
   setCookie(TENANT_ID_KEY, tenantId)
 }
 
+export function getStoredUserRole(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(USER_ROLE_KEY) ?? ''
+}
+
+export function setStoredUserRole(role: string): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(USER_ROLE_KEY, role)
+}
+
+export function getStoredUserType(): string {
+  if (typeof window === 'undefined') return ''
+  return localStorage.getItem(USER_TYPE_KEY) ?? ''
+}
+
+export function setStoredUserType(userType: string): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(USER_TYPE_KEY, userType)
+}
+
 export function clearStoredTokens(): void {
   if (typeof window === 'undefined') return
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(REFRESH_TOKEN_KEY)
   localStorage.removeItem(TENANT_ID_KEY)
+  localStorage.removeItem(USER_ROLE_KEY)
+  localStorage.removeItem(USER_TYPE_KEY)
   deleteCookie(TOKEN_KEY)
   deleteCookie(TENANT_ID_KEY)
 }

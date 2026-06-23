@@ -6,54 +6,90 @@ import { type NextRequest, NextResponse } from 'next/server'
 const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password']
 
 /**
- * Check if a pathname matches any public page route
+ * Public vacancy listing routes — no auth required
  */
+const PUBLIC_VACANCY_ROUTES = ['/vacancies']
+
 function isPublicPageRoute(pathname: string): boolean {
   return PUBLIC_PAGE_ROUTES.some(route => pathname.startsWith(route))
 }
 
+function isPublicVacancyRoute(pathname: string): boolean {
+  return PUBLIC_VACANCY_ROUTES.some(route => pathname.startsWith(route))
+}
+
+function isAdminRoute(pathname: string): boolean {
+  return pathname.startsWith('/admin')
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  
-  // Read auth tokens from cookies
-  const authToken = request.cookies.get('auth_token')?.value
-  const tenantId = request.cookies.get('tenant_id')?.value
 
-  // We consider the user fully authenticated if they have both an auth token and a selected tenant
-  const isAuthenticated = !!authToken && !!tenantId
+  // ── Vacancy listing pages are always public ──────────────────────────────
+  if (isPublicVacancyRoute(pathname)) {
+    return NextResponse.next()
+  }
 
-  // 1. Unauthenticated users trying to access protected routes -> redirect to login
-  if (!isAuthenticated && !isPublicPageRoute(pathname)) {
+  // ── Read cookies ──────────────────────────────────────────────────────────
+  const adminToken = request.cookies.get('admin_token')?.value
+  const authToken  = request.cookies.get('auth_token')?.value
+  const tenantId   = request.cookies.get('tenant_id')?.value
+
+  const isAdminAuthenticated  = !!adminToken
+  const isTenantAuthenticated = !!authToken && !!tenantId
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ADMIN ROUTES  /admin/**
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (isAdminRoute(pathname)) {
+    if (!isAdminAuthenticated) {
+      // Not logged in as admin → send to /login
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+
+    // Inject admin token as Authorization header for any admin Server Components
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('Authorization', `Bearer ${adminToken}`)
+
+    return NextResponse.next({ request: { headers: requestHeaders } })
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUTH PAGES  /login, /register, etc.
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (isPublicPageRoute(pathname)) {
+    // Already logged in as admin → go to admin dashboard
+    if (isAdminAuthenticated) {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
+
+    // Already logged in as tenant → go to tenant dashboard
+    if (isTenantAuthenticated) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+
+    return NextResponse.next()
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TENANT ROUTES  (everything else)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 1. Unauthenticated → login
+  if (!isTenantAuthenticated) {
     const redirectUrl = new URL('/login', request.url)
-
     if (pathname !== '/') {
       redirectUrl.searchParams.set('redirectTo', pathname)
     }
-
     return NextResponse.redirect(redirectUrl)
   }
-  
-  // 2. Authenticated users trying to access public auth routes -> redirect to dashboard
-  if (isAuthenticated && isPublicPageRoute(pathname)) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
 
-  // 3. For all other requests, pass through and inject auth headers for Server Components
+  // 2. Authenticated — inject auth headers for Server Components
   const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('Authorization', `Bearer ${authToken}`)
+  requestHeaders.set('X-Tenant-ID', tenantId!)
 
-  if (authToken) {
-    requestHeaders.set('Authorization', `Bearer ${authToken}`)
-  }
-
-  if (tenantId) {
-    requestHeaders.set('X-Tenant-ID', tenantId)
-  }
-
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  })
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 // Match all routes except API, static files, and Next.js internals
