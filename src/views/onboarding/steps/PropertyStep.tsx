@@ -55,6 +55,7 @@ return next
         name: form.name,
         type: form.type as Property['type'],
         ownership: 'own',
+        condition: 'good',
         region: form.region,
         district: form.district,
         currency: 'GHS',
