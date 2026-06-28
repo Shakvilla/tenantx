@@ -5,6 +5,7 @@ import { useRef, useState } from 'react'
 
 // MUI Imports
 import Button from '@mui/material/Button'
+import IconButton from '@mui/material/IconButton'
 import Popper from '@mui/material/Popper'
 import Fade from '@mui/material/Fade'
 import Paper from '@mui/material/Paper'
@@ -12,6 +13,9 @@ import ClickAwayListener from '@mui/material/ClickAwayListener'
 import MenuList from '@mui/material/MenuList'
 import MenuItem from '@mui/material/MenuItem'
 import Typography from '@mui/material/Typography'
+import Tooltip from '@mui/material/Tooltip'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Hook Imports
 import { useSettings } from '@core/hooks/useSettings'
@@ -25,6 +29,7 @@ const CreateButton = () => {
 
   // Hooks
   const { settings } = useSettings()
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   const handleClose = () => {
     setOpen(false)
@@ -44,20 +49,34 @@ const CreateButton = () => {
 
   return (
     <>
-      <Button
-        ref={anchorRef}
-        variant='contained'
-        color='primary'
-        onClick={handleToggle}
-        endIcon={<i className='ri-arrow-down-s-line' />}
-        sx={{
-          borderRadius: '8px',
-          textTransform: 'none',
-          fontWeight: 500
-        }}
-      >
-        Create
-      </Button>
+      {isMobile ? (
+        <Tooltip title='Create'>
+          <IconButton
+            ref={anchorRef}
+            onClick={handleToggle}
+            color='primary'
+            sx={{ border: 1, borderColor: 'primary.main', borderRadius: '8px', p: '6px' }}
+            aria-label='Create'
+          >
+            <i className='ri-add-line text-xl' />
+          </IconButton>
+        </Tooltip>
+      ) : (
+        <Button
+          ref={anchorRef}
+          variant='contained'
+          color='primary'
+          onClick={handleToggle}
+          endIcon={<i className='ri-arrow-down-s-line' />}
+          sx={{
+            borderRadius: '8px',
+            textTransform: 'none',
+            fontWeight: 500
+          }}
+        >
+          Create
+        </Button>
+      )}
       <Popper
         open={open}
         transition
@@ -97,4 +116,3 @@ const CreateButton = () => {
 }
 
 export default CreateButton
-
