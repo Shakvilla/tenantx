@@ -161,7 +161,7 @@ return
     <>
       <Dialog fullScreen open={open} onClose={() => setConfirmClose(true)}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant='h5'>Set up your first property</Typography>
+          <Typography variant='h5' component='span'>Set up your first property</Typography>
           <IconButton aria-label='close setup' onClick={() => setConfirmClose(true)}>
             <i className='ri-close-line' />
           </IconButton>
