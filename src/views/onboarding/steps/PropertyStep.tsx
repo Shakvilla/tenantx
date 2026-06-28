@@ -18,7 +18,7 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import type { Property } from '@/types/property'
 import type { OnboardingStepProps } from '../onboardingTypes'
 
-export default function PropertyStep({ tenantId, onComplete }: OnboardingStepProps) {
+export default function PropertyStep({ tenantId, onComplete, onSkip }: OnboardingStepProps) {
   const { ref, getDistricts, getCities } = useReferenceData()
   const [form, setForm] = useState({ name: '', type: '', region: '', district: '', city: '' })
   const [error, setError] = useState<string | null>(null)
@@ -146,7 +146,10 @@ return
             </Select>
           </FormControl>
         </Grid>
-        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button variant='text' color='inherit' onClick={onSkip} disabled={submitting}>
+            Skip this step
+          </Button>
           <Button
             variant='contained'
             disabled={!valid || submitting}

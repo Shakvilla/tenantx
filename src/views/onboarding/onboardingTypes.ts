@@ -15,6 +15,10 @@ export interface OnboardingState {
 export interface OnboardingStepProps {
   tenantId: string
   entityIds: OnboardingEntityIds
+
   // Called on successful create; passes the partial ids this step produced.
   onComplete: (ids: Partial<OnboardingEntityIds>) => void
+
+  // Called when the user skips this step without creating anything.
+  onSkip?: () => void
 }

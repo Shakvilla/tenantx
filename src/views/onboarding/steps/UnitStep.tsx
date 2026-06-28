@@ -21,6 +21,7 @@ import type { OnboardingStepProps } from '../onboardingTypes'
 // Extend onComplete payload with rent so later steps (agreement/invoice) can prefill.
 interface UnitStepProps extends OnboardingStepProps {
   onUnitCreated: (unitId: string, rent: number) => void
+  onSkip?: () => void
 }
 
 // Rent period is stored in unit.metadata.rentPeriod (mirrors AddUnitDialog).
@@ -30,7 +31,7 @@ const RENT_PERIODS = [
   { value: 'annual', label: 'Annual' }
 ] as const
 
-export default function UnitStep({ tenantId, entityIds, onUnitCreated }: UnitStepProps) {
+export default function UnitStep({ tenantId, entityIds, onUnitCreated, onSkip }: UnitStepProps) {
   const { ref } = useReferenceData()
   const [form, setForm] = useState({ unitNo: '', type: '', rent: '', rentPeriod: 'monthly' })
   const [error, setError] = useState<string | null>(null)
@@ -128,7 +129,10 @@ return
             </Select>
           </FormControl>
         </Grid>
-        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button variant='text' color='inherit' onClick={onSkip} disabled={submitting}>
+            Skip this step
+          </Button>
           <Button
             variant='contained'
             disabled={!valid || submitting}

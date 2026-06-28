@@ -16,7 +16,7 @@ interface AgreementStepProps extends OnboardingStepProps {
   defaultRent: number
 }
 
-export default function AgreementStep({ entityIds, onComplete, defaultRent }: AgreementStepProps) {
+export default function AgreementStep({ entityIds, onComplete, onSkip, defaultRent }: AgreementStepProps) {
   const [form, setForm] = useState({
     startDate: '',
     endDate: '',
@@ -99,7 +99,10 @@ return
             onChange={e => setForm({ ...form, rent: e.target.value })}
           />
         </Grid>
-        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button variant='text' color='inherit' onClick={onSkip} disabled={submitting}>
+            Skip this step
+          </Button>
           <Button
             variant='contained'
             disabled={!valid || submitting}

@@ -185,7 +185,7 @@ return
                 ))}
               </Stepper>
               {step === 0 && tenantId && (
-                <PropertyStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} />
+                <PropertyStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} onSkip={() => advance({})} />
               )}
               {step === 1 && tenantId && (
                 <UnitStep
@@ -196,16 +196,17 @@ return
                     setRent(r)
                     advance({ unitId })
                   }}
+                  onSkip={() => advance({})}
                 />
               )}
               {step === 2 && tenantId && (
-                <OccupantStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} />
+                <OccupantStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} onSkip={() => advance({})} />
               )}
               {step === 3 && tenantId && (
-                <AgreementStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} defaultRent={rent} />
+                <AgreementStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} defaultRent={rent} onSkip={() => advance({})} />
               )}
               {step === 4 && tenantId && (
-                <InvoiceStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} defaultRent={rent} />
+                <InvoiceStep tenantId={tenantId} entityIds={entityIds} onComplete={advance} defaultRent={rent} onSkip={() => advance({})} />
               )}
             </Box>
           )}

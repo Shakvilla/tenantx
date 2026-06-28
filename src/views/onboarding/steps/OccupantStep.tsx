@@ -12,7 +12,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import { createOccupant } from '@/lib/api/occupants'
 import type { OnboardingStepProps } from '../onboardingTypes'
 
-export default function OccupantStep({ tenantId, entityIds, onComplete }: OnboardingStepProps) {
+export default function OccupantStep({ tenantId, entityIds, onComplete, onSkip }: OnboardingStepProps) {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -92,7 +92,10 @@ return
             onChange={e => setForm({ ...form, phone: e.target.value })}
           />
         </Grid>
-        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button variant='text' color='inherit' onClick={onSkip} disabled={submitting}>
+            Skip this step
+          </Button>
           <Button
             variant='contained'
             disabled={!valid || submitting}

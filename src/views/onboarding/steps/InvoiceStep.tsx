@@ -16,7 +16,7 @@ interface InvoiceStepProps extends OnboardingStepProps {
   defaultRent: number
 }
 
-export default function InvoiceStep({ entityIds, onComplete, defaultRent }: InvoiceStepProps) {
+export default function InvoiceStep({ entityIds, onComplete, onSkip, defaultRent }: InvoiceStepProps) {
   const today = new Date().toISOString().slice(0, 10)
   const [form, setForm] = useState({ dueDate: '', amount: String(defaultRent || '') })
   const [error, setError] = useState<string | null>(null)
@@ -83,7 +83,10 @@ return
             onChange={e => setForm({ ...form, amount: e.target.value })}
           />
         </Grid>
-        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button variant='text' color='inherit' onClick={onSkip} disabled={submitting}>
+            Skip this step
+          </Button>
           <Button
             variant='contained'
             disabled={!valid || submitting}
