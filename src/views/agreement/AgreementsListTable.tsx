@@ -52,6 +52,9 @@ import {
   type AgreementStatus
 } from '@/lib/api/agreements'
 
+// Auth Imports
+import { useAuth } from '@/contexts/AuthContext'
+
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
 import { formatCurrency } from '@/utils/currency'
@@ -92,6 +95,9 @@ const agreementTypeObj: Record<string, { label: string; color: 'primary' | 'info
 }
 
 const AgreementsListTable = () => {
+  const { user } = useAuth()
+  const isOccupant = user?.userType === 'OCCUPANT'
+
   const [data, setData] = useState<Agreement[]>([])
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState<string | null>(null)
@@ -115,14 +121,15 @@ const AgreementsListTable = () => {
   const fetchData = useCallback(() => {
     setLoading(true)
     setApiError(null)
-    const params: { status?: string; type?: string } = {}
+    const params: { status?: string; type?: string; occupantId?: string } = {}
     if (statusFilter) params.status = statusFilter
     if (typeFilter) params.type = typeFilter
+    if (isOccupant && user?.id) params.occupantId = user.id
     getAgreements(params)
       .then(setData)
       .catch(err => setApiError(err?.message ?? 'Failed to load agreements'))
       .finally(() => setLoading(false))
-  }, [statusFilter, typeFilter])
+  }, [statusFilter, typeFilter, isOccupant, user?.id])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -166,19 +173,19 @@ const AgreementsListTable = () => {
 
   const columns = useMemo<ColumnDef<AgreementWithAction, any>[]>(
     () => [
-      columnHelper.display({
+      ...(!isOccupant ? [columnHelper.display({
         id: 'select',
-        header: ({ table }) => (
+        header: ({ table }: any) => (
           <Checkbox
             checked={table.getIsAllRowsSelected()}
             indeterminate={table.getIsSomeRowsSelected()}
             onChange={table.getToggleAllRowsSelectedHandler()}
           />
         ),
-        cell: ({ row }) => (
+        cell: ({ row }: any) => (
           <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
         )
-      }),
+      })] : []),
       columnHelper.accessor('agreementNumber', {
         header: 'AGREEMENT #',
         cell: ({ row }) => (
@@ -262,39 +269,41 @@ const AgreementsListTable = () => {
                 icon: 'ri-eye-line',
                 menuItemProps: { onClick: () => setViewAgreement(row.original) }
               },
-              {
-                text: 'Edit',
-                icon: 'ri-pencil-line',
-                menuItemProps: {
-                  onClick: () => setEditAgreement(row.original)
-                }
-              },
-              {
-                text: 'Update Status',
-                icon: 'ri-refresh-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedAgreement(row.original)
-                    setStatusUpdateOpen(true)
+              ...(!isOccupant ? [
+                {
+                  text: 'Edit',
+                  icon: 'ri-pencil-line',
+                  menuItemProps: {
+                    onClick: () => setEditAgreement(row.original)
+                  }
+                },
+                {
+                  text: 'Update Status',
+                  icon: 'ri-refresh-line',
+                  menuItemProps: {
+                    onClick: () => {
+                      setSelectedAgreement(row.original)
+                      setStatusUpdateOpen(true)
+                    }
+                  }
+                },
+                {
+                  text: 'Delete',
+                  icon: 'ri-delete-bin-line',
+                  menuItemProps: {
+                    onClick: () => {
+                      setSelectedAgreement(row.original)
+                      setDeleteOpen(true)
+                    }
                   }
                 }
-              },
-              {
-                text: 'Delete',
-                icon: 'ri-delete-bin-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedAgreement(row.original)
-                    setDeleteOpen(true)
-                  }
-                }
-              }
+              ] : [])
             ]}
           />
         )
       })
     ],
-    []
+    [isOccupant]
   )
 
   const table = useReactTable({
@@ -379,15 +388,15 @@ const AgreementsListTable = () => {
               </TextField>
             </div>
             <Divider />
-            <div className='flex items-center justify-between gap-2'>
+            <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
               <TextField
                 size='small'
                 placeholder='Search'
                 value={globalFilter}
                 onChange={e => setGlobalFilter(e.target.value)}
-                className='flex-1 min-w-[200px]'
+                className='w-full sm:min-w-[200px]'
               />
-              <div className='flex items-center gap-2 ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'
@@ -402,15 +411,17 @@ const AgreementsListTable = () => {
                 <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
                   Export
                 </Button>
-                <Button
-                  variant='contained'
-                  color='primary'
-                  size='small'
-                  startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddOpen(true)}
-                >
-                  Add Agreement
-                </Button>
+                {!isOccupant && (
+                  <Button
+                    variant='contained'
+                    color='primary'
+                    size='small'
+                    startIcon={<i className='ri-add-line' />}
+                    onClick={() => setAddOpen(true)}
+                  >
+                    Add Agreement
+                  </Button>
+                )}
               </div>
             </div>
           </Box>

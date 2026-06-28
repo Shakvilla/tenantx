@@ -75,8 +75,7 @@ const IconWrapper = styled('div')(({ theme }) => ({
   backdropFilter: 'blur(10px)',
   flexShrink: 0,
   [theme.breakpoints.down('sm')]: {
-    width: '80px',
-    height: '80px'
+    display: 'none'
   }
 }))
 
@@ -89,8 +88,7 @@ const ImageWrapper = styled('div')(({ theme }) => ({
   height: '200px',
   position: 'relative',
   [theme.breakpoints.down('sm')]: {
-    width: '150px',
-    height: '150px'
+    display: 'none'
   },
   '& img': {
     width: '100%',

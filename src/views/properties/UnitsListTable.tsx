@@ -470,18 +470,16 @@ const UnitsListTable = () => {
             </div>
             <Divider />
 
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search units...'
-                  value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
+            <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
+              <TextField
+                size='small'
+                placeholder='Search units...'
+                value={globalFilter}
+                onChange={e => setGlobalFilter(e.target.value)}
+                className='w-full sm:min-w-[200px]'
+              />
 
-              <div className='flex items-center gap-2 ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'

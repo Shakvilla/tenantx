@@ -522,15 +522,14 @@ const PropertiesListTable = () => {
             </div>
             <Divider />
 
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search properties...'
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className='flex-1 min-w-[200px]'
+            <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
+              <TextField
+                size='small'
+                placeholder='Search properties...'
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className='w-full sm:min-w-[200px]'
                   slotProps={{
                     input: {
                       endAdornment: (
@@ -542,10 +541,9 @@ const PropertiesListTable = () => {
                       )
                     }
                   }}
-                />
-              </div>
+              />
 
-              <div className='flex items-center gap-2 ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'
