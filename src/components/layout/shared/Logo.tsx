@@ -20,6 +20,7 @@ import themeConfig from '@configs/themeConfig'
 import useVerticalNav from '@menu/hooks/useVerticalNav'
 import { useSettings } from '@core/hooks/useSettings'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePlatformBranding } from '@/contexts/PlatformBrandingContext'
 
 type LogoTextProps = {
   isHovered?: VerticalNavContextProps['isHovered']
@@ -54,6 +55,7 @@ const Logo = ({ color }: { color?: CSSProperties['color'] }) => {
   const { isHovered, transitionDuration, isBreakpointReached } = useVerticalNav()
   const { settings } = useSettings()
   const { tenant, isAuthenticated } = useAuth()
+  const { logoUrl, platformName: brandingName } = usePlatformBranding()
 
   // Vars
   const { layout } = settings
@@ -78,7 +80,15 @@ const Logo = ({ color }: { color?: CSSProperties['color'] }) => {
 
   return (
     <div className='flex items-center min-bs-[24px]'>
-      <MaterializeLogo />
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt={brandingName || displayName}
+          style={{ maxHeight: 28, maxWidth: 120, objectFit: 'contain' }}
+        />
+      ) : (
+        <MaterializeLogo />
+      )}
       <LogoText
         color={color}
         ref={logoTextRef}

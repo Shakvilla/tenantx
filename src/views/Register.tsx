@@ -112,11 +112,11 @@ const Register = ({ mode }: { mode: Mode }) => {
     const result = await register(validation.data)
 
     if (result.success) {
-      setSuccess('Account created successfully! Redirecting to login...')
+      setSuccess('Account created! Taking you to your dashboard...')
 
       setTimeout(() => {
-        router.push('/login')
-      }, 2000)
+        router.push('/dashboard')
+      }, 1500)
     } else {
       setError(result.error || 'Registration failed. Please try again.')
       setIsSubmitting(false)

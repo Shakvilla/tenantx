@@ -3,12 +3,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 /**
  * Public page routes that don't require authentication
  */
-const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password']
+const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password', '/auth/impersonate', '/maintenance']
 
 /**
  * Public vacancy listing routes — no auth required
  */
-const PUBLIC_VACANCY_ROUTES = ['/vacancies']
+const PUBLIC_VACANCY_ROUTES = ['/vacancies', '/listings']
 
 function isPublicPageRoute(pathname: string): boolean {
   return PUBLIC_PAGE_ROUTES.some(route => pathname.startsWith(route))
@@ -58,6 +58,11 @@ export async function middleware(request: NextRequest) {
   // AUTH PAGES  /login, /register, etc.
   // ═══════════════════════════════════════════════════════════════════════════
   if (isPublicPageRoute(pathname)) {
+    // Maintenance page and impersonation — always allow through regardless of session state.
+    if (pathname.startsWith('/auth/impersonate') || pathname.startsWith('/maintenance')) {
+      return NextResponse.next()
+    }
+
     // Already logged in as admin → go to admin dashboard
     if (isAdminAuthenticated) {
       return NextResponse.redirect(new URL('/admin', request.url))

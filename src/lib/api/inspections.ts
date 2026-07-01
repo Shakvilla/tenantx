@@ -18,6 +18,7 @@ import type {
   InspectionSummary,
   CreateInspectionRequest,
   CompleteInspectionRequest,
+  InspectionSignOffRequest,
   ItemUpsert,
 } from '@/types/inspection'
 
@@ -63,6 +64,21 @@ export const inspectionsApi = {
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`${BASE}/${id}`)
   },
+
+  /** List inspections for the currently authenticated occupant */
+  getMyInspections: async (): Promise<InspectionSummary[]> => {
+    const res = await apiClient.get<InspectionSummary[]>(`${BASE}/my`)
+    return res.data
+  },
+}
+
+export async function signOffInspection(id: string, data: InspectionSignOffRequest): Promise<InspectionResponse> {
+  const res = await apiClient.patch<InspectionResponse>(`${BASE}/${id}/sign-off`, data)
+  return res.data
+}
+
+export function getInspectionReportUrl(id: string): string {
+  return `${BASE}/${id}/report`
 }
 
 /**

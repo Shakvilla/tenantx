@@ -36,6 +36,7 @@ import {
   scheduleDowngrade,
   cancelSubscription,
   getMyInvoices,
+  retryMyInvoice,
   type SubscriptionPlanPublicDto,
   type SubscriptionInvoiceDto,
 } from '@/lib/api/subscription-client'
@@ -47,17 +48,6 @@ import {
 const PLAN_ORDER: Record<string, number> = { FREE: 0, BASIC: 1, PRO: 2 }
 const PLAN_COLOR: Record<string, 'default' | 'primary' | 'success'> = {
   FREE: 'default', BASIC: 'primary', PRO: 'success',
-}
-
-const FEATURE_LABELS: Record<string, string> = {
-  SMS_REMINDERS:            'SMS Reminders',
-  WHATSAPP_REMINDERS:       'WhatsApp Reminders',
-  ADVANCED_REPORTS:         'Advanced Reports',
-  MAINTENANCE_CONTRACTORS:  'Maintenance Contractors',
-  RENT_COLLECTION:          'Rent Collection',
-  LANDLORD_WALLET:          'Landlord Wallet',
-  AUTOMATED_RECONCILIATION: 'Automated Reconciliation',
-  FINANCIAL_REPORTS:        'Financial Reports',
 }
 
 function formatGHS(amount: number) {
@@ -112,7 +102,7 @@ function CurrentPlanCard() {
     )
   }
 
-  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, currentPeriodEnd, pendingDowngradePlan } = subscription
+  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, transactionFeePct, currentPeriodEnd, pendingDowngradePlan } = subscription
   const isFree = plan === 'FREE'
   const unitProgress = unitCap ? Math.min((unitCount / unitCap) * 100, 100) : 0
   const atCap = unitCap !== null && unitCount >= unitCap
@@ -137,6 +127,11 @@ function CurrentPlanCard() {
                 <Typography variant='body2' color='text.secondary'>
                   {formatGHS(pricePerUnit)} / unit / month
                   {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
+                </Typography>
+              )}
+              {transactionFeePct != null && (
+                <Typography variant='caption' color='text.secondary'>
+                  {(Number(transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
                 </Typography>
               )}
             </Box>
@@ -387,27 +382,33 @@ function PlanCard({
           {plan.freeUnitCap && (
             <Typography variant='caption' color='text.secondary'>Up to {plan.freeUnitCap} units</Typography>
           )}
+          {plan.transactionFeePct != null && (
+            <Typography variant='caption' color='text.secondary'>
+              {(Number(plan.transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
+            </Typography>
+          )}
         </Box>
 
         <Divider sx={{ mb: 1.5 }} />
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-          {Object.entries(FEATURE_LABELS).map(([key, label]) => {
-            const enabled = !!plan.features[key]
-            return (
+          {Object.entries(plan.features)
+            .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+            .map(([key, info]) => (
               <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <i
-                  className={enabled ? 'ri-check-line' : 'ri-close-line'}
+                  className={info.enabled ? 'ri-check-line' : 'ri-close-line'}
                   style={{
                     fontSize: '1rem',
-                    color: enabled ? 'var(--mui-palette-success-main)' : 'var(--mui-palette-text-disabled)',
+                    color: info.enabled ? 'var(--mui-palette-success-main)' : 'var(--mui-palette-text-disabled)',
                     flexShrink: 0,
                   }}
                 />
-                <Typography variant='body2' color={enabled ? 'text.primary' : 'text.disabled'}>{label}</Typography>
+                <Typography variant='body2' color={info.enabled ? 'text.primary' : 'text.disabled'}>
+                  {info.label}
+                </Typography>
               </Box>
-            )
-          })}
+            ))}
         </Box>
       </CardContent>
 
@@ -434,12 +435,32 @@ function PlanCard({
 // ---------------------------------------------------------------------------
 
 function InvoiceTable() {
-  const [invoices, setInvoices] = useState<SubscriptionInvoiceDto[]>([])
-  const [loading, setLoading]   = useState(true)
+  const [invoices, setInvoices]     = useState<SubscriptionInvoiceDto[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [retrying, setRetrying]     = useState<string | null>(null)
+  const [retryError, setRetryError] = useState<string | null>(null)
 
-  useEffect(() => {
-    getMyInvoices().then(setInvoices).catch(() => {}).finally(() => setLoading(false))
+  const fetchInvoices = useCallback(() => {
+    setLoading(true)
+    getMyInvoices().then(data => setInvoices(Array.isArray(data) ? data : [])).catch(() => {}).finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { fetchInvoices() }, [fetchInvoices])
+
+  async function handleRetry(invoiceId: string) {
+    setRetrying(invoiceId)
+    setRetryError(null)
+    try {
+      await retryMyInvoice(invoiceId)
+      fetchInvoices()
+    } catch {
+      setRetryError('Retry failed. Please try again.')
+    } finally {
+      setRetrying(null)
+    }
+  }
+
+  const hasFailedInvoice = invoices.some(inv => inv.status === 'FAILED')
 
   if (loading) return <Skeleton variant='rectangular' height={120} sx={{ borderRadius: 1 }} />
   if (invoices.length === 0) return (
@@ -447,36 +468,58 @@ function InvoiceTable() {
   )
 
   return (
-    <Table size='small'>
-      <TableHead>
-        <TableRow>
-          <TableCell>Period</TableCell>
-          <TableCell>Type</TableCell>
-          <TableCell align='right'>Units</TableCell>
-          <TableCell align='right'>Amount</TableCell>
-          <TableCell>Status</TableCell>
-          <TableCell>Date</TableCell>
-        </TableRow>
-      </TableHead>
-      <TableBody>
-        {invoices.map(inv => (
-          <TableRow key={inv.id} hover>
-            <TableCell>
-              <Typography variant='caption'>{formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}</Typography>
-            </TableCell>
-            <TableCell><Chip label={inv.invoiceType} size='small' variant='outlined' /></TableCell>
-            <TableCell align='right'>{inv.unitCount}</TableCell>
-            <TableCell align='right'>
-              <Typography variant='caption' fontWeight={600}>{formatGHS(inv.totalAmount)}</Typography>
-            </TableCell>
-            <TableCell><Chip label={inv.status} size='small' color={statusChipColor(inv.status)} /></TableCell>
-            <TableCell>
-              <Typography variant='caption' color='text.secondary'>{formatDate(inv.paidAt ?? inv.createdAt)}</Typography>
-            </TableCell>
+    <>
+      {retryError && (
+        <Alert severity='error' sx={{ mb: 2 }} onClose={() => setRetryError(null)}>{retryError}</Alert>
+      )}
+      <Table size='small'>
+        <TableHead>
+          <TableRow>
+            <TableCell>Period</TableCell>
+            <TableCell>Type</TableCell>
+            <TableCell align='right'>Units</TableCell>
+            <TableCell align='right'>Amount</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell>Date</TableCell>
+            {hasFailedInvoice && <TableCell />}
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHead>
+        <TableBody>
+          {invoices.map(inv => (
+            <TableRow key={inv.id} hover>
+              <TableCell>
+                <Typography variant='caption'>{formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}</Typography>
+              </TableCell>
+              <TableCell><Chip label={inv.invoiceType} size='small' variant='outlined' /></TableCell>
+              <TableCell align='right'>{inv.unitCount}</TableCell>
+              <TableCell align='right'>
+                <Typography variant='caption' fontWeight={600}>{formatGHS(inv.totalAmount)}</Typography>
+              </TableCell>
+              <TableCell><Chip label={inv.status} size='small' color={statusChipColor(inv.status)} /></TableCell>
+              <TableCell>
+                <Typography variant='caption' color='text.secondary'>{formatDate(inv.paidAt ?? inv.createdAt)}</Typography>
+              </TableCell>
+              {hasFailedInvoice && (
+                <TableCell align='right' sx={{ minWidth: 110 }}>
+                  {inv.status === 'FAILED' && (
+                    <Button
+                      size='small'
+                      variant='contained'
+                      color='error'
+                      disabled={retrying === inv.id}
+                      onClick={() => handleRetry(inv.id)}
+                      startIcon={retrying === inv.id ? <CircularProgress size={12} color='inherit' /> : <i className='ri-refresh-line' />}
+                    >
+                      {retrying === inv.id ? 'Retrying…' : 'Pay Now'}
+                    </Button>
+                  )}
+                </TableCell>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
   )
 }
 

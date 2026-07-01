@@ -8,12 +8,7 @@ import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
+import TablePagination from '@mui/material/TablePagination'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import Chip from '@mui/material/Chip'
@@ -30,6 +25,10 @@ import Snackbar from '@mui/material/Snackbar'
 import Link from 'next/link'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
+
+import { createColumnHelper, flexRender, getCoreRowModel, useReactTable, getFilteredRowModel, getPaginationRowModel, getSortedRowModel } from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getAdminTenants,
@@ -318,13 +317,10 @@ export default function AdminTenantsView() {
 
   const canManage = hasPermission('manage_tenants')
 
-  const [tenants, setTenants]     = useState<TenantRecord[]>([])
-  const [loading, setLoading]     = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [cursor, setCursor]       = useState<string | null>(null)
-  const [hasMore, setHasMore]     = useState(false)
-  const [error, setError]         = useState<string | null>(null)
-  const [search, setSearch]       = useState('')
+  const [tenants, setTenants]         = useState<TenantRecord[]>([])
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState<string | null>(null)
+  const [search, setSearch]           = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [createOpen, setCreateOpen]       = useState(false)
   const [editing, setEditing]             = useState<TenantRecord | null>(null)
@@ -333,13 +329,28 @@ export default function AdminTenantsView() {
   const [actionError, setActionError]     = useState<string | null>(null)
   const [exporting, setExporting]         = useState(false)
 
-  const load = useCallback(async () => {
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
+  // cursors[i] = cursor to use when fetching page i
+  // cursors[0] is always undefined (first page has no cursor)
+  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined])
+
+  const load = useCallback(async (pageNum: number, size: number, cursorCache: (string | undefined)[]) => {
     setLoading(true); setError(null)
     try {
-      const res = await getAdminTenants(undefined, 50)
+      const cursor = cursorCache[pageNum]
+      const res = await getAdminTenants(cursor, size)
       setTenants(res.data)
-      setCursor(res.cursor)
-      setHasMore(res.hasMore)
+      setTotal(res.total ?? 0)
+      // Store the returned cursor for the next page
+      if (res.cursor) {
+        setCursors(prev => {
+          const next = [...prev]
+          next[pageNum + 1] = res.cursor!
+          return next
+        })
+      }
     } catch (e: any) {
       setError(e?.message ?? 'Failed to load tenants')
     } finally {
@@ -347,32 +358,34 @@ export default function AdminTenantsView() {
     }
   }, [])
 
-  async function loadMore() {
-    if (!cursor || !hasMore) return
-    setLoadingMore(true)
-    try {
-      const res = await getAdminTenants(cursor, 50)
-      setTenants(prev => [...prev, ...res.data])
-      setCursor(res.cursor)
-      setHasMore(res.hasMore)
-    } catch (e: any) {
-      setActionError(e?.message ?? 'Failed to load more tenants')
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load(0, pageSize, cursors)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const filtered = tenants.filter(t => {
-    const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch = !search ||
+      t.name.toLowerCase().includes(search.toLowerCase()) ||
       t.tenant_id.toLowerCase().includes(search.toLowerCase())
     const matchesStatus =
       statusFilter === 'all' ? true :
-      statusFilter === 'active' ? t.active :
-      !t.active
+      statusFilter === 'active' ? t.active : !t.active
     return matchesSearch && matchesStatus
   })
+
+  function handlePageChange(_: unknown, newPage: number) {
+    setPage(newPage)
+    load(newPage, pageSize, cursors)
+  }
+
+  function handlePageSizeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const newSize = Number(e.target.value)
+    const freshCursors: (string | undefined)[] = [undefined]
+    setCursors(freshCursors)
+    setPageSize(newSize)
+    setPage(0)
+    load(0, newSize, freshCursors)
+  }
 
   function handleSaved(updated: TenantRecord) {
     setTenants(prev => prev.map(t => t.id === updated.id ? updated : t))
@@ -401,6 +414,83 @@ export default function AdminTenantsView() {
       setReactivating(null)
     }
   }
+
+  const columnHelper = createColumnHelper<TenantRecord>()
+  const columns = [
+    columnHelper.accessor('name', {
+      header: 'Name',
+      cell: info => (
+        <Link href={`/admin/tenants/${info.row.original.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Typography variant='body2' fontWeight={600} sx={{ '&:hover': { textDecoration: 'underline', cursor: 'pointer' } }}>
+            {info.getValue()}
+          </Typography>
+        </Link>
+      )
+    }),
+    columnHelper.accessor('tenant_id', {
+      header: 'Tenant ID',
+      cell: info => (
+        <Typography variant='caption' sx={{ fontFamily: 'monospace', bgcolor: 'action.hover', px: 0.75, py: 0.25, borderRadius: 0.5 }}>
+          {info.getValue()}
+        </Typography>
+      )
+    }),
+    columnHelper.accessor('description', {
+      header: 'Description',
+      cell: info => <Typography variant='body2' color='text.secondary'>{info.getValue() ?? '—'}</Typography>
+    }),
+    columnHelper.accessor('active', {
+      header: 'Status',
+      cell: info => (
+        <Chip size='small' label={info.getValue() ? 'Active' : 'Inactive'} color={info.getValue() ? 'success' : 'default'} variant='outlined' />
+      )
+    }),
+    columnHelper.accessor('createdAt', {
+      header: 'Created',
+      cell: info => <Typography variant='caption' color='text.secondary'>{new Date(info.getValue()).toLocaleDateString()}</Typography>
+    }),
+    ...(canManage ? [columnHelper.display({
+      id: 'actions',
+      header: () => <span style={{ display: 'block', textAlign: 'right' }}>Actions</span>,
+      cell: info => {
+        const tenant = info.row.original
+        return (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Tooltip title='Edit'>
+              <IconButton size='small' onClick={() => setEditing(tenant)}>
+                <i className='ri-pencil-line' style={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
+            {tenant.active ? (
+              <Tooltip title='Deactivate'>
+                <IconButton size='small' color='error' onClick={() => setDeactivating(tenant)}>
+                  <i className='ri-forbid-line' style={{ fontSize: '1rem' }} />
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <Tooltip title='Reactivate'>
+                <IconButton size='small' color='success' onClick={() => setReactivating(tenant)}>
+                  <i className='ri-checkbox-circle-line' style={{ fontSize: '1rem' }} />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        )
+      }
+    })] : []),
+  ]
+
+  const table = useReactTable({
+    data: filtered,
+    columns,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(total / pageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   return (
     <Box>
@@ -465,9 +555,6 @@ export default function AdminTenantsView() {
               <ToggleButton value='active'>Active</ToggleButton>
               <ToggleButton value='inactive'>Inactive</ToggleButton>
             </ToggleButtonGroup>
-            <Typography variant='caption' color='text.secondary' sx={{ ml: 'auto' }}>
-              {filtered.length} tenant{filtered.length !== 1 ? 's' : ''}
-            </Typography>
           </Box>
 
           {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
@@ -478,96 +565,42 @@ export default function AdminTenantsView() {
             </Box>
           ) : (
             <>
-            <TableContainer>
-              <Table size='small'>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Tenant ID</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Created</TableCell>
-                    {canManage && <TableCell align='right'>Actions</TableCell>}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={canManage ? 6 : 5} align='center' sx={{ py: 4, color: 'text.secondary' }}>
-                        {search ? 'No matching tenants' : 'No tenants yet'}
-                      </TableCell>
-                    </TableRow>
-                  ) : filtered.map(tenant => (
-                    <TableRow key={tenant.id} hover>
-                      <TableCell>
-                        <Link href={`/admin/tenants/${tenant.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                          <Typography variant='body2' fontWeight={600} sx={{ '&:hover': { textDecoration: 'underline', cursor: 'pointer' } }}>
-                            {tenant.name}
-                          </Typography>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant='caption' sx={{ fontFamily: 'monospace', bgcolor: 'action.hover', px: 0.75, py: 0.25, borderRadius: 0.5 }}>
-                          {tenant.tenant_id}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant='body2' color='text.secondary'>{tenant.description ?? '—'}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          size='small'
-                          label={tenant.active ? 'Active' : 'Inactive'}
-                          color={tenant.active ? 'success' : 'default'}
-                          variant='outlined'
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant='caption' color='text.secondary'>
-                          {new Date(tenant.createdAt).toLocaleDateString()}
-                        </Typography>
-                      </TableCell>
-                      {canManage && (
-                        <TableCell align='right'>
-                          <Tooltip title='Edit'>
-                            <IconButton size='small' onClick={() => setEditing(tenant)}>
-                              <i className='ri-pencil-line' style={{ fontSize: '1rem' }} />
-                            </IconButton>
-                          </Tooltip>
-                          {tenant.active ? (
-                            <Tooltip title='Deactivate'>
-                              <IconButton size='small' color='error' onClick={() => setDeactivating(tenant)}>
-                                <i className='ri-forbid-line' style={{ fontSize: '1rem' }} />
-                              </IconButton>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip title='Reactivate'>
-                              <IconButton size='small' color='success' onClick={() => setReactivating(tenant)}>
-                                <i className='ri-checkbox-circle-line' style={{ fontSize: '1rem' }} />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                        </TableCell>
-                      )}
-                    </TableRow>
+              <table className={tableStyles.table}>
+                <thead>
+                  {table.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => (
+                        <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                      ))}
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={columns.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>
+                        {search || statusFilter !== 'all' ? 'No matching tenants' : 'No tenants yet'}
+                      </td>
+                    </tr>
+                  ) : table.getRowModel().rows.map(row => (
+                    <tr key={row.id}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            {hasMore && !search && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2 }}>
-                <Button
-                  variant='outlined'
-                  size='small'
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  startIcon={loadingMore ? <CircularProgress size={14} color='inherit' /> : undefined}
-                >
-                  {loadingMore ? 'Loading…' : 'Load More'}
-                </Button>
-              </Box>
-            )}
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={total}
+                rowsPerPage={pageSize}
+                page={page}
+                onPageChange={handlePageChange}
+                onRowsPerPageChange={handlePageSizeChange}
+              />
             </>
           )}
         </CardContent>
@@ -576,7 +609,12 @@ export default function AdminTenantsView() {
       <CreateTenantDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={t => setTenants(prev => [t, ...prev])}
+        onCreated={() => {
+          const freshCursors: (string | undefined)[] = [undefined]
+          setCursors(freshCursors)
+          setPage(0)
+          load(0, pageSize, freshCursors)
+        }}
       />
 
       <EditTenantDialog

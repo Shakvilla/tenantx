@@ -155,12 +155,30 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // ── Maintenance mode (503) ──────────────────────────────────────────────
+    // When the platform is under maintenance the backend returns 503 for all
+    // tenant-facing requests.  We handle it here once so individual callers
+    // don't need to know about it.
+    //
+    // • GET requests (background data loads):  return a never-settling promise,
+    //   identical to the SESSION_EXPIRED pattern.  Components stay in their
+    //   loading/empty state without throwing — no console noise.
+    //
+    // • Mutation requests (POST/PATCH/PUT/DELETE):  throw the maintenance
+    //   message so forms and buttons can surface it as an inline error.
+    if (error.response?.status === 503) {
+      if (originalRequest.method?.toLowerCase() === 'get') {
+        return new Promise(() => {})
+      }
+      // For mutations, fall through so getErrorMessage() extracts the message
+    }
+
     if (error.response?.status === 403) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('AUTH_FORBIDDEN', {
-            detail: { 
-              message: getErrorMessage(error) || 'You do not have permission to access this resource.' 
+            detail: {
+              message: getErrorMessage(error) || 'You do not have permission to access this resource.'
             }
           })
         )

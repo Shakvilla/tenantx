@@ -20,6 +20,7 @@ export const walletApi = {
   getLedger(params?: {
     from?: string        // YYYY-MM-DD
     to?: string          // YYYY-MM-DD
+    category?: string    // LedgerCategory enum value, e.g. PLATFORM_FEE
     propertyId?: string
     occupantId?: string
     page?: number

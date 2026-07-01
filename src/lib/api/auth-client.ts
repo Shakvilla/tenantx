@@ -45,12 +45,15 @@ export interface VerifyOtpResponse {
   verificationToken: string
 }
 
-/** Response from POST /auth/signup */
+/** Response from POST /auth/signup — mirrors OnboardingResponseDto */
 export interface SignupResponse {
-  id: string
+  token: string
+  expiresIn: number
+  tenantId: string
+  tenantName: string
+  userId: string
   email: string
-  fullName: string
-  companyName: string
+  createdAt: string
 }
 
 /** Authenticated user profile from GET /users/me */
@@ -147,6 +150,8 @@ export async function selectTenant(
 /**
  * Register / Signup — POST /auth/signup
  * Self-service account creation (creates user + tenant).
+ * The backend returns a tenant-scoped JWT immediately, so we store it
+ * to auto-authenticate the user without a separate login step.
  */
 export async function registerUser(payload: RegisterPayload): Promise<ApiResponse<SignupResponse>> {
   try {
@@ -154,6 +159,10 @@ export async function registerUser(payload: RegisterPayload): Promise<ApiRespons
       `${API_BASE}/auth/signup`,
       payload
     )
+
+    // Store the tenant-scoped token so middleware allows dashboard navigation
+    setStoredTokens(data.token, '')
+    setStoredTenantId(data.tenantId)
 
     return { success: true, data }
   } catch (error: any) {
@@ -417,6 +426,35 @@ export async function logoutUser(): Promise<ApiResponse<null>> {
   clearStoredTokens()
 
   return { success: true, data: null }
+}
+
+// ── User Security (self-service login history) ───────────────────────────────
+
+export interface MyLoginHistoryItem {
+  id: string
+  ipAddress: string | null
+  userAgent: string | null
+  success: boolean
+  failureReason: string | null
+  createdAt: string
+}
+
+export interface MyLoginHistoryPage {
+  items: MyLoginHistoryItem[]
+  page: number
+  size: number
+  totalItems: number
+  totalPages: number
+}
+
+export async function getMyLoginHistory(params?: {
+  page?: number
+  size?: number
+}): Promise<MyLoginHistoryPage> {
+  const q = new URLSearchParams()
+  if (params?.page !== undefined) q.set('page', String(params.page))
+  if (params?.size !== undefined) q.set('size', String(params.size))
+  return apiGet<MyLoginHistoryPage>(`${API_BASE}/users/me/login-history${q.toString() ? `?${q}` : ''}`)
 }
 
 // Re-export storage helpers for convenience

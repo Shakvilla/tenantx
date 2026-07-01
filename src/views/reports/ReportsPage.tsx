@@ -22,6 +22,9 @@ import EarningsReport from './EarningsReport'
 import MaintenanceReport from './MaintenanceReport'
 import GraComplianceReport from './GraComplianceReport'
 import ArrearsReport from './ArrearsReport'
+import CashFlowReport from './CashFlowReport'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
+import { useFeature } from '@/hooks/useFeature'
 
 // Type Imports
 import type { DateRange } from '@/types/reports/reportTypes'
@@ -29,9 +32,17 @@ import type { DateRange } from '@/types/reports/reportTypes'
 // Util Imports
 import { getDateRangeFromPreset } from '@/utils/reports/dateUtils'
 
+/** Small lock icon shown on tab labels when the underlying feature is locked */
+const LockIcon = () => (
+  <i className='ri-lock-line' style={{ fontSize: '0.7rem', opacity: 0.45, marginLeft: 4 }} />
+)
+
 const ReportsPage = () => {
   const [activeTab, setActiveTab] = useState<string>('tenants')
   const [dateRange, setDateRange] = useState<DateRange>(getDateRangeFromPreset('last30days'))
+
+  const hasAdvancedReports  = useFeature('ADVANCED_REPORTS')
+  const hasFinancialReports = useFeature('FINANCIAL_REPORTS')
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     setActiveTab(newValue)
@@ -56,36 +67,97 @@ const ReportsPage = () => {
           <CardContent>
             <TabContext value={activeTab}>
               <CustomTabList onChange={handleTabChange} variant='scrollable' scrollButtons='auto'>
-                <Tab value='tenants' label='Tenants' icon={<i className='ri-group-line' />} iconPosition='start' />
-                <Tab value='expenses' label='Expenses' icon={<i className='ri-money-dollar-circle-line' />} iconPosition='start' />
-                <Tab value='earnings' label='Earnings' icon={<i className='ri-line-chart-line' />} iconPosition='start' />
-                <Tab value='maintenance' label='Maintenance' icon={<i className='ri-tools-line' />} iconPosition='start' />
-                <Tab value='gra' label='GRA Compliance' icon={<i className='ri-government-line' />} iconPosition='start' />
-                <Tab value='arrears' label='Arrears' icon={<i className='ri-alarm-warning-line' />} iconPosition='start' />
+                <Tab
+                  value='tenants'
+                  iconPosition='start'
+                  icon={<i className='ri-group-line' />}
+                  label={<span>Tenants {!hasAdvancedReports && <LockIcon />}</span>}
+                />
+                <Tab
+                  value='expenses'
+                  iconPosition='start'
+                  icon={<i className='ri-money-dollar-circle-line' />}
+                  label={<span>Expenses {!hasAdvancedReports && <LockIcon />}</span>}
+                />
+                <Tab
+                  value='earnings'
+                  iconPosition='start'
+                  icon={<i className='ri-line-chart-line' />}
+                  label={<span>Earnings {!hasFinancialReports && <LockIcon />}</span>}
+                />
+                <Tab
+                  value='maintenance'
+                  iconPosition='start'
+                  icon={<i className='ri-tools-line' />}
+                  label={<span>Maintenance {!hasAdvancedReports && <LockIcon />}</span>}
+                />
+                <Tab
+                  value='gra'
+                  iconPosition='start'
+                  icon={<i className='ri-government-line' />}
+                  label={<span>GRA Compliance {!hasFinancialReports && <LockIcon />}</span>}
+                />
+                <Tab
+                  value='arrears'
+                  iconPosition='start'
+                  icon={<i className='ri-alarm-warning-line' />}
+                  label={<span>Arrears {!hasAdvancedReports && <LockIcon />}</span>}
+                />
+                <Tab
+                  value='cashflow'
+                  iconPosition='start'
+                  icon={<i className='ri-funds-line' />}
+                  label={<span>Cash Flow {!hasAdvancedReports && <LockIcon />}</span>}
+                />
               </CustomTabList>
 
+              {/* ── ADVANCED_REPORTS tabs (Basic+) ─────────────────── */}
               <TabPanel value='tenants' className='p-0 mts-6'>
-                <TenantsReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+                <FeatureGate feature='ADVANCED_REPORTS'>
+                  <TenantsReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+                </FeatureGate>
               </TabPanel>
 
               <TabPanel value='expenses' className='p-0 mts-6'>
-                <ExpensesReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
-              </TabPanel>
-
-              <TabPanel value='earnings' className='p-0 mts-6'>
-                <EarningsReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+                <FeatureGate feature='ADVANCED_REPORTS'>
+                  <ExpensesReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+                </FeatureGate>
               </TabPanel>
 
               <TabPanel value='maintenance' className='p-0 mts-6'>
-                <MaintenanceReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
-              </TabPanel>
-
-              <TabPanel value='gra' className='p-0 mts-6'>
-                <GraComplianceReport />
+                <FeatureGate feature='ADVANCED_REPORTS'>
+                  <MaintenanceReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+                </FeatureGate>
               </TabPanel>
 
               <TabPanel value='arrears' className='p-0 mts-6'>
-                <ArrearsReport />
+                <FeatureGate feature='ADVANCED_REPORTS'>
+                  <ArrearsReport />
+                </FeatureGate>
+              </TabPanel>
+
+              <TabPanel value='cashflow' className='p-0 mts-6'>
+                {/* CashFlowReport gates itself internally — no outer FeatureGate needed */}
+                <CashFlowReport />
+              </TabPanel>
+
+              {/* ── FINANCIAL_REPORTS tabs (Pro only) ──────────────── */}
+              <TabPanel value='earnings' className='p-0 mts-6'>
+                <FeatureGate
+                  feature='FINANCIAL_REPORTS'
+                  lockedMessage='Earnings reports are available on the Pro plan. Upgrade to view revenue, commission, and payout breakdowns.'
+                >
+                  <EarningsReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+                </FeatureGate>
+              </TabPanel>
+
+              <TabPanel value='gra' className='p-0 mts-6'>
+                <FeatureGate
+                  feature='FINANCIAL_REPORTS'
+                  lockedMessage='GRA Compliance reports are available on the Pro plan. Upgrade to generate withholding tax and rental income summaries.'
+                >
+                  <GraComplianceReport />
+                </FeatureGate>
               </TabPanel>
             </TabContext>
           </CardContent>
@@ -96,4 +168,3 @@ const ReportsPage = () => {
 }
 
 export default ReportsPage
-

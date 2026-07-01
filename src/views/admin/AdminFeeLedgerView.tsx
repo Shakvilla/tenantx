@@ -19,12 +19,6 @@ import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
 import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import Select from '@mui/material/Select'
@@ -32,7 +26,18 @@ import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Skeleton from '@mui/material/Skeleton'
-import Divider from '@mui/material/Divider'
+
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+} from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getFeeLedgerEntries,
@@ -105,6 +110,8 @@ function SummaryCard({ label, value, icon, color, loading }: {
 // Main view
 // ---------------------------------------------------------------------------
 
+const columnHelper = createColumnHelper<FeeLedgerEntryDto>()
+
 export default function AdminFeeLedgerView() {
   // ── Summary ───────────────────────────────────────────────────────────────
   const [summary, setSummary]           = useState<FeeLedgerSummary | null>(null)
@@ -116,7 +123,7 @@ export default function AdminFeeLedgerView() {
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState<string | null>(null)
   const [page, setPage]                 = useState(0)
-  const [rowsPerPage, setRowsPerPage]   = useState(50)
+  const [rowsPerPage, setRowsPerPage]   = useState(25)
   const [totalElements, setTotalElements] = useState(0)
 
   // ── Filters ───────────────────────────────────────────────────────────────
@@ -139,14 +146,15 @@ export default function AdminFeeLedgerView() {
   }, [])
 
   // ── Load entries ──────────────────────────────────────────────────────────
-  const loadEntries = useCallback(async (p = 0) => {
+  const loadEntries = useCallback(async (p = 0, size?: number) => {
+    const effectiveSize = size ?? rowsPerPage
     setLoading(true); setError(null)
     try {
       const res = await getFeeLedgerEntries({
         tenantId: tenantFilter || undefined,
         status:   statusFilter || undefined,
         page: p,
-        size: rowsPerPage,
+        size: effectiveSize,
       })
       setEntries(res.data)
       setTotalElements(res.totalElements)
@@ -199,6 +207,70 @@ export default function AdminFeeLedgerView() {
     if (s === 'CAPTURED') return 'warning'
     return 'default'
   }
+
+  const columns = [
+    columnHelper.accessor('createdAt', {
+      header: 'Date',
+      cell: info => <Typography variant='caption' sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{fmtDate(info.getValue())}</Typography>
+    }),
+    columnHelper.accessor('tenantId', {
+      header: 'Tenant',
+      cell: info => <Typography sx={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{info.getValue()}</Typography>
+    }),
+    columnHelper.accessor('sourceId', {
+      header: 'Source',
+      cell: info => <Typography sx={{ fontFamily: 'monospace', fontSize: '0.72rem', color: 'text.secondary' }}>{info.getValue().slice(0, 8)}…</Typography>
+    }),
+    columnHelper.accessor('grossAmount', {
+      header: () => <span style={{ display: 'block', textAlign: 'right' }}>Gross</span>,
+      cell: info => <Typography sx={{ fontFamily: 'monospace', fontSize: '0.78rem', textAlign: 'right', display: 'block' }}>{Number(info.getValue()).toFixed(2)}</Typography>
+    }),
+    columnHelper.accessor('feeRate', {
+      header: () => <span style={{ display: 'block', textAlign: 'right' }}>Rate</span>,
+      cell: info => <Typography sx={{ fontSize: '0.78rem', textAlign: 'right', display: 'block' }}>{fmtRate(info.getValue())}</Typography>
+    }),
+    columnHelper.accessor('feeAmount', {
+      header: () => <span style={{ display: 'block', textAlign: 'right' }}>Fee</span>,
+      cell: info => <Typography sx={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 600, textAlign: 'right', display: 'block' }}>{Number(info.getValue()).toFixed(2)}</Typography>
+    }),
+    columnHelper.accessor('status', {
+      header: 'Status',
+      cell: info => <Chip label={info.getValue()} size='small' color={statusColor(info.getValue())} sx={{ fontSize: '0.65rem', height: 20 }} />
+    }),
+    columnHelper.accessor('settledAt', {
+      header: 'Settled At',
+      cell: info => <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{fmtDate(info.getValue())}</Typography>
+    }),
+    columnHelper.display({
+      id: 'action',
+      header: 'Action',
+      cell: info => {
+        const entry = info.row.original
+        if (entry.status !== 'CAPTURED') return null
+        return (
+          <Tooltip title='Mark as settled'>
+            <span>
+              <IconButton size='small' color='success' onClick={() => handleSettle(entry.id)} disabled={settlingId === entry.id}>
+                {settlingId === entry.id ? <CircularProgress size={16} color='inherit' /> : <i className='ri-check-line' style={{ fontSize: '1rem' }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        )
+      }
+    }),
+  ]
+
+  const table = useReactTable({
+    data: entries,
+    columns,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(totalElements / rowsPerPage),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -289,103 +361,43 @@ export default function AdminFeeLedgerView() {
       <Card>
         {error && <Alert severity='error' sx={{ m: 2 }}>{error}</Alert>}
 
-        <TableContainer>
-          <Table size='small'>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Tenant</TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Source</TableCell>
-                <TableCell align='right' sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Gross</TableCell>
-                <TableCell align='right' sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Rate</TableCell>
-                <TableCell align='right' sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Fee</TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem' }}>Settled At</TableCell>
-                <TableCell sx={{ fontWeight: 600, fontSize: '0.75rem', width: 60 }}>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                [...Array(8)].map((_, i) => (
-                  <TableRow key={i}>
-                    {[...Array(9)].map((__, j) => (
-                      <TableCell key={j}><Skeleton variant='text' /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : entries.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} align='center' sx={{ py: 4, color: 'text.secondary' }}>
-                    No fee ledger entries found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                entries.map(entry => (
-                  <TableRow key={entry.id} hover>
-                    <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                      {fmtDate(entry.createdAt)}
-                    </TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                      {entry.tenantId}
-                    </TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.72rem', color: 'text.secondary' }}>
-                      {entry.sourceId.slice(0, 8)}…
-                    </TableCell>
-                    <TableCell align='right' sx={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>
-                      {Number(entry.grossAmount).toFixed(2)}
-                    </TableCell>
-                    <TableCell align='right' sx={{ fontSize: '0.78rem' }}>
-                      {fmtRate(entry.feeRate)}
-                    </TableCell>
-                    <TableCell align='right' sx={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 600 }}>
-                      {Number(entry.feeAmount).toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={entry.status}
-                        size='small'
-                        color={statusColor(entry.status)}
-                        sx={{ fontSize: '0.65rem', height: 20 }}
-                      />
-                    </TableCell>
-                    <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                      {fmtDate(entry.settledAt)}
-                    </TableCell>
-                    <TableCell>
-                      {entry.status === 'CAPTURED' && (
-                        <Tooltip title='Mark as settled'>
-                          <span>
-                            <IconButton
-                              size='small'
-                              color='success'
-                              onClick={() => handleSettle(entry.id)}
-                              disabled={settlingId === entry.id}
-                            >
-                              {settlingId === entry.id
-                                ? <CircularProgress size={16} color='inherit' />
-                                : <i className='ri-check-line' style={{ fontSize: '1rem' }} />
-                              }
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <table className={tableStyles.table}>
+          <thead>
+            {table.getHeaderGroups().map(headerGroup => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map(header => (
+                  <th key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {loading ? (
+              [...Array(6)].map((_, i) => (
+                <tr key={i}>
+                  {columns.map((_, j) => <td key={j}><Skeleton variant='text' /></td>)}
+                </tr>
+              ))
+            ) : entries.length === 0 ? (
+              <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No fee ledger entries found.</td></tr>
+            ) : table.getRowModel().rows.map(row => (
+              <tr key={row.id}>
+                {row.getVisibleCells().map(cell => (
+                  <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-        <Divider />
         <TablePagination
           component='div'
           count={totalElements}
           page={page}
           rowsPerPage={rowsPerPage}
           onPageChange={(_, p) => loadEntries(p)}
-          onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); loadEntries(0) }}
-          rowsPerPageOptions={[25, 50, 100]}
+          onRowsPerPageChange={e => { setRowsPerPage(parseInt(e.target.value, 10)); loadEntries(0, parseInt(e.target.value, 10)) }}
+          rowsPerPageOptions={[10, 25, 50]}
         />
       </Card>
 

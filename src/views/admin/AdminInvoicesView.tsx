@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -10,12 +10,7 @@ import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
+import TablePagination from '@mui/material/TablePagination'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Select from '@mui/material/Select'
@@ -35,6 +30,18 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Link from 'next/link'
 
 import TextField from '@mui/material/TextField'
+
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getAdminInvoices,
@@ -207,114 +214,198 @@ interface InvoiceTableProps {
   onRetry?: (inv: AdminInvoiceDto) => void
   onVoid?: (inv: AdminInvoiceDto) => void
   emptyMessage?: string
+  // Pagination (optional - AllInvoicesTab only)
+  page?: number
+  total?: number
+  pageSize?: number
+  onPageChange?: (page: number) => void
+  onPageSizeChange?: (size: number) => void
 }
 
-function InvoiceTable({ invoices, loading, showRetry, onRetry, onVoid, emptyMessage = 'No invoices found' }: InvoiceTableProps) {
+function InvoiceTable({
+  invoices,
+  loading,
+  showRetry,
+  onRetry,
+  onVoid,
+  emptyMessage = 'No invoices found',
+  page,
+  total,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+}: InvoiceTableProps) {
+  const columnHelper = createColumnHelper<AdminInvoiceDto>()
+
+  const columns = useMemo(() => {
+    const cols = [
+      columnHelper.accessor('tenantName', {
+        header: 'Tenant',
+        cell: info => {
+          const inv = info.row.original
+          return (
+            <Link href='/admin/tenants' style={{ textDecoration: 'none' }}>
+              <Box>
+                <Typography variant='body2' fontWeight={600} sx={{ '&:hover': { textDecoration: 'underline' } }}>
+                  {inv.tenantName}
+                </Typography>
+                <Typography variant='caption' color='text.secondary' sx={{ fontFamily: 'monospace' }}>
+                  {inv.tenantId}
+                </Typography>
+              </Box>
+            </Link>
+          )
+        },
+      }),
+      columnHelper.accessor('planName', {
+        header: 'Plan',
+        cell: info => <Chip size='small' label={info.getValue()} variant='outlined' />,
+      }),
+      columnHelper.accessor('invoiceType', {
+        header: 'Type',
+        cell: info => <Typography variant='caption' color='text.secondary'>{info.getValue()}</Typography>,
+      }),
+      columnHelper.accessor('periodStart', {
+        header: 'Period',
+        cell: info => {
+          const inv = info.row.original
+          return (
+            <Typography variant='caption'>
+              {formatDate(inv.periodStart)} → {formatDate(inv.periodEnd)}
+            </Typography>
+          )
+        },
+      }),
+      columnHelper.accessor('totalAmount', {
+        header: 'Amount',
+        cell: info => <Typography variant='body2' fontWeight={600}>{formatCurrency(info.getValue())}</Typography>,
+      }),
+      columnHelper.accessor('unitCount', {
+        header: 'Units',
+        cell: info => <Typography variant='body2'>{info.getValue()}</Typography>,
+      }),
+      columnHelper.accessor('status', {
+        header: 'Status',
+        cell: info => statusChip(info.getValue()),
+      }),
+      columnHelper.accessor('retryCount', {
+        header: 'Retries',
+        cell: info => {
+          const inv = info.row.original
+          return (
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Typography variant='caption'>{inv.retryCount}x</Typography>
+              {inv.failureReason && (
+                <Tooltip title={inv.failureReason} placement='top'>
+                  <Typography variant='caption' color='error.main' sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+                    {inv.failureReason}
+                  </Typography>
+                </Tooltip>
+              )}
+              {inv.nextRetryAt && (
+                <Typography variant='caption' color='text.secondary'>
+                  Next: {formatDateTime(inv.nextRetryAt)}
+                </Typography>
+              )}
+            </Box>
+          )
+        },
+      }),
+      columnHelper.accessor('createdAt', {
+        header: 'Created',
+        cell: info => <Typography variant='caption' color='text.secondary'>{formatDateTime(info.getValue())}</Typography>,
+      }),
+    ]
+
+    if (showRetry) {
+      cols.push(
+        columnHelper.display({
+          id: 'actions',
+          header: () => <span style={{ display: 'block', textAlign: 'right' }}>Actions</span>,
+          cell: info => {
+            const inv = info.row.original
+            return (
+              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                {inv.status === 'FAILED' && onRetry && (
+                  <Tooltip title='Retry payment now'>
+                    <IconButton size='small' color='warning' onClick={() => onRetry(inv)}>
+                      <i className='ri-refresh-line' style={{ fontSize: '1rem' }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {(inv.status === 'PENDING' || inv.status === 'FAILED') && onVoid && (
+                  <Tooltip title='Write off / void invoice'>
+                    <IconButton size='small' color='error' onClick={() => onVoid(inv)}>
+                      <i className='ri-file-damage-line' style={{ fontSize: '1rem' }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+            )
+          },
+        }) as any
+      )
+    }
+
+    return cols
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRetry, onRetry, onVoid])
+
+  const table = useReactTable({
+    data: invoices,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
   if (loading) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
   }
 
   return (
-    <TableContainer>
-      <Table size='small'>
-        <TableHead>
-          <TableRow>
-            <TableCell>Tenant</TableCell>
-            <TableCell>Plan</TableCell>
-            <TableCell>Type</TableCell>
-            <TableCell>Period</TableCell>
-            <TableCell>Amount</TableCell>
-            <TableCell>Units</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Retries</TableCell>
-            <TableCell>Created</TableCell>
-            {showRetry && <TableCell align='right'>Actions</TableCell>}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {invoices.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={showRetry ? 10 : 9} align='center' sx={{ py: 5, color: 'text.secondary' }}>
-                {emptyMessage}
-              </TableCell>
-            </TableRow>
-          ) : invoices.map(inv => (
-            <TableRow key={inv.id} hover>
-              <TableCell>
-                <Link href={`/admin/tenants`} style={{ textDecoration: 'none' }}>
-                  <Box>
-                    <Typography variant='body2' fontWeight={600} sx={{ '&:hover': { textDecoration: 'underline' } }}>
-                      {inv.tenantName}
-                    </Typography>
-                    <Typography variant='caption' color='text.secondary' sx={{ fontFamily: 'monospace' }}>
-                      {inv.tenantId}
-                    </Typography>
-                  </Box>
-                </Link>
-              </TableCell>
-              <TableCell>
-                <Chip size='small' label={inv.planName} variant='outlined' />
-              </TableCell>
-              <TableCell>
-                <Typography variant='caption' color='text.secondary'>{inv.invoiceType}</Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant='caption'>
-                  {formatDate(inv.periodStart)} → {formatDate(inv.periodEnd)}
-                </Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant='body2' fontWeight={600}>{formatCurrency(inv.totalAmount)}</Typography>
-              </TableCell>
-              <TableCell>
-                <Typography variant='body2'>{inv.unitCount}</Typography>
-              </TableCell>
-              <TableCell>{statusChip(inv.status)}</TableCell>
-              <TableCell>
-                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <Typography variant='caption'>{inv.retryCount}x</Typography>
-                  {inv.failureReason && (
-                    <Tooltip title={inv.failureReason} placement='top'>
-                      <Typography variant='caption' color='error.main' sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
-                        {inv.failureReason}
-                      </Typography>
-                    </Tooltip>
-                  )}
-                  {inv.nextRetryAt && (
-                    <Typography variant='caption' color='text.secondary'>
-                      Next: {formatDateTime(inv.nextRetryAt)}
-                    </Typography>
-                  )}
-                </Box>
-              </TableCell>
-              <TableCell>
-                <Typography variant='caption' color='text.secondary'>{formatDateTime(inv.createdAt)}</Typography>
-              </TableCell>
-              {showRetry && (
-                <TableCell align='right'>
-                  <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                    {inv.status === 'FAILED' && onRetry && (
-                      <Tooltip title='Retry payment now'>
-                        <IconButton size='small' color='warning' onClick={() => onRetry(inv)}>
-                          <i className='ri-refresh-line' style={{ fontSize: '1rem' }} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                    {(inv.status === 'PENDING' || inv.status === 'FAILED') && onVoid && (
-                      <Tooltip title='Write off / void invoice'>
-                        <IconButton size='small' color='error' onClick={() => onVoid(inv)}>
-                          <i className='ri-file-damage-line' style={{ fontSize: '1rem' }} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Box>
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <>
+      <div className='overflow-x-auto'>
+        <table className={tableStyles.table}>
+          <thead>
+            {table.getHeaderGroups().map(hg => (
+              <tr key={hg.id}>
+                {hg.headers.map(h => (
+                  <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>
+                  {emptyMessage}
+                </td>
+              </tr>
+            ) : table.getRowModel().rows.map(row => (
+              <tr key={row.id}>
+                {row.getVisibleCells().map(cell => (
+                  <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {total !== undefined && pageSize !== undefined && onPageChange && (
+        <TablePagination
+          rowsPerPageOptions={[10, 25, 50]}
+          component='div'
+          count={total}
+          rowsPerPage={pageSize}
+          page={page ?? 0}
+          onPageChange={(_, p) => onPageChange(p)}
+          onRowsPerPageChange={e => onPageSizeChange?.(Number(e.target.value))}
+        />
+      )}
+    </>
   )
 }
 
@@ -327,6 +418,7 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
   const [loading, setLoading]     = useState(true)
   const [statusFilter, setStatus] = useState('')
   const [page, setPage]           = useState(0)
+  const [pageSize, setPageSize]   = useState(25)
   const [retryTarget, setRetry]   = useState<AdminInvoiceDto | null>(null)
   const [voidTarget, setVoid]     = useState<AdminInvoiceDto | null>(null)
   const [toast, setToast]         = useState<string | null>(null)
@@ -335,22 +427,23 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
   const [exportEnd, setExportEnd]     = useState('')
   const [exporting, setExporting]     = useState(false)
 
-  const fetchData = useCallback(async (status: string, pg: number) => {
+  const fetchData = useCallback(async (status: string, pg: number, size = pageSize) => {
     setLoading(true); setError(null)
     try {
-      const res = await getAdminInvoices(status || undefined, pg, 50)
+      const res = await getAdminInvoices(status || undefined, pg, size)
       setData(res)
     } catch { setError('Failed to load invoices') }
     finally { setLoading(false) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { fetchData(statusFilter, page) }, [fetchData, statusFilter, page])
+  useEffect(() => { fetchData(statusFilter, page, pageSize) }, [fetchData, statusFilter, page]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleRetry(id: string) {
     try {
       await adminRetryInvoice(id)
       setToast('Retry triggered successfully')
-      fetchData(statusFilter, page)
+      fetchData(statusFilter, page, pageSize)
     } catch (e: any) {
       setToast(e?.response?.data?.message ?? 'Retry failed')
     }
@@ -439,21 +532,12 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
         showRetry={canManage}
         onRetry={setRetry}
         onVoid={canManage ? setVoid : undefined}
+        page={page}
+        total={data?.totalElements ?? 0}
+        pageSize={pageSize}
+        onPageChange={newPage => { setPage(newPage); fetchData(statusFilter, newPage, pageSize) }}
+        onPageSizeChange={newSize => { setPageSize(newSize); setPage(0); fetchData(statusFilter, 0, newSize) }}
       />
-
-      {data && data.totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, pt: 2 }}>
-          <Button size='small' variant='outlined' disabled={page === 0} onClick={() => setPage(p => p - 1)}>
-            Previous
-          </Button>
-          <Typography variant='body2' sx={{ alignSelf: 'center' }}>
-            Page {page + 1} of {data.totalPages}
-          </Typography>
-          <Button size='small' variant='outlined' disabled={!data.hasMore} onClick={() => setPage(p => p + 1)}>
-            Next
-          </Button>
-        </Box>
-      )}
 
       <RetryDialog invoice={retryTarget} onClose={() => setRetry(null)} onConfirmed={handleRetry} />
       <VoidDialog invoice={voidTarget} onClose={() => setVoid(null)} onVoided={handleVoided} />
@@ -622,6 +706,73 @@ function RenewalsTab() {
 
   useEffect(() => { load(days) }, [load, days])
 
+  const columnHelper = createColumnHelper<UpcomingRenewalDto>()
+
+  const columns = useMemo(() => [
+    columnHelper.accessor('tenantName', {
+      header: 'Tenant',
+      cell: info => {
+        const r = info.row.original
+        return (
+          <Box>
+            <Typography variant='body2' fontWeight={600}>{r.tenantName}</Typography>
+            <Typography variant='caption' color='text.secondary' sx={{ fontFamily: 'monospace' }}>
+              {r.tenantId}
+            </Typography>
+          </Box>
+        )
+      },
+    }),
+    columnHelper.accessor('planDisplayName', {
+      header: 'Plan',
+      cell: info => <Chip size='small' label={info.getValue()} variant='tonal' color='primary' />,
+    }),
+    columnHelper.accessor('pricePerUnit', {
+      header: 'Price/Unit',
+      cell: info => (
+        <Typography variant='body2'>
+          {new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS' }).format(info.getValue())}/unit
+        </Typography>
+      ),
+    }),
+    columnHelper.accessor('renewalDate', {
+      header: 'Renewal Date',
+      cell: info => (
+        <Typography variant='body2'>
+          {new Date(info.getValue()).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+        </Typography>
+      ),
+    }),
+    columnHelper.display({
+      id: 'daysUntilRenewal',
+      header: 'Days Until Renewal',
+      cell: info => {
+        const r = info.row.original
+        const daysLeft = Math.round((new Date(r.renewalDate).getTime() - Date.now()) / 86_400_000)
+        const urgency: 'error' | 'warning' | 'default' =
+          daysLeft <= 3 ? 'error' : daysLeft <= 7 ? 'warning' : 'default'
+        return (
+          <Chip
+            size='small'
+            label={daysLeft <= 0 ? 'Today' : `${daysLeft}d`}
+            color={urgency}
+            variant={urgency === 'default' ? 'outlined' : 'tonal'}
+          />
+        )
+      },
+    }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
+
+  const table = useReactTable({
+    data: renewals,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
   return (
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
@@ -655,59 +806,34 @@ function RenewalsTab() {
           </Typography>
         </Box>
       ) : (
-        <TableContainer>
-          <Table size='small'>
-            <TableHead>
-              <TableRow>
-                <TableCell>Tenant</TableCell>
-                <TableCell>Plan</TableCell>
-                <TableCell>Price/Unit</TableCell>
-                <TableCell>Renewal Date</TableCell>
-                <TableCell>Days Until Renewal</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {renewals.map(r => {
-                const daysLeft = Math.round(
-                  (new Date(r.renewalDate).getTime() - Date.now()) / 86_400_000
-                )
-                const urgency: 'error' | 'warning' | 'default' =
-                  daysLeft <= 3 ? 'error' : daysLeft <= 7 ? 'warning' : 'default'
-                return (
-                  <TableRow key={r.tenantId} hover>
-                    <TableCell>
-                      <Typography variant='body2' fontWeight={600}>{r.tenantName}</Typography>
-                      <Typography variant='caption' color='text.secondary' sx={{ fontFamily: 'monospace' }}>
-                        {r.tenantId}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip size='small' label={r.planDisplayName} variant='tonal' color='primary' />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant='body2'>
-                        {new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS' }).format(r.pricePerUnit)}/unit
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant='body2'>
-                        {new Date(r.renewalDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size='small'
-                        label={daysLeft <= 0 ? 'Today' : `${daysLeft}d`}
-                        color={urgency}
-                        variant={urgency === 'default' ? 'outlined' : 'tonal'}
-                      />
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <div className='overflow-x-auto'>
+          <table className={tableStyles.table}>
+            <thead>
+              {table.getHeaderGroups().map(hg => (
+                <tr key={hg.id}>
+                  {hg.headers.map(h => (
+                    <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td colSpan={columns.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>
+                    No data
+                  </td>
+                </tr>
+              ) : table.getRowModel().rows.map(row => (
+                <tr key={row.id}>
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   )
@@ -726,7 +852,7 @@ export default function AdminInvoicesView() {
   return (
     <Box>
       <Box sx={{ mb: 3 }}>
-        <Typography variant='h5' fontWeight={700}>Billing & Invoices</Typography>
+        <Typography variant='h5' fontWeight={700}>Billing &amp; Invoices</Typography>
         <Typography variant='body2' color='text.secondary'>
           Platform-wide subscription invoice management
         </Typography>

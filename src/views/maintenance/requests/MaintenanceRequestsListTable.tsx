@@ -39,12 +39,16 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 // API Imports
 import {
   getMaintenanceRequests,
+  getMyMaintenanceRequests,
   deleteMaintenanceRequest,
   getMaintenanceCategories,
   type MaintenanceRequest,
   type MaintenanceCategory
 } from '@/lib/api/maintenance'
 import { getStoredTenantId } from '@/lib/api/storage'
+
+// Auth Imports
+import { useAuth } from '@/contexts/AuthContext'
 
 // Component Imports
 import RowActions from '@components/table/RowActions'
@@ -92,9 +96,13 @@ const formatDate = (d?: string | null) => {
   return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
 }
 
-const STATUS_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'> = {
-  NEW: 'info', PENDING: 'warning', IN_PROGRESS: 'primary', ON_HOLD: 'secondary',
-  COMPLETED: 'success', CANCELLED: 'secondary', REJECTED: 'error'
+const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
+  pending:           { label: 'Pending',           color: 'warning'   },
+  awaiting_approval: { label: 'Awaiting Approval', color: 'info'      },
+  approved:          { label: 'Approved',          color: 'secondary' },
+  in_progress:       { label: 'In Progress',       color: 'primary'   },
+  completed:         { label: 'Completed',         color: 'success'   },
+  cancelled:         { label: 'Cancelled',         color: 'error'     },
 }
 
 const PRIORITY_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'> = {
@@ -104,6 +112,10 @@ const PRIORITY_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' |
 const columnHelper = createColumnHelper<RequestWithAction>()
 
 const MaintenanceRequestsListTable = () => {
+  const { user } = useAuth()
+  const isOccupant   = user?.userType === 'OCCUPANT'
+  const isMaintainer = user?.userType === 'MAINTAINER'
+
   const [data, setData] = useState<MaintenanceRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -126,14 +138,15 @@ const MaintenanceRequestsListTable = () => {
     setError(null)
     try {
       const statuses = selectedStatus ? [selectedStatus] : undefined
-      const response = await getMaintenanceRequests({ size: 100, statuses })
+      const fetchFn = (isOccupant || isMaintainer) ? getMyMaintenanceRequests : getMaintenanceRequests
+      const response = await fetchFn({ size: 100, statuses })
       setData(response.data ?? [])
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load maintenance requests')
     } finally {
       setLoading(false)
     }
-  }, [selectedStatus])
+  }, [selectedStatus, isOccupant, isMaintainer])
 
   useEffect(() => { fetchRequests() }, [fetchRequests])
 
@@ -202,7 +215,8 @@ const MaintenanceRequestsListTable = () => {
       header: 'Status',
       cell: ({ row }) => {
         const s = row.original.status ?? ''
-        return <Chip variant='tonal' label={s.replace(/_/g, ' ')} size='small' color={STATUS_COLORS[s] ?? 'secondary'} className='capitalize' />
+        const cfg = STATUS_CONFIG[s] ?? { label: s.replace(/_/g, ' '), color: 'default' as const }
+        return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} className='capitalize' />
       }
     }),
     columnHelper.accessor('estimatedCost', {
@@ -226,14 +240,16 @@ const MaintenanceRequestsListTable = () => {
           iconButtonProps={{ size: 'small' }}
           options={[
             { text: 'View', icon: 'ri-eye-line', menuItemProps: { onClick: () => { setRequestToView(row.original); setViewOpen(true) } } },
-            { text: 'Edit', icon: 'ri-pencil-line', menuItemProps: { onClick: () => { setRequestToEdit(row.original); setEditOpen(true) } } },
-            { text: 'Delete', icon: 'ri-delete-bin-line', menuItemProps: { onClick: () => { setSelectedRequest(row.original); setDeleteOpen(true) } } }
+            ...(!isOccupant && !isMaintainer ? [
+              { text: 'Edit', icon: 'ri-pencil-line', menuItemProps: { onClick: () => { setRequestToEdit(row.original); setEditOpen(true) } } },
+              { text: 'Delete', icon: 'ri-delete-bin-line', menuItemProps: { onClick: () => { setSelectedRequest(row.original); setDeleteOpen(true) } } }
+            ] : [])
           ]}
         />
       ),
       enableSorting: false
     })
-  ], [])
+  ], [isOccupant, isMaintainer])
 
   const table = useReactTable({
     data: filteredData, columns,
@@ -276,13 +292,15 @@ const MaintenanceRequestsListTable = () => {
           title='Maintenance Requests List'
           action={
             <div className='flex items-center gap-2'>
-              {Object.keys(rowSelection).length > 0 && (
+              {!isOccupant && !isMaintainer && Object.keys(rowSelection).length > 0 && (
                 <Button variant='outlined' color='error' startIcon={<i className='ri-delete-bin-line' />}
                   onClick={() => { const f = filteredData[parseInt(Object.keys(rowSelection)[0])]; if (f) { setSelectedRequest(f); setDeleteOpen(true) } }}>
                   Delete Selected ({Object.keys(rowSelection).length})
                 </Button>
               )}
-              <Button variant='contained' color='primary' startIcon={<i className='ri-add-line' />} onClick={() => setAddOpen(true)}>Add Request</Button>
+              {!isMaintainer && (
+                <Button variant='contained' color='primary' startIcon={<i className='ri-add-line' />} onClick={() => setAddOpen(true)}>Add Request</Button>
+              )}
               <Button variant='outlined' size='small' onClick={fetchRequests}><i className='ri-refresh-line' /></Button>
             </div>
           }
@@ -296,13 +314,12 @@ const MaintenanceRequestsListTable = () => {
                 <InputLabel>Status</InputLabel>
                 <Select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value)} label='Status'>
                   <MenuItem value=''>All Status</MenuItem>
-                  <MenuItem value='NEW'>New</MenuItem>
-                  <MenuItem value='PENDING'>Pending</MenuItem>
-                  <MenuItem value='IN_PROGRESS'>In Progress</MenuItem>
-                  <MenuItem value='ON_HOLD'>On Hold</MenuItem>
-                  <MenuItem value='COMPLETED'>Completed</MenuItem>
-                  <MenuItem value='CANCELLED'>Cancelled</MenuItem>
-                  <MenuItem value='REJECTED'>Rejected</MenuItem>
+                  <MenuItem value='pending'>Pending</MenuItem>
+                  <MenuItem value='awaiting_approval'>Awaiting Approval</MenuItem>
+                  <MenuItem value='approved'>Approved</MenuItem>
+                  <MenuItem value='in_progress'>In Progress</MenuItem>
+                  <MenuItem value='completed'>Completed</MenuItem>
+                  <MenuItem value='cancelled'>Cancelled</MenuItem>
                 </Select>
               </FormControl>
               <FormControl size='small' sx={{ minWidth: 150 }}>

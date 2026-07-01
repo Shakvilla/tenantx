@@ -26,6 +26,14 @@ import MenuItem from '@mui/material/MenuItem'
 import Snackbar from '@mui/material/Snackbar'
 import Switch from '@mui/material/Switch'
 import Collapse from '@mui/material/Collapse'
+import Select from '@mui/material/Select'
+import FormControl from '@mui/material/FormControl'
+import InputLabel from '@mui/material/InputLabel'
+import TablePagination from '@mui/material/TablePagination'
+import Menu from '@mui/material/Menu'
+
+import { createColumnHelper, flexRender, getCoreRowModel, useReactTable, getFilteredRowModel, getPaginationRowModel, getSortedRowModel } from '@tanstack/react-table'
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getAdminTenant,
@@ -52,6 +60,28 @@ import {
   revokeTenantApiKey,
   exportTenantData,
   getTenantInvoices,
+  adminRetryInvoice,
+  adminVoidInvoice,
+  getTenantUsers,
+  deactivateAdminUser,
+  reactivateAdminUser,
+  resetAdminUserPassword,
+  impersonateTenant,
+  getTenantSessions,
+  terminateSession,
+  terminateAllSessions,
+  getTenantProperties,
+  getTenantUnits,
+  getTenantOccupants,
+  getTenantTeam,
+  getTenantWallet,
+  freezeTenantWallet,
+  unfreezeTenantWallet,
+  adjustTenantWallet,
+  getTenantAgreements,
+  getTenantPayments,
+  getTenantInspections,
+  getTenantMaintenance,
   type AdminInvoiceDto,
   type TenantRecord,
   type UpdateTenantPayload,
@@ -64,6 +94,17 @@ import {
   type LoginHistoryItem,
   type ApiKeyDto,
   type ApiKeyCreatedDto,
+  type TenantUserDto,
+  type SessionDto,
+  type AdminPropertySummary,
+  type AdminUnitSummary,
+  type AdminOccupantSummary,
+  type AdminTeamMemberSummary,
+  type AdminWalletSummary,
+  type AdminAgreementSummary,
+  type AdminPaymentSummary,
+  type AdminInspectionSummary,
+  type AdminMaintenanceSummary,
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 
@@ -568,6 +609,121 @@ function ResetPasswordDialog({ open, tenant, onClose, onSent }: ResetPasswordDia
 }
 
 // ---------------------------------------------------------------------------
+// Impersonate dialog
+// ---------------------------------------------------------------------------
+
+interface ImpersonateDialogProps {
+  open: boolean
+  tenant: TenantRecord
+  onClose: () => void
+}
+
+function ImpersonateDialog({ open, tenant, onClose }: ImpersonateDialogProps) {
+  const [users, setUsers]           = useState<TenantUserDto[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [selectedUser, setSelectedUser] = useState('')
+  const [reason, setReason]         = useState('')
+  const [impersonating, setImpersonating] = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) { setError(null); setSelectedUser(''); setReason(''); return }
+    setLoadingUsers(true)
+    getTenantUsers(tenant.tenant_id)
+      .then(setUsers)
+      .catch(() => setError('Failed to load tenant users'))
+      .finally(() => setLoadingUsers(false))
+  }, [open, tenant.tenant_id])
+
+  async function handleImpersonate() {
+    if (!selectedUser) return
+    setImpersonating(true); setError(null)
+    try {
+      const res = await impersonateTenant(tenant.tenant_id, selectedUser, reason || undefined)
+      // Extract the first role from JWT (roles claim is an array)
+      const role = (res as any).role ?? selectedUserObj?.role ?? ''
+      const url = `/auth/impersonate#token=${encodeURIComponent(res.accessToken)}&tenantId=${encodeURIComponent(res.targetTenantId)}&role=${encodeURIComponent(role)}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+      onClose()
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? 'Impersonation failed')
+    } finally {
+      setImpersonating(false)
+    }
+  }
+
+  const selectedUserObj = users.find(u => u.id === selectedUser)
+
+  return (
+    <Dialog open={open} onClose={impersonating ? undefined : onClose} maxWidth='sm' fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <i className='ri-spy-line' />
+        {`Impersonate user — ${tenant.name}`}
+      </DialogTitle>
+
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+        {error && <Alert severity='error'>{error}</Alert>}
+        <Alert severity='info' icon={<i className='ri-information-line' />}>
+          Opens the tenant portal in a new tab logged in as the selected user. This action is fully logged.
+        </Alert>
+        <FormControl size='small' fullWidth disabled={loadingUsers || impersonating}>
+          <InputLabel>Select user to impersonate</InputLabel>
+          <Select
+            label='Select user to impersonate'
+            value={selectedUser}
+            onChange={e => setSelectedUser(e.target.value)}
+          >
+            {loadingUsers ? (
+              <MenuItem disabled value=''>Loading…</MenuItem>
+            ) : users.length === 0 ? (
+              <MenuItem disabled value=''>No users found</MenuItem>
+            ) : (
+              users.map(u => (
+                <MenuItem key={u.id} value={u.id}>
+                  <Box>
+                    <Typography variant='body2'>{u.email}</Typography>
+                    <Typography variant='caption' color='text.secondary'>
+                      {u.fullName} · {u.role}
+                      {!u.active && ' · Inactive'}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))
+            )}
+          </Select>
+        </FormControl>
+        <TextField
+          label='Reason (optional but recommended)'
+          size='small'
+          fullWidth
+          multiline
+          rows={2}
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          disabled={impersonating}
+          placeholder='e.g. Investigating support ticket #1234'
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={impersonating}>Cancel</Button>
+        <Button
+          variant='contained'
+          color='warning'
+          onClick={handleImpersonate}
+          disabled={impersonating || !selectedUser}
+          startIcon={impersonating
+            ? <CircularProgress size={14} color='inherit' />
+            : <i className='ri-open-arm-line' />
+          }
+        >
+          {impersonating ? 'Opening…' : `Open as${selectedUserObj ? ` ${selectedUserObj.email.split('@')[0]}` : '…'}`}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main view
 // ---------------------------------------------------------------------------
 
@@ -609,6 +765,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
   const [loginHistoryFilter, setLoginHistoryFilter]   = useState<'all' | 'success' | 'failure'>('all')
   const [loginHistoryPage, setLoginHistoryPage] = useState(0)
   const [loginHistoryTotal, setLoginHistoryTotal] = useState(0)
+  const [loginHistoryPageSize, setLoginHistoryPageSize] = useState(10)
 
   // ── Invoice history ────────────────────────────────────────────────────────
   const [invoices, setInvoices]                 = useState<AdminInvoiceDto[]>([])
@@ -616,6 +773,11 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
   const [invoicesPage, setInvoicesPage]         = useState(0)
   const [invoicesTotal, setInvoicesTotal]       = useState(0)
   const [invoicesTotalPages, setInvoicesTotalPages] = useState(0)
+  const [invoicesPageSize, setInvoicesPageSize] = useState(10)
+  const [retryingId, setRetryingId]             = useState<string | null>(null)
+  const [voidConfirmInv, setVoidConfirmInv]     = useState<AdminInvoiceDto | null>(null)
+  const [voidReason, setVoidReason]             = useState('')
+  const [voidingId, setVoidingId]               = useState<string | null>(null)
 
   // ── API keys ───────────────────────────────────────────────────────────────
   const [apiKeys, setApiKeys]                   = useState<ApiKeyDto[]>([])
@@ -624,6 +786,91 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
   const [generatedKey, setGeneratedKey]         = useState<ApiKeyCreatedDto | null>(null)
   const [generatingKey, setGeneratingKey]       = useState(false)
   const [exportingData, setExportingData]       = useState(false)
+
+  // ── Impersonation ─────────────────────────────────────────────────────────
+  const [impersonateOpen, setImpersonateOpen] = useState(false)
+
+  // ── Sessions ──────────────────────────────────────────────────────────────
+  const [sessions, setSessions]             = useState<SessionDto[]>([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
+  const [terminatingSession, setTerminatingSession] = useState<string | null>(null)
+  const [terminatingAll, setTerminatingAll] = useState(false)
+
+  // ── Properties ────────────────────────────────────────────────────────────
+  const [properties, setProperties]         = useState<AdminPropertySummary[]>([])
+  const [propertiesLoading, setPropertiesLoading] = useState(false)
+  const [propertiesTotal, setPropertiesTotal]     = useState(0)
+  const [propertiesPage, setPropertiesPage]       = useState(0)
+  const [propertiesPageSize, setPropertiesPageSize] = useState(10)
+
+  // ── Units ─────────────────────────────────────────────────────────────────
+  const [units, setUnits]                   = useState<AdminUnitSummary[]>([])
+  const [unitsLoading, setUnitsLoading]     = useState(false)
+  const [unitsTotal, setUnitsTotal]         = useState(0)
+  const [unitsPage, setUnitsPage]           = useState(0)
+  const [unitsPageSize, setUnitsPageSize]   = useState(10)
+
+  // ── Occupants ─────────────────────────────────────────────────────────────
+  const [occupants, setOccupants]           = useState<AdminOccupantSummary[]>([])
+  const [occupantsLoading, setOccupantsLoading] = useState(false)
+  const [occupantsTotal, setOccupantsTotal] = useState(0)
+  const [occupantsPage, setOccupantsPage]   = useState(0)
+  const [occupantsPageSize, setOccupantsPageSize] = useState(10)
+
+  // ── Team ──────────────────────────────────────────────────────────────────
+  const [team, setTeam]                     = useState<AdminTeamMemberSummary[]>([])
+  const [teamLoading, setTeamLoading]       = useState(false)
+  const [teamTotal, setTeamTotal]           = useState(0)
+  const [teamPage, setTeamPage]             = useState(0)
+  const [teamPageSize, setTeamPageSize]     = useState(10)
+
+  // Team user management actions
+  const [teamActionAnchor, setTeamActionAnchor]   = useState<HTMLElement | null>(null)
+  const [teamActionTarget, setTeamActionTarget]   = useState<AdminTeamMemberSummary | null>(null)
+  const [teamActionDialog, setTeamActionDialog]   = useState<'deactivate' | 'reactivate' | 'reset' | null>(null)
+  const [teamActionLoading, setTeamActionLoading] = useState(false)
+  const [teamSnack, setTeamSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false, message: '', severity: 'success',
+  })
+
+  // ── Wallet ────────────────────────────────────────────────────────────────
+  const [wallet, setWallet]                 = useState<AdminWalletSummary | null>(null)
+  const [walletLoading, setWalletLoading]   = useState(false)
+  const [walletActing, setWalletActing]     = useState(false)
+  const [walletError, setWalletError]       = useState('')
+  const [adjustOpen, setAdjustOpen]         = useState(false)
+  const [adjustType, setAdjustType]         = useState<'CREDIT' | 'DEBIT'>('CREDIT')
+  const [adjustAmount, setAdjustAmount]     = useState('')
+  const [adjustReason, setAdjustReason]     = useState('')
+  const [adjustError, setAdjustError]       = useState('')
+
+  // ── Agreements ────────────────────────────────────────────────────────────
+  const [agreements, setAgreements]               = useState<AdminAgreementSummary[]>([])
+  const [agreementsLoading, setAgreementsLoading] = useState(false)
+  const [agreementsTotal, setAgreementsTotal]     = useState(0)
+  const [agreementsPage, setAgreementsPage]       = useState(0)
+  const [agreementsPageSize, setAgreementsPageSize] = useState(10)
+
+  // ── Payments / Transactions ───────────────────────────────────────────────
+  const [payments, setPayments]               = useState<AdminPaymentSummary[]>([])
+  const [paymentsLoading, setPaymentsLoading] = useState(false)
+  const [paymentsTotal, setPaymentsTotal]     = useState(0)
+  const [paymentsPage, setPaymentsPage]       = useState(0)
+  const [paymentsPageSize, setPaymentsPageSize] = useState(10)
+
+  // ── Inspections ───────────────────────────────────────────────────────────
+  const [inspections, setInspections]               = useState<AdminInspectionSummary[]>([])
+  const [inspectionsLoading, setInspectionsLoading] = useState(false)
+  const [inspectionsTotal, setInspectionsTotal]     = useState(0)
+  const [inspectionsPage, setInspectionsPage]       = useState(0)
+  const [inspectionsPageSize, setInspectionsPageSize] = useState(10)
+
+  // ── Maintenance Requests ──────────────────────────────────────────────────
+  const [maintenance, setMaintenance]               = useState<AdminMaintenanceSummary[]>([])
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false)
+  const [maintenanceTotal, setMaintenanceTotal]     = useState(0)
+  const [maintenancePage, setMaintenancePage]       = useState(0)
+  const [maintenancePageSize, setMaintenancePageSize] = useState(10)
 
   const [editOpen, setEditOpen]           = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
@@ -649,6 +896,16 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
         loadLoginHistory(data.tenant_id)
         loadApiKeys(data.tenant_id)
         loadInvoices(data.tenant_id)
+        loadSessions(data.tenant_id)
+        loadProperties(tenantId)
+        loadUnits(tenantId)
+        loadOccupants(tenantId)
+        loadTeam(tenantId)
+        loadWallet(tenantId)
+        loadAgreements(tenantId)
+        loadPayments(tenantId)
+        loadInspections(tenantId)
+        loadMaintenance(tenantId)
       } catch (e: any) {
         setError(e?.response?.data?.message ?? e?.message ?? 'Failed to load tenant')
       } finally {
@@ -695,11 +952,11 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     finally { setFlagsLoading(false) }
   }
 
-  async function loadLoginHistory(tenantSlug: string, page = 0, filter: 'all' | 'success' | 'failure' = 'all') {
+  async function loadLoginHistory(tenantSlug: string, page = 0, filter: 'all' | 'success' | 'failure' = 'all', size = loginHistoryPageSize) {
     setLoginHistoryLoading(true)
     try {
       const successParam = filter === 'all' ? undefined : filter === 'success'
-      const data = await getTenantLoginHistory(tenantSlug, { success: successParam, page, size: 10 })
+      const data = await getTenantLoginHistory(tenantSlug, { success: successParam, page, size })
       setLoginHistory(data.items)
       setLoginHistoryTotal(data.totalItems)
       setLoginHistoryPage(page)
@@ -707,16 +964,46 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     finally { setLoginHistoryLoading(false) }
   }
 
-  async function loadInvoices(tenantSlug: string, page = 0) {
+  async function loadInvoices(tenantSlug: string, page = 0, size = invoicesPageSize) {
     setInvoicesLoading(true)
     try {
-      const data = await getTenantInvoices(tenantSlug, page, 10)
+      const data = await getTenantInvoices(tenantSlug, page, size)
       setInvoices(data.data)
       setInvoicesTotal(data.totalElements)
       setInvoicesTotalPages(data.totalPages)
       setInvoicesPage(page)
     } catch { setInvoices([]) }
     finally { setInvoicesLoading(false) }
+  }
+
+  async function handleRetryInvoice(inv: AdminInvoiceDto) {
+    setRetryingId(inv.id)
+    try {
+      await adminRetryInvoice(inv.id)
+      setToast('Payment retry triggered — check back shortly for status update')
+      if (tenant) loadInvoices(tenant.tenant_id, invoicesPage)
+    } catch (e: any) {
+      setToast(e?.response?.data?.message ?? 'Retry failed')
+    } finally {
+      setRetryingId(null)
+    }
+  }
+
+  async function handleVoidConfirm() {
+    if (!voidConfirmInv) return
+    const inv = voidConfirmInv
+    setVoidConfirmInv(null)
+    setVoidingId(inv.id)
+    try {
+      const updated = await adminVoidInvoice(inv.id, voidReason || undefined)
+      setInvoices(prev => prev.map(i => i.id === updated.id ? updated : i))
+      setToast('Invoice voided successfully')
+    } catch (e: any) {
+      setToast(e?.response?.data?.message ?? 'Void failed')
+    } finally {
+      setVoidingId(null)
+      setVoidReason('')
+    }
   }
 
   async function loadApiKeys(tenantSlug: string) {
@@ -809,6 +1096,176 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     }
   }
 
+  async function loadSessions(tenantSlug: string) {
+    setSessionsLoading(true)
+    try { setSessions(await getTenantSessions(tenantSlug)) }
+    catch { setSessions([]) }
+    finally { setSessionsLoading(false) }
+  }
+
+  async function handleTerminateSession(familyId: string) {
+    if (!tenant) return
+    setTerminatingSession(familyId)
+    try {
+      await terminateSession(tenant.tenant_id, familyId)
+      setSessions(prev => prev.filter(s => s.familyId !== familyId))
+      setToast('Session terminated')
+    } catch { setToast('Failed to terminate session') }
+    finally { setTerminatingSession(null) }
+  }
+
+  async function handleTerminateAllSessions() {
+    if (!tenant) return
+    setTerminatingAll(true)
+    try {
+      const res = await terminateAllSessions(tenant.tenant_id)
+      setSessions([])
+      setToast(`${res.terminated} session${res.terminated !== 1 ? 's' : ''} terminated`)
+    } catch { setToast('Failed to terminate sessions') }
+    finally { setTerminatingAll(false) }
+  }
+
+  async function loadProperties(tenantSlug: string, page = 0, size = propertiesPageSize) {
+    setPropertiesLoading(true)
+    try {
+      const data = await getTenantProperties(tenantSlug, page, size)
+      setProperties(data.items); setPropertiesTotal(data.total); setPropertiesPage(page)
+    } catch { setProperties([]) }
+    finally { setPropertiesLoading(false) }
+  }
+
+  async function loadUnits(tenantSlug: string, page = 0, size = unitsPageSize) {
+    setUnitsLoading(true)
+    try {
+      const data = await getTenantUnits(tenantSlug, page, size)
+      setUnits(data.items); setUnitsTotal(data.total); setUnitsPage(page)
+    } catch { setUnits([]) }
+    finally { setUnitsLoading(false) }
+  }
+
+  async function loadOccupants(tenantSlug: string, page = 0, size = occupantsPageSize) {
+    setOccupantsLoading(true)
+    try {
+      const data = await getTenantOccupants(tenantSlug, page, size)
+      setOccupants(data.items); setOccupantsTotal(data.total); setOccupantsPage(page)
+    } catch { setOccupants([]) }
+    finally { setOccupantsLoading(false) }
+  }
+
+  async function loadTeam(tenantSlug: string, page = 0, size = teamPageSize) {
+    setTeamLoading(true)
+    try {
+      const data = await getTenantTeam(tenantSlug, page, size)
+      setTeam(data.items); setTeamTotal(data.total); setTeamPage(page)
+    } catch { setTeam([]) }
+    finally { setTeamLoading(false) }
+  }
+
+  async function handleTeamAction() {
+    if (!teamActionTarget || !teamActionDialog) return
+    setTeamActionLoading(true)
+    try {
+      if (teamActionDialog === 'deactivate') {
+        const updated = await deactivateAdminUser(teamActionTarget.id)
+        setTeam(prev => prev.map(u => u.id === updated.id ? { ...u, active: updated.active } : u))
+        setTeamSnack({ open: true, message: `${updated.fullName} deactivated.`, severity: 'success' })
+      } else if (teamActionDialog === 'reactivate') {
+        const updated = await reactivateAdminUser(teamActionTarget.id)
+        setTeam(prev => prev.map(u => u.id === updated.id ? { ...u, active: updated.active } : u))
+        setTeamSnack({ open: true, message: `${updated.fullName} reactivated.`, severity: 'success' })
+      } else if (teamActionDialog === 'reset') {
+        const result = await resetAdminUserPassword(teamActionTarget.id)
+        setTeamSnack({ open: true, message: `Password reset sent to ${result.recipientEmail}.`, severity: 'success' })
+      }
+      setTeamActionDialog(null)
+      setTeamActionTarget(null)
+    } catch (e: any) {
+      setTeamSnack({ open: true, message: e?.response?.data?.message ?? 'Action failed', severity: 'error' })
+    } finally {
+      setTeamActionLoading(false)
+    }
+  }
+
+  async function loadWallet(tenantSlug: string) {
+    setWalletLoading(true)
+    try { setWallet(await getTenantWallet(tenantSlug)) }
+    catch { setWallet(null) }
+    finally { setWalletLoading(false) }
+  }
+
+  async function handleWalletFreeze() {
+    if (!wallet) return
+    setWalletError('')
+    setWalletActing(true)
+    try {
+      const isFrozen = wallet.status === 'FROZEN'
+      const updated = isFrozen
+        ? await unfreezeTenantWallet(tenantId)
+        : await freezeTenantWallet(tenantId)
+      setWallet(updated)
+    } catch (e: any) {
+      setWalletError(e?.response?.data?.message ?? e?.message ?? 'Failed to update wallet status.')
+    } finally { setWalletActing(false) }
+  }
+
+  async function handleWalletAdjust() {
+    const amt = parseFloat(adjustAmount)
+    if (isNaN(amt) || amt <= 0) {
+      setAdjustError('Enter a valid positive amount.')
+      return
+    }
+    setAdjustError('')
+    setWalletActing(true)
+    try {
+      const updated = await adjustTenantWallet(tenantId, {
+        type: adjustType,
+        amount: amt,
+        reason: adjustReason.trim() || undefined
+      })
+      setWallet(updated)
+      setAdjustOpen(false)
+      setAdjustAmount(''); setAdjustReason('')
+    } catch (e: any) {
+      setAdjustError(e?.response?.data?.message ?? e?.message ?? 'Failed to adjust wallet.')
+    } finally { setWalletActing(false) }
+  }
+
+  async function loadAgreements(tenantSlug: string, page = 0, size = agreementsPageSize) {
+    setAgreementsLoading(true)
+    try {
+      const data = await getTenantAgreements(tenantSlug, page, size)
+      setAgreements(data.items); setAgreementsTotal(data.total); setAgreementsPage(page)
+    } catch { setAgreements([]) }
+    finally { setAgreementsLoading(false) }
+  }
+
+  async function loadPayments(tenantSlug: string, page = 0, size = paymentsPageSize) {
+    setPaymentsLoading(true)
+    try {
+      const data = await getTenantPayments(tenantSlug, page, size)
+      setPayments(data.items); setPaymentsTotal(data.total); setPaymentsPage(page)
+    } catch { setPayments([]) }
+    finally { setPaymentsLoading(false) }
+  }
+
+  async function loadInspections(tenantSlug: string, page = 0, size = inspectionsPageSize) {
+    setInspectionsLoading(true)
+    try {
+      const data = await getTenantInspections(tenantSlug, page, size)
+      setInspections(data.items); setInspectionsTotal(data.total); setInspectionsPage(page)
+    } catch { setInspections([]) }
+    finally { setInspectionsLoading(false) }
+  }
+
+  async function loadMaintenance(tenantSlug: string, page = 0, size = maintenancePageSize) {
+    setMaintenanceLoading(true)
+    try {
+      const data = await getTenantMaintenance(tenantSlug, page, size)
+      setMaintenance(data.items); setMaintenanceTotal(data.total); setMaintenancePage(page)
+    } catch { setMaintenance([]) }
+    finally { setMaintenanceLoading(false) }
+  }
+
   // ── Offboard ──────────────────────────────────────────────────────────────
   function handleOffboarded() {
     router.push('/admin/tenants')
@@ -830,6 +1287,361 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     setReactivateOpen(false)
     setToast('Tenant reactivated')
   }
+
+  // ── TanStack table column definitions ────────────────────────────────────
+
+  // Login History table
+  const loginColHelper = createColumnHelper<LoginHistoryItem>()
+  const loginCols = [
+    loginColHelper.accessor('email', { header: 'Email', cell: info => <Typography variant='body2' noWrap>{info.getValue()}</Typography> }),
+    loginColHelper.accessor('ipAddress', { header: 'IP Address', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    loginColHelper.accessor('userAgent', { header: 'User Agent', cell: info => <Typography variant='body2' noWrap color='text.secondary' sx={{ fontSize: '0.75rem', maxWidth: 220 }} title={info.getValue() ?? ''}>{info.getValue() ?? '—'}</Typography> }),
+    loginColHelper.accessor('success', { header: 'Result', cell: info => <Chip label={info.getValue() ? 'OK' : info.row.original.failureReason ?? 'FAIL'} size='small' color={info.getValue() ? 'success' : 'error'} sx={{ fontSize: '0.7rem' }} /> }),
+    loginColHelper.accessor('createdAt', { header: 'Time', cell: info => <Typography variant='body2' sx={{ fontSize: '0.75rem' }} color='text.secondary'>{new Date(info.getValue()).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</Typography> }),
+  ]
+  const loginTable = useReactTable({
+    data: loginHistory,
+    columns: loginCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(loginHistoryTotal / loginHistoryPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // API Keys table
+  const apiKeyColHelper = createColumnHelper<ApiKeyDto>()
+  const apiKeyCols = [
+    apiKeyColHelper.accessor('name', {
+      header: 'Name',
+      cell: info => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant='body2'>{info.getValue()}</Typography>
+          {!info.row.original.active && <Chip label='Revoked' size='small' color='default' sx={{ fontSize: '0.65rem' }} />}
+        </Box>
+      )
+    }),
+    apiKeyColHelper.accessor('keyPrefix', { header: 'Prefix', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{info.getValue()}…</Typography> }),
+    apiKeyColHelper.accessor('createdAt', { header: 'Created', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{formatDate(info.getValue())}</Typography> }),
+    apiKeyColHelper.accessor('lastUsedAt', { header: 'Last Used', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? formatDate(info.getValue()) : '—'}</Typography> }),
+    apiKeyColHelper.display({
+      id: 'actions',
+      header: () => null,
+      cell: info => (
+        <Box sx={{ textAlign: 'right' }}>
+          {info.row.original.active && (
+            <Tooltip title='Revoke key'>
+              <IconButton size='small' color='error' onClick={() => handleRevokeKey(info.row.original.id)}>
+                <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
+      )
+    }),
+  ]
+  const apiKeyTable = useReactTable({
+    data: apiKeys,
+    columns: apiKeyCols,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  // Invoice History table
+  const invColHelper = createColumnHelper<AdminInvoiceDto>()
+  const invCols = [
+    invColHelper.display({
+      id: 'period',
+      header: 'Period',
+      cell: info => <Typography variant='body2' sx={{ fontSize: '0.8rem' }}>{formatDate(info.row.original.periodStart)} – {formatDate(info.row.original.periodEnd)}</Typography>
+    }),
+    invColHelper.accessor('invoiceType', { header: 'Type', cell: info => <Typography variant='body2' sx={{ fontSize: '0.8rem' }}>{info.getValue() === 'RENEWAL' ? 'Renewal' : 'Upgrade'}</Typography> }),
+    invColHelper.accessor('totalAmount', { header: 'Amount', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>GHS {info.getValue().toFixed(2)}</Typography> }),
+    invColHelper.accessor('status', {
+      header: 'Status',
+      cell: info => {
+        const c: 'success' | 'error' | 'warning' | 'default' = info.getValue() === 'PAID' ? 'success' : info.getValue() === 'FAILED' ? 'error' : info.getValue() === 'PENDING' ? 'warning' : 'default'
+        return <Chip label={info.getValue()} size='small' color={c} sx={{ fontSize: '0.65rem', height: 20 }} />
+      }
+    }),
+    invColHelper.accessor('createdAt', { header: 'Date', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{formatDate(info.getValue())}</Typography> }),
+    invColHelper.display({
+      id: 'actions',
+      header: 'Actions',
+      cell: info => {
+        const inv = info.row.original
+        return (
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+            {inv.status === 'FAILED' && (
+              <Tooltip title='Retry payment now'>
+                <span>
+                  <IconButton size='small' color='warning' onClick={() => handleRetryInvoice(inv)} disabled={retryingId === inv.id || voidingId === inv.id}>
+                    {retryingId === inv.id ? <CircularProgress size={14} color='inherit' /> : <i className='ri-refresh-line' style={{ fontSize: '0.9rem' }} />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+            {(inv.status === 'FAILED' || inv.status === 'PENDING') && (
+              <Tooltip title='Void / write-off'>
+                <span>
+                  <IconButton size='small' color='error' onClick={() => { setVoidConfirmInv(inv); setVoidReason('') }} disabled={retryingId === inv.id || voidingId === inv.id}>
+                    {voidingId === inv.id ? <CircularProgress size={14} color='inherit' /> : <i className='ri-delete-bin-line' style={{ fontSize: '0.9rem' }} />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
+            {inv.status === 'VOID' && inv.voidReason && (
+              <Tooltip title={`Voided: ${inv.voidReason}`}>
+                <i className='ri-information-line' style={{ fontSize: '0.85rem', color: 'var(--mui-palette-text-disabled)' }} />
+              </Tooltip>
+            )}
+          </Box>
+        )
+      }
+    }),
+  ]
+  const invTable = useReactTable({
+    data: invoices,
+    columns: invCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(invoicesTotal / invoicesPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Active Sessions table
+  const sessColHelper = createColumnHelper<SessionDto>()
+  const sessCols = [
+    sessColHelper.accessor('familyId', { header: 'Session ID', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.72rem' }}>{info.getValue().split('-')[0]}…</Typography> }),
+    sessColHelper.accessor('ipAddress', { header: 'IP Address', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    sessColHelper.accessor('userAgent', {
+      header: 'Device',
+      cell: info => (
+        <Tooltip title={info.getValue() ?? ''}>
+          <Typography variant='body2' noWrap color='text.secondary' sx={{ fontSize: '0.75rem', maxWidth: 200 }}>
+            {info.getValue() ? info.getValue()!.slice(0, 40) + (info.getValue()!.length > 40 ? '…' : '') : '—'}
+          </Typography>
+        </Tooltip>
+      )
+    }),
+    sessColHelper.accessor('issuedAt', { header: 'Issued', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{new Date(info.getValue()).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</Typography> }),
+    sessColHelper.accessor('expiresAt', { header: 'Expires', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{new Date(info.getValue()).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</Typography> }),
+    sessColHelper.display({
+      id: 'actions',
+      header: () => null,
+      cell: info => canManage ? (
+        <Box sx={{ textAlign: 'right' }}>
+          <Tooltip title='Terminate this session'>
+            <span>
+              <IconButton size='small' color='error' onClick={() => handleTerminateSession(info.row.original.familyId)} disabled={terminatingSession === info.row.original.familyId || terminatingAll}>
+                {terminatingSession === info.row.original.familyId ? <CircularProgress size={14} color='inherit' /> : <i className='ri-logout-box-r-line' style={{ fontSize: '0.9rem' }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+      ) : null
+    }),
+  ]
+  const sessTable = useReactTable({
+    data: sessions,
+    columns: sessCols,
+    getCoreRowModel: getCoreRowModel(),
+  })
+
+  // Properties table
+  const propColHelper = createColumnHelper<AdminPropertySummary>()
+  const propCols = [
+    propColHelper.accessor('name', { header: 'Name', cell: info => <Typography variant='body2' fontWeight={500} noWrap>{info.getValue()}</Typography> }),
+    propColHelper.accessor('type', { header: 'Type', cell: info => <Chip label={info.getValue()} size='small' variant='outlined' sx={{ fontSize: '0.65rem', height: 20, textTransform: 'capitalize' }} /> }),
+    propColHelper.accessor('status', { header: 'Status', cell: info => <Chip label={info.getValue()} size='small' color={info.getValue() === 'active' ? 'success' : 'default'} sx={{ fontSize: '0.65rem', height: 20 }} /> }),
+    propColHelper.accessor('city', { header: 'City', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.78rem' }} noWrap>{info.getValue() ?? '—'}</Typography> }),
+    propColHelper.accessor('region', { header: 'Region', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.78rem' }} noWrap>{info.getValue() ?? '—'}</Typography> }),
+    propColHelper.accessor('totalUnits', { header: 'Units', cell: info => <Typography variant='body2' sx={{ fontSize: '0.78rem', textAlign: 'right', display: 'block' }}>{info.getValue()}</Typography> }),
+    propColHelper.accessor('occupiedUnits', { header: 'Occ.', cell: info => <Typography variant='body2' sx={{ fontSize: '0.78rem', textAlign: 'right', display: 'block' }}>{info.getValue()}</Typography> }),
+  ]
+  const propTable = useReactTable({
+    data: properties,
+    columns: propCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(propertiesTotal / propertiesPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Units table
+  const unitColHelper = createColumnHelper<AdminUnitSummary>()
+  const unitCols = [
+    unitColHelper.accessor('unitNo', { header: 'Unit No', cell: info => <Typography variant='body2' fontWeight={600} sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{info.getValue()}</Typography> }),
+    unitColHelper.accessor('propertyName', { header: 'Property', cell: info => <Typography variant='body2' noWrap color='text.secondary' sx={{ fontSize: '0.78rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    unitColHelper.accessor('type', { header: 'Type', cell: info => <Chip label={info.getValue()} size='small' variant='outlined' sx={{ fontSize: '0.65rem', height: 20, textTransform: 'capitalize' }} /> }),
+    unitColHelper.accessor('status', { header: 'Status', cell: info => <Chip label={info.getValue()} size='small' color={info.getValue() === 'available' ? 'success' : 'default'} sx={{ fontSize: '0.65rem', height: 20 }} /> }),
+    unitColHelper.display({
+      id: 'rent',
+      header: 'Rent',
+      cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{info.row.original.currency} {info.row.original.rent.toFixed(2)}</Typography>
+    }),
+  ]
+  const unitTable = useReactTable({
+    data: units,
+    columns: unitCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(unitsTotal / unitsPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Occupants table
+  const occColHelper = createColumnHelper<AdminOccupantSummary>()
+  const occCols = [
+    occColHelper.display({
+      id: 'name',
+      header: 'Name',
+      cell: info => <Typography variant='body2' fontWeight={500} noWrap>{info.row.original.firstName} {info.row.original.lastName}</Typography>
+    }),
+    occColHelper.accessor('email', { header: 'Email', cell: info => <Typography variant='body2' color='text.secondary' noWrap sx={{ fontSize: '0.78rem' }}>{info.getValue()}</Typography> }),
+    occColHelper.accessor('status', { header: 'Status', cell: info => <Chip label={info.getValue()} size='small' color={info.getValue() === 'active' ? 'success' : info.getValue() === 'pending' ? 'warning' : 'default'} sx={{ fontSize: '0.65rem', height: 20 }} /> }),
+    occColHelper.accessor('unitNo', { header: 'Unit', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    occColHelper.accessor('moveInDate', { header: 'Move-in', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+  ]
+  const occTable = useReactTable({
+    data: occupants,
+    columns: occCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(occupantsTotal / occupantsPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Team Members table
+  const teamColHelper = createColumnHelper<AdminTeamMemberSummary>()
+  const teamCols = [
+    teamColHelper.accessor('fullName', { header: 'Name', cell: info => <Typography variant='body2' fontWeight={500} noWrap>{info.getValue()}</Typography> }),
+    teamColHelper.accessor('email', { header: 'Email', cell: info => <Typography variant='body2' color='text.secondary' noWrap sx={{ fontSize: '0.78rem' }}>{info.getValue()}</Typography> }),
+    teamColHelper.accessor('role', { header: 'Role', cell: info => <Chip label={info.getValue()} size='small' color={info.getValue() === 'ADMIN' ? 'primary' : 'default'} variant='tonal' sx={{ fontSize: '0.65rem', height: 20 }} /> }),
+    teamColHelper.accessor('active', { header: 'Status', cell: info => <Chip label={info.getValue() ? 'Active' : 'Inactive'} size='small' color={info.getValue() ? 'success' : 'error'} variant='tonal' sx={{ fontSize: '0.65rem', height: 20 }} /> }),
+    teamColHelper.accessor('createdAt', { header: 'Joined', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+    teamColHelper.display({
+      id: 'team-actions',
+      header: '',
+      cell: info => (
+        <Tooltip title='Actions'>
+          <IconButton
+            size='small'
+            onClick={e => { setTeamActionAnchor(e.currentTarget); setTeamActionTarget(info.row.original) }}
+          >
+            <i className='ri-more-2-line' style={{ fontSize: '1rem' }} />
+          </IconButton>
+        </Tooltip>
+      ),
+    }),
+  ]
+  const teamTable = useReactTable({
+    data: team,
+    columns: teamCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(teamTotal / teamPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Agreements table
+  const agreeColHelper = createColumnHelper<AdminAgreementSummary>()
+  const agreeCols = [
+    agreeColHelper.accessor('agreementNumber', { header: 'Number', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    agreeColHelper.accessor('type', { header: 'Type', cell: info => <Chip label={info.getValue() ?? '—'} size='small' variant='tonal' color='info' sx={{ fontSize: '0.65rem' }} /> }),
+    agreeColHelper.accessor('status', { header: 'Status', cell: info => <Chip label={info.getValue() ?? '—'} size='small' color={info.getValue() === 'ACTIVE' ? 'success' : info.getValue() === 'EXPIRED' ? 'default' : info.getValue() === 'TERMINATED' ? 'error' : 'warning'} sx={{ fontSize: '0.65rem' }} /> }),
+    agreeColHelper.accessor('occupantName', { header: 'Occupant', cell: info => <Typography variant='body2'>{info.getValue() ?? '—'}</Typography> }),
+    agreeColHelper.accessor('unitNo', { header: 'Unit', cell: info => <Typography variant='body2' sx={{ fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    agreeColHelper.accessor('rent', { header: 'Rent', cell: info => <Typography variant='body2' sx={{ fontSize: '0.75rem' }}>{info.getValue() != null ? `${info.row.original.currency ?? ''} ${Number(info.getValue()).toFixed(2)}` : '—'}</Typography> }),
+    agreeColHelper.accessor('startDate', { header: 'Start', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+    agreeColHelper.accessor('endDate', { header: 'End', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+  ]
+  const agreeTable = useReactTable({
+    data: agreements,
+    columns: agreeCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(agreementsTotal / agreementsPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Payments table
+  const payColHelper = createColumnHelper<AdminPaymentSummary>()
+  const payCols = [
+    payColHelper.accessor('invoiceNumber', { header: 'Invoice #', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    payColHelper.accessor('occupantName', { header: 'Occupant', cell: info => <Typography variant='body2'>{info.getValue() ?? '—'}</Typography> }),
+    payColHelper.accessor('amount', { header: 'Amount', cell: info => <Typography variant='body2' fontWeight={600}>{info.row.original.currency ?? ''} {Number(info.getValue()).toFixed(2)}</Typography> }),
+    payColHelper.accessor('paymentMethod', { header: 'Method', cell: info => <Chip label={info.getValue() ?? '—'} size='small' variant='outlined' sx={{ fontSize: '0.65rem' }} /> }),
+    payColHelper.accessor('status', { header: 'Status', cell: info => <Chip label={info.getValue() ?? '—'} size='small' color={info.getValue() === 'COMPLETED' || info.getValue() === 'SUCCESS' ? 'success' : info.getValue() === 'PENDING' ? 'warning' : 'error'} sx={{ fontSize: '0.65rem' }} /> }),
+    payColHelper.accessor('paymentDate', { header: 'Date', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+  ]
+  const payTable = useReactTable({
+    data: payments,
+    columns: payCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(paymentsTotal / paymentsPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Inspections table
+  const inspColHelper = createColumnHelper<AdminInspectionSummary>()
+  const inspCols = [
+    inspColHelper.accessor('type', { header: 'Type', cell: info => <Chip label={info.getValue() ?? '—'} size='small' variant='tonal' color='info' sx={{ fontSize: '0.65rem' }} /> }),
+    inspColHelper.accessor('status', { header: 'Status', cell: info => <Chip label={info.getValue() ?? '—'} size='small' color={info.getValue() === 'COMPLETED' ? 'success' : 'warning'} sx={{ fontSize: '0.65rem' }} /> }),
+    inspColHelper.accessor('unitNo', { header: 'Unit', cell: info => <Typography variant='body2' sx={{ fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    inspColHelper.accessor('propertyName', { header: 'Property', cell: info => <Typography variant='body2' noWrap sx={{ maxWidth: 180 }}>{info.getValue() ?? '—'}</Typography> }),
+    inspColHelper.accessor('inspectorName', { header: 'Inspector', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    inspColHelper.accessor('inspectionDate', { header: 'Inspection Date', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+    inspColHelper.accessor('signedOffDate', { header: 'Signed Off', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+  ]
+  const inspTable = useReactTable({
+    data: inspections,
+    columns: inspCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(inspectionsTotal / inspectionsPageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  // Maintenance table
+  const maintColHelper = createColumnHelper<AdminMaintenanceSummary>()
+  const maintCols = [
+    maintColHelper.accessor('requestNumber', { header: 'Ref #', cell: info => <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{info.getValue() ?? '—'}</Typography> }),
+    maintColHelper.accessor('title', { header: 'Title', cell: info => <Typography variant='body2' noWrap sx={{ maxWidth: 200 }}>{info.getValue() ?? '—'}</Typography> }),
+    maintColHelper.accessor('priority', { header: 'Priority', cell: info => <Chip label={info.getValue() ?? '—'} size='small' color={info.getValue() === 'urgent' ? 'error' : info.getValue() === 'high' ? 'warning' : info.getValue() === 'medium' ? 'info' : 'default'} sx={{ fontSize: '0.65rem' }} /> }),
+    maintColHelper.accessor('status', { header: 'Status', cell: info => <Chip label={info.getValue() ?? '—'} size='small' variant='tonal' sx={{ fontSize: '0.65rem' }} /> }),
+    maintColHelper.accessor('isSlaBreached', { header: 'SLA', cell: info => info.getValue() ? <Chip label='Breached' size='small' color='error' sx={{ fontSize: '0.65rem' }} /> : <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>OK</Typography> }),
+    maintColHelper.accessor('estimatedCost', { header: 'Est. Cost', cell: info => <Typography variant='body2' sx={{ fontSize: '0.75rem' }}>{info.getValue() != null ? `${info.row.original.currency ?? ''} ${Number(info.getValue()).toFixed(2)}` : '—'}</Typography> }),
+    maintColHelper.accessor('scheduledDate', { header: 'Scheduled', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
+  ]
+  const maintTable = useReactTable({
+    data: maintenance,
+    columns: maintCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(maintenanceTotal / maintenancePageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   // ── Loading / error ───────────────────────────────────────────────────────
   if (loading) {
@@ -873,6 +1685,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
             <Button variant='outlined' startIcon={<i className='ri-pencil-line' />} onClick={() => setEditOpen(true)}>Edit</Button>
             <Button variant='outlined' startIcon={<i className='ri-mail-send-line' />} onClick={() => setMessageOpen(true)}>Message</Button>
             <Button variant='outlined' color='warning' startIcon={<i className='ri-lock-password-line' />} onClick={() => setResetPasswordOpen(true)}>Reset Password</Button>
+            <Button variant='outlined' color='secondary' startIcon={<i className='ri-spy-line' />} onClick={() => setImpersonateOpen(true)}>Impersonate</Button>
             {tenant.active ? (
               <Button variant='outlined' color='error' startIcon={<i className='ri-forbid-line' />} onClick={() => setDeactivateOpen(true)}>Deactivate</Button>
             ) : (
@@ -939,12 +1752,63 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
                 </Typography>
               </InfoRow>
               <Divider />
+              <InfoRow label='Owner'>
+                <Typography variant='body2' fontWeight={600}>{tenant.ownerName ?? '—'}</Typography>
+              </InfoRow>
+              <Divider />
+              <InfoRow label='Owner Email'>
+                {tenant.ownerEmail
+                  ? <Typography variant='body2' component='a' href={`mailto:${tenant.ownerEmail}`} sx={{ color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}>{tenant.ownerEmail}</Typography>
+                  : <Typography variant='body2' color='text.disabled'>—</Typography>
+                }
+              </InfoRow>
+              <Divider />
               <InfoRow label='Status'>
                 <Chip size='small' label={tenant.active ? 'Active' : 'Inactive'} color={tenant.active ? 'success' : 'default'} variant='outlined' />
               </InfoRow>
               <Divider />
               <InfoRow label='Registered'>
                 <Typography variant='body2'>{formatDate(tenant.createdAt)}</Typography>
+              </InfoRow>
+              <Divider />
+              <InfoRow label='Properties'>
+                {snapLoading
+                  ? <Skeleton variant='text' width={60} />
+                  : <Typography variant='body2'>{snap ? `${snap.propertyCount} propert${snap.propertyCount === 1 ? 'y' : 'ies'}` : '—'}</Typography>
+                }
+              </InfoRow>
+              <Divider />
+              <InfoRow label='Occupancy'>
+                {snapLoading
+                  ? <Skeleton variant='text' width={80} />
+                  : <Typography variant='body2'>
+                      {snap ? `${snap.occupiedUnits} / ${snap.totalUnits} units occupied` : '—'}
+                    </Typography>
+                }
+              </InfoRow>
+              <Divider />
+              <InfoRow label='Wallet'>
+                {walletLoading
+                  ? <Skeleton variant='text' width={100} />
+                  : wallet
+                    ? <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant='body2' fontWeight={600}>
+                          {new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS' }).format(wallet.balance)}
+                        </Typography>
+                        <Chip size='small' label={wallet.status} variant='tonal'
+                          color={wallet.status === 'ACTIVE' ? 'success' : wallet.status === 'FROZEN' ? 'error' : 'warning'} />
+                      </Box>
+                    : <Typography variant='body2' color='text.disabled'>—</Typography>
+                }
+              </InfoRow>
+              <Divider />
+              <InfoRow label='MoMo Number'>
+                {walletLoading
+                  ? <Skeleton variant='text' width={120} />
+                  : wallet?.linkedMomoNumber
+                    ? <Typography variant='body2'>{wallet.linkedMomoNumber}{wallet.linkedMomoNetwork ? ` (${wallet.linkedMomoNetwork})` : ''}</Typography>
+                    : <Typography variant='body2' color='text.disabled'>Not linked</Typography>
+                }
               </InfoRow>
             </CardContent>
           </Card>
@@ -1294,74 +2158,36 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
               <CircularProgress size={28} />
             </Box>
-          ) : loginHistory.length === 0 ? (
-            <Typography variant='body2' color='text.secondary' sx={{ py: 2, textAlign: 'center' }}>
-              No login attempts found.
-            </Typography>
           ) : (
             <>
-              {/* Table header */}
-              <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 2fr 80px 160px', gap: 1, px: 1, mb: 0.5 }}>
-                {['Email', 'IP Address', 'User Agent', 'Result', 'Time'].map(h => (
-                  <Typography key={h} variant='caption' color='text.secondary' fontWeight={600}>{h}</Typography>
-                ))}
-              </Box>
-              <Divider sx={{ mb: 1 }} />
-              {loginHistory.map((item, idx) => (
-                <Box
-                  key={item.id ?? idx}
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: '2fr 1.2fr 2fr 80px 160px',
-                    gap: 1,
-                    px: 1,
-                    py: 0.75,
-                    borderRadius: 1,
-                    '&:hover': { bgcolor: 'action.hover' },
-                    alignItems: 'center',
-                  }}
-                >
-                  <Typography variant='body2' noWrap title={item.email}>{item.email}</Typography>
-                  <Typography variant='body2' noWrap sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                    {item.ipAddress ?? '—'}
-                  </Typography>
-                  <Typography variant='body2' noWrap title={item.userAgent ?? ''} color='text.secondary' sx={{ fontSize: '0.75rem' }}>
-                    {item.userAgent ?? '—'}
-                  </Typography>
-                  <Chip
-                    label={item.success ? 'OK' : item.failureReason ?? 'FAIL'}
-                    size='small'
-                    color={item.success ? 'success' : 'error'}
-                    sx={{ fontSize: '0.7rem' }}
-                  />
-                  <Typography variant='body2' sx={{ fontSize: '0.75rem' }} color='text.secondary'>
-                    {new Date(item.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}
-                  </Typography>
-                </Box>
-              ))}
-
-              {/* Pagination */}
-              {loginHistoryTotal > 10 && (
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 2, gap: 1 }}>
-                  <Typography variant='body2' color='text.secondary'>
-                    Page {loginHistoryPage + 1} of {Math.ceil(loginHistoryTotal / 10)}
-                  </Typography>
-                  <Button
-                    size='small'
-                    disabled={loginHistoryPage === 0}
-                    onClick={() => tenant && loadLoginHistory(tenant.tenant_id, loginHistoryPage - 1, loginHistoryFilter)}
-                  >
-                    Prev
-                  </Button>
-                  <Button
-                    size='small'
-                    disabled={(loginHistoryPage + 1) * 10 >= loginHistoryTotal}
-                    onClick={() => tenant && loadLoginHistory(tenant.tenant_id, loginHistoryPage + 1, loginHistoryFilter)}
-                  >
-                    Next
-                  </Button>
-                </Box>
-              )}
+              <table className={tableStyles.table}>
+                <thead>
+                  {loginTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {loginTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No login attempts found.</td></tr>
+                    : loginTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={loginHistoryTotal}
+                rowsPerPage={loginHistoryPageSize}
+                page={loginHistoryPage}
+                onPageChange={(_, p) => tenant && loadLoginHistory(tenant.tenant_id, p, loginHistoryFilter, loginHistoryPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setLoginHistoryPageSize(s); if (tenant) loadLoginHistory(tenant.tenant_id, 0, loginHistoryFilter, s) }}
+              />
             </>
           )}
         </CardContent>
@@ -1398,56 +2224,27 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
               <CircularProgress size={24} />
             </Box>
-          ) : apiKeys.length === 0 ? (
-            <Typography variant='body2' color='text.secondary' sx={{ textAlign: 'center', py: 2 }}>
-              No API keys yet.
-            </Typography>
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {/* Header */}
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 100px 140px 140px 80px', gap: 1, px: 1 }}>
-                {['Name', 'Prefix', 'Created', 'Last Used', ''].map(h => (
-                  <Typography key={h} variant='caption' color='text.secondary' fontWeight={600}>{h}</Typography>
-                ))}
-              </Box>
-              <Divider />
-              {apiKeys.map(k => (
-                <Box
-                  key={k.id}
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 100px 140px 140px 80px',
-                    gap: 1,
-                    px: 1,
-                    py: 0.75,
-                    alignItems: 'center',
-                    borderRadius: 1,
-                    opacity: k.active ? 1 : 0.5,
-                    '&:hover': { bgcolor: 'action.hover' },
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant='body2'>{k.name}</Typography>
-                    {!k.active && <Chip label='Revoked' size='small' color='default' sx={{ fontSize: '0.65rem' }} />}
-                  </Box>
-                  <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{k.keyPrefix}…</Typography>
-                  <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>
-                    {formatDate(k.createdAt)}
-                  </Typography>
-                  <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>
-                    {k.lastUsedAt ? formatDate(k.lastUsedAt) : '—'}
-                  </Typography>
-                  <Box>
-                    {k.active && (
-                      <Tooltip title='Revoke key'>
-                        <IconButton size='small' color='error' onClick={() => handleRevokeKey(k.id)}>
-                          <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                  </Box>
-                </Box>
-              ))}
+            <Box sx={{ opacity: 1 }}>
+              <table className={tableStyles.table}>
+                <thead>
+                  {apiKeyTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {apiKeyTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No API keys yet.</td></tr>
+                    : apiKeyTable.getRowModel().rows.map(row => (
+                      <tr key={row.id} style={{ opacity: row.original.active ? 1 : 0.5 }}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
             </Box>
           )}
         </CardContent>
@@ -1475,84 +2272,695 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {[...Array(3)].map((_, i) => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
             </Box>
-          ) : invoices.length === 0 ? (
-            <Typography variant='body2' color='text.secondary'>No invoices found for this tenant.</Typography>
           ) : (
-            <Box>
-              {/* Header row */}
-              <Box
-                sx={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 100px 100px 80px 110px',
-                  gap: 1,
-                  px: 1,
-                  pb: 0.5,
-                }}
-              >
-                {['Period', 'Type', 'Amount', 'Status', 'Date'].map(h => (
-                  <Typography key={h} variant='caption' color='text.secondary' fontWeight={600}>{h}</Typography>
-                ))}
-              </Box>
-              <Divider />
-              {invoices.map(inv => {
-                const statusColor: 'success' | 'error' | 'warning' | 'default' =
-                  inv.status === 'PAID'    ? 'success' :
-                  inv.status === 'FAILED'  ? 'error' :
-                  inv.status === 'PENDING' ? 'warning' : 'default'
-                return (
-                  <Box
-                    key={inv.id}
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: '1fr 100px 100px 80px 110px',
-                      gap: 1,
-                      px: 1,
-                      py: 0.75,
-                      alignItems: 'center',
-                      borderRadius: 1,
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
-                    <Typography variant='body2' sx={{ fontSize: '0.8rem' }}>
-                      {formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}
-                    </Typography>
-                    <Typography variant='body2' sx={{ fontSize: '0.8rem' }}>
-                      {inv.invoiceType === 'RENEWAL' ? 'Renewal' : 'Upgrade'}
-                    </Typography>
-                    <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
-                      GHS {inv.totalAmount.toFixed(2)}
-                    </Typography>
-                    <Chip label={inv.status} size='small' color={statusColor} sx={{ fontSize: '0.65rem', height: 20 }} />
-                    <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>
-                      {formatDate(inv.createdAt)}
-                    </Typography>
-                  </Box>
-                )
-              })}
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {invTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {invTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No invoices found for this tenant.</td></tr>
+                    : invTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={invoicesTotal}
+                rowsPerPage={invoicesPageSize}
+                page={invoicesPage}
+                onPageChange={(_, p) => tenant && loadInvoices(tenant.tenant_id, p, invoicesPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setInvoicesPageSize(s); if (tenant) loadInvoices(tenant.tenant_id, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-              {/* Pagination */}
-              {invoicesTotalPages > 1 && (
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, mt: 1 }}>
-                  <Typography variant='caption' color='text.secondary'>
-                    {invoicesPage * 10 + 1}–{Math.min((invoicesPage + 1) * 10, invoicesTotal)} of {invoicesTotal}
-                  </Typography>
+      {/* ── Active Sessions ───────────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-shield-user-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Active Sessions</Typography>
+            {sessions.length > 0 && (
+              <Chip size='small' label={sessions.length} color='primary' variant='tonal' />
+            )}
+            <Box sx={{ ml: 'auto', display: 'flex', gap: 1, alignItems: 'center' }}>
+              <Tooltip title='Refresh sessions'>
+                <span>
                   <IconButton
                     size='small'
-                    disabled={invoicesPage === 0 || invoicesLoading}
-                    onClick={() => tenant && loadInvoices(tenant.tenant_id, invoicesPage - 1)}
+                    onClick={() => tenant && loadSessions(tenant.tenant_id)}
+                    disabled={sessionsLoading}
                   >
-                    <i className='ri-arrow-left-s-line' style={{ fontSize: '1rem' }} />
+                    {sessionsLoading
+                      ? <CircularProgress size={16} />
+                      : <i className='ri-refresh-line' style={{ fontSize: '1rem' }} />
+                    }
                   </IconButton>
-                  <IconButton
-                    size='small'
-                    disabled={invoicesPage >= invoicesTotalPages - 1 || invoicesLoading}
-                    onClick={() => tenant && loadInvoices(tenant.tenant_id, invoicesPage + 1)}
-                  >
-                    <i className='ri-arrow-right-s-line' style={{ fontSize: '1rem' }} />
-                  </IconButton>
-                </Box>
+                </span>
+              </Tooltip>
+              {sessions.length > 0 && canManage && (
+                <Button
+                  size='small'
+                  variant='outlined'
+                  color='error'
+                  startIcon={terminatingAll ? <CircularProgress size={14} color='inherit' /> : <i className='ri-shut-down-line' />}
+                  onClick={handleTerminateAllSessions}
+                  disabled={terminatingAll}
+                >
+                  Terminate All
+                </Button>
               )}
             </Box>
+          </Box>
+
+          {sessionsLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1, 2].map(i => <Skeleton key={i} variant='rectangular' height={44} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : sessions.length === 0 ? (
+            <Box sx={{ py: 3, textAlign: 'center' }}>
+              <i className='ri-shield-check-line' style={{ fontSize: '2rem', opacity: 0.3 }} />
+              <Typography variant='body2' color='text.disabled' sx={{ mt: 1 }}>No active sessions</Typography>
+            </Box>
+          ) : (
+            <table className={tableStyles.table}>
+              <thead>
+                {sessTable.getHeaderGroups().map(hg => (
+                  <tr key={hg.id}>
+                    {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {sessTable.getRowModel().rows.map(row => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <Typography variant='caption' color='text.secondary' sx={{ mt: 1.5, display: 'block' }}>
+            Sessions use short-lived access tokens (15 min). After termination, users are logged out within 15 minutes.
+          </Typography>
+        </CardContent>
+      </Card>
+
+      {/* ── Properties ───────────────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-building-2-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Properties</Typography>
+            <Chip size='small' label={propertiesTotal} variant='tonal' color='primary' />
+          </Box>
+          {propertiesLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2,3].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {propTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {propTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No properties found.</td></tr>
+                    : propTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={propertiesTotal}
+                rowsPerPage={propertiesPageSize}
+                page={propertiesPage}
+                onPageChange={(_, p) => loadProperties(tenantId, p, propertiesPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setPropertiesPageSize(s); loadProperties(tenantId, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Units ────────────────────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-door-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Units</Typography>
+            <Chip size='small' label={unitsTotal} variant='tonal' color='info' />
+          </Box>
+          {unitsLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2,3].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {unitTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {unitTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No units found.</td></tr>
+                    : unitTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={unitsTotal}
+                rowsPerPage={unitsPageSize}
+                page={unitsPage}
+                onPageChange={(_, p) => loadUnits(tenantId, p, unitsPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setUnitsPageSize(s); loadUnits(tenantId, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Occupants ────────────────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-user-home-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Occupants</Typography>
+            <Chip size='small' label={occupantsTotal} variant='tonal' color='warning' />
+          </Box>
+          {occupantsLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2,3].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {occTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {occTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No occupants found.</td></tr>
+                    : occTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={occupantsTotal}
+                rowsPerPage={occupantsPageSize}
+                page={occupantsPage}
+                onPageChange={(_, p) => loadOccupants(tenantId, p, occupantsPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setOccupantsPageSize(s); loadOccupants(tenantId, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Team ─────────────────────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-group-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Team Members</Typography>
+            <Chip size='small' label={teamTotal} variant='tonal' color='secondary' />
+          </Box>
+          {teamLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {teamTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {teamTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No team members found.</td></tr>
+                    : teamTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={teamTotal}
+                rowsPerPage={teamPageSize}
+                page={teamPage}
+                onPageChange={(_, p) => loadTeam(tenantId, p, teamPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setTeamPageSize(s); loadTeam(tenantId, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Team member action menu ──────────────────────────────────────────── */}
+      <Menu
+        anchorEl={teamActionAnchor}
+        open={Boolean(teamActionAnchor)}
+        onClose={() => { setTeamActionAnchor(null) }}
+      >
+        {teamActionTarget?.active ? (
+          <MenuItem onClick={() => { setTeamActionAnchor(null); setTeamActionDialog('deactivate') }}>
+            <i className='ri-user-forbid-line' style={{ marginRight: 8 }} />
+            Deactivate
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={() => { setTeamActionAnchor(null); setTeamActionDialog('reactivate') }}>
+            <i className='ri-user-follow-line' style={{ marginRight: 8 }} />
+            Reactivate
+          </MenuItem>
+        )}
+        <Divider />
+        <MenuItem onClick={() => { setTeamActionAnchor(null); setTeamActionDialog('reset') }}>
+          <i className='ri-lock-password-line' style={{ marginRight: 8 }} />
+          Send Password Reset
+        </MenuItem>
+      </Menu>
+
+      {/* Team action confirm dialog */}
+      <Dialog
+        open={Boolean(teamActionDialog && teamActionTarget)}
+        onClose={() => { if (!teamActionLoading) { setTeamActionDialog(null); setTeamActionTarget(null) } }}
+        maxWidth='xs'
+        fullWidth
+      >
+        <DialogTitle>
+          {teamActionDialog === 'deactivate' && 'Deactivate User'}
+          {teamActionDialog === 'reactivate' && 'Reactivate User'}
+          {teamActionDialog === 'reset'      && 'Send Password Reset'}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {teamActionDialog === 'deactivate' && `Deactivate ${teamActionTarget?.fullName ?? ''}? They will not be able to log in until reactivated.`}
+            {teamActionDialog === 'reactivate' && `Reactivate ${teamActionTarget?.fullName ?? ''}?`}
+            {teamActionDialog === 'reset'      && `Send a password reset OTP email to ${teamActionTarget?.fullName ?? ''} (${teamActionTarget?.email ?? ''})?`}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setTeamActionDialog(null); setTeamActionTarget(null) }} disabled={teamActionLoading}>
+            Cancel
+          </Button>
+          <Button
+            variant='contained'
+            color={teamActionDialog === 'deactivate' ? 'error' : 'primary'}
+            onClick={handleTeamAction}
+            disabled={teamActionLoading}
+          >
+            {teamActionLoading
+              ? <CircularProgress size={18} color='inherit' />
+              : teamActionDialog === 'deactivate' ? 'Deactivate'
+              : teamActionDialog === 'reactivate' ? 'Reactivate'
+              : 'Send Reset Email'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Team action snackbar */}
+      <Snackbar
+        open={teamSnack.open}
+        autoHideDuration={4000}
+        onClose={() => setTeamSnack(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert severity={teamSnack.severity} onClose={() => setTeamSnack(s => ({ ...s, open: false }))}>
+          {teamSnack.message}
+        </Alert>
+      </Snackbar>
+
+      {/* ── Wallet ───────────────────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-wallet-3-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Wallet</Typography>
+            {wallet && (
+              <Chip size='small' label={wallet.status} color={wallet.status === 'ACTIVE' ? 'success' : wallet.status === 'SUSPENDED' ? 'warning' : 'error'} variant='tonal' />
+            )}
+            {wallet && (
+              <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+                <Button
+                  size='small'
+                  variant='outlined'
+                  color={wallet.status === 'FROZEN' ? 'success' : 'warning'}
+                  disabled={walletActing || wallet.status === 'SUSPENDED'}
+                  startIcon={walletActing ? <CircularProgress size={12} color='inherit' /> : <i className={wallet.status === 'FROZEN' ? 'ri-lock-unlock-line' : 'ri-lock-line'} />}
+                  onClick={handleWalletFreeze}
+                >
+                  {wallet.status === 'FROZEN' ? 'Unfreeze' : 'Freeze'}
+                </Button>
+                <Button
+                  size='small'
+                  variant='outlined'
+                  color='primary'
+                  disabled={walletActing}
+                  startIcon={<i className='ri-exchange-dollar-line' />}
+                  onClick={() => { setAdjustError(''); setAdjustOpen(true) }}
+                >
+                  Adjust Balance
+                </Button>
+              </Box>
+            )}
+          </Box>
+          {walletError && (
+            <Alert severity='error' onClose={() => setWalletError('')} sx={{ mb: 2 }}>{walletError}</Alert>
+          )}
+          {walletLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2].map(i => <Skeleton key={i} variant='rectangular' height={32} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : !wallet ? (
+            <Typography variant='body2' color='text.secondary' sx={{ py: 2, textAlign: 'center' }}>No wallet found — tenant may not have enabled rent collection.</Typography>
+          ) : (
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={3}>
+                <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                  <Typography variant='caption' color='text.secondary'>Balance</Typography>
+                  <Typography variant='h6' fontWeight={700}>{wallet.currency} {wallet.balance.toFixed(2)}</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                  <Typography variant='caption' color='text.secondary'>Pending</Typography>
+                  <Typography variant='h6' fontWeight={700}>{wallet.currency} {wallet.pendingBalance.toFixed(2)}</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                  <Typography variant='caption' color='text.secondary'>Total Earned</Typography>
+                  <Typography variant='h6' fontWeight={700}>{wallet.currency} {wallet.totalEarned.toFixed(2)}</Typography>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                  <Typography variant='caption' color='text.secondary'>Total Withdrawn</Typography>
+                  <Typography variant='h6' fontWeight={700}>{wallet.currency} {wallet.totalWithdrawn.toFixed(2)}</Typography>
+                </Box>
+              </Grid>
+              {(wallet.linkedMomoNumber || wallet.linkedMomoNetwork) && (
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
+                    <Typography variant='body2' color='text.secondary'>MoMo:</Typography>
+                    <Typography variant='body2' sx={{ fontFamily: 'monospace' }}>{wallet.linkedMomoNumber ?? '—'}</Typography>
+                    {wallet.linkedMomoNetwork && <Chip label={wallet.linkedMomoNetwork} size='small' variant='outlined' sx={{ fontSize: '0.65rem', height: 20 }} />}
+                  </Box>
+                </Grid>
+              )}
+            </Grid>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Wallet Adjust Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={adjustOpen} onClose={() => setAdjustOpen(false)} maxWidth='xs' fullWidth>
+        <DialogTitle>Adjust Wallet Balance</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '12px !important' }}>
+          <FormControl fullWidth size='small'>
+            <InputLabel>Type</InputLabel>
+            <Select
+              value={adjustType}
+              label='Type'
+              onChange={e => setAdjustType(e.target.value as 'CREDIT' | 'DEBIT')}
+            >
+              <MenuItem value='CREDIT'>Credit (add funds)</MenuItem>
+              <MenuItem value='DEBIT'>Debit (remove funds)</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            label='Amount (GHS)'
+            size='small'
+            type='number'
+            inputProps={{ min: 0.01, step: 0.01 }}
+            value={adjustAmount}
+            onChange={e => setAdjustAmount(e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label='Reason (optional)'
+            size='small'
+            value={adjustReason}
+            onChange={e => setAdjustReason(e.target.value)}
+            placeholder='e.g. Dispute resolution, goodwill credit'
+            fullWidth
+            multiline
+            rows={2}
+          />
+          {adjustError && (
+            <Typography variant='caption' color='error'>{adjustError}</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAdjustOpen(false)} disabled={walletActing}>Cancel</Button>
+          <Button
+            variant='contained'
+            color={adjustType === 'CREDIT' ? 'success' : 'warning'}
+            onClick={handleWalletAdjust}
+            disabled={walletActing || !adjustAmount}
+            startIcon={walletActing ? <CircularProgress size={14} color='inherit' /> : undefined}
+          >
+            Apply {adjustType === 'CREDIT' ? 'Credit' : 'Debit'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Agreements / Leases ──────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-file-text-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Agreements / Leases</Typography>
+            <Chip size='small' label={agreementsTotal} variant='tonal' color='primary' />
+          </Box>
+          {agreementsLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2,3].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {agreeTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {agreeTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No agreements found.</td></tr>
+                    : agreeTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={agreementsTotal}
+                rowsPerPage={agreementsPageSize}
+                page={agreementsPage}
+                onPageChange={(_, p) => loadAgreements(tenantId, p, agreementsPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setAgreementsPageSize(s); loadAgreements(tenantId, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Payments / Transactions ───────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-bank-card-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Payments / Transactions</Typography>
+            <Chip size='small' label={paymentsTotal} variant='tonal' color='success' />
+          </Box>
+          {paymentsLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2,3].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {payTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {payTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No payment transactions found.</td></tr>
+                    : payTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={paymentsTotal}
+                rowsPerPage={paymentsPageSize}
+                page={paymentsPage}
+                onPageChange={(_, p) => loadPayments(tenantId, p, paymentsPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setPaymentsPageSize(s); loadPayments(tenantId, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Inspections ───────────────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-survey-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Inspections</Typography>
+            <Chip size='small' label={inspectionsTotal} variant='tonal' color='warning' />
+          </Box>
+          {inspectionsLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2,3].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {inspTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {inspTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No inspections found.</td></tr>
+                    : inspTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={inspectionsTotal}
+                rowsPerPage={inspectionsPageSize}
+                page={inspectionsPage}
+                onPageChange={(_, p) => loadInspections(tenantId, p, inspectionsPageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setInspectionsPageSize(s); loadInspections(tenantId, 0, s) }}
+              />
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Maintenance Requests ──────────────────────────────────────────────── */}
+      <Card sx={{ mt: 4 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <i className='ri-tools-line' style={{ fontSize: '1.15rem', opacity: 0.7 }} />
+            <Typography variant='h6'>Maintenance Requests</Typography>
+            <Chip size='small' label={maintenanceTotal} variant='tonal' color='error' />
+          </Box>
+          {maintenanceLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {[1,2,3].map(i => <Skeleton key={i} variant='rectangular' height={40} sx={{ borderRadius: 1 }} />)}
+            </Box>
+          ) : (
+            <>
+              <table className={tableStyles.table}>
+                <thead>
+                  {maintTable.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>)}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {maintTable.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No maintenance requests found.</td></tr>
+                    : maintTable.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={maintenanceTotal}
+                rowsPerPage={maintenancePageSize}
+                page={maintenancePage}
+                onPageChange={(_, p) => loadMaintenance(tenantId, p, maintenancePageSize)}
+                onRowsPerPageChange={e => { const s = Number(e.target.value); setMaintenancePageSize(s); loadMaintenance(tenantId, 0, s) }}
+              />
+            </>
           )}
         </CardContent>
       </Card>
@@ -1684,6 +3092,46 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           onSent={email => setToast(`Password reset email sent to ${email}`)}
         />
       )}
+
+      {impersonateOpen && (
+        <ImpersonateDialog
+          open={impersonateOpen}
+          tenant={tenant}
+          onClose={() => setImpersonateOpen(false)}
+        />
+      )}
+
+      {/* ── Void invoice confirm dialog ───────────────────────────────────── */}
+      <Dialog
+        open={!!voidConfirmInv}
+        onClose={() => setVoidConfirmInv(null)}
+        maxWidth='xs'
+        fullWidth
+      >
+        <DialogTitle>Void Invoice?</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            This will write off invoice{' '}
+            <strong>{voidConfirmInv?.id.slice(0, 8)}…</strong> for{' '}
+            <strong>GHS {voidConfirmInv?.totalAmount.toFixed(2)}</strong>
+            . The tenant's plan is not changed. This cannot be undone.
+          </DialogContentText>
+          <TextField
+            label='Reason (optional)'
+            size='small'
+            fullWidth
+            value={voidReason}
+            onChange={e => setVoidReason(e.target.value)}
+            placeholder='e.g. Goodwill waiver, disputed charge…'
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setVoidConfirmInv(null)}>Cancel</Button>
+          <Button variant='contained' color='error' onClick={handleVoidConfirm}>
+            Confirm Void
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={!!toast}

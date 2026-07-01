@@ -49,6 +49,8 @@ import UnitsStatsCard from './UnitsStatsCard'
 
 import AddUnitDialog from './AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+import { UnitCapGate } from '@/components/subscription/UnitCapGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -92,6 +94,8 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 const columnHelper = createColumnHelper<UnitWithExtras>()
 
 const UnitsListTable = () => {
+  const { refresh: refreshSubscription } = useSubscription()
+
   // States
   const [data, setData] = useState<UnitWithExtras[]>([])
   const [properties, setProperties] = useState<PropertyOption[]>([])
@@ -470,18 +474,16 @@ const UnitsListTable = () => {
             </div>
             <Divider />
 
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search units...'
-                  value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
+            <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
+              <TextField
+                size='small'
+                placeholder='Search units...'
+                value={globalFilter}
+                onChange={e => setGlobalFilter(e.target.value)}
+                className='w-full sm:min-w-[200px]'
+              />
 
-              <div className='flex items-center gap-2 ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'
@@ -499,15 +501,17 @@ const UnitsListTable = () => {
                 <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
                   Export
                 </Button>
-                <Button
-                  variant='contained'
-                  color='primary'
-                  size='small'
-                  startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddUnitOpen(true)}
-                >
-                  Add Unit
-                </Button>
+                <UnitCapGate>
+                  <Button
+                    variant='contained'
+                    color='primary'
+                    size='small'
+                    startIcon={<i className='ri-add-line' />}
+                    onClick={() => setAddUnitOpen(true)}
+                  >
+                    Add Unit
+                  </Button>
+                </UnitCapGate>
               </div>
             </div>
           </Box>
@@ -608,6 +612,7 @@ const UnitsListTable = () => {
         handleClose={() => {
           setAddUnitOpen(false)
           fetchUnits()
+          refreshSubscription()
         }}
         properties={properties}
         unitsData={data}

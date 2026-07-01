@@ -9,12 +9,6 @@ import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
 import Chip from '@mui/material/Chip'
@@ -28,12 +22,25 @@ import DialogActions from '@mui/material/DialogActions'
 import InputAdornment from '@mui/material/InputAdornment'
 import Avatar from '@mui/material/Avatar'
 import Snackbar from '@mui/material/Snackbar'
+import TablePagination from '@mui/material/TablePagination'
 
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import OutlinedInput from '@mui/material/OutlinedInput'
+
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getSystemAdmins,
@@ -261,6 +268,8 @@ function getInitials(name: string) {
   return name.split(' ').map(p => p[0] ?? '').slice(0, 2).join('').toUpperCase()
 }
 
+const columnHelper = createColumnHelper<AdminRecord>()
+
 // ---------------------------------------------------------------------------
 // Main view
 // ---------------------------------------------------------------------------
@@ -271,11 +280,10 @@ export default function AdminSystemAdminsView() {
 
   const [admins, setAdmins]             = useState<AdminRecord[]>([])
   const [loading, setLoading]           = useState(true)
-  const [loadingMore, setLoadingMore]   = useState(false)
-  const [cursor, setCursor]             = useState<string | null>(null)
-  const [hasMore, setHasMore]           = useState(false)
   const [error, setError]               = useState<string | null>(null)
-  const [search, setSearch]             = useState('')
+  const [globalFilter, setGlobalFilter] = useState('')
+  const [page, setPage]                 = useState(0)
+  const [pageSize, setPageSize]         = useState(10)
   const [createOpen, setCreateOpen]     = useState(false)
   const [deactivating, setDeactivating]   = useState<AdminRecord | null>(null)
   const [reactivating, setReactivating]   = useState<AdminRecord | null>(null)
@@ -285,10 +293,8 @@ export default function AdminSystemAdminsView() {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await getSystemAdmins(undefined, 50)
+      const res = await getSystemAdmins(undefined, 200)
       setAdmins(res.data)
-      setCursor(res.cursor)
-      setHasMore(res.hasMore)
     } catch (e: any) {
       setError(e?.message ?? 'Failed to load admins')
     } finally {
@@ -296,27 +302,7 @@ export default function AdminSystemAdminsView() {
     }
   }, [])
 
-  async function loadMore() {
-    if (!cursor || !hasMore) return
-    setLoadingMore(true)
-    try {
-      const res = await getSystemAdmins(cursor, 50)
-      setAdmins(prev => [...prev, ...res.data])
-      setCursor(res.cursor)
-      setHasMore(res.hasMore)
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to load more admins')
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
   useEffect(() => { load() }, [load])
-
-  const filtered = admins.filter(a =>
-    a.fullName.toLowerCase().includes(search.toLowerCase()) ||
-    a.email.toLowerCase().includes(search.toLowerCase())
-  )
 
   async function handleDeactivate() {
     if (!deactivating) return
@@ -345,6 +331,73 @@ export default function AdminSystemAdminsView() {
     }
   }
 
+  const columns = [
+    columnHelper.display({
+      id: 'admin',
+      header: 'Admin',
+      cell: info => {
+        const admin = info.row.original
+        return (
+          <Link href={`/admin/admins/${admin.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.lighter', color: 'primary.main', fontSize: '0.75rem' }}>{getInitials(admin.fullName)}</Avatar>
+              <Typography variant='body2' fontWeight={600} sx={{ '&:hover': { textDecoration: 'underline', cursor: 'pointer' } }}>{admin.fullName}</Typography>
+            </Box>
+          </Link>
+        )
+      }
+    }),
+    columnHelper.accessor('email', { header: 'Email', cell: info => <Typography variant='body2' color='text.secondary'>{info.getValue()}</Typography> }),
+    columnHelper.accessor('roles', {
+      header: 'Roles',
+      cell: info => {
+        const roles = info.getValue()
+        if (roles.length === 0) return <Typography variant='caption' color='text.disabled'>—</Typography>
+        return <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>{roles.map((r: string) => <Chip key={r} size='small' label={r} sx={{ bgcolor: 'primary.lighter', color: 'primary.main', fontWeight: 600, border: 'none', fontSize: '0.7rem' }} />)}</Box>
+      }
+    }),
+    columnHelper.accessor('active', { header: 'Status', cell: info => <Chip size='small' label={info.getValue() ? 'Active' : 'Inactive'} color={info.getValue() ? 'success' : 'default'} variant='outlined' /> }),
+    columnHelper.accessor('lastLoginAt', {
+      header: 'Last Login',
+      cell: info => {
+        const v = info.getValue()
+        return <Typography variant='caption' color='text.secondary'>{v ? new Date(v).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : <span style={{ color: 'var(--mui-palette-text-disabled)' }}>Never</span>}</Typography>
+      }
+    }),
+    columnHelper.accessor('createdAt', { header: 'Created', cell: info => <Typography variant='caption' color='text.secondary'>{new Date(info.getValue()).toLocaleDateString()}</Typography> }),
+    ...(canManage ? [columnHelper.display({
+      id: 'actions',
+      header: () => <span style={{ display: 'block', textAlign: 'right' }}>Actions</span>,
+      cell: info => {
+        const admin = info.row.original
+        return (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+            {admin.active
+              ? <Tooltip title='Deactivate'><IconButton size='small' color='error' onClick={() => setDeactivating(admin)}><i className='ri-forbid-line' style={{ fontSize: '1rem' }} /></IconButton></Tooltip>
+              : <Tooltip title='Reactivate'><IconButton size='small' color='success' onClick={() => setReactivating(admin)}><i className='ri-checkbox-circle-line' style={{ fontSize: '1rem' }} /></IconButton></Tooltip>
+            }
+          </Box>
+        )
+      }
+    })] : []),
+  ]
+
+  const table = useReactTable({
+    data: admins,
+    columns,
+    state: { globalFilter, pagination: { pageIndex: page, pageSize } },
+    onGlobalFilterChange: v => { setGlobalFilter(v); setPage(0) },
+    onPaginationChange: updater => {
+      const next = typeof updater === 'function' ? updater({ pageIndex: page, pageSize }) : updater
+      setPage(next.pageIndex)
+      setPageSize(next.pageSize)
+    },
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
+
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -364,18 +417,10 @@ export default function AdminSystemAdminsView() {
           <TextField
             size='small'
             placeholder='Search admins…'
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            value={globalFilter ?? ''}
+            onChange={e => { setGlobalFilter(e.target.value); setPage(0) }}
             sx={{ mb: 2, width: 320 }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position='start'>
-                    <i className='ri-search-line' />
-                  </InputAdornment>
-                ),
-              }
-            }}
+            slotProps={{ input: { startAdornment: <InputAdornment position='start'><i className='ri-search-line' /></InputAdornment> } }}
           />
 
           {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
@@ -386,114 +431,38 @@ export default function AdminSystemAdminsView() {
             </Box>
           ) : (
             <>
-            <TableContainer>
-              <Table size='small'>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Admin</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Roles</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Last Login</TableCell>
-                    <TableCell>Created</TableCell>
-                    <TableCell align='right'>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} align='center' sx={{ py: 4, color: 'text.secondary' }}>
-                        {search ? 'No matching admins' : 'No admins yet'}
-                      </TableCell>
-                    </TableRow>
-                  ) : filtered.map(admin => (
-                    <TableRow key={admin.id} hover>
-                      <TableCell>
-                        <Link href={`/admin/admins/${admin.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                            <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.lighter', color: 'primary.main', fontSize: '0.75rem' }}>
-                              {getInitials(admin.fullName)}
-                            </Avatar>
-                            <Typography variant='body2' fontWeight={600} sx={{ '&:hover': { textDecoration: 'underline', cursor: 'pointer' } }}>
-                              {admin.fullName}
-                            </Typography>
-                          </Box>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant='body2' color='text.secondary'>{admin.email}</Typography>
-                      </TableCell>
-                      <TableCell>
-                        {admin.roles.length === 0 ? (
-                          <Typography variant='caption' color='text.disabled'>—</Typography>
-                        ) : (
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                            {admin.roles.map(role => (
-                              <Chip
-                                key={role}
-                                size='small'
-                                label={role}
-                                sx={{ bgcolor: 'primary.lighter', color: 'primary.main', fontWeight: 600, border: 'none', fontSize: '0.7rem' }}
-                              />
-                            ))}
-                          </Box>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          size='small'
-                          label={admin.active ? 'Active' : 'Inactive'}
-                          color={admin.active ? 'success' : 'default'}
-                          variant='outlined'
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant='caption' color='text.secondary'>
-                          {admin.lastLoginAt
-                            ? new Date(admin.lastLoginAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-                            : <span style={{ color: 'var(--mui-palette-text-disabled)' }}>Never</span>
-                          }
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant='caption' color='text.secondary'>
-                          {new Date(admin.createdAt).toLocaleDateString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align='right'>
-                        {canManage && (admin.active ? (
-                          <Tooltip title='Deactivate'>
-                            <IconButton size='small' color='error' onClick={() => setDeactivating(admin)}>
-                              <i className='ri-forbid-line' style={{ fontSize: '1rem' }} />
-                            </IconButton>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip title='Reactivate'>
-                            <IconButton size='small' color='success' onClick={() => setReactivating(admin)}>
-                              <i className='ri-checkbox-circle-line' style={{ fontSize: '1rem' }} />
-                            </IconButton>
-                          </Tooltip>
-                        ))}
-                      </TableCell>
-                    </TableRow>
+              <table className={tableStyles.table}>
+                <thead>
+                  {table.getHeaderGroups().map(hg => (
+                    <tr key={hg.id}>
+                      {hg.headers.map(h => (
+                        <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                      ))}
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-
-            {hasMore && !search && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', pt: 2 }}>
-                <Button
-                  variant='outlined'
-                  size='small'
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  startIcon={loadingMore ? <CircularProgress size={14} color='inherit' /> : undefined}
-                >
-                  {loadingMore ? 'Loading…' : 'Load More'}
-                </Button>
-              </Box>
-            )}
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.length === 0
+                    ? <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>{globalFilter ? 'No matching admins' : 'No admins yet'}</td></tr>
+                    : table.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => (
+                          <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                        ))}
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={table.getFilteredRowModel().rows.length}
+                rowsPerPage={pageSize}
+                page={page}
+                onPageChange={(_, p) => setPage(p)}
+                onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0) }}
+              />
             </>
           )}
         </CardContent>

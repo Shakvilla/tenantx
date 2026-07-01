@@ -19,6 +19,7 @@ import AppBar from '@mui/material/AppBar'
 import Toolbar from '@mui/material/Toolbar'
 
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
+import { AdminBrandingProvider, useAdminBranding } from '@/contexts/AdminBrandingContext'
 import { adminNavItems, type AdminNavItem } from '@/data/adminMenuData'
 
 // ---------------------------------------------------------------------------
@@ -95,6 +96,7 @@ function NavItem({ item, onClick }: { item: AdminNavItem; onClick?: () => void }
 
 function SidebarContent({ onClose }: { onClose?: () => void }) {
   const { adminUser, adminLogout, hasPermission } = useAdminAuth()
+  const { platformName, logoUrl } = useAdminBranding()
 
   const visibleItems = adminNavItems.filter(item => {
     if (!item.permissions) return true                           // open to all admins
@@ -105,22 +107,27 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* ── Logo + branding ─────────────────────────────────────────────── */}
       <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: 1,
-            bgcolor: 'primary.main',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <i className='ri-building-4-line' style={{ color: '#fff', fontSize: '1.25rem' }} />
-        </Box>
+        {logoUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={logoUrl} alt={platformName} style={{ maxHeight: 36, maxWidth: 140, objectFit: 'contain' }} />
+        ) : (
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: 1,
+              bgcolor: 'primary.main',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <i className='ri-building-4-line' style={{ color: '#fff', fontSize: '1.25rem' }} />
+          </Box>
+        )}
         <Box>
           <Typography variant='subtitle1' fontWeight={700} lineHeight={1.2}>
-            TenantX
+            {platformName}
           </Typography>
           <Typography variant='caption' color='text.secondary'>
             Platform Admin
@@ -216,6 +223,7 @@ const ROUTE_TITLES: Array<{ match: (p: string) => boolean; title: string }> = [
   { match: p => p === '/admin',                           title: 'Dashboard' },
   { match: p => p.startsWith('/admin/tenants/'),          title: 'Tenant Details' },
   { match: p => p === '/admin/tenants',                   title: 'Tenants' },
+  { match: p => p === '/admin/users',                     title: 'Platform Users' },
   { match: p => p.startsWith('/admin/admins/'),           title: 'Admin Details' },
   { match: p => p === '/admin/admins',                    title: 'System Admins' },
   { match: p => p === '/admin/subscriptions',             title: 'Subscription Plans' },
@@ -247,6 +255,7 @@ export function AdminNavigation({ children }: AdminNavigationProps) {
   const pageTitle = usePageTitle()
 
   return (
+    <AdminBrandingProvider>
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       {/* ── Permanent desktop drawer ─────────────────────────────────────── */}
       <Box
@@ -306,5 +315,6 @@ export function AdminNavigation({ children }: AdminNavigationProps) {
         </Box>
       </Box>
     </Box>
+    </AdminBrandingProvider>
   )
 }

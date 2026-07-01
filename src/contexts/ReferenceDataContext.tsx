@@ -113,7 +113,9 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
       })
       .catch((err: Error) => {
         if (!cancelled) {
-          console.error('[ReferenceData] Failed to load:', err.message)
+          // Use warn (not error) — 503/maintenance failures are expected during
+          // downtime and should not flood the console as red errors.
+          console.warn('[ReferenceData] Failed to load:', err.message)
           setError(err.message)
           setIsLoading(false)
         }

@@ -25,6 +25,12 @@ export const adminNavItems: AdminNavItem[] = [
     permissions: ['view_tenants', 'manage_tenants'],
   },
   {
+    label: 'Users',
+    href: '/admin/users',
+    icon: 'ri-group-line',
+    permissions: ['view_tenants', 'manage_tenants'],
+  },
+  {
     label: 'System Admins',
     href: '/admin/admins',
     icon: 'ri-shield-user-line',

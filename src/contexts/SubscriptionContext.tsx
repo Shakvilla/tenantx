@@ -73,6 +73,27 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, load])
 
+  // Re-fetch whenever the tab becomes visible and every 5 minutes.
+  // Ensures admin feature-flag overrides reach live sessions without a re-login.
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load()
+    }, 5 * 60 * 1000)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      clearInterval(interval)
+    }
+  }, [isAuthenticated, load])
+
   const hasFeature = useCallback((key: string) => !!features[key], [features])
 
   const isAtUnitCap = Boolean(

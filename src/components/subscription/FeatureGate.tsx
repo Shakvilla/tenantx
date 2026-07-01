@@ -22,10 +22,31 @@ import { useRouter } from 'next/navigation'
 import { useFeature } from '@/hooks/useFeature'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 
-const PLAN_LABELS: Record<string, string> = {
-  FREE:  'Basic or Pro',
-  BASIC: 'Pro',
-  PRO:   'Pro',
+// Maps each feature key to the minimum plan name required to unlock it.
+// Used to generate accurate "requires X plan" messages without needing
+// to know the tenant's current plan.
+const FEATURE_REQUIRED_PLAN: Record<string, string> = {
+  // Basic features
+  COMMUNICATION:            'Basic',
+  EXPENSES:                 'Basic',
+  INSPECTIONS:              'Basic',
+  VACANCY_LISTINGS:         'Basic',
+  ADVANCE_RENT:             'Basic',
+  CAUTION_FEES:             'Basic',
+  RENT_REVIEWS:             'Basic',
+  LATE_FEES:                'Basic',
+  MAINTENANCE_CONTRACTORS:  'Basic',
+  PREVENTATIVE_MAINTENANCE: 'Basic',
+  SMS_REMINDERS:            'Basic',
+  WHATSAPP_REMINDERS:       'Basic',
+  ADVANCED_REPORTS:         'Basic',
+  // Pro features
+  RENT_COLLECTION:          'Pro',
+  LANDLORD_WALLET:          'Pro',
+  AUTOMATED_RECONCILIATION: 'Pro',
+  FINANCIAL_REPORTS:        'Pro',
+  UTILITIES_MANAGEMENT:     'Pro',
+  AGENT_MANAGEMENT:         'Pro',
 }
 
 interface FeatureGateProps {
@@ -39,13 +60,16 @@ interface FeatureGateProps {
 
 export function FeatureGate({ feature, children, lockedMessage, inline = false }: FeatureGateProps) {
   const hasFeature = useFeature(feature)
-  const { subscription } = useSubscription()
+  const { isLoading } = useSubscription()
   const router = useRouter()
+
+  // Don't flash the lock UI while subscription data is still loading
+  if (isLoading) return null
 
   if (hasFeature) return <>{children}</>
 
-  const requiredPlan = PLAN_LABELS[subscription?.plan ?? 'FREE'] ?? 'a higher plan'
-  const message = lockedMessage ?? `This feature requires ${requiredPlan}. Upgrade to unlock it.`
+  const planName = FEATURE_REQUIRED_PLAN[feature] ?? 'a higher'
+  const message = lockedMessage ?? `This feature requires the ${planName} plan. Upgrade to unlock it.`
 
   if (inline) {
     return (
