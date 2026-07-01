@@ -24,12 +24,20 @@ import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Tooltip from '@mui/material/Tooltip'
 import Snackbar from '@mui/material/Snackbar'
-import Divider from '@mui/material/Divider'
-import Table from '@mui/material/Table'
-import TableHead from '@mui/material/TableHead'
-import TableBody from '@mui/material/TableBody'
-import TableRow from '@mui/material/TableRow'
-import TableCell from '@mui/material/TableCell'
+import DialogContentText from '@mui/material/DialogContentText'
+import TablePagination from '@mui/material/TablePagination'
+
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getAnnouncements,
@@ -70,13 +78,14 @@ interface AnnouncementFormDialogProps {
 }
 
 function AnnouncementFormDialog({ open, initial, onClose, onSaved }: AnnouncementFormDialogProps) {
-  const [title, setTitle]       = useState('')
-  const [message, setMessage]   = useState('')
-  const [severity, setSeverity] = useState('info')
-  const [active, setActive]     = useState(true)
-  const [expires, setExpires]   = useState('')
-  const [saving, setSaving]     = useState(false)
-  const [error, setError]       = useState<string | null>(null)
+  const [title, setTitle]         = useState('')
+  const [message, setMessage]     = useState('')
+  const [severity, setSeverity]   = useState('info')
+  const [active, setActive]       = useState(true)
+  const [expires, setExpires]     = useState('')
+  const [scheduled, setScheduled] = useState('')
+  const [saving, setSaving]       = useState(false)
+  const [error, setError]         = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -85,6 +94,8 @@ function AnnouncementFormDialog({ open, initial, onClose, onSaved }: Announcemen
       setSeverity(initial?.severity ?? 'info')
       setActive(initial?.active ?? true)
       setExpires(initial?.expiresAt ? initial.expiresAt.slice(0, 10) : '')
+      // datetime-local expects "YYYY-MM-DDTHH:mm"
+      setScheduled(initial?.scheduledAt ? initial.scheduledAt.slice(0, 16) : '')
       setError(null)
     }
   }, [open, initial])
@@ -99,6 +110,7 @@ function AnnouncementFormDialog({ open, initial, onClose, onSaved }: Announcemen
         severity,
         active,
         expiresAt: expires || undefined,
+        scheduledAt: scheduled || undefined,
       }
       const saved = initial
         ? await updateAnnouncement(initial.id, payload)
@@ -165,6 +177,18 @@ function AnnouncementFormDialog({ open, initial, onClose, onSaved }: Announcemen
           />
         </Box>
 
+        <TextField
+          label='Schedule for (optional)'
+          type='datetime-local'
+          size='small'
+          fullWidth
+          value={scheduled}
+          onChange={e => setScheduled(e.target.value)}
+          disabled={saving}
+          slotProps={{ inputLabel: { shrink: true } }}
+          helperText={scheduled ? 'Announcement will only become visible to tenants at this time (UTC).' : 'Leave blank to publish immediately.'}
+        />
+
         <FormControlLabel
           control={
             <Switch checked={active} onChange={e => setActive(e.target.checked)} disabled={saving} />
@@ -191,6 +215,8 @@ function AnnouncementFormDialog({ open, initial, onClose, onSaved }: Announcemen
 // Main view
 // ---------------------------------------------------------------------------
 
+const columnHelper = createColumnHelper<AnnouncementDto>()
+
 export default function AdminAnnouncementsView() {
   const { hasPermission } = useAdminAuth()
   const canManage = hasPermission('manage_tenants')
@@ -198,11 +224,14 @@ export default function AdminAnnouncementsView() {
   const [announcements, setAnnouncements] = useState<AnnouncementDto[]>([])
   const [loading, setLoading]             = useState(true)
   const [error, setError]                 = useState<string | null>(null)
-  const [formOpen, setFormOpen]           = useState(false)
-  const [editing, setEditing]             = useState<AnnouncementDto | null>(null)
-  const [deleting, setDeleting]           = useState<string | null>(null)
-  const [toggling, setToggling]           = useState<string | null>(null)
-  const [toast, setToast]                 = useState<string | null>(null)
+  const [formOpen, setFormOpen]             = useState(false)
+  const [editing, setEditing]               = useState<AnnouncementDto | null>(null)
+  const [deleteTarget, setDeleteTarget]     = useState<AnnouncementDto | null>(null)
+  const [deleting, setDeleting]             = useState(false)
+  const [toggling, setToggling]             = useState<string | null>(null)
+  const [toast, setToast]                   = useState<string | null>(null)
+  const [page, setPage]                     = useState(0)
+  const [pageSize, setPageSize]             = useState(10)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -227,16 +256,19 @@ export default function AdminAnnouncementsView() {
     }
   }
 
-  async function handleDelete(id: string) {
-    setDeleting(id)
+  async function handleDelete() {
+    if (!deleteTarget) return
+    const id = deleteTarget.id
+    setDeleting(true)
     try {
       await deleteAnnouncement(id)
       setAnnouncements(prev => prev.filter(x => x.id !== id))
       setToast('Announcement deleted')
+      setDeleteTarget(null)
     } catch {
       setToast('Failed to delete announcement')
     } finally {
-      setDeleting(null)
+      setDeleting(false)
     }
   }
 
@@ -254,6 +286,68 @@ export default function AdminAnnouncementsView() {
 
   function openEdit(a: AnnouncementDto) { setEditing(a); setFormOpen(true) }
   function openCreate() { setEditing(null); setFormOpen(true) }
+
+  const columns = [
+    columnHelper.accessor('title', {
+      header: 'Title',
+      cell: info => (
+        <Box>
+          <Typography variant='body2' fontWeight={600}>{info.getValue()}</Typography>
+          <Typography variant='caption' color='text.secondary' sx={{ display: 'block', maxWidth: 320 }} noWrap>{info.row.original.message}</Typography>
+        </Box>
+      )
+    }),
+    columnHelper.accessor('severity', {
+      header: 'Severity',
+      cell: info => <Chip size='small' label={severityLabel(info.getValue())} color={SEVERITY_COLOR[info.getValue()] ?? 'default'} variant='tonal' />
+    }),
+    columnHelper.display({
+      id: 'status',
+      header: 'Status',
+      cell: info => {
+        const a = info.row.original
+        if (!canManage) {
+          const isScheduled = a.active && a.scheduledAt && new Date(a.scheduledAt) > new Date()
+          return <Chip size='small' label={isScheduled ? 'Scheduled' : a.active ? 'Active' : 'Inactive'} color={isScheduled ? 'warning' : a.active ? 'success' : 'default'} variant='outlined' />
+        }
+        if (toggling === a.id) return <CircularProgress size={16} />
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Switch size='small' checked={a.active} onChange={() => handleToggle(a)} color='success' />
+            {a.active && a.scheduledAt && new Date(a.scheduledAt) > new Date() && <Chip size='small' label='Scheduled' color='warning' variant='tonal' />}
+          </Box>
+        )
+      }
+    }),
+    columnHelper.accessor('scheduledAt', { header: 'Goes Live', cell: info => <Typography variant='body2'>{info.getValue() ? fmtDate(info.getValue()) : '—'}</Typography> }),
+    columnHelper.accessor('expiresAt', { header: 'Expires', cell: info => <Typography variant='body2'>{fmtDate(info.getValue())}</Typography> }),
+    columnHelper.accessor('createdAt', { header: 'Created', cell: info => <Typography variant='body2'>{fmtDate(info.getValue())}</Typography> }),
+    ...(canManage ? [columnHelper.display({
+      id: 'actions',
+      header: () => null,
+      cell: info => (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Tooltip title='Edit'><IconButton size='small' onClick={() => openEdit(info.row.original)}><i className='ri-edit-line' style={{ fontSize: '1rem' }} /></IconButton></Tooltip>
+          <Tooltip title='Delete'><IconButton size='small' color='error' onClick={() => setDeleteTarget(info.row.original)}><i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} /></IconButton></Tooltip>
+        </Box>
+      )
+    })] : []),
+  ]
+
+  const table = useReactTable({
+    data: announcements,
+    columns,
+    state: { pagination: { pageIndex: page, pageSize } },
+    onPaginationChange: updater => {
+      const next = typeof updater === 'function' ? updater({ pageIndex: page, pageSize }) : updater
+      setPage(next.pageIndex)
+      setPageSize(next.pageSize)
+    },
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   return (
     <Box>
@@ -280,7 +374,12 @@ export default function AdminAnnouncementsView() {
 
       {/* ── Preview card for active announcement ───────────────────────────── */}
       {(() => {
-        const active = announcements.find(a => a.active && (!a.expiresAt || new Date(a.expiresAt) > new Date()))
+        const now = new Date()
+        const active = announcements.find(a =>
+          a.active &&
+          (!a.expiresAt || new Date(a.expiresAt) > now) &&
+          (!a.scheduledAt || new Date(a.scheduledAt) <= now)
+        )
         if (!active) return null
         return (
           <Alert
@@ -311,84 +410,66 @@ export default function AdminAnnouncementsView() {
             )}
           </CardContent>
         ) : (
-          <Table size='small'>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Title</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Severity</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Expires</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Created</TableCell>
-                {canManage && <TableCell />}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {announcements.map(a => (
-                <TableRow key={a.id} hover>
-                  <TableCell>
-                    <Typography variant='body2' fontWeight={600}>{a.title}</Typography>
-                    <Typography variant='caption' color='text.secondary' sx={{ display: 'block', maxWidth: 320 }} noWrap>
-                      {a.message}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size='small'
-                      label={severityLabel(a.severity)}
-                      color={SEVERITY_COLOR[a.severity] ?? 'default'}
-                      variant='tonal'
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {canManage ? (
-                      toggling === a.id ? (
-                        <CircularProgress size={16} />
-                      ) : (
-                        <Switch
-                          size='small'
-                          checked={a.active}
-                          onChange={() => handleToggle(a)}
-                          color='success'
-                        />
-                      )
-                    ) : (
-                      <Chip size='small' label={a.active ? 'Active' : 'Inactive'} color={a.active ? 'success' : 'default'} variant='outlined' />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='body2'>{fmtDate(a.expiresAt)}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='body2'>{fmtDate(a.createdAt)}</Typography>
-                  </TableCell>
-                  {canManage && (
-                    <TableCell align='right'>
-                      <Tooltip title='Edit'>
-                        <IconButton size='small' onClick={() => openEdit(a)}>
-                          <i className='ri-edit-line' style={{ fontSize: '1rem' }} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title='Delete'>
-                        <IconButton
-                          size='small'
-                          color='error'
-                          onClick={() => handleDelete(a.id)}
-                          disabled={deleting === a.id}
-                        >
-                          {deleting === a.id
-                            ? <CircularProgress size={14} />
-                            : <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
-                          }
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <>
+            <table className={tableStyles.table}>
+              <thead>
+                {table.getHeaderGroups().map(hg => (
+                  <tr key={hg.id}>
+                    {hg.headers.map(h => (
+                      <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              <tbody>
+                {table.getRowModel().rows.length === 0
+                  ? <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No data</td></tr>
+                  : table.getRowModel().rows.map(row => (
+                    <tr key={row.id}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+            {announcements.length > 10 && (
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={announcements.length}
+                rowsPerPage={pageSize}
+                page={page}
+                onPageChange={(_, p) => setPage(p)}
+                onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0) }}
+              />
+            )}
+          </>
         )}
       </Card>
+
+      {/* Delete confirm dialog */}
+      <Dialog open={deleteTarget !== null} onClose={() => !deleting && setDeleteTarget(null)} maxWidth='xs' fullWidth>
+        <DialogTitle>Delete Announcement</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Delete <strong>{deleteTarget?.title}</strong>? It will immediately stop showing to tenants and cannot be recovered.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+          <Button
+            variant='contained'
+            color='error'
+            onClick={handleDelete}
+            disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={14} color='inherit' /> : undefined}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <AnnouncementFormDialog
         open={formOpen}

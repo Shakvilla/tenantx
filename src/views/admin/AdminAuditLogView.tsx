@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -13,15 +13,21 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import Chip from '@mui/material/Chip'
 import Tooltip from '@mui/material/Tooltip'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import Paper from '@mui/material/Paper'
+import TablePagination from '@mui/material/TablePagination'
 import IconButton from '@mui/material/IconButton'
 import Collapse from '@mui/material/Collapse'
+
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+} from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getAuditLog,
@@ -88,8 +94,8 @@ function DetailRow({ entry }: { entry: AuditLogEntry }) {
 
   return (
     <>
-      <TableRow hover sx={{ '& > *': { borderBottom: 'unset' } }}>
-        <TableCell sx={{ width: 32, py: 0.5 }}>
+      <tr>
+        <td style={{ width: 32, padding: '4px 8px' }}>
           {hasDetail && (
             <Tooltip title={open ? 'Collapse' : 'Expand detail'}>
               <IconButton size='small' onClick={() => setOpen(v => !v)}>
@@ -97,43 +103,43 @@ function DetailRow({ entry }: { entry: AuditLogEntry }) {
               </IconButton>
             </Tooltip>
           )}
-        </TableCell>
-        <TableCell sx={{ py: 0.5 }}>
+        </td>
+        <td style={{ padding: '4px 8px' }}>
           <Typography variant='caption' sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
             {fmt(entry.createdAt)}
           </Typography>
-        </TableCell>
-        <TableCell sx={{ py: 0.5 }}>
+        </td>
+        <td style={{ padding: '4px 8px' }}>
           <Typography variant='body2'>{entry.adminEmail}</Typography>
-        </TableCell>
-        <TableCell sx={{ py: 0.5 }}>
+        </td>
+        <td style={{ padding: '4px 8px' }}>
           <Chip
             label={entry.action}
             size='small'
             color={actionColor(entry.action)}
             sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}
           />
-        </TableCell>
-        <TableCell sx={{ py: 0.5 }}>
+        </td>
+        <td style={{ padding: '4px 8px' }}>
           <Typography variant='body2' color='text.secondary'>
             {entry.entityType ?? '—'}
           </Typography>
-        </TableCell>
-        <TableCell sx={{ py: 0.5 }}>
+        </td>
+        <td style={{ padding: '4px 8px' }}>
           <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
             {entry.entityId ?? '—'}
           </Typography>
-        </TableCell>
-        <TableCell sx={{ py: 0.5 }}>
+        </td>
+        <td style={{ padding: '4px 8px' }}>
           <Typography variant='caption' color='text.disabled'>
             {entry.ipAddress ?? '—'}
           </Typography>
-        </TableCell>
-      </TableRow>
+        </td>
+      </tr>
 
       {hasDetail && (
-        <TableRow>
-          <TableCell colSpan={7} sx={{ py: 0, pl: 6, pr: 2, borderBottom: 'none' }}>
+        <tr>
+          <td colSpan={7} style={{ padding: 0, paddingLeft: 48, paddingRight: 16, borderBottom: 'none' }}>
             <Collapse in={open} timeout='auto' unmountOnExit>
               <Box sx={{ py: 1 }}>
                 <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
@@ -141,8 +147,8 @@ function DetailRow({ entry }: { entry: AuditLogEntry }) {
                 </pre>
               </Box>
             </Collapse>
-          </TableCell>
-        </TableRow>
+          </td>
+        </tr>
       )}
     </>
   )
@@ -152,12 +158,14 @@ function DetailRow({ entry }: { entry: AuditLogEntry }) {
 // Main view
 // ---------------------------------------------------------------------------
 
+const columnHelper = createColumnHelper<AuditLogEntry>()
+
 export default function AdminAuditLogView() {
   const [rows, setRows]           = useState<AuditLogEntry[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
   const [page, setPage]           = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
+  const [pageSize, setPageSize]   = useState(25)
   const [totalElements, setTotalElements] = useState(0)
 
   // Filter state
@@ -172,13 +180,11 @@ export default function AdminAuditLogView() {
     adminEmail: '', entityType: '', action: '', from: '', to: '',
   })
 
-  const PAGE_SIZE = 50
-
-  const load = useCallback(async (p: number, filters: typeof committed) => {
+  const load = useCallback(async (p: number, size: number, filters: typeof committed) => {
     setLoading(true)
     setError(null)
     try {
-      const params: Parameters<typeof getAuditLog>[0] = { page: p, size: PAGE_SIZE }
+      const params: Parameters<typeof getAuditLog>[0] = { page: p, size: size }
       if (filters.adminEmail) params.adminEmail = filters.adminEmail
       if (filters.entityType) params.entityType = filters.entityType
       if (filters.action)     params.action     = filters.action
@@ -188,7 +194,6 @@ export default function AdminAuditLogView() {
       const res: AuditLogPage = await getAuditLog(params)
       setRows(res.data)
       setPage(res.page)
-      setTotalPages(res.totalPages)
       setTotalElements(res.totalElements)
     } catch {
       setError('Failed to load audit log')
@@ -198,22 +203,44 @@ export default function AdminAuditLogView() {
   }, [])
 
   useEffect(() => {
-    load(0, committed)
+    load(0, pageSize, committed)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function handleSearch() {
     const next = { adminEmail, entityType, action, from: fromDate, to: toDate }
     setCommitted(next)
-    load(0, next)
+    load(0, pageSize, next)
   }
 
   function handleReset() {
     setAdminEmail(''); setEntityType(''); setAction(''); setFromDate(''); setToDate('')
     const empty = { adminEmail: '', entityType: '', action: '', from: '', to: '' }
     setCommitted(empty)
-    load(0, empty)
+    load(0, pageSize, empty)
   }
+
+  const columns = useMemo(() => [
+    columnHelper.display({ id: 'expand', header: () => null }),
+    columnHelper.display({ id: 'timestamp', header: 'Timestamp' }),
+    columnHelper.display({ id: 'admin', header: 'Admin' }),
+    columnHelper.display({ id: 'action', header: 'Action' }),
+    columnHelper.display({ id: 'entityType', header: 'Entity Type' }),
+    columnHelper.display({ id: 'entityId', header: 'Entity ID' }),
+    columnHelper.display({ id: 'ip', header: 'IP' }),
+  ], [])
+
+  const table = useReactTable({
+    data: rows,
+    columns,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(totalElements / pageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   return (
     <Box sx={{ p: 3 }}>
@@ -303,62 +330,41 @@ export default function AdminAuditLogView() {
 
           {!loading && !error && (
             <>
-              <Box sx={{ px: 2, pt: 1.5, pb: 1 }}>
-                <Typography variant='caption' color='text.secondary'>
-                  {totalElements.toLocaleString()} {totalElements === 1 ? 'entry' : 'entries'} found
-                </Typography>
-              </Box>
-              <TableContainer component={Paper} elevation={0}>
-                <Table size='small'>
-                  <TableHead>
-                    <TableRow sx={{ '& th': { fontWeight: 600, fontSize: '0.75rem', bgcolor: 'action.hover' } }}>
-                      <TableCell sx={{ width: 32 }} />
-                      <TableCell>Timestamp</TableCell>
-                      <TableCell>Admin</TableCell>
-                      <TableCell>Action</TableCell>
-                      <TableCell>Entity Type</TableCell>
-                      <TableCell>Entity ID</TableCell>
-                      <TableCell>IP</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {rows.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} align='center' sx={{ py: 4, color: 'text.secondary' }}>
-                          No audit events match the current filters.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      rows.map(entry => <DetailRow key={entry.id} entry={entry} />)
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              <table className={tableStyles.table}>
+                <thead>
+                  {table.getHeaderGroups().map(headerGroup => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map(header => (
+                        <th key={header.id}>{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>
+                        No audit events match the current filters.
+                      </td>
+                    </tr>
+                  ) : rows.map(entry => <DetailRow key={entry.id} entry={entry} />)}
+                </tbody>
+              </table>
 
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.5 }}>
-                  <Button
-                    size='small'
-                    disabled={page === 0}
-                    onClick={() => load(page - 1, committed)}
-                    startIcon={<i className='ri-arrow-left-s-line' />}
-                  >
-                    Prev
-                  </Button>
-                  <Typography variant='caption' color='text.secondary'>
-                    Page {page + 1} of {totalPages}
-                  </Typography>
-                  <Button
-                    size='small'
-                    disabled={page >= totalPages - 1}
-                    onClick={() => load(page + 1, committed)}
-                    endIcon={<i className='ri-arrow-right-s-line' />}
-                  >
-                    Next
-                  </Button>
-                </Box>
-              )}
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                count={totalElements}
+                rowsPerPage={pageSize}
+                page={page}
+                onPageChange={(_, newPage) => { setPage(newPage); load(newPage, pageSize, committed) }}
+                onRowsPerPageChange={e => {
+                  const newSize = Number(e.target.value)
+                  setPageSize(newSize)
+                  setPage(0)
+                  load(0, newSize, committed)
+                }}
+              />
             </>
           )}
         </CardContent>

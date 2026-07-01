@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -22,17 +22,23 @@ import Select from '@mui/material/Select'
 import Skeleton from '@mui/material/Skeleton'
 import Snackbar from '@mui/material/Snackbar'
 import Tab from '@mui/material/Tab'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
 import TablePagination from '@mui/material/TablePagination'
 import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getAdminTickets, getTicketCounts, updateTicket,
@@ -288,26 +294,27 @@ function TicketsTab() {
   const { hasPermission } = useAdminAuth()
   const canManage = hasPermission('manage_tenants')
 
-  const [counts,  setCounts]  = useState<TicketCountsDto | null>(null)
-  const [page,    setPage]    = useState<TicketPageDto | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState<string | null>(null)
-  const [toast,   setToast]   = useState<string | null>(null)
+  const [counts,   setCounts]  = useState<TicketCountsDto | null>(null)
+  const [page,     setPage]    = useState<TicketPageDto | null>(null)
+  const [loading,  setLoading] = useState(true)
+  const [error,    setError]   = useState<string | null>(null)
+  const [toast,    setToast]   = useState<string | null>(null)
 
   // Filters
   const [status,   setStatus]   = useState('')
   const [priority, setPriority] = useState('')
   const [search,   setSearch]   = useState('')
   const [pageNum,  setPageNum]  = useState(0)
+  const [pageSize, setPageSize] = useState(25)
 
   // Drawer
   const [selected, setSelected] = useState<TicketDto | null>(null)
 
-  const load = useCallback(async (s: string, p: string, q: string, pg: number) => {
+  const load = useCallback(async (s: string, p: string, q: string, pg: number, size?: number) => {
     setLoading(true); setError(null)
     try {
       const [pageData, countData] = await Promise.all([
-        getAdminTickets({ status: s || undefined, priority: p || undefined, search: q || undefined, page: pg }),
+        getAdminTickets({ status: s || undefined, priority: p || undefined, search: q || undefined, page: pg, size: size ?? pageSize }),
         getTicketCounts(),
       ])
       setPage(pageData)
@@ -315,12 +322,13 @@ function TicketsTab() {
     } catch (err: unknown) {
       console.error('[Support] load tickets error:', err)
       const axiosErr = err as { response?: { status?: number; data?: unknown }; message?: string }
-      const status = axiosErr?.response?.status
-      const detail = status ? ` (HTTP ${status})` : (axiosErr?.message ? ` (${axiosErr.message})` : '')
+      const httpStatus = axiosErr?.response?.status
+      const detail = httpStatus ? ` (HTTP ${httpStatus})` : (axiosErr?.message ? ` (${axiosErr.message})` : '')
       setError(`Failed to load tickets${detail}`)
     } finally {
       setLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => { load(status, priority, search, pageNum) },
@@ -338,6 +346,64 @@ function TicketsTab() {
     } : prev)
     setToast('Ticket updated')
   }
+
+  const columnHelper = createColumnHelper<TicketDto>()
+
+  const columns = useMemo(() => [
+    columnHelper.accessor('subject', {
+      header: 'Subject',
+      cell: info => (
+        <Typography variant='body2' fontWeight={600} noWrap sx={{ maxWidth: 220 }}>
+          {info.getValue()}
+        </Typography>
+      ),
+    }),
+    columnHelper.accessor('tenantId', {
+      header: 'Tenant',
+      cell: info => <Typography variant='body2'>{info.getValue()}</Typography>,
+    }),
+    columnHelper.accessor('submitterEmail', {
+      header: 'Submitter',
+      cell: info => (
+        <Typography variant='body2' noWrap sx={{ maxWidth: 160 }}>{info.getValue()}</Typography>
+      ),
+    }),
+    columnHelper.accessor('priority', {
+      header: 'Priority',
+      cell: info => (
+        <Box sx={{ textAlign: 'center' }}>
+          <Chip label={info.getValue()} size='small' color={PRIORITY_COLORS[info.getValue()] ?? 'default'} />
+        </Box>
+      ),
+    }),
+    columnHelper.accessor('status', {
+      header: 'Status',
+      cell: info => (
+        <Box sx={{ textAlign: 'center' }}>
+          <Chip label={info.getValue().replace('_', ' ')} size='small' color={STATUS_COLORS[info.getValue()] ?? 'default'} />
+        </Box>
+      ),
+    }),
+    columnHelper.accessor('createdAt', {
+      header: 'Created',
+      cell: info => (
+        <Typography variant='caption' color='text.secondary'>{fmtDate(info.getValue())}</Typography>
+      ),
+    }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
+
+  const table = useReactTable({
+    data: page?.content ?? [],
+    columns,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: page ? Math.ceil(page.totalElements / pageSize) : -1,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -396,73 +462,50 @@ function TicketsTab() {
       {/* Table */}
       <Card variant='outlined'>
         {loading && <LinearProgress />}
-        <TableContainer>
-          <Table size='small'>
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell sx={{ fontWeight: 700 }}>Subject</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Tenant</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Submitter</TableCell>
-                <TableCell align='center' sx={{ fontWeight: 700 }}>Priority</TableCell>
-                <TableCell align='center' sx={{ fontWeight: 700 }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Created</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {!page && loading && Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  {[1,2,3,4,5,6].map(c => (
-                    <TableCell key={c}><Skeleton variant='text' /></TableCell>
+        <div className='overflow-x-auto'>
+          <table className={tableStyles.table}>
+            <thead>
+              {table.getHeaderGroups().map(hg => (
+                <tr key={hg.id}>
+                  {hg.headers.map(h => (
+                    <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
                   ))}
-                </TableRow>
+                </tr>
               ))}
-              {page && page.content.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6}>
+            </thead>
+            <tbody>
+              {!page && loading ? Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i}>
+                  {[1,2,3,4,5,6].map(c => <td key={c}><Skeleton variant='text' /></td>)}
+                </tr>
+              )) : table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>
                     <Box sx={{ py: 4, textAlign: 'center' }}>
                       <i className='ri-customer-service-2-line' style={{ fontSize: '2.5rem', color: '#aaa' }} />
                       <Typography variant='body2' color='text.secondary' mt={1}>No tickets found.</Typography>
                     </Box>
-                  </TableCell>
-                </TableRow>
-              )}
-              {page && page.content.map(ticket => (
-                <TableRow key={ticket.id} hover sx={{ cursor: 'pointer' }}
-                  onClick={() => setSelected(ticket)}>
-                  <TableCell>
-                    <Typography variant='body2' fontWeight={600} noWrap sx={{ maxWidth: 220 }}>
-                      {ticket.subject}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='body2'>{ticket.tenantId}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='body2' noWrap sx={{ maxWidth: 160 }}>{ticket.submitterEmail}</Typography>
-                  </TableCell>
-                  <TableCell align='center'>
-                    <Chip label={ticket.priority} size='small' color={PRIORITY_COLORS[ticket.priority] ?? 'default'} />
-                  </TableCell>
-                  <TableCell align='center'>
-                    <Chip label={ticket.status.replace('_', ' ')} size='small'
-                      color={STATUS_COLORS[ticket.status] ?? 'default'} />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='caption' color='text.secondary'>{fmtDate(ticket.createdAt)}</Typography>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
+              ) : table.getRowModel().rows.map(row => (
+                <tr key={row.id} onClick={() => setSelected(row.original)} style={{ cursor: 'pointer' }}>
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                  ))}
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {page && page.totalPages > 1 && (
+            </tbody>
+          </table>
+        </div>
+        {page && (
           <TablePagination
+            rowsPerPageOptions={[10, 25, 50]}
             component='div'
             count={page.totalElements}
+            rowsPerPage={pageSize}
             page={pageNum}
-            rowsPerPage={20}
-            rowsPerPageOptions={[20]}
             onPageChange={(_, p) => setPageNum(p)}
+            onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPageNum(0) }}
           />
         )}
       </Card>
@@ -492,6 +535,7 @@ function FeedbackTab() {
   const [error,    setError]    = useState<string | null>(null)
   const [category, setCategory] = useState('')
   const [pageNum,  setPageNum]  = useState(0)
+  const [pageSize, setPageSize] = useState(25)
 
   const load = useCallback(async (cat: string, pg: number) => {
     setLoading(true); setError(null)
@@ -514,6 +558,52 @@ function FeedbackTab() {
   const maxBarCount = summary
     ? Math.max(...Object.values(summary.distribution).map(Number), 1)
     : 1
+
+  const columnHelper = createColumnHelper<FeedbackDto>()
+
+  const feedCols = useMemo(() => [
+    columnHelper.accessor('rating', {
+      header: 'Rating',
+      cell: info => <StarRating value={info.getValue()} />,
+    }),
+    columnHelper.accessor('category', {
+      header: 'Category',
+      cell: info => (
+        <Chip label={CATEGORY_LABELS[info.getValue()] ?? info.getValue()} size='small' variant='outlined' />
+      ),
+    }),
+    columnHelper.accessor('message', {
+      header: 'Message',
+      cell: info => (
+        <Typography variant='body2' noWrap sx={{ maxWidth: 280 }}>
+          {info.getValue() ?? <em style={{ color: '#aaa' }}>No message</em>}
+        </Typography>
+      ),
+    }),
+    columnHelper.accessor('tenantId', {
+      header: 'Tenant',
+      cell: info => <Typography variant='body2'>{info.getValue()}</Typography>,
+    }),
+    columnHelper.accessor('createdAt', {
+      header: 'Submitted',
+      cell: info => (
+        <Typography variant='caption' color='text.secondary'>{fmtDate(info.getValue())}</Typography>
+      ),
+    }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [])
+
+  const feedTable = useReactTable({
+    data: page?.content ?? [],
+    columns: feedCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: page ? Math.ceil(page.totalElements / pageSize) : -1,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -598,58 +688,46 @@ function FeedbackTab() {
         </Box>
         <Divider />
         {loading && !page && <LinearProgress />}
-        <TableContainer>
-          <Table size='small'>
-            <TableHead>
-              <TableRow sx={{ bgcolor: 'action.hover' }}>
-                <TableCell sx={{ fontWeight: 700 }}>Rating</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Message</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Tenant</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Submitted</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {page && page.content.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5}>
+        <div className='overflow-x-auto'>
+          <table className={tableStyles.table}>
+            <thead>
+              {feedTable.getHeaderGroups().map(hg => (
+                <tr key={hg.id}>
+                  {hg.headers.map(h => (
+                    <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {feedTable.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td colSpan={feedCols.length}>
                     <Box sx={{ py: 4, textAlign: 'center' }}>
                       <i className='ri-emotion-line' style={{ fontSize: '2.5rem', color: '#aaa' }} />
                       <Typography variant='body2' color='text.secondary' mt={1}>No feedback yet.</Typography>
                     </Box>
-                  </TableCell>
-                </TableRow>
-              )}
-              {page && page.content.map(fb => (
-                <TableRow key={fb.id} hover>
-                  <TableCell><StarRating value={fb.rating} /></TableCell>
-                  <TableCell>
-                    <Chip label={CATEGORY_LABELS[fb.category] ?? fb.category} size='small' variant='outlined' />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='body2' noWrap sx={{ maxWidth: 280 }}>
-                      {fb.message ?? <em style={{ color: '#aaa' }}>No message</em>}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='body2'>{fb.tenantId}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='caption' color='text.secondary'>{fmtDate(fb.createdAt)}</Typography>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
+              ) : feedTable.getRowModel().rows.map(row => (
+                <tr key={row.id}>
+                  {row.getVisibleCells().map(cell => (
+                    <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                  ))}
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </tbody>
+          </table>
+        </div>
         {page && page.totalPages > 1 && (
           <TablePagination
+            rowsPerPageOptions={[10, 25, 50]}
             component='div'
             count={page.totalElements}
+            rowsPerPage={pageSize}
             page={pageNum}
-            rowsPerPage={20}
-            rowsPerPageOptions={[20]}
             onPageChange={(_, p) => setPageNum(p)}
+            onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPageNum(0) }}
           />
         )}
       </Card>

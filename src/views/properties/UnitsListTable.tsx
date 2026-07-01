@@ -49,6 +49,8 @@ import UnitsStatsCard from './UnitsStatsCard'
 
 import AddUnitDialog from './AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+import { UnitCapGate } from '@/components/subscription/UnitCapGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -92,6 +94,8 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 const columnHelper = createColumnHelper<UnitWithExtras>()
 
 const UnitsListTable = () => {
+  const { refresh: refreshSubscription } = useSubscription()
+
   // States
   const [data, setData] = useState<UnitWithExtras[]>([])
   const [properties, setProperties] = useState<PropertyOption[]>([])
@@ -497,15 +501,17 @@ const UnitsListTable = () => {
                 <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
                   Export
                 </Button>
-                <Button
-                  variant='contained'
-                  color='primary'
-                  size='small'
-                  startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddUnitOpen(true)}
-                >
-                  Add Unit
-                </Button>
+                <UnitCapGate>
+                  <Button
+                    variant='contained'
+                    color='primary'
+                    size='small'
+                    startIcon={<i className='ri-add-line' />}
+                    onClick={() => setAddUnitOpen(true)}
+                  >
+                    Add Unit
+                  </Button>
+                </UnitCapGate>
               </div>
             </div>
           </Box>
@@ -606,6 +612,7 @@ const UnitsListTable = () => {
         handleClose={() => {
           setAddUnitOpen(false)
           fetchUnits()
+          refreshSubscription()
         }}
         properties={properties}
         unitsData={data}

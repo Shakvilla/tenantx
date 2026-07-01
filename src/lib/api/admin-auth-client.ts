@@ -75,6 +75,8 @@ export interface TenantRecord {
   description: string | null
   active: boolean
   createdAt: string
+  ownerEmail: string | null
+  ownerName: string | null
 }
 
 export interface AdminRecord {
@@ -142,8 +144,9 @@ async function adminPut<T>(path: string, body: unknown): Promise<T> {
   return res.data
 }
 
-async function adminDelete(path: string): Promise<void> {
-  await adminClient.delete(path)
+async function adminDelete<T = void>(path: string): Promise<T> {
+  const res = await adminClient.delete<T>(path)
+  return res.data
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +332,8 @@ export interface AnnouncementDto {
   severity: 'info' | 'warning' | 'error' | 'success'
   active: boolean
   expiresAt: string | null
+  /** ISO-8601 datetime when this announcement should start showing. null = immediate. */
+  scheduledAt: string | null
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -340,6 +345,8 @@ export interface CreateAnnouncementPayload {
   severity?: string
   active?: boolean
   expiresAt?: string
+  /** datetime-local value (YYYY-MM-DDTHH:mm) or empty string to clear. */
+  scheduledAt?: string
 }
 
 export async function getAnnouncements(): Promise<AnnouncementDto[]> {
@@ -380,9 +387,37 @@ export async function broadcastMessage(subject: string, body: string): Promise<M
   return adminPost<MessagingResult>('/messaging/broadcast', { subject, body })
 }
 
+export interface MessageLogDto {
+  id: string
+  messageType: 'TARGETED' | 'BROADCAST'
+  subject: string
+  bodyPreview: string | null
+  recipientCount: number
+  sentCount: number
+  failedCount: number
+  sentBy: string | null
+  sentAt: string
+}
+
+export interface MessageLogPage {
+  data: MessageLogDto[]
+  total: number
+  page: number
+  size: number
+}
+
+export async function getMessageHistory(page = 0, size = 20): Promise<MessageLogPage> {
+  return adminGet<MessageLogPage>(`/messaging/history?page=${page}&size=${size}`)
+}
+
 // ---------------------------------------------------------------------------
 // Subscription plans
 // ---------------------------------------------------------------------------
+
+export interface FeatureInfo {
+  label: string
+  enabled: boolean
+}
 
 export interface SubscriptionPlanDto {
   id: string
@@ -392,7 +427,9 @@ export interface SubscriptionPlanDto {
   freeUnitCap: number | null
   transactionFeePct: number | null
   active: boolean
-  features: Record<string, boolean>
+  popular: boolean
+  features: Record<string, FeatureInfo>
+  marketingFeatures: string[]
   subscriberCount: number
 }
 
@@ -403,6 +440,8 @@ export interface UpdatePlanRequestDto {
   transactionFeePct: number | null
   featureFlags: Record<string, boolean>
   active: boolean
+  popular?: boolean
+  marketingFeatures?: string[]
 }
 
 export interface TenantSubscriptionDto {
@@ -634,13 +673,99 @@ export interface ReddeHealthDto {
   topFailureReasons: FailureReasonDto[]
 }
 
+// status: 'UP' | 'DOWN' | 'DEGRADED' | 'UNCONFIGURED'
+export interface ServiceStatusDto {
+  name: string
+  key: string
+  status: 'UP' | 'DOWN' | 'DEGRADED' | 'UNCONFIGURED'
+  detail: string
+}
+
+export interface FlywayInfoDto {
+  currentVersion: string
+  description: string
+  installedOn: string | null
+  appliedCount: number
+  pendingCount: number
+}
+
+export interface NotifChannelStatDto {
+  sent: number
+  delivered: number
+  failed: number
+  pending: number
+  total: number
+}
+
+export interface NotifDailyPointDto {
+  date: string        // yyyy-MM-dd
+  emailCount: number
+  smsCount: number
+}
+
+export interface NotifStatsDto {
+  email: NotifChannelStatDto
+  sms: NotifChannelStatDto
+  whatsapp: NotifChannelStatDto
+  dailyTrend: NotifDailyPointDto[]  // last 7 days, oldest first
+}
+
 export interface SystemHealthResponse {
   jobs: JobStatusDto[]
   reddeHealth: ReddeHealthDto
+  /** Distinct tenant users with a successful login in the last 30 minutes. */
+  activeSessionsApprox: number
+  // --- new ---
+  services: ServiceStatusDto[]
+  flyway: FlywayInfoDto
+  notifStats: NotifStatsDto
 }
 
 export async function getSystemHealth(): Promise<SystemHealthResponse> {
   return adminGet<SystemHealthResponse>('/system/health')
+}
+
+// ---------------------------------------------------------------------------
+// System Notifications (admin-level resend for failed deliveries)
+// ---------------------------------------------------------------------------
+
+export interface SystemNotificationDto {
+  id: string
+  tenantId: string
+  recipientAddress: string
+  subject?: string | null
+  type: string           // EMAIL | SMS | PUSH | IN_APP
+  status: string         // PENDING | SENT | DELIVERED | FAILED | RETRYING | CANCELLED
+  retryCount: number
+  failureReason?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SystemNotificationPage {
+  content: SystemNotificationDto[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+}
+
+export async function getSystemNotifications(params?: {
+  status?: string
+  type?: string
+  page?: number
+  size?: number
+}): Promise<SystemNotificationPage> {
+  const q = new URLSearchParams()
+  if (params?.status) q.set('status', params.status)
+  if (params?.type)   q.set('type',   params.type)
+  if (params?.page !== undefined) q.set('page', String(params.page))
+  if (params?.size !== undefined) q.set('size', String(params.size))
+  return adminGet<SystemNotificationPage>(`/system/notifications${q.toString() ? `?${q}` : ''}`)
+}
+
+export async function resendSystemNotification(id: string): Promise<void> {
+  return adminPost<void>(`/system/notifications/${id}/resend`, {})
 }
 
 // ---------------------------------------------------------------------------
@@ -748,6 +873,21 @@ export async function getPlanChangesReport(start: string, end: string): Promise<
 
 export async function getSummaryReport(start: string, end: string): Promise<SummaryReportDto> {
   return adminGet<SummaryReportDto>(`/reports/summary?start=${start}&end=${end}`)
+}
+
+export interface RevenueByPlanCell {
+  month: string
+  planName: string
+  revenue: number
+}
+
+export interface RevenueByPlanDto {
+  months: string[]
+  cells: RevenueByPlanCell[]
+}
+
+export async function getRevenueByPlan(months = 12): Promise<RevenueByPlanDto> {
+  return adminGet<RevenueByPlanDto>(`/reports/revenue-by-plan?months=${months}`)
 }
 
 export function buildSummaryExportUrl(start: string, end: string): string {
@@ -1078,4 +1218,437 @@ export async function exportTenantData(tenantId: string): Promise<void> {
   a.download = m ? m[1] : `tenantx_export_${tenantId}.json`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// ---------------------------------------------------------------------------
+// Domain 01 (P2) — Impersonate Tenant
+// ---------------------------------------------------------------------------
+
+export interface TenantUserDto {
+  id:       string
+  email:    string
+  fullName: string
+  role:     string
+  active:   boolean
+}
+
+export interface ImpersonateResponse {
+  accessToken:     string
+  expiresAt:       string
+  targetUserId:    string
+  targetUserEmail: string
+  targetTenantId:  string
+  impersonatedBy:  string
+}
+
+export interface ImpersonationLogDto {
+  id:               string
+  adminId:          string
+  adminEmail:       string
+  targetTenantId:   string
+  targetUserId:     string
+  targetUserEmail:  string
+  reason:           string | null
+  impersonatedAt:   string
+  tokenExpiresAt:   string
+}
+
+export interface ImpersonationLogPage {
+  items:      ImpersonationLogDto[]
+  page:       number
+  size:       number
+  totalItems: number
+  totalPages: number
+}
+
+export async function getTenantUsers(tenantId: string): Promise<TenantUserDto[]> {
+  return adminGet<TenantUserDto[]>(`/tenants/${tenantId}/users`)
+}
+
+export async function impersonateTenant(
+  tenantId: string,
+  userId: string,
+  reason?: string
+): Promise<ImpersonateResponse> {
+  return adminPost<ImpersonateResponse>(`/tenants/${tenantId}/impersonate`, { userId, reason })
+}
+
+export async function getImpersonationLog(
+  tenantId: string,
+  page = 0,
+  size = 25
+): Promise<ImpersonationLogPage> {
+  return adminGet<ImpersonationLogPage>(
+    `/tenants/${tenantId}/impersonate/log?page=${page}&size=${size}`
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Domain 01 (P2) — Session Management
+// ---------------------------------------------------------------------------
+
+export interface SessionDto {
+  familyId:          string
+  userId:            string
+  ipAddress:         string | null
+  userAgent:         string | null
+  issuedAt:          string
+  expiresAt:         string
+  absoluteExpiresAt: string
+}
+
+export async function getTenantSessions(tenantId: string): Promise<SessionDto[]> {
+  return adminGet<SessionDto[]>(`/tenants/${tenantId}/sessions`)
+}
+
+export async function terminateSession(tenantId: string, familyId: string): Promise<void> {
+  await adminDelete(`/tenants/${tenantId}/sessions/${familyId}`)
+}
+
+export async function terminateAllSessions(tenantId: string): Promise<{ terminated: number }> {
+  return adminDelete<{ terminated: number }>(`/tenants/${tenantId}/sessions`)
+}
+
+// ---------------------------------------------------------------------------
+// Tenant Deep Visibility — Properties, Units, Occupants, Team, Wallet
+// ---------------------------------------------------------------------------
+
+export interface AdminPropertySummary {
+  id:            string
+  name:          string
+  type:          string
+  status:        string
+  city:          string | null
+  region:        string | null
+  totalUnits:    number
+  occupiedUnits: number
+  createdAt:     string | null
+}
+
+export interface AdminUnitSummary {
+  id:           string
+  unitNo:       string
+  type:         string
+  status:       string        // available | occupied
+  rent:         number
+  currency:     string
+  propertyName: string | null
+  propertyId:   string | null
+  createdAt:    string | null
+}
+
+export interface AdminOccupantSummary {
+  id:          string
+  firstName:   string
+  lastName:    string
+  email:       string
+  phone:       string
+  status:      string
+  unitNo:      string | null
+  unitId:      string | null
+  propertyId:  string | null
+  moveInDate:  string | null
+  moveOutDate: string | null
+}
+
+export interface AdminTeamMemberSummary {
+  id:        string
+  fullName:  string
+  email:     string
+  role:      string
+  active:    boolean
+  createdAt: string | null
+}
+
+export interface AdminWalletSummary {
+  id:                string
+  currency:          string
+  status:            string    // ACTIVE | SUSPENDED | FROZEN
+  balance:           number
+  pendingBalance:    number
+  totalEarned:       number
+  totalWithdrawn:    number
+  linkedMomoNumber:  string | null
+  linkedMomoNetwork: string | null
+}
+
+export interface AdminPagedProperties {
+  items: AdminPropertySummary[]
+  total: number
+  page:  number
+  size:  number
+}
+
+export interface AdminPagedUnits {
+  items: AdminUnitSummary[]
+  total: number
+  page:  number
+  size:  number
+}
+
+export interface AdminPagedOccupants {
+  items: AdminOccupantSummary[]
+  total: number
+  page:  number
+  size:  number
+}
+
+export interface AdminPagedTeam {
+  items: AdminTeamMemberSummary[]
+  total: number
+  page:  number
+  size:  number
+}
+
+export async function getTenantProperties(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedProperties> {
+  return adminGet<AdminPagedProperties>(`/tenants/${tenantId}/properties?page=${page}&size=${size}`)
+}
+
+export async function getTenantUnits(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedUnits> {
+  return adminGet<AdminPagedUnits>(`/tenants/${tenantId}/units?page=${page}&size=${size}`)
+}
+
+export async function getTenantOccupants(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedOccupants> {
+  return adminGet<AdminPagedOccupants>(`/tenants/${tenantId}/occupants?page=${page}&size=${size}`)
+}
+
+export async function getTenantTeam(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedTeam> {
+  return adminGet<AdminPagedTeam>(`/tenants/${tenantId}/team?page=${page}&size=${size}`)
+}
+
+export async function getTenantWallet(tenantId: string): Promise<AdminWalletSummary | null> {
+  try {
+    return await adminGet<AdminWalletSummary>(`/tenants/${tenantId}/wallet`)
+  } catch (e: any) {
+    if (e?.response?.status === 404) return null
+    throw e
+  }
+}
+
+/** Freeze a tenant's wallet — blocks withdrawals and credits. */
+export async function freezeTenantWallet(tenantId: string): Promise<AdminWalletSummary> {
+  return adminPost<AdminWalletSummary>(`/tenants/${tenantId}/wallet/freeze`, {})
+}
+
+/** Restore a frozen/suspended wallet to ACTIVE. */
+export async function unfreezeTenantWallet(tenantId: string): Promise<AdminWalletSummary> {
+  return adminPost<AdminWalletSummary>(`/tenants/${tenantId}/wallet/unfreeze`, {})
+}
+
+export interface AdminWalletAdjustRequest {
+  type:    'CREDIT' | 'DEBIT'
+  amount:  number
+  reason?: string
+}
+
+/** Apply a manual admin credit or debit to a tenant's wallet. */
+export async function adjustTenantWallet(
+  tenantId: string,
+  req: AdminWalletAdjustRequest
+): Promise<AdminWalletSummary> {
+  return adminPost<AdminWalletSummary>(`/tenants/${tenantId}/wallet/adjust`, req)
+}
+
+// ---------------------------------------------------------------------------
+// Tenant Deep Visibility — Agreements, Payments, Inspections, Maintenance
+// ---------------------------------------------------------------------------
+
+export interface AdminAgreementSummary {
+  id:               string
+  agreementNumber:  string | null
+  type:             string | null
+  status:           string | null
+  occupantName:     string | null
+  propertyName:     string | null
+  unitNo:           string | null
+  startDate:        string | null
+  endDate:          string | null
+  signedDate:       string | null
+  rent:             number | null
+  totalAmount:      number | null
+  currency:         string | null
+  paymentFrequency: string | null
+  createdAt:        string | null
+}
+
+export interface AdminPaymentSummary {
+  id:            string
+  invoiceId:     string | null
+  invoiceNumber: string | null
+  occupantName:  string | null
+  amount:        number
+  currency:      string | null
+  paymentMethod: string | null
+  status:        string | null
+  failureReason: string | null
+  paymentDate:   string | null
+  createdAt:     string | null
+}
+
+export interface AdminInspectionSummary {
+  id:            string
+  unitNo:        string | null
+  propertyName:  string | null
+  type:          string | null
+  status:        string | null
+  inspectionDate: string | null
+  signedOffDate:  string | null
+  inspectorName:  string | null
+  createdAt:      string | null
+}
+
+export interface AdminMaintenanceSummary {
+  id:            string
+  requestNumber: string | null
+  title:         string | null
+  priority:      string | null
+  status:        string | null
+  estimatedCost: number | null
+  actualCost:    number | null
+  currency:      string | null
+  isSlaBreached: boolean
+  scheduledDate: string | null
+  completedDate: string | null
+  createdAt:     string | null
+}
+
+export interface AdminPagedAgreements  { items: AdminAgreementSummary[];  total: number; page: number; size: number }
+export interface AdminPagedPayments    { items: AdminPaymentSummary[];    total: number; page: number; size: number }
+export interface AdminPagedInspections { items: AdminInspectionSummary[]; total: number; page: number; size: number }
+export interface AdminPagedMaintenance { items: AdminMaintenanceSummary[]; total: number; page: number; size: number }
+
+export async function getTenantAgreements(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedAgreements> {
+  return adminGet<AdminPagedAgreements>(`/tenants/${tenantId}/agreements?page=${page}&size=${size}`)
+}
+
+export async function getTenantPayments(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedPayments> {
+  return adminGet<AdminPagedPayments>(`/tenants/${tenantId}/payments?page=${page}&size=${size}`)
+}
+
+export async function getTenantInspections(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedInspections> {
+  return adminGet<AdminPagedInspections>(`/tenants/${tenantId}/inspections?page=${page}&size=${size}`)
+}
+
+export async function getTenantMaintenance(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedMaintenance> {
+  return adminGet<AdminPagedMaintenance>(`/tenants/${tenantId}/maintenance?page=${page}&size=${size}`)
+}
+
+// ── Rental Analytics ─────────────────────────────────────────────────────────
+
+export interface AdminRentalRevenueDto {
+  labels: string[]
+  invoiced: number[]
+  collected: number[]
+}
+
+export interface AdminOccupancyDto {
+  totalUnits: number
+  occupiedUnits: number
+  occupancyRate: number
+}
+
+export interface AdminTopTenantItem {
+  tenantId: string
+  tenantName: string
+  revenue: number
+}
+
+export interface AdminTopTenantsDto {
+  items: AdminTopTenantItem[]
+}
+
+export async function getRentalRevenue(months = 12): Promise<AdminRentalRevenueDto> {
+  return adminGet<AdminRentalRevenueDto>(`/reports/rental-revenue?months=${months}`)
+}
+
+export async function getOccupancyStats(): Promise<AdminOccupancyDto> {
+  return adminGet<AdminOccupancyDto>('/reports/occupancy')
+}
+
+export async function getTopTenants(months = 12): Promise<AdminTopTenantsDto> {
+  return adminGet<AdminTopTenantsDto>(`/reports/top-tenants?months=${months}`)
+}
+
+// ---------------------------------------------------------------------------
+// Platform User Management — cross-tenant (Domain 10 P2)
+// ---------------------------------------------------------------------------
+
+export interface AdminUserRecord {
+  id:          string
+  fullName:    string
+  email:       string
+  companyName: string
+  role:        string
+  tenantId:    string
+  active:      boolean
+  createdAt:   string
+}
+
+export interface PagedAdminUsers {
+  items: AdminUserRecord[]
+  total: number
+  page:  number
+  size:  number
+}
+
+export interface GetAdminUsersParams {
+  tenantId?: string
+  role?:     string
+  active?:   boolean
+  search?:   string
+  page?:     number
+  size?:     number
+}
+
+/** List all platform users with optional filtering and pagination. */
+export async function getAdminUsers(params: GetAdminUsersParams = {}): Promise<PagedAdminUsers> {
+  const q = new URLSearchParams()
+  if (params.tenantId !== undefined) q.set('tenantId', params.tenantId)
+  if (params.role     !== undefined) q.set('role',     params.role)
+  if (params.active   !== undefined) q.set('active',   String(params.active))
+  if (params.search   !== undefined && params.search !== '') q.set('search', params.search)
+  q.set('page', String(params.page ?? 0))
+  q.set('size', String(params.size ?? 50))
+  return adminGet<PagedAdminUsers>(`/users?${q}`)
+}
+
+/** Get a single platform user by UUID. */
+export async function getAdminUser(id: string): Promise<AdminUserRecord> {
+  return adminGet<AdminUserRecord>(`/users/${id}`)
+}
+
+/** Deactivate a user — blocks login. Returns the updated record. */
+export async function deactivateAdminUser(id: string): Promise<AdminUserRecord> {
+  const res = await adminClient.patch<AdminUserRecord>(`/users/${id}/deactivate`)
+  return res.data
+}
+
+/** Reactivate a previously deactivated user. Returns the updated record. */
+export async function reactivateAdminUser(id: string): Promise<AdminUserRecord> {
+  const res = await adminClient.patch<AdminUserRecord>(`/users/${id}/reactivate`)
+  return res.data
+}
+
+/**
+ * Trigger a password reset OTP email for a specific user.
+ * Reuses the forgot-password flow — no password is changed server-side.
+ */
+export async function resetAdminUserPassword(id: string): Promise<PasswordResetResponse> {
+  return adminPost<PasswordResetResponse>(`/users/${id}/reset-password`, {})
 }

@@ -28,7 +28,7 @@ import Skeleton from '@mui/material/Skeleton'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 
-import { inspectionsApi } from '@/lib/api/inspections'
+import { inspectionsApi, getInspectionReportUrl } from '@/lib/api/inspections'
 import type {
   InspectionResponse,
   InspectionItemResponse,
@@ -133,35 +133,12 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
       .finally(() => setLoading(false))
   }, [open, inspectionId])
 
-  function handlePrint() {
-    window.print()
-  }
-
   const roomGroups = data ? groupByRoom(data.items) : new Map()
 
   return (
     <>
-      {/* Print-only stylesheet injected inline */}
-      <style>{`
-        @media print {
-          body > *:not(#inspection-print-root) { display: none !important; }
-          #inspection-print-root { display: block !important; }
-          .MuiDialog-root { position: static !important; overflow: visible !important; }
-          .MuiBackdrop-root { display: none !important; }
-          .MuiDialog-container { display: block !important; }
-          .MuiDialog-paper {
-            box-shadow: none !important;
-            max-width: 100% !important;
-            width: 100% !important;
-            margin: 0 !important;
-            border-radius: 0 !important;
-          }
-          .no-print { display: none !important; }
-        }
-      `}</style>
-
-      <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth id='inspection-print-root'>
-        <DialogTitle className='flex items-center justify-between no-print'>
+      <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth>
+        <DialogTitle className='flex items-center justify-between'>
           <Box className='flex items-center gap-2'>
             <i className='ri-file-list-3-line' style={{ color: 'var(--mui-palette-primary-main)' }} />
             <span>Inspection Report</span>
@@ -324,16 +301,24 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
           )}
         </DialogContent>
 
-        <DialogActions className='gap-2 pbs-4 no-print'>
-          <Button
-            variant='outlined'
-            color='secondary'
-            startIcon={<i className='ri-printer-line' />}
-            onClick={handlePrint}
-            disabled={loading || !data}
-          >
-            Print / PDF
-          </Button>
+        <DialogActions className='gap-2 pbs-4'>
+          {/* Report download */}
+          <Tooltip title='Download Report (opens in new tab → Ctrl+P to save as PDF)'>
+            <span>
+              <Button
+                variant='outlined'
+                size='small'
+                startIcon={<i className='ri-file-download-line' />}
+                component='a'
+                href={data ? getInspectionReportUrl(data.id) : undefined}
+                target='_blank'
+                rel='noopener noreferrer'
+                disabled={loading || !data}
+              >
+                Download Report
+              </Button>
+            </span>
+          </Tooltip>
           <Button variant='contained' onClick={onClose}>
             Close
           </Button>

@@ -5,7 +5,6 @@ import classnames from 'classnames'
 
 // Type Imports
 import type { ShortcutsType } from '@components/layout/shared/ShortcutsDropdown'
-import type { NotificationsType } from '@components/layout/shared/NotificationsDropdown'
 
 // Component Imports
 import NavToggle from './NavToggle'
@@ -63,37 +62,6 @@ const shortcuts: ShortcutsType[] = [
   }
 ]
 
-const notifications: NotificationsType[] = [
-  {
-    avatarImage: '/images/avatars/2.png',
-    title: 'New Maintenance Request',
-    subtitle: 'Maintenance request submitted for Room A-101',
-    time: '1h ago',
-    read: false
-  },
-  {
-    title: 'Payment Received',
-    subtitle: 'Payment of €1,200 received from Jordan Stevenson',
-    time: '3h ago',
-    read: false
-  },
-  {
-    avatarImage: '/images/avatars/3.png',
-    title: 'Lease Agreement Signed',
-    subtitle: 'New lease agreement signed for Property B-205',
-    time: '5h ago',
-    read: true
-  },
-  {
-    avatarIcon: 'ri-alert-line',
-    avatarColor: 'warning',
-    title: 'Overdue Payment',
-    subtitle: 'Payment overdue for Room C-301',
-    time: '1 day ago',
-    read: true
-  }
-]
-
 const NavbarContent = () => {
   // Hooks
   const { isBreakpointReached } = useHorizontalNav()
@@ -112,7 +80,7 @@ const NavbarContent = () => {
         <CreateButton />
         <ShortcutsDropdown shortcuts={shortcuts} />
         <ModeDropdown />
-        <NotificationsDropdown notifications={notifications} />
+        <NotificationsDropdown />
         <UserDropdown />
       </div>
     </div>

@@ -88,10 +88,11 @@ export type UpdateAgreementPayload = Partial<CreateAgreementPayload>
 // API functions
 // ---------------------------------------------------------------------------
 
-export async function getAgreements(params?: { status?: string; type?: string }): Promise<Agreement[]> {
+export async function getAgreements(params?: { status?: string; type?: string; occupantId?: string }): Promise<Agreement[]> {
   const q = new URLSearchParams()
   if (params?.status) q.set('status', params.status)
   if (params?.type) q.set('type', params.type)
+  if (params?.occupantId) q.set('occupantId', params.occupantId)
   const query = q.toString() ? `?${q}` : ''
   return apiGet(`${BASE}/agreements${query}`, { headers: tenantHeader() })
 }

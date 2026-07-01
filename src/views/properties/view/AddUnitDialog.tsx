@@ -251,7 +251,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
       onSuccess()
       onClose()
     } catch (err) {
-      console.error('Error saving unit:', err)
+      console.warn('Error saving unit:', err)
       setError(err instanceof Error ? err.message : 'Failed to save unit')
     } finally {
       setLoading(false)

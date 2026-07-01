@@ -567,6 +567,7 @@ const PropertiesListTable = () => {
                   size='small'
                   startIcon={<i className='ri-add-line' />}
                   onClick={() => setAddPropertyOpen(true)}
+                  sx={{ whiteSpace: 'nowrap' }}
                 >
                   Add Property
                 </Button>

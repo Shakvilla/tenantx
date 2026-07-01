@@ -371,13 +371,14 @@ const LedgerTable = () => {
   const [dateFrom, setDateFrom]           = useState('')
   const [dateTo, setDateTo]               = useState('')
 
-  const load = useCallback((p: number, from = dateFrom, to = dateTo) => {
+  const load = useCallback((p: number, from = dateFrom, to = dateTo, catOverride?: string) => {
     setLoading(true)
-    walletApi.getLedger({ page: p, size: pageSize, from: from || undefined, to: to || undefined })
+    const cat = catOverride !== undefined ? catOverride : categoryFilter
+    walletApi.getLedger({ page: p, size: pageSize, from: from || undefined, to: to || undefined, category: cat || undefined })
       .then(res => { setEntries(res.entries); setTotal(res.totalElements) })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [pageSize, dateFrom, dateTo])
+  }, [pageSize, dateFrom, dateTo, categoryFilter])
 
   useEffect(() => { load(0) }, [load])
 
@@ -495,6 +496,38 @@ const LedgerTable = () => {
         }
       />
       <CardContent className='flex flex-col gap-4'>
+        {/* Quick-filter chips — gap-fl1: make platform fees discoverable */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', pt: 1 }}>
+          <Typography variant='caption' color='text.secondary' sx={{ alignSelf: 'center', mr: 0.5 }}>
+            Quick filter:
+          </Typography>
+          {[
+            { label: 'All transactions', value: '' },
+            { label: '🧾 Platform fees', value: 'PLATFORM_FEE' },
+            { label: '💸 Withdrawals', value: 'WITHDRAWAL_INITIATED' },
+            { label: '✅ Rent collected', value: 'RENT_COLLECTED' },
+          ].map(f => (
+            <Chip
+              key={f.value}
+              label={f.label}
+              size='small'
+              variant={categoryFilter === f.value ? 'filled' : 'outlined'}
+              color={categoryFilter === f.value ? 'primary' : 'default'}
+              onClick={() => {
+                setCategoryFilter(f.value)
+                load(0, dateFrom, dateTo, f.value)
+                setPage(0)
+              }}
+              sx={{ cursor: 'pointer' }}
+            />
+          ))}
+        </Box>
+        {categoryFilter === 'PLATFORM_FEE' && (
+          <Alert severity='info' icon={<i className='ri-information-line' />} sx={{ py: 0.5 }}>
+            Showing platform transaction fees deducted from your rent collections. These are charged per successful payment.
+          </Alert>
+        )}
+
         {/* Filter Section */}
         <Box className='flex flex-col gap-4 p-4 rounded-lg'>
           {/* Row 1: dropdown + date filters */}
@@ -672,6 +705,22 @@ const WalletDashboard = () => {
         loading={loading}
         onWithdraw={() => setWithdrawOpen(true)}
       />
+
+      {wallet && wallet.status !== 'ACTIVE' && (
+        <Alert
+          severity='error'
+          icon={<i className='ri-lock-2-line' style={{ fontSize: '1.2rem' }} />}
+          sx={{ mb: 3 }}
+        >
+          <strong>
+            {wallet.status === 'FROZEN' ? 'Wallet frozen' : 'Wallet suspended'}
+          </strong>
+          {' — '}
+          {wallet.status === 'FROZEN'
+            ? 'Your wallet has been frozen by the platform. Incoming payments will not be credited and withdrawals are disabled. Please contact support to resolve this.'
+            : 'Your wallet has been suspended. Withdrawals are currently disabled. Please contact support for assistance.'}
+        </Alert>
+      )}
 
       <LedgerTable />
 

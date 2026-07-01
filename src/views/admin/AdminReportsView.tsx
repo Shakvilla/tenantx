@@ -24,14 +24,26 @@ import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
+import dynamic from 'next/dynamic'
+import type { ApexOptions } from 'apexcharts'
+const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
+
 import {
   getFunnelReport,
   getPlanChangesReport,
   getSummaryReport,
   buildSummaryExportUrl,
+  getRevenueByPlan,
+  getRentalRevenue,
+  getOccupancyStats,
+  getTopTenants,
   type FunnelReportDto,
   type PlanChangesReportDto,
   type SummaryReportDto,
+  type RevenueByPlanDto,
+  type AdminRentalRevenueDto,
+  type AdminOccupancyDto,
+  type AdminTopTenantsDto,
 } from '@/lib/api/admin-auth-client'
 import { getStoredAdminToken } from '@/lib/api/admin-storage'
 
@@ -648,6 +660,403 @@ function SummaryTab() {
 // Main view
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Tab 3 — Revenue by Plan stacked bar
+// ---------------------------------------------------------------------------
+
+const PLAN_COLORS: Record<string, string> = {
+  FREE:    '#9E9E9E',
+  BASIC:   '#42A5F5',
+  PRO:     '#7E57C2',
+  STARTER: '#66BB6A',
+  GROWTH:  '#FFA726',
+}
+
+function planColor(name: string): string {
+  return PLAN_COLORS[name.toUpperCase()] ?? '#26A69A'
+}
+
+function RevenueByPlanTab() {
+  const [data, setData]       = useState<RevenueByPlanDto | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+  const [months, setMonths]   = useState(12)
+
+  const load = useCallback(async (m = months) => {
+    setLoading(true); setError(null)
+    try { setData(await getRevenueByPlan(m)) }
+    catch { setError('Failed to load revenue data') }
+    finally { setLoading(false) }
+  }, [months])
+
+  useEffect(() => { load(months) }, [months]) // eslint-disable-line
+
+  if (error) return <Alert severity='error'>{error}</Alert>
+
+  // Build ApexCharts series from flat cell array
+  const planNames = data ? [...new Set(data.cells.map(c => c.planName))].sort() : []
+  const series = planNames.map(plan => ({
+    name: plan,
+    data: (data?.months ?? []).map(month => {
+      const cell = data?.cells.find(c => c.month === month && c.planName === plan)
+      return cell ? Number(cell.revenue) : 0
+    }),
+  }))
+
+  const chartOptions: ApexOptions = {
+    chart: { type: 'bar', stacked: true, toolbar: { show: false } },
+    xaxis: { categories: data?.months ?? [] },
+    yaxis: {
+      labels: {
+        formatter: (v: number) => `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+      },
+    },
+    colors: planNames.map(planColor),
+    dataLabels: { enabled: false },
+    legend: { position: 'top' },
+    tooltip: {
+      y: {
+        formatter: (v: number) =>
+          new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS' }).format(v),
+      },
+    },
+    fill: { opacity: 1 },
+    plotOptions: { bar: { borderRadius: 2 } },
+    grid: { borderColor: 'var(--mui-palette-divider)' },
+  }
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Typography variant='subtitle1' fontWeight={700} sx={{ flex: 1 }}>
+          Monthly Revenue by Subscription Plan
+        </Typography>
+        <TextField
+          select
+          size='small'
+          label='Period'
+          value={months}
+          onChange={e => setMonths(Number(e.target.value))}
+          sx={{ width: 160 }}
+          slotProps={{ select: { native: true } }}
+        >
+          <option value={6}>Last 6 months</option>
+          <option value={12}>Last 12 months</option>
+          <option value={24}>Last 24 months</option>
+        </TextField>
+      </Box>
+
+      <Card variant='outlined'>
+        <CardContent>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : !data || data.months.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <i className='ri-bar-chart-2-line' style={{ fontSize: '2.5rem', color: 'var(--mui-palette-text-disabled)' }} />
+              <Typography color='text.secondary' sx={{ mt: 1 }}>No paid invoice data in the selected period</Typography>
+            </Box>
+          ) : (
+            <AppReactApexCharts type='bar' height={360} options={chartOptions} series={series} />
+          )}
+        </CardContent>
+      </Card>
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Tab 4 — Rental Revenue
+// ---------------------------------------------------------------------------
+
+function RentalRevenueTab() {
+  const [months, setMonths] = useState(12)
+  const [data, setData] = useState<AdminRentalRevenueDto | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback((m: number) => {
+    setLoading(true)
+    setError(null)
+    getRentalRevenue(m)
+      .then(setData)
+      .catch(() => setError('Failed to load rental revenue data.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load(months) }, [months, load])
+
+  const series = [
+    { name: 'Invoiced', data: data?.invoiced ?? [] },
+    { name: 'Collected', data: data?.collected ?? [] },
+  ]
+
+  const chartOptions: ApexOptions = {
+    chart: { type: 'bar', toolbar: { show: false } },
+    xaxis: { categories: data?.labels ?? [] },
+    yaxis: {
+      labels: {
+        formatter: (v: number) =>
+          `GHS ${v.toLocaleString('en-GH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
+      },
+    },
+    colors: ['#7367f0', '#28c76f'],
+    dataLabels: { enabled: false },
+    legend: { position: 'top' },
+    tooltip: {
+      y: {
+        formatter: (v: number) =>
+          new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS' }).format(v),
+      },
+    },
+    plotOptions: { bar: { borderRadius: 2, columnWidth: '55%' } },
+    grid: { borderColor: 'var(--mui-palette-divider)' },
+  }
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Typography variant='subtitle1' fontWeight={700} sx={{ flex: 1 }}>
+          Rental Revenue — Invoiced vs Collected
+        </Typography>
+        <TextField
+          select size='small' label='Period' value={months}
+          onChange={e => setMonths(Number(e.target.value))}
+          sx={{ width: 160 }}
+          slotProps={{ select: { native: true } }}
+        >
+          <option value={6}>Last 6 months</option>
+          <option value={12}>Last 12 months</option>
+          <option value={24}>Last 24 months</option>
+        </TextField>
+      </Box>
+      <Card variant='outlined'>
+        <CardContent>
+          {error ? (
+            <Alert severity='error'>{error}</Alert>
+          ) : loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : !data || data.labels.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <i className='ri-bar-chart-line' style={{ fontSize: '2.5rem', color: 'var(--mui-palette-text-disabled)' }} />
+              <Typography color='text.secondary' sx={{ mt: 1 }}>No rental invoice data in the selected period</Typography>
+            </Box>
+          ) : (
+            <AppReactApexCharts type='bar' height={360} options={chartOptions} series={series} />
+          )}
+        </CardContent>
+      </Card>
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Tab 5 — Occupancy
+// ---------------------------------------------------------------------------
+
+function OccupancyTab() {
+  const [data, setData] = useState<AdminOccupancyDto | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    getOccupancyStats()
+      .then(setData)
+      .catch(() => setError('Failed to load occupancy data.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const vacant = data ? data.totalUnits - data.occupiedUnits : 0
+
+  const chartOptions: ApexOptions = {
+    chart: { type: 'donut' },
+    labels: ['Occupied', 'Vacant'],
+    colors: ['#28c76f', '#ea5455'],
+    legend: { position: 'bottom' },
+    dataLabels: { enabled: true, formatter: (v: number) => `${v.toFixed(1)}%` },
+    tooltip: { y: { formatter: (v: number) => `${v} units` } },
+    plotOptions: { pie: { donut: { size: '65%' } } },
+  }
+
+  return (
+    <Box>
+      <Typography variant='subtitle1' fontWeight={700} sx={{ mb: 3 }}>
+        Current Occupancy — All Tenants
+      </Typography>
+      {error ? (
+        <Alert severity='error'>{error}</Alert>
+      ) : loading ? (
+        <Grid container spacing={3}>
+          {[0, 1, 2].map(i => (
+            <Grid key={i} item xs={12} md={4}>
+              <Card variant='outlined'><CardContent>
+                <Skeleton variant='text' width='50%' height={20} />
+                <Skeleton variant='text' width='70%' height={44} />
+              </CardContent></Card>
+            </Grid>
+          ))}
+        </Grid>
+      ) : data ? (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <StatCard label='Total Units' value={fmtNum(data.totalUnits)} icon='ri-building-4-line' color='primary' />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <StatCard label='Occupied Units' value={fmtNum(data.occupiedUnits)} icon='ri-home-heart-line' color='success'
+              sub={`${data.occupancyRate.toFixed(1)}% occupancy rate`} />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <StatCard label='Vacant Units' value={fmtNum(vacant)} icon='ri-home-line' color='warning'
+              sub={`${(100 - data.occupancyRate).toFixed(1)}% vacancy rate`} />
+          </Grid>
+          {data.totalUnits > 0 && (
+            <Grid item xs={12} md={6} sx={{ mx: 'auto' }}>
+              <Card variant='outlined'>
+                <CardContent>
+                  <AppReactApexCharts
+                    type='donut'
+                    height={320}
+                    options={chartOptions}
+                    series={[data.occupiedUnits, vacant]}
+                  />
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
+      ) : null}
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Tab 6 — Top Tenants
+// ---------------------------------------------------------------------------
+
+function TopTenantsTab() {
+  const [months, setMonths] = useState(12)
+  const [data, setData] = useState<AdminTopTenantsDto | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback((m: number) => {
+    setLoading(true)
+    setError(null)
+    getTopTenants(m)
+      .then(setData)
+      .catch(() => setError('Failed to load top tenants data.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { load(months) }, [months, load])
+
+  const maxRevenue = data?.items[0]?.revenue ?? 1
+
+  return (
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+        <Typography variant='subtitle1' fontWeight={700} sx={{ flex: 1 }}>
+          Top Tenants by Rental Revenue
+        </Typography>
+        <TextField
+          select size='small' label='Period' value={months}
+          onChange={e => setMonths(Number(e.target.value))}
+          sx={{ width: 160 }}
+          slotProps={{ select: { native: true } }}
+        >
+          <option value={6}>Last 6 months</option>
+          <option value={12}>Last 12 months</option>
+          <option value={24}>Last 24 months</option>
+        </TextField>
+      </Box>
+      {error ? (
+        <Alert severity='error'>{error}</Alert>
+      ) : loading ? (
+        <Card variant='outlined'><CardContent>
+          {[0,1,2,3,4].map(i => (
+            <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <Skeleton variant='circular' width={32} height={32} />
+              <Skeleton variant='text' width='40%' height={20} />
+              <Skeleton variant='text' width='20%' height={20} sx={{ ml: 'auto' }} />
+            </Box>
+          ))}
+        </CardContent></Card>
+      ) : !data || data.items.length === 0 ? (
+        <Card variant='outlined'><CardContent>
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <i className='ri-trophy-line' style={{ fontSize: '2.5rem', color: 'var(--mui-palette-text-disabled)' }} />
+            <Typography color='text.secondary' sx={{ mt: 1 }}>No paid revenue data in the selected period</Typography>
+          </Box>
+        </CardContent></Card>
+      ) : (
+        <Card variant='outlined'>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>#</TableCell>
+                  <TableCell>Tenant</TableCell>
+                  <TableCell>Revenue Share</TableCell>
+                  <TableCell align='right'>Paid Revenue</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data.items.map((item, idx) => {
+                  const barPct = maxRevenue > 0 ? (item.revenue / maxRevenue) * 100 : 0
+                  return (
+                    <TableRow key={item.tenantId} hover>
+                      <TableCell>
+                        <Box sx={{
+                          width: 28, height: 28, borderRadius: '50%',
+                          bgcolor: idx === 0 ? 'warning.main' : idx === 1 ? 'text.secondary' : idx === 2 ? 'warning.light' : 'action.hover',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Typography variant='caption' fontWeight={700} color={idx < 3 ? '#fff' : 'text.secondary'}>
+                            {idx + 1}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant='body2' fontWeight={600}>{item.tenantName}</Typography>
+                        <Typography variant='caption' color='text.secondary'>{item.tenantId}</Typography>
+                      </TableCell>
+                      <TableCell sx={{ width: '35%' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{
+                            flex: 1, height: 8, borderRadius: 1,
+                            bgcolor: 'action.hover', overflow: 'hidden',
+                          }}>
+                            <Box sx={{
+                              width: `${barPct}%`, height: '100%',
+                              bgcolor: 'primary.main', borderRadius: 1,
+                            }} />
+                          </Box>
+                          <Typography variant='caption' color='text.secondary' sx={{ minWidth: 40, textAlign: 'right' }}>
+                            {barPct.toFixed(0)}%
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell align='right'>
+                        <Typography variant='body2' fontWeight={600}>
+                          {fmtCurrency(item.revenue)}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
+      )}
+    </Box>
+  )
+}
+
 export default function AdminReportsView() {
   const [tab, setTab] = useState(0)
 
@@ -664,27 +1073,23 @@ export default function AdminReportsView() {
       {/* Tab bar */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)}>
-          <Tab
-            label='Tenant Funnel'
-            icon={<i className='ri-filter-3-line' style={{ fontSize: '1rem' }} />}
-            iconPosition='start'
-          />
-          <Tab
-            label='Plan Changes'
-            icon={<i className='ri-exchange-line' style={{ fontSize: '1rem' }} />}
-            iconPosition='start'
-          />
-          <Tab
-            label='Custom Summary'
-            icon={<i className='ri-file-chart-line' style={{ fontSize: '1rem' }} />}
-            iconPosition='start'
-          />
+          <Tab label='Tenant Funnel'       icon={<i className='ri-filter-3-line'             style={{ fontSize: '1rem' }} />} iconPosition='start' />
+          <Tab label='Plan Changes'        icon={<i className='ri-exchange-line'              style={{ fontSize: '1rem' }} />} iconPosition='start' />
+          <Tab label='Custom Summary'      icon={<i className='ri-file-chart-line'            style={{ fontSize: '1rem' }} />} iconPosition='start' />
+          <Tab label='Revenue by Plan'     icon={<i className='ri-bar-chart-2-line'           style={{ fontSize: '1rem' }} />} iconPosition='start' />
+          <Tab label='Rental Revenue'      icon={<i className='ri-money-dollar-circle-line'   style={{ fontSize: '1rem' }} />} iconPosition='start' />
+          <Tab label='Occupancy'           icon={<i className='ri-building-4-line'            style={{ fontSize: '1rem' }} />} iconPosition='start' />
+          <Tab label='Top Tenants'         icon={<i className='ri-trophy-line'                style={{ fontSize: '1rem' }} />} iconPosition='start' />
         </Tabs>
       </Box>
 
       {tab === 0 && <FunnelTab />}
       {tab === 1 && <PlanChangesTab />}
       {tab === 2 && <SummaryTab />}
+      {tab === 3 && <RevenueByPlanTab />}
+      {tab === 4 && <RentalRevenueTab />}
+      {tab === 5 && <OccupancyTab />}
+      {tab === 6 && <TopTenantsTab />}
     </Box>
   )
 }

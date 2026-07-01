@@ -86,6 +86,7 @@ export interface InspectionSummary {
   fairCount: number
   poorCount: number
   createdAt: string
+  signedOffDate: string | null
 }
 
 // ─── Request DTOs ─────────────────────────────────────────────────────────────
@@ -105,4 +106,9 @@ export interface CompleteInspectionRequest {
   tenantAcknowledgement?: string
   signedOffDate?: string
   items: ItemUpsert[]
+}
+
+export interface InspectionSignOffRequest {
+  tenantAcknowledgement: string
+  signedOffDate: string  // ISO date string YYYY-MM-DD
 }

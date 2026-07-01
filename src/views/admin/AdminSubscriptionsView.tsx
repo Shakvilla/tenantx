@@ -34,24 +34,6 @@ import {
 } from '@/lib/api/admin-auth-client'
 
 // ---------------------------------------------------------------------------
-// Feature key labels (human-readable)
-// ---------------------------------------------------------------------------
-
-const FEATURE_LABELS: Record<string, string> = {
-  SMS_REMINDERS:            'SMS Reminders',
-  WHATSAPP_REMINDERS:       'WhatsApp Reminders',
-  ADVANCED_REPORTS:         'Advanced Reports',
-  MAINTENANCE_CONTRACTORS:  'Maintenance Contractors',
-  RENT_COLLECTION:          'Rent Collection',
-  LANDLORD_WALLET:          'Landlord Wallet',
-  AUTOMATED_RECONCILIATION: 'Automated Reconciliation',
-  FINANCIAL_REPORTS:        'Financial Reports',
-}
-
-// Stable ordering for feature flags in the edit dialog
-const FEATURE_ORDER = Object.keys(FEATURE_LABELS)
-
-// ---------------------------------------------------------------------------
 // Edit Plan Dialog
 // ---------------------------------------------------------------------------
 
@@ -68,7 +50,10 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
   const [freeUnitCap, setFreeUnitCap]           = useState('')
   const [transactionFeePct, setTransactionFeePct] = useState('')
   const [active, setActive]                     = useState(true)
+  const [popular, setPopular]                   = useState(false)
   const [features, setFeatures]                 = useState<Record<string, boolean>>({})
+  const [marketingFeatures, setMarketingFeatures] = useState<string[]>([])
+  const [newFeature, setNewFeature]             = useState('')
   const [saving, setSaving]                     = useState(false)
   const [error, setError]                       = useState<string | null>(null)
 
@@ -80,7 +65,10 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
     setFreeUnitCap(plan.freeUnitCap != null ? String(plan.freeUnitCap) : '')
     setTransactionFeePct(plan.transactionFeePct != null ? String(plan.transactionFeePct) : '')
     setActive(plan.active)
-    setFeatures({ ...plan.features })
+    setPopular(plan.popular ?? false)
+    setFeatures(Object.fromEntries(Object.entries(plan.features ?? {}).map(([k, v]) => [k, v.enabled])))
+    setMarketingFeatures(plan.marketingFeatures ? [...plan.marketingFeatures] : [])
+    setNewFeature('')
     setError(null)
   }, [plan])
 
@@ -99,6 +87,8 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
         transactionFeePct: isPro && transactionFeePct ? parseFloat(transactionFeePct) : null,
         featureFlags: features,
         active,
+        popular,
+        marketingFeatures,
       }
       const updated = await updateSubscriptionPlan(plan.id, payload)
       onSaved(updated)
@@ -113,6 +103,17 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
 
   function toggleFeature(key: string) {
     setFeatures(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function addFeature() {
+    const trimmed = newFeature.trim()
+    if (!trimmed) return
+    setMarketingFeatures(prev => [...prev, trimmed])
+    setNewFeature('')
+  }
+
+  function removeFeature(index: number) {
+    setMarketingFeatures(prev => prev.filter((_, i) => i !== index))
   }
 
   return (
@@ -177,23 +178,68 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
         <Box>
           <Typography variant='body2' fontWeight={600} sx={{ mb: 1 }}>Feature Flags</Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {FEATURE_ORDER.map(key => (
-              <FormControlLabel
-                key={key}
-                control={
-                  <Switch
-                    size='small'
-                    checked={!!features[key]}
-                    onChange={() => toggleFeature(key)}
-                  />
-                }
-                label={
-                  <Typography variant='body2'>
-                    {FEATURE_LABELS[key] ?? key}
-                  </Typography>
-                }
-              />
-            ))}
+            {Object.entries(plan?.features ?? {})
+              .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+              .map(([key, info]) => (
+                <FormControlLabel
+                  key={key}
+                  control={
+                    <Switch
+                      size='small'
+                      checked={!!features[key]}
+                      onChange={() => toggleFeature(key)}
+                    />
+                  }
+                  label={<Typography variant='body2'>{info.label}</Typography>}
+                />
+              ))}
+          </Box>
+        </Box>
+
+        <FormControlLabel
+          control={<Switch checked={popular} onChange={e => setPopular(e.target.checked)} />}
+          label={<Typography variant='body2'>Mark as "Most Popular" on landing page</Typography>}
+        />
+
+        <Box>
+          <Typography variant='body2' fontWeight={600} sx={{ mb: 0.5 }}>Landing Page Features</Typography>
+          <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 1 }}>
+            Bullet points shown on the public pricing page.
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5, minHeight: 32 }}>
+            {marketingFeatures.length === 0 ? (
+              <Typography variant='caption' color='text.disabled' sx={{ alignSelf: 'center' }}>
+                No features added yet.
+              </Typography>
+            ) : (
+              marketingFeatures.map((f, i) => (
+                <Chip
+                  key={i}
+                  label={f}
+                  size='small'
+                  onDelete={() => removeFeature(i)}
+                />
+              ))
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField
+              size='small'
+              placeholder='e.g. Unlimited properties'
+              value={newFeature}
+              onChange={e => setNewFeature(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFeature() } }}
+              fullWidth
+            />
+            <Button
+              size='small'
+              variant='outlined'
+              onClick={addFeature}
+              disabled={!newFeature.trim()}
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              Add
+            </Button>
           </Box>
         </Box>
 
@@ -230,12 +276,12 @@ interface PlanCardProps {
 
 function PlanCard({ plan, canManage, onEdit }: PlanCardProps) {
   const isFree    = plan.name === 'FREE'
-  const isHighlight = plan.name === 'PRO'
+  const isHighlight = plan.popular
 
-  // Build feature rows in stable order
-  const featureRows = FEATURE_ORDER
-    .filter(k => k in plan.features)
-    .map(k => ({ key: k, label: FEATURE_LABELS[k] ?? k, enabled: plan.features[k] }))
+  // Build feature rows sorted alphabetically by label
+  const featureRows = Object.entries(plan.features)
+    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+    .map(([key, info]) => ({ key, label: info.label, enabled: info.enabled }))
 
   return (
     <Card
@@ -330,6 +376,24 @@ function PlanCard({ plan, canManage, onEdit }: PlanCardProps) {
             </Box>
           ))}
         </Box>
+
+        {/* Marketing features (landing page bullets) */}
+        {plan.marketingFeatures && plan.marketingFeatures.length > 0 && (
+          <>
+            <Divider sx={{ mt: 2, mb: 1.5 }} />
+            <Typography variant='caption' color='text.secondary' fontWeight={600} sx={{ display: 'block', mb: 0.75 }}>
+              Landing page bullets
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              {plan.marketingFeatures.map((f, i) => (
+                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <i className='ri-check-line' style={{ fontSize: '0.9rem', color: 'var(--mui-palette-success-main)', flexShrink: 0 }} />
+                  <Typography variant='caption'>{f}</Typography>
+                </Box>
+              ))}
+            </Box>
+          </>
+        )}
       </CardContent>
 
       <CardActions sx={{ px: 2, pb: 2, pt: 0, justifyContent: 'flex-end' }}>

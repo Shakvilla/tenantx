@@ -321,7 +321,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: result.error?.message ?? 'Registration failed' }
       }
 
-      setState(prev => ({ ...prev, isLoading: false }))
+      const signup = result.data
+
+      // The backend returns a tenant-scoped JWT immediately after signup.
+      // Persist role + userType so the bootstrap useEffect can restore them on page refresh.
+      setStoredUserRole('ADMIN')
+      setStoredUserType('LANDLORD')
+
+      setState({
+        user: {
+          id:       signup.userId,
+          email:    signup.email,
+          name:     data.fullName,
+          role:     'ADMIN',
+          userType: 'LANDLORD',
+        },
+        tenant: { id: signup.tenantId, name: signup.tenantName },
+        isAuthenticated:       true,
+        isLoading:             false,
+        isRefreshing:          false,
+        pendingWorkspaces:     null,
+        needsWorkspaceSelection: false,
+        needsPasswordSetup:    false,
+      })
 
       return { success: true }
     },

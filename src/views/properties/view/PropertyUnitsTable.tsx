@@ -34,6 +34,8 @@ import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
 import AddUnitDialog from './AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+import { UnitCapGate } from '@/components/subscription/UnitCapGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 
 // API Imports
 import { getUnitsByProperty as getPropertyUnits, deleteUnit } from '@/lib/api/units'
@@ -124,6 +126,8 @@ interface Props {
 }
 
 const PropertyUnitsTable = ({ propertyId }: Props) => {
+  const { refresh: refreshSubscription } = useSubscription()
+
   // States
   const [data, setData] = useState<UnitType[]>([])
   const [loading, setLoading] = useState(true)
@@ -203,9 +207,10 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
     fetchUnits(null)
   }, [fetchUnits])
 
-  // Handle add success
+  // Handle add success — refresh units list and subscription context (unit count may have changed)
   const handleAddSuccess = () => {
     fetchUnits()
+    refreshSubscription()
   }
 
   // Handle edit
@@ -384,14 +389,16 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
         <CardHeader
           title='Property Units'
           action={
-            <Button
-              variant='contained'
-              size='small'
-              startIcon={<i className='ri-add-line' />}
-              onClick={() => setAddDialogOpen(true)}
-            >
-              Add Unit
-            </Button>
+            <UnitCapGate>
+              <Button
+                variant='contained'
+                size='small'
+                startIcon={<i className='ri-add-line' />}
+                onClick={() => setAddDialogOpen(true)}
+              >
+                Add Unit
+              </Button>
+            </UnitCapGate>
           }
         />
         <CardContent>

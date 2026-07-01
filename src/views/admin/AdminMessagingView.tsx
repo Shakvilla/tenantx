@@ -13,11 +13,6 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Checkbox from '@mui/material/Checkbox'
-import Table from '@mui/material/Table'
-import TableHead from '@mui/material/TableHead'
-import TableBody from '@mui/material/TableBody'
-import TableRow from '@mui/material/TableRow'
-import TableCell from '@mui/material/TableCell'
 import Chip from '@mui/material/Chip'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
@@ -26,13 +21,28 @@ import DialogContentText from '@mui/material/DialogContentText'
 import DialogActions from '@mui/material/DialogActions'
 import Snackbar from '@mui/material/Snackbar'
 import InputAdornment from '@mui/material/InputAdornment'
+import TablePagination from '@mui/material/TablePagination'
+
+import {
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+
+import tableStyles from '@core/styles/table.module.css'
 
 import {
   getAdminTenants,
   sendTargetedMessage,
   broadcastMessage,
+  getMessageHistory,
   type TenantRecord,
   type MessagingResult,
+  type MessageLogDto,
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 
@@ -123,12 +133,14 @@ interface TargetedTabProps {
   onToast: (msg: string) => void
 }
 
+const tenantColumnHelper = createColumnHelper<TenantRecord>()
+
 function TargetedTab({ onToast }: TargetedTabProps) {
   const [tenants, setTenants]       = useState<TenantRecord[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
   const [search, setSearch]         = useState('')
-  const [selected, setSelected]     = useState<Set<string>>(new Set())
+  const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
   const [composeOpen, setCompose]   = useState(false)
 
   const load = useCallback(async () => {
@@ -143,39 +155,51 @@ function TargetedTab({ onToast }: TargetedTabProps) {
 
   useEffect(() => { load() }, [load])
 
-  const filtered = tenants.filter(t =>
+  const filteredTenants = tenants.filter(t =>
     !search || t.name.toLowerCase().includes(search.toLowerCase()) ||
     t.tenant_id.toLowerCase().includes(search.toLowerCase())
   )
 
-  const allSelected = filtered.length > 0 && filtered.every(t => selected.has(t.id))
+  const selectedTenantIds = Object.keys(rowSelection)
+    .filter(k => rowSelection[k])
+    .map(k => filteredTenants[Number(k)]?.id)
+    .filter((id): id is string => !!id)
 
-  function toggleAll() {
-    if (allSelected) {
-      setSelected(prev => { const s = new Set(prev); filtered.forEach(t => s.delete(t.id)); return s })
-    } else {
-      setSelected(prev => { const s = new Set(prev); filtered.forEach(t => s.add(t.id)); return s })
-    }
-  }
-
-  function toggle(id: string) {
-    setSelected(prev => {
-      const s = new Set(prev)
-      s.has(id) ? s.delete(id) : s.add(id)
-      return s
-    })
-  }
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length
 
   async function handleSend(subject: string, body: string): Promise<MessagingResult> {
-    return sendTargetedMessage([...selected], subject, body)
+    return sendTargetedMessage(selectedTenantIds, subject, body)
   }
 
   function handleResult(r: MessagingResult) {
-    setSelected(new Set())
+    setRowSelection({})
     onToast(`Sent to ${r.sent} tenant${r.sent !== 1 ? 's' : ''}${r.failed > 0 ? `, ${r.failed} failed` : ''}`)
   }
 
-  const selectedCount = selected.size
+  const tenantCols = [
+    tenantColumnHelper.display({
+      id: 'select',
+      header: ({ table }) => (
+        <Checkbox size='small' checked={table.getIsAllRowsSelected()} indeterminate={table.getIsSomeRowsSelected()} onChange={table.getToggleAllRowsSelectedHandler()} />
+      ),
+      cell: ({ row }) => (
+        <Checkbox size='small' checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+      ),
+    }),
+    tenantColumnHelper.accessor('name', { header: 'Tenant', cell: info => <Typography variant='body2' fontWeight={600}>{info.getValue()}</Typography> }),
+    tenantColumnHelper.accessor('tenant_id', { header: 'ID', cell: info => <Typography variant='caption' sx={{ fontFamily: 'monospace' }}>{info.getValue()}</Typography> }),
+    tenantColumnHelper.display({ id: 'status', header: 'Status', cell: () => <Chip size='small' label='Active' color='success' variant='tonal' /> }),
+  ]
+
+  const targetedTable = useReactTable({
+    data: filteredTenants,
+    columns: tenantCols,
+    state: { rowSelection },
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+  })
 
   return (
     <Box>
@@ -214,51 +238,29 @@ function TargetedTab({ onToast }: TargetedTabProps) {
             <CircularProgress />
           </CardContent>
         ) : (
-          <Table size='small'>
-            <TableHead>
-              <TableRow>
-                <TableCell padding='checkbox'>
-                  <Checkbox
-                    size='small'
-                    checked={allSelected}
-                    indeterminate={selected.size > 0 && !allSelected}
-                    onChange={toggleAll}
-                  />
-                </TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Tenant</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>ID</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-                    No active tenants found
-                  </TableCell>
-                </TableRow>
-              ) : filtered.map(t => (
-                <TableRow key={t.id} hover selected={selected.has(t.id)}>
-                  <TableCell padding='checkbox'>
-                    <Checkbox
-                      size='small'
-                      checked={selected.has(t.id)}
-                      onChange={() => toggle(t.id)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='body2' fontWeight={600}>{t.name}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant='caption' sx={{ fontFamily: 'monospace' }}>{t.tenant_id}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip size='small' label='Active' color='success' variant='tonal' />
-                  </TableCell>
-                </TableRow>
+          <table className={tableStyles.table}>
+            <thead>
+              {targetedTable.getHeaderGroups().map(hg => (
+                <tr key={hg.id}>
+                  {hg.headers.map(h => (
+                    <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                  ))}
+                </tr>
               ))}
-            </TableBody>
-          </Table>
+            </thead>
+            <tbody>
+              {targetedTable.getRowModel().rows.length === 0
+                ? <tr><td colSpan={tenantCols.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No active tenants found</td></tr>
+                : targetedTable.getRowModel().rows.map(row => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map(cell => (
+                      <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                    ))}
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
         )}
       </Card>
 
@@ -385,6 +387,129 @@ function BroadcastTab({ onToast }: BroadcastTabProps) {
 }
 
 // ---------------------------------------------------------------------------
+// History tab
+// ---------------------------------------------------------------------------
+
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  })
+}
+
+const histColumnHelper = createColumnHelper<MessageLogDto>()
+
+function HistoryTab() {
+  const [logs, setLogs]       = useState<MessageLogDto[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState<string | null>(null)
+  const [page, setPage]       = useState(0)
+  const [total, setTotal]     = useState(0)
+  const [pageSize, setPageSize] = useState(25)
+
+  const load = useCallback(async (p = 0, size?: number) => {
+    setLoading(true); setError(null)
+    try {
+      const res = await getMessageHistory(p, size ?? pageSize)
+      setLogs(res.data)
+      setTotal(res.total)
+      setPage(p)
+    } catch { setError('Failed to load message history') }
+    finally { setLoading(false) }
+  }, [pageSize])
+
+  useEffect(() => { load() }, [load])
+
+  const histCols = [
+    histColumnHelper.accessor('subject', {
+      header: 'Subject',
+      cell: info => (
+        <Box>
+          <Typography variant='body2' fontWeight={600}>{info.getValue()}</Typography>
+          {info.row.original.bodyPreview && <Typography variant='caption' color='text.secondary' sx={{ display: 'block', maxWidth: 360 }} noWrap>{info.row.original.bodyPreview}</Typography>}
+        </Box>
+      )
+    }),
+    histColumnHelper.accessor('messageType', {
+      header: 'Type',
+      cell: info => (
+        <Chip size='small' label={info.getValue() === 'BROADCAST' ? 'Broadcast' : 'Targeted'} color={info.getValue() === 'BROADCAST' ? 'warning' : 'info'} variant='tonal'
+          icon={<i className={info.getValue() === 'BROADCAST' ? 'ri-broadcast-line' : 'ri-group-line'} />} />
+      )
+    }),
+    histColumnHelper.accessor('recipientCount', { header: 'Recipients', cell: info => <Typography variant='body2'>{info.getValue()}</Typography> }),
+    histColumnHelper.display({
+      id: 'result',
+      header: 'Sent / Failed',
+      cell: info => (
+        <Typography variant='body2'>
+          <span style={{ color: 'var(--mui-palette-success-main)' }}>{info.row.original.sentCount}✓</span>
+          {info.row.original.failedCount > 0 && <span style={{ color: 'var(--mui-palette-error-main)', marginLeft: 6 }}>{info.row.original.failedCount}✗</span>}
+        </Typography>
+      )
+    }),
+    histColumnHelper.accessor('sentAt', { header: 'Sent At', cell: info => <Typography variant='body2'>{fmtDateTime(info.getValue())}</Typography> }),
+  ]
+
+  const histTable = useReactTable({
+    data: logs,
+    columns: histCols,
+    manualFiltering: true,
+    manualPagination: true,
+    pageCount: Math.ceil(total / pageSize),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  })
+
+  return (
+    <Box>
+      {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
+      <Card variant='outlined'>
+        {loading ? (
+          <CardContent sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress />
+          </CardContent>
+        ) : (
+          <table className={tableStyles.table}>
+            <thead>
+              {histTable.getHeaderGroups().map(hg => (
+                <tr key={hg.id}>
+                  {hg.headers.map(h => (
+                    <th key={h.id}>{h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}</th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {histTable.getRowModel().rows.length === 0
+                ? <tr><td colSpan={histCols.length} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--mui-palette-text-secondary)' }}>No messages sent yet</td></tr>
+                : histTable.getRowModel().rows.map(row => (
+                  <tr key={row.id}>
+                    {row.getVisibleCells().map(cell => (
+                      <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                    ))}
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        )}
+        <TablePagination
+          rowsPerPageOptions={[10, 25, 50]}
+          component='div'
+          count={total}
+          rowsPerPage={pageSize}
+          page={page}
+          onPageChange={(_, p) => { setPage(p); load(p, pageSize) }}
+          onRowsPerPageChange={e => { const s = Number(e.target.value); setPageSize(s); setPage(0); load(0, s) }}
+        />
+      </Card>
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main view
 // ---------------------------------------------------------------------------
 
@@ -402,22 +527,14 @@ export default function AdminMessagingView() {
       </Box>
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}>
-        <Tab
-          label='Targeted Messaging'
-          icon={<i className='ri-group-line' />}
-          iconPosition='start'
-        />
-        <Tab
-          label='Broadcast to All'
-          icon={<i className='ri-broadcast-line' />}
-          iconPosition='start'
-        />
+        <Tab label='Targeted Messaging' icon={<i className='ri-group-line' />} iconPosition='start' />
+        <Tab label='Broadcast to All'   icon={<i className='ri-broadcast-line' />} iconPosition='start' />
+        <Tab label='Message History'    icon={<i className='ri-history-line' />} iconPosition='start' />
       </Tabs>
 
-      {tab === 0
-        ? <TargetedTab onToast={setToast} />
-        : <BroadcastTab onToast={setToast} />
-      }
+      {tab === 0 && <TargetedTab onToast={setToast} />}
+      {tab === 1 && <BroadcastTab onToast={setToast} />}
+      {tab === 2 && <HistoryTab />}
 
       <Snackbar open={!!toast} autoHideDuration={5000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity='success' onClose={() => setToast(null)}>{toast}</Alert>

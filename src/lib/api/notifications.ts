@@ -3,7 +3,7 @@
  * Covers: listing notifications with filters, resending failed notifications
  */
 
-import { apiGet, apiPost, API_BASE } from './client'
+import { apiGet, apiPost, apiPatch, API_BASE } from './client'
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -88,4 +88,83 @@ export async function getNotifications(query: NotificationQuery = {}): Promise<P
 /** Resend a failed or undelivered notification by ID */
 export async function resendNotification(id: string): Promise<void> {
   return apiPost<void>(`${BASE}/${id}/resend`, {})
+}
+
+// ── SMS Reminder Log ─────────────────────────────────────────────────────────
+
+export interface ReminderLogEntry {
+  id: string
+  phoneNumber: string
+  reminderType: string   // e.g. RENT_DUE, OVERDUE, ADVANCE_RENT
+  channel: string        // SMS | WHATSAPP
+  status: string         // SENT | FAILED
+  sentAt: string
+  failureReason?: string | null
+  invoiceId?: string | null
+}
+
+export interface ReminderLogPage {
+  content: ReminderLogEntry[]
+  totalElements: number
+  totalPages: number
+  number: number
+  size: number
+}
+
+export async function getReminderLog(params?: {
+  page?: number
+  size?: number
+}): Promise<ReminderLogPage> {
+  const q = new URLSearchParams()
+  if (params?.page !== undefined) q.set('page', String(params.page))
+  if (params?.size !== undefined)  q.set('size',  String(params.size))
+  return apiGet<ReminderLogPage>(`${API_BASE}/reminders/log${q.toString() ? `?${q}` : ''}`)
+}
+
+// ── In-App Notification Inbox ────────────────────────────────────────────────
+
+export interface InAppNotification {
+  id: string
+  tenantId: string
+  userId: string
+  title: string
+  body: string | null
+  entityType: string | null
+  entityId: string | null
+  read: boolean
+  readAt: string | null
+  createdAt: string
+}
+
+export interface InAppNotificationsPage {
+  content: InAppNotification[]
+  totalElements: number
+  totalPages: number
+  number: number   // current page
+  size: number
+}
+
+export async function getInAppNotifications(params?: {
+  page?: number
+  size?: number
+  unreadOnly?: boolean
+}): Promise<InAppNotificationsPage> {
+  const q = new URLSearchParams()
+  if (params?.page !== undefined)    q.set('page', String(params.page))
+  if (params?.size !== undefined)    q.set('size', String(params.size))
+  if (params?.unreadOnly)            q.set('unreadOnly', 'true')
+  return apiGet<InAppNotificationsPage>(`${API_BASE}/in-app-notifications?${q}`)
+}
+
+export async function getInAppUnreadCount(): Promise<number> {
+  const res = await apiGet<{ count: number }>(`${API_BASE}/in-app-notifications/unread-count`)
+  return res.count
+}
+
+export async function markInAppNotificationRead(id: string): Promise<void> {
+  return apiPatch<void>(`${API_BASE}/in-app-notifications/${id}/read`, {})
+}
+
+export async function markAllInAppNotificationsRead(): Promise<void> {
+  return apiPatch<void>(`${API_BASE}/in-app-notifications/read-all`, {})
 }

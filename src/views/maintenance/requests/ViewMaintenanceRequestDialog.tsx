@@ -69,11 +69,43 @@ const formatDateTime = (d?: string | null) => {
   return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}, ${date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
 }
 
-const STATUS_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'> = {
-  NEW: 'info', PENDING: 'warning', IN_PROGRESS: 'primary', ON_HOLD: 'secondary',
-  COMPLETED: 'success', CANCELLED: 'secondary', REJECTED: 'error',
-  new: 'info', pending: 'warning', in_progress: 'primary', on_hold: 'secondary',
-  completed: 'success', cancelled: 'secondary', rejected: 'error'
+const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
+  pending:           { label: 'Pending',           color: 'warning'   },
+  awaiting_approval: { label: 'Awaiting Approval', color: 'info'      },
+  approved:          { label: 'Approved',          color: 'secondary' },
+  in_progress:       { label: 'In Progress',       color: 'primary'   },
+  completed:         { label: 'Completed',         color: 'success'   },
+  cancelled:         { label: 'Cancelled',         color: 'error'     },
+}
+
+function getAvailableTransitions(currentStatus: string, hasMaintainer: boolean): Array<{ value: string; label: string }> {
+  switch (currentStatus) {
+    case 'pending':
+      return [
+        ...(hasMaintainer ? [{ value: 'in_progress', label: 'In Progress' }] : []),
+        { value: 'cancelled', label: 'Cancelled' },
+      ]
+    case 'awaiting_approval':
+      return [
+        { value: 'approved',  label: 'Approved'  },
+        { value: 'cancelled', label: 'Cancelled' },
+      ]
+    case 'approved':
+      return [
+        { value: 'in_progress', label: 'In Progress' },
+        { value: 'cancelled',   label: 'Cancelled'   },
+      ]
+    case 'in_progress':
+      return [
+        { value: 'completed', label: 'Completed' },
+        { value: 'cancelled', label: 'Cancelled' },
+      ]
+    case 'completed':
+    case 'cancelled':
+      return []
+    default:
+      return [{ value: 'cancelled', label: 'Cancelled' }]
+  }
 }
 
 const PRIORITY_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'> = {
@@ -266,19 +298,11 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
   if (!request) return null
 
   const images = request.images?.length ? request.images : []
-  const statusColor = STATUS_COLORS[localStatus] ?? 'secondary'
+  const statusConfig = STATUS_CONFIG[localStatus] ?? { label: localStatus, color: 'default' as const }
   const priorityColor = PRIORITY_COLORS[request.priority?.toLowerCase()] ?? 'secondary'
   const totalPartsCost = parts.reduce((sum, p) => sum + (p.totalCost ?? 0), 0)
-
-  const STATUS_OPTIONS = [
-    { value: 'NEW', label: 'New' },
-    { value: 'PENDING', label: 'Pending' },
-    { value: 'IN_PROGRESS', label: 'In Progress' },
-    { value: 'ON_HOLD', label: 'On Hold' },
-    { value: 'COMPLETED', label: 'Completed' },
-    { value: 'CANCELLED', label: 'Cancelled' },
-    { value: 'REJECTED', label: 'Rejected' },
-  ]
+  const isTerminal = localStatus === 'completed' || localStatus === 'cancelled'
+  const availableTransitions = getAvailableTransitions(localStatus, !!localMaintainerId)
 
   return (
     <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth>
@@ -296,20 +320,30 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
 
       {/* Status + Priority chips + inline status changer */}
       <Box className='flex flex-wrap items-center gap-2 pli-6 pbe-3'>
-        <Chip variant='tonal' label={localStatus?.replace(/_/g, ' ')} size='small' color={statusColor} className='capitalize' />
+        <Chip variant='tonal' label={statusConfig.label} size='small' color={statusConfig.color} />
         <Chip variant='tonal' label={request.priority} size='small' color={priorityColor} className='capitalize' />
         {request.isSlaBreached && <Chip variant='tonal' label='SLA Breached' size='small' color='error' />}
         {!showStatusForm && (
-          <Tooltip title='Change status'>
-            <IconButton size='small' onClick={() => { setShowStatusForm(true); setSelectedStatus(localStatus) }}>
-              <i className='ri-refresh-line text-sm' />
-            </IconButton>
-          </Tooltip>
+          isTerminal ? (
+            <Tooltip title='Status cannot be changed'>
+              <span>
+                <IconButton size='small' disabled>
+                  <i className='ri-refresh-line text-sm' />
+                </IconButton>
+              </span>
+            </Tooltip>
+          ) : (
+            <Tooltip title='Change status'>
+              <IconButton size='small' onClick={() => { setShowStatusForm(true); setSelectedStatus('') }}>
+                <i className='ri-refresh-line text-sm' />
+              </IconButton>
+            </Tooltip>
+          )
         )}
       </Box>
 
       {/* Inline status change form */}
-      {showStatusForm && (
+      {showStatusForm && !isTerminal && (
         <Box className='flex items-center gap-2 pli-6 pbe-3'>
           <FormControl size='small' sx={{ minWidth: 160 }}>
             <InputLabel id='status-change-label'>New Status</InputLabel>
@@ -319,7 +353,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
               value={selectedStatus}
               onChange={e => setSelectedStatus(e.target.value)}
             >
-              {STATUS_OPTIONS.map(o => (
+              {availableTransitions.map(o => (
                 <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
               ))}
             </Select>

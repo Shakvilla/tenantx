@@ -6,7 +6,9 @@ const dismissKey = (tenantId: string) => `onboarding_dismissed_${tenantId}`
 export function getOnboardingState(tenantId: string): OnboardingState | null {
   if (typeof window === 'undefined') return null
   const raw = localStorage.getItem(stateKey(tenantId))
+
   if (!raw) return null
+
   try {
     return JSON.parse(raw) as OnboardingState
   } catch {
@@ -26,7 +28,8 @@ export function clearOnboardingState(tenantId: string): void {
 
 export function isOnboardingDismissed(tenantId: string): boolean {
   if (typeof window === 'undefined') return false
-  return localStorage.getItem(dismissKey(tenantId)) === 'true'
+  
+return localStorage.getItem(dismissKey(tenantId)) === 'true'
 }
 
 export function setOnboardingDismissed(tenantId: string): void {

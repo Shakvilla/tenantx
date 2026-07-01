@@ -108,6 +108,8 @@ export interface UpdateMaintainerPayload {
 // ---------------------------------------------------------------------------
 // Maintenance request types
 // ---------------------------------------------------------------------------
+export type MaintenanceStatus = 'pending' | 'awaiting_approval' | 'approved' | 'in_progress' | 'completed' | 'cancelled'
+
 export interface MaintenanceRequest {
   id: string
   requestNumber?: string | null
@@ -116,7 +118,7 @@ export interface MaintenanceRequest {
   categoryId?: string | null
   subCategory?: string | null
   priority: string
-  status: string
+  status: MaintenanceStatus
   propertyId?: string | null
   unitId?: string | null
   occupantId?: string | null
@@ -314,6 +316,16 @@ export async function getMaintenanceRequests(query: RequestQuery = {}): Promise<
   if (query.statuses?.length) query.statuses.forEach(s => params.append('statuses', s))
   const qs = params.toString()
   return apiGet<PaginatedResponse<MaintenanceRequest[]>>(`${BASE}/requests${qs ? `?${qs}` : ''}`)
+}
+
+export async function getMyMaintenanceRequests(query: RequestQuery = {}): Promise<PaginatedResponse<MaintenanceRequest[]>> {
+  const params = new URLSearchParams()
+  if (query.cursor) params.set('cursor', query.cursor)
+  if (query.size) params.set('size', String(query.size))
+  if (query.sort) params.set('sort', query.sort)
+  if (query.statuses?.length) query.statuses.forEach(s => params.append('statuses', s))
+  const qs = params.toString()
+  return apiGet<PaginatedResponse<MaintenanceRequest[]>>(`${BASE}/requests/my-requests${qs ? `?${qs}` : ''}`)
 }
 
 export async function getMaintenanceRequestById(id: string): Promise<MaintenanceRequest> {

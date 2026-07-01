@@ -3,9 +3,9 @@
  * Uses the base apiClient which attaches Bearer token + X-Tenant-ID header.
  */
 
-import { apiClient } from './client'
+import { apiClient, API_BASE } from './client'
 
-const BASE = '/subscription'
+const BASE = `${API_BASE}/subscription`
 
 // ---------------------------------------------------------------------------
 // Types
@@ -26,6 +26,11 @@ export interface TenantSubscriptionDto {
   features: Record<string, boolean>
 }
 
+export interface FeatureInfo {
+  label: string
+  enabled: boolean
+}
+
 export interface SubscriptionPlanPublicDto {
   id: string
   name: string
@@ -34,7 +39,7 @@ export interface SubscriptionPlanPublicDto {
   freeUnitCap: number | null
   transactionFeePct: number | null
   active: boolean
-  features: Record<string, boolean>
+  features: Record<string, FeatureInfo>
 }
 
 export interface SubscriptionInvoiceDto {
@@ -102,4 +107,8 @@ export async function cancelSubscription(): Promise<void> {
 export async function getMyInvoices(): Promise<SubscriptionInvoiceDto[]> {
   const res = await apiClient.get<SubscriptionInvoiceDto[]>(`${BASE}/invoices`)
   return res.data
+}
+
+export async function retryMyInvoice(invoiceId: string): Promise<void> {
+  await apiClient.post(`${BASE}/invoices/${invoiceId}/retry`)
 }

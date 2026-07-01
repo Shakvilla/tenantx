@@ -5,6 +5,7 @@
 // Component Imports
 import PageBanner from '@components/banner/PageBanner'
 import NotificationSettingsContent from '@/views/settings/notification/NotificationSettingsContent'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 const NotificationSettingsPage = () => {
   return (
@@ -14,7 +15,12 @@ const NotificationSettingsPage = () => {
         description='Configure SMTP, email templates, preferences, and SMS settings'
         icon='ri-notification-line'
       />
-      <NotificationSettingsContent />
+      <FeatureGate
+        feature='SMS_REMINDERS'
+        lockedMessage='SMS and WhatsApp reminder settings are available on the Basic plan.'
+      >
+        <NotificationSettingsContent />
+      </FeatureGate>
     </>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -18,12 +18,16 @@ import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Tooltip from '@mui/material/Tooltip'
+import InputAdornment from '@mui/material/InputAdornment'
+import IconButton from '@mui/material/IconButton'
 
 import {
   getPlatformSettings,
   updatePlatformSetting,
   type PlatformSettingDto,
 } from '@/lib/api/admin-auth-client'
+
+import { useAdminBranding } from '@/contexts/AdminBrandingContext'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,9 +103,22 @@ export default function AdminPlatformSettingsView() {
   // Track which individual keys are currently saving
   const [saving, setSaving] = useState<Set<string>>(new Set())
 
+  // FROG API key visibility toggle
+  const [showFrogKey, setShowFrogKey] = useState(false)
+
   // Local editable state for text/number fields
   const [localValues, setLocalValues] = useState<Record<string, string>>({})
   const [dirty, setDirty]             = useState<Set<string>>(new Set())
+
+  // Fee rate shown as percentage in the UI (e.g. '1.50'), stored as decimal ('0.0150') in localValues
+  const [feeRateInput, setFeeRateInput] = useState('')
+
+  // Logo upload state
+  const [logoUploading, setLogoUploading] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
+  // Branding context — refresh sidebar/nav when branding keys are saved
+  const { refresh: refreshBranding } = useAdminBranding()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -114,6 +131,8 @@ export default function AdminPlatformSettingsView() {
       Object.values(data).flat().forEach(s => { initial[s.settingKey] = s.settingValue })
       setLocalValues(initial)
       setDirty(new Set())
+      const rawRate = parseFloat(initial['billing.transaction_fee_rate'] ?? '0.0150')
+      setFeeRateInput((rawRate * 100).toFixed(2))
     } catch {
       setError('Failed to load platform settings.')
     } finally {
@@ -139,6 +158,8 @@ export default function AdminPlatformSettingsView() {
       setLocalValues(prev => ({ ...prev, [key]: value }))
       setDirty(prev => { const n = new Set(prev); n.delete(key); return n })
       setToast('Setting saved')
+      // Propagate branding changes to nav/sidebar immediately
+      if (key.startsWith('branding.')) refreshBranding()
     } catch {
       setToast('Failed to save setting')
     } finally {
@@ -156,6 +177,25 @@ export default function AdminPlatformSettingsView() {
   function setLocal(key: string, value: string) {
     setLocalValues(prev => ({ ...prev, [key]: value }))
     setDirty(prev => new Set(prev).add(key))
+  }
+
+  async function handleLogoUpload(file: File) {
+    setLogoUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload-logo', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Upload failed')
+      }
+      const { publicUrl } = await res.json() as { publicUrl: string }
+      await save('branding.logo_url', publicUrl)
+    } catch (e: unknown) {
+      setToast(e instanceof Error ? e.message : 'Logo upload failed')
+    } finally {
+      setLogoUploading(false)
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -203,7 +243,7 @@ export default function AdminPlatformSettingsView() {
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 900, mx: 'auto' }}>
       <Typography variant='h4' fontWeight={700} sx={{ mb: 0.5 }}>Platform Settings</Typography>
       <Typography variant='body2' color='text.secondary' sx={{ mb: 4 }}>
-        Global configuration for the TenantX platform. Changes take effect immediately.
+        Global configuration for the {localValues['branding.platform_name'] || 'TenantX'} platform. Changes take effect immediately.
       </Typography>
 
       {/* ── 0. Maintenance Mode ──────────────────────────────────────────────── */}
@@ -366,7 +406,75 @@ export default function AdminPlatformSettingsView() {
         </CardContent>
       </Card>
 
-      {/* ── 3. Notification Preferences ──────────────────────────────────────── */}
+      {/* ── 3. Transaction Fee Rate ──────────────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-percent-line'
+            title='Transaction Fee Rate'
+            subtitle='Platform fee charged on every successful subscription payment. Applies to new payments only — existing invoices are not retroactively affected.'
+          />
+          <Divider sx={{ mb: 2 }} />
+
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <Tooltip title='Enter the fee as a percentage. E.g. type 1.5 for 1.50%. Stored internally as a decimal fraction (0.0150).'>
+              <TextField
+                size='small'
+                label='Fee Rate (%)'
+                type='number'
+                inputProps={{ min: 0, max: 100, step: 0.01 }}
+                value={feeRateInput}
+                onChange={e => {
+                  const raw = e.target.value
+                  setFeeRateInput(raw)
+                  const pct = parseFloat(raw)
+                  if (!isNaN(pct) && pct >= 0 && pct <= 100) {
+                    setLocal('billing.transaction_fee_rate', (pct / 100).toFixed(4))
+                  }
+                }}
+                error={feeRateInput !== '' && (parseFloat(feeRateInput) < 0 || parseFloat(feeRateInput) > 100)}
+                helperText={
+                  feeRateInput !== '' && (parseFloat(feeRateInput) < 0 || parseFloat(feeRateInput) > 100)
+                    ? 'Must be between 0 and 100'
+                    : `Stored as ${localValues['billing.transaction_fee_rate'] ?? '—'}`
+                }
+                sx={{ width: 200 }}
+              />
+            </Tooltip>
+
+            {dirty.has('billing.transaction_fee_rate') && (
+              <Button
+                variant='contained'
+                size='small'
+                sx={{ mt: 0.5 }}
+                onClick={() => saveDirty(['billing.transaction_fee_rate'])}
+                disabled={
+                  saving.has('billing.transaction_fee_rate') ||
+                  feeRateInput === '' ||
+                  parseFloat(feeRateInput) < 0 ||
+                  parseFloat(feeRateInput) > 100
+                }
+                startIcon={saving.has('billing.transaction_fee_rate') ? <CircularProgress size={14} color='inherit' /> : undefined}
+              >
+                Save
+              </Button>
+            )}
+          </Box>
+
+          <Box sx={{ mt: 2.5, p: 1.5, bgcolor: 'primary.lighter', borderRadius: 1 }}>
+            <Typography variant='caption' color='text.secondary'>
+              <strong>Example:</strong> A subscription payment of GHS 200.00 with a{' '}
+              <strong>{feeRateInput || '1.50'}% fee rate</strong> generates a platform fee of{' '}
+              <strong>
+                GHS {((parseFloat(feeRateInput || '1.50') / 100) * 200).toFixed(2)}
+              </strong>
+              . Fee entries are recorded in the <strong>Fee Ledger</strong> and settled from there.
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* ── 4. Notification Preferences ──────────────────────────────────────── */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <SectionHeader
@@ -430,7 +538,7 @@ export default function AdminPlatformSettingsView() {
         </CardContent>
       </Card>
 
-      {/* ── 4. Billing Retry Policy ──────────────────────────────────────────── */}
+      {/* ── 5. Billing Retry Policy ──────────────────────────────────────────── */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <SectionHeader
@@ -501,6 +609,398 @@ export default function AdminPlatformSettingsView() {
               </Button>
             </Box>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ── 6. API Rate Limit Configuration ─────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-speed-line'
+            title='API Rate Limit Configuration'
+            subtitle='Requests-per-minute limits enforced per subscription tier. Changes take effect within 60 seconds without a deployment.'
+          />
+          <Divider sx={{ mb: 2 }} />
+
+          <ToggleRow
+            label='Enable Rate Limiting'
+            description='When disabled, all rate limit checks are bypassed globally'
+            checked={localValues['rate_limit.enabled'] === 'true'}
+            saving={saving.has('rate_limit.enabled')}
+            onChange={v => save('rate_limit.enabled', String(v))}
+          />
+
+          <Divider sx={{ my: 2 }} />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
+            {[
+              { key: 'rate_limit.global.rpm', label: 'Global Ceiling (RPM)', help: 'Hard cap applied to every tenant regardless of plan' },
+              { key: 'rate_limit.free.rpm',   label: 'FREE Plan (RPM)',       help: 'Limit for tenants on the free tier' },
+              { key: 'rate_limit.basic.rpm',  label: 'BASIC Plan (RPM)',      help: 'Limit for tenants on the basic tier' },
+              { key: 'rate_limit.pro.rpm',    label: 'PRO Plan (RPM)',        help: 'Limit for tenants on the pro tier' },
+            ].map(({ key, label, help }) => (
+              <TextField
+                key={key}
+                size='small'
+                label={label}
+                type='number'
+                inputProps={{ min: 1 }}
+                value={localValues[key] ?? ''}
+                onChange={e => setLocal(key, e.target.value)}
+                helperText={help}
+              />
+            ))}
+          </Box>
+
+          {['rate_limit.global.rpm', 'rate_limit.free.rpm', 'rate_limit.basic.rpm', 'rate_limit.pro.rpm'].some(k => dirty.has(k)) && (
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant='contained'
+                size='small'
+                onClick={() => saveDirty(['rate_limit.global.rpm', 'rate_limit.free.rpm', 'rate_limit.basic.rpm', 'rate_limit.pro.rpm'])}
+                disabled={['rate_limit.global.rpm', 'rate_limit.free.rpm', 'rate_limit.basic.rpm', 'rate_limit.pro.rpm'].some(k => saving.has(k))}
+              >
+                Save Rate Limits
+              </Button>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── 7. Communication Provider Switch ─────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-global-line'
+            title='Communication Providers'
+            subtitle='Select providers and enter API credentials. Changes take effect on the next send — no restart required.'
+          />
+          <Divider sx={{ mb: 2 }} />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+            <FormControl size='small' fullWidth>
+              <InputLabel>Email Provider</InputLabel>
+              <Select
+                label='Email Provider'
+                value={localValues['provider.email'] ?? 'RESEND'}
+                onChange={e => save('provider.email', e.target.value)}
+                disabled={saving.has('provider.email')}
+              >
+                <MenuItem value='RESEND'>Resend</MenuItem>
+                <MenuItem value='SENDGRID'>SendGrid</MenuItem>
+                <MenuItem value='MAILGUN'>Mailgun</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl size='small' fullWidth>
+              <InputLabel>SMS Provider</InputLabel>
+              <Select
+                label='SMS Provider'
+                value={localValues['provider.sms'] ?? 'FROG'}
+                onChange={e => save('provider.sms', e.target.value)}
+                disabled={saving.has('provider.sms')}
+              >
+                <MenuItem value='FROG'>FROG SMS</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl size='small' fullWidth>
+              <InputLabel>WhatsApp Provider</InputLabel>
+              <Select
+                label='WhatsApp Provider'
+                value={localValues['provider.whatsapp'] ?? 'NONE'}
+                onChange={e => save('provider.whatsapp', e.target.value)}
+                disabled={saving.has('provider.whatsapp')}
+              >
+                <MenuItem value='NONE'>None (disabled)</MenuItem>
+                <MenuItem value='TWILIO'>Twilio</MenuItem>
+                <MenuItem value='360DIALOG'>360dialog</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          {/* ── FROG SMS Credentials ────────────────────────────────────────── */}
+          {(localValues['provider.sms'] ?? 'FROG') === 'FROG' && (
+            <>
+              <Divider sx={{ my: 2.5 }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <i className='ri-key-2-line' style={{ fontSize: '1rem', color: 'var(--mui-palette-primary-main)' }} />
+                <Typography variant='subtitle2'>FROG SMS API Credentials</Typography>
+                <Typography variant='caption' color='text.secondary' sx={{ ml: 0.5 }}>
+                  — from your <a href='https://frogapi.wigal.com.gh' target='_blank' rel='noreferrer' style={{ color: 'inherit' }}>FROG dashboard</a>
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+                <TextField
+                  size='small'
+                  label='API Key'
+                  type={showFrogKey ? 'text' : 'password'}
+                  value={localValues['provider.frog.api_key'] ?? ''}
+                  onChange={e => setLocal('provider.frog.api_key', e.target.value)}
+                  helperText='API-KEY header sent to FROG'
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position='end'>
+                          <IconButton size='small' onClick={() => setShowFrogKey(p => !p)} edge='end'>
+                            <i className={showFrogKey ? 'ri-eye-off-line' : 'ri-eye-line'} style={{ fontSize: '1rem' }} />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }
+                  }}
+                />
+                <TextField
+                  size='small'
+                  label='Username'
+                  value={localValues['provider.frog.username'] ?? ''}
+                  onChange={e => setLocal('provider.frog.username', e.target.value)}
+                  helperText='USERNAME header sent to FROG'
+                />
+                <TextField
+                  size='small'
+                  label='Sender ID'
+                  value={localValues['provider.frog.sender_id'] ?? ''}
+                  onChange={e => setLocal('provider.frog.sender_id', e.target.value)}
+                  helperText='Displayed as the SMS from-name'
+                />
+              </Box>
+              {(['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id'] as const).some(k => dirty.has(k)) && (
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant='contained'
+                    size='small'
+                    onClick={() => saveDirty(['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id'])}
+                    disabled={['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id'].some(k => saving.has(k))}
+                  >
+                    Save FROG Credentials
+                  </Button>
+                </Box>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── 8. Data Retention Policy ─────────────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-archive-line'
+            title='Data Retention Policy'
+            subtitle='Configure how long platform data is retained. Purge jobs run nightly. Changes apply on the next scheduled run.'
+          />
+          <Divider sx={{ mb: 2 }} />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+            {[
+              {
+                key: 'retention.inactive_tenant_days',
+                label: 'Inactive Tenant Threshold (days)',
+                help: 'Days without login before a tenant is flagged for archival review',
+              },
+              {
+                key: 'retention.audit_log_days',
+                label: 'Audit Log Retention (days)',
+                help: 'Admin audit log entries older than this are eligible for purge',
+              },
+              {
+                key: 'retention.invoice_history_days',
+                label: 'Invoice History Retention (days)',
+                help: 'Subscription invoice records are retained for this many days (default ≈ 7 years)',
+              },
+            ].map(({ key, label, help }) => (
+              <TextField
+                key={key}
+                size='small'
+                label={label}
+                type='number'
+                inputProps={{ min: 1 }}
+                value={localValues[key] ?? ''}
+                onChange={e => setLocal(key, e.target.value)}
+                helperText={help}
+              />
+            ))}
+          </Box>
+
+          {['retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'].some(k => dirty.has(k)) && (
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant='contained'
+                size='small'
+                onClick={() => saveDirty(['retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'])}
+                disabled={['retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'].some(k => saving.has(k))}
+              >
+                Save Retention Policy
+              </Button>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── 9. Platform Branding ─────────────────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-palette-line'
+            title='Platform Branding'
+            subtitle='Visual identity used in all tenant-facing transactional emails — OTP codes, invoices, and admin messages.'
+          />
+          <Divider sx={{ mb: 3 }} />
+
+          {/* Platform name */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant='body2' fontWeight={600} sx={{ mb: 1 }}>Platform Name</Typography>
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+              <TextField
+                size='small'
+                label='Platform Name'
+                value={localValues['branding.platform_name'] ?? ''}
+                onChange={e => setLocal('branding.platform_name', e.target.value)}
+                helperText='Shown in email headers and footers when no logo is set'
+                sx={{ flex: 1, maxWidth: 360 }}
+              />
+              {dirty.has('branding.platform_name') && (
+                <Button
+                  variant='contained'
+                  size='small'
+                  sx={{ mt: 0.25 }}
+                  disabled={saving.has('branding.platform_name')}
+                  onClick={() => saveDirty(['branding.platform_name'])}
+                >
+                  {saving.has('branding.platform_name') ? <CircularProgress size={14} /> : 'Save'}
+                </Button>
+              )}
+            </Box>
+          </Box>
+
+          {/* Logo */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant='body2' fontWeight={600} sx={{ mb: 1 }}>Email Logo</Typography>
+            <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 1.5 }}>
+              Shown at the top of every email. Recommended: PNG or SVG, max 200 × 60 px, transparent background.
+              Leave blank to display the platform name as text instead.
+            </Typography>
+
+            {/* Preview */}
+            {localValues['branding.logo_url'] && (
+              <Box sx={{ mb: 2, p: 1.5, bgcolor: 'grey.100', borderRadius: 1, display: 'inline-block' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={localValues['branding.logo_url']}
+                  alt='Logo preview'
+                  style={{ maxHeight: 48, maxWidth: 200, objectFit: 'contain', display: 'block' }}
+                />
+              </Box>
+            )}
+
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {/* Hidden file input */}
+              <input
+                ref={logoInputRef}
+                type='file'
+                accept='image/png,image/jpeg,image/gif,image/svg+xml,image/webp'
+                style={{ display: 'none' }}
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) handleLogoUpload(file)
+                  e.target.value = ''
+                }}
+              />
+              <Button
+                variant='outlined'
+                size='small'
+                startIcon={logoUploading ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+                disabled={logoUploading}
+                onClick={() => logoInputRef.current?.click()}
+              >
+                {logoUploading ? 'Uploading…' : 'Upload Image'}
+              </Button>
+
+              <TextField
+                size='small'
+                label='Or paste URL'
+                placeholder='https://…'
+                value={localValues['branding.logo_url'] ?? ''}
+                onChange={e => setLocal('branding.logo_url', e.target.value)}
+                sx={{ flex: 1, minWidth: 240 }}
+              />
+              {dirty.has('branding.logo_url') && (
+                <Button
+                  variant='contained'
+                  size='small'
+                  sx={{ mt: 0.25 }}
+                  disabled={saving.has('branding.logo_url')}
+                  onClick={() => saveDirty(['branding.logo_url'])}
+                >
+                  {saving.has('branding.logo_url') ? <CircularProgress size={14} /> : 'Save'}
+                </Button>
+              )}
+              {localValues['branding.logo_url'] && !dirty.has('branding.logo_url') && (
+                <Tooltip title='Remove logo'>
+                  <IconButton
+                    size='small'
+                    color='error'
+                    onClick={() => save('branding.logo_url', '')}
+                    disabled={saving.has('branding.logo_url')}
+                  >
+                    <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
+          </Box>
+
+          {/* Primary colour */}
+          <Box>
+            <Typography variant='body2' fontWeight={600} sx={{ mb: 1 }}>Primary Accent Colour</Typography>
+            <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 1.5 }}>
+              Used for email header bar, OTP code background, and text accents. Include the leading #.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Native colour picker swatch */}
+              <Box
+                component='label'
+                sx={{
+                  width: 40, height: 40, borderRadius: 1.5,
+                  bgcolor: localValues['branding.primary_colour'] || '#7367F0',
+                  border: '2px solid', borderColor: 'divider',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  overflow: 'hidden', flexShrink: 0,
+                }}
+              >
+                <input
+                  type='color'
+                  value={localValues['branding.primary_colour'] || '#7367F0'}
+                  onChange={e => setLocal('branding.primary_colour', e.target.value)}
+                  style={{ opacity: 0, position: 'absolute', width: 1, height: 1 }}
+                />
+                <i className='ri-pencil-line' style={{ fontSize: '0.85rem', color: '#fff', mixBlendMode: 'difference' }} />
+              </Box>
+
+              <TextField
+                size='small'
+                label='Hex Colour'
+                value={localValues['branding.primary_colour'] ?? '#7367F0'}
+                onChange={e => setLocal('branding.primary_colour', e.target.value)}
+                inputProps={{ maxLength: 7, style: { fontFamily: 'monospace' } }}
+                sx={{ width: 140 }}
+              />
+
+              {dirty.has('branding.primary_colour') && (
+                <Button
+                  variant='contained'
+                  size='small'
+                  disabled={saving.has('branding.primary_colour')}
+                  onClick={() => saveDirty(['branding.primary_colour'])}
+                  sx={{ bgcolor: localValues['branding.primary_colour'] || 'primary.main' }}
+                >
+                  {saving.has('branding.primary_colour') ? <CircularProgress size={14} /> : 'Save Colour'}
+                </Button>
+              )}
+            </Box>
+          </Box>
+
         </CardContent>
       </Card>
 

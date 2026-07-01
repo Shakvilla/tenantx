@@ -65,7 +65,21 @@ export default function AnnouncementBanner() {
     }
 
     fetchActive()
-    return () => { cancelled = true }
+
+    // Re-poll every 5 minutes so scheduled announcements appear without a page reload
+    const interval = setInterval(fetchActive, 5 * 60 * 1000)
+
+    // Also re-fetch immediately when the user returns to this tab
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') fetchActive()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
 
   function handleDismiss() {
