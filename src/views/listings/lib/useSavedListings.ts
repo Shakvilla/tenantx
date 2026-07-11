@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const STORAGE_KEY = 'tenantx-saved-listings'
 
@@ -22,23 +22,25 @@ function readSaved(): Set<string> {
  */
 export function useSavedListings() {
   const [saved, setSaved] = useState<Set<string>>(new Set())
+  const savedRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
-    setSaved(readSaved())
+    const s = readSaved()
+    savedRef.current = s
+    setSaved(s)
   }, [])
 
   const toggle = useCallback((id: string) => {
-    setSaved(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]))
-      } catch {
-        // storage full/blocked — keep in-memory state
-      }
-      return next
-    })
+    const next = new Set(savedRef.current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    savedRef.current = next
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]))
+    } catch {
+      // storage full/blocked — keep in-memory state
+    }
+    setSaved(next)
   }, [])
 
   const isSaved = useCallback((id: string) => saved.has(id), [saved])
