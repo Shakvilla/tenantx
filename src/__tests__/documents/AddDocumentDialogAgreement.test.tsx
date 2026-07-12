@@ -42,7 +42,8 @@ describe('AddDocumentDialog — agreement attachment', () => {
 
     vi.mocked(getOccupants).mockResolvedValue({
       data: [
-        { id: 'occ-1', firstName: 'Ama', lastName: 'Mensah', propertyId: 'prop-1', propertyName: 'Sunset', unitId: 'unit-1', unitNo: 'A1' }
+        { id: 'occ-1', firstName: 'Ama', lastName: 'Mensah', propertyId: 'prop-1', propertyName: 'Sunset', unitId: 'unit-1', unitNo: 'A1' },
+        { id: 'occ-2', firstName: 'Kofi', lastName: 'Boateng', propertyId: 'prop-1', propertyName: 'Sunset', unitId: 'unit-1', unitNo: 'A1' }
       ]
     } as any)
 
@@ -92,5 +93,33 @@ describe('AddDocumentDialog — agreement attachment', () => {
     const payload = vi.mocked(createDocument).mock.calls[0][0]
     expect(payload.documentType).toBe('Ghana Card')
     expect(payload.agreementId).toBe('agr-1')
+  })
+
+  it('clears the selected agreement when the tenant is changed to a different occupant', async () => {
+    render(<AddDocumentDialog open setOpen={() => {}} onSuccess={() => {}} />)
+
+    await screen.findByLabelText(/document type/i)
+
+    fireEvent.mouseDown(screen.getByLabelText(/document type/i))
+    fireEvent.click(await screen.findByText('Ghana Card'))
+
+    // Pick occupant A, then select an agreement belonging to them.
+    fireEvent.mouseDown(screen.getByLabelText(/^tenant/i))
+    fireEvent.click(await screen.findByText('Ama Mensah — Unit A1'))
+
+    fireEvent.mouseDown(screen.getByLabelText(/agreement/i))
+    fireEvent.click(await screen.findByText('AGR-2026-001'))
+
+    // Switch to a different occupant without re-picking an agreement.
+    fireEvent.mouseDown(screen.getByLabelText(/^tenant/i))
+    fireEvent.click(await screen.findByText('Kofi Boateng — Unit A1'))
+
+    fireEvent.click(screen.getByRole('button', { name: /save|upload|add/i }))
+
+    await waitFor(() => expect(createDocument).toHaveBeenCalled())
+    const payload = vi.mocked(createDocument).mock.calls[0][0]
+    // The stale agreement (belonging to occupant A) must not be silently
+    // attached to occupant B's document.
+    expect(payload.agreementId).toBeUndefined()
   })
 })

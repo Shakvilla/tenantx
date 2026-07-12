@@ -140,7 +140,11 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
 
   const handleOccupantChange = (id: string) => {
     const occ = occupants.find(o => o.id === id)
-    if (!occ) { set('occupantId', ''); return }
+    if (!occ) {
+      setForm(prev => ({ ...prev, occupantId: '', agreementId: '', agreementNumber: '' }))
+      setErrors(prev => ({ ...prev, occupantId: undefined }))
+      return
+    }
     setForm(prev => ({
       ...prev,
       occupantId:   occ.id,
@@ -148,7 +152,11 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
       propertyId:   occ.propertyId   ?? prev.propertyId,
       propertyName: occ.propertyName ?? prev.propertyName,
       unitId:       occ.unitId  ?? prev.unitId,
-      unitNo:       occ.unitNo  ?? prev.unitNo
+      unitNo:       occ.unitNo  ?? prev.unitNo,
+      // Changing occupant invalidates any previously-selected agreement — it
+      // belongs to the prior occupant and the dropdown will refetch a new list.
+      agreementId:     '',
+      agreementNumber: ''
     }))
     setErrors(prev => ({ ...prev, occupantId: undefined }))
   }
