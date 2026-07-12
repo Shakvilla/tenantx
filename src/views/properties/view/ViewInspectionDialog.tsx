@@ -25,6 +25,7 @@ import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
 import Skeleton from '@mui/material/Skeleton'
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 
@@ -190,6 +191,22 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='caption' color='text.secondary'>Signed Off</Typography>
                       <Typography variant='body2' fontWeight={500}>{fmtDate(data.signedOffDate)}</Typography>
+                    </Grid>
+                  )}
+                  {data.electricityReading != null && (
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant='caption' color='text.secondary'>Electricity Reading</Typography>
+                      <Typography variant='body2' fontWeight={500}>
+                        {data.electricityReading}{data.electricityMeterNumber ? ` (${data.electricityMeterNumber})` : ''}
+                      </Typography>
+                    </Grid>
+                  )}
+                  {data.waterReading != null && (
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant='caption' color='text.secondary'>Water Reading</Typography>
+                      <Typography variant='body2' fontWeight={500}>
+                        {data.waterReading}{data.waterMeterNumber ? ` (${data.waterMeterNumber})` : ''}
+                      </Typography>
                     </Grid>
                   )}
                 </Grid>
