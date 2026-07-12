@@ -13,6 +13,7 @@ import BookingCard from './components/BookingCard'
 import MobileBookingBar from './components/MobileBookingBar'
 import SimilarListings from './components/SimilarListings'
 import SaveButton from './components/SaveButton'
+import SiteFooter from './components/SiteFooter'
 
 // ─── Amenity icon map (unchanged from previous version) ─────────────────────
 
@@ -289,13 +290,7 @@ export default function ListingDetailView({ listing, allListings = [] }: Listing
         <MobileBookingBar listing={listing} primaryColour={primaryColour} onRequestViewing={scrollToForm} />
       )}
 
-      {/* ── Footer ── */}
-      <footer className='mt-10 border-t border-[#EBEBEB] bg-[#F7F7F7] px-6 py-5'>
-        <div className='mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs text-[#717171]'>
-          <span>© 2025 {platformName} · Ghana Property Platform</span>
-          <span className='text-[#BBBBBB]'>Listing #{listing.id.slice(0, 8).toUpperCase()}</span>
-        </div>
-      </footer>
+      <SiteFooter className='mt-10' rightNote={`Listing #${listing.id.slice(0, 8).toUpperCase()}`} />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { useSavedListings } from './lib/useSavedListings'
 import ListingCard from './components/ListingCard'
 import SearchPill from './components/SearchPill'
 import FilterBar, { type SortValue } from './components/FilterBar'
+import SiteFooter from './components/SiteFooter'
 
 export default function ListingsIndexView({ listings }: { listings: PublicListingDto[] }) {
   const { platformName, logoUrl, primaryColour } = usePlatformBranding()
@@ -148,13 +149,7 @@ export default function ListingsIndexView({ listings }: { listings: PublicListin
         )}
       </main>
 
-      {/* ── Footer ── */}
-      <footer className='border-t border-[#EBEBEB] bg-[#F7F7F7] px-6 py-5'>
-        <div className='mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-2 text-xs text-[#717171]'>
-          <span>© 2025 {platformName} · Ghana Property Platform</span>
-          <span className='text-[#BBBBBB]'>All prices in Ghana Cedis (GHS)</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }
