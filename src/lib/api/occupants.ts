@@ -14,6 +14,14 @@ interface ApiResponse<T> {
   }
 }
 
+export interface OccupantAddress {
+  country?: string
+  state?: string
+  city?: string
+  zipCode?: string
+  address?: string
+}
+
 // Matches backend OccupantResponse — all camelCase
 export interface OccupantRecord {
   id: string
@@ -32,6 +40,11 @@ export interface OccupantRecord {
   moveInDate?: string | null
   moveOutDate?: string | null
   emergencyContact?: Record<string, any> | null
+  occupation?: string | null
+  familyMembersCount?: number | null
+  dob?: string | null
+  previousAddress?: OccupantAddress | null
+  permanentAddress?: OccupantAddress | null
   documents?: string[] | null
   ghanaCardId?: string | null
   idType?: string | null
@@ -70,6 +83,11 @@ export interface CreateOccupantPayload {
   moveInDate?: string
   moveOutDate?: string
   emergencyContact?: Record<string, any>
+  occupation?: string
+  familyMembersCount?: number
+  dob?: string
+  previousAddress?: OccupantAddress
+  permanentAddress?: OccupantAddress
   documents?: string[]
   ghanaCardId?: string
   idType?: string
@@ -93,6 +111,11 @@ export interface UpdateOccupantPayload {
   moveInDate?: string
   moveOutDate?: string
   emergencyContact?: Record<string, any>
+  occupation?: string
+  familyMembersCount?: number
+  dob?: string
+  previousAddress?: OccupantAddress
+  permanentAddress?: OccupantAddress
   documents?: string[]
   ghanaCardId?: string
   idType?: string

@@ -191,27 +191,27 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
           lastName: editData.lastName || '',
           email: editData.email || '',
           phone: editData.phone || '',
-          occupation: (ec.occupation as string) || '',
-          dob: (ec.dob as string) || '',
-          familyMembers: ec.familyMembersCount?.toString() || '',
+          occupation: editData.occupation || '',
+          dob: editData.dob || '',
+          familyMembers: editData.familyMembersCount != null ? editData.familyMembersCount.toString() : '',
           ghanaCardId: editData.ghanaCardId || '',
           idType: editData.idType || '',
           ecName: (ec.name as string) || '',
           ecPhone: (ec.phone as string) || '',
           ecRelationship: (ec.relationship as string) || '',
           previousAddress: {
-            country: (ec.previousAddress as any)?.country || '',
-            state: (ec.previousAddress as any)?.state || '',
-            city: (ec.previousAddress as any)?.city || '',
-            zipCode: (ec.previousAddress as any)?.zipCode || '',
-            address: (ec.previousAddress as any)?.address || ''
+            country: editData.previousAddress?.country || '',
+            state: editData.previousAddress?.state || '',
+            city: editData.previousAddress?.city || '',
+            zipCode: editData.previousAddress?.zipCode || '',
+            address: editData.previousAddress?.address || ''
           },
           permanentAddress: {
-            country: (ec.permanentAddress as any)?.country || '',
-            state: (ec.permanentAddress as any)?.state || '',
-            city: (ec.permanentAddress as any)?.city || '',
-            zipCode: (ec.permanentAddress as any)?.zipCode || '',
-            address: (ec.permanentAddress as any)?.address || ''
+            country: editData.permanentAddress?.country || '',
+            state: editData.permanentAddress?.state || '',
+            city: editData.permanentAddress?.city || '',
+            zipCode: editData.permanentAddress?.zipCode || '',
+            address: editData.permanentAddress?.address || ''
           },
           propertyId: editData.propertyId || '',
           unitId: editData.unitId || '',
@@ -343,17 +343,10 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
       if (formData.ecName) emergencyContact.name = formData.ecName
       if (formData.ecPhone) emergencyContact.phone = formData.ecPhone
       if (formData.ecRelationship) emergencyContact.relationship = formData.ecRelationship
-      if (formData.occupation) emergencyContact.occupation = formData.occupation
-      if (formData.dob) emergencyContact.dob = formData.dob
-      if (formData.familyMembers) emergencyContact.familyMembersCount = parseInt(formData.familyMembers) || 0
 
       const hasPrevAddr = Object.values(formData.previousAddress).some(v => v)
 
-      if (hasPrevAddr) emergencyContact.previousAddress = formData.previousAddress
-
       const hasPermAddr = Object.values(formData.permanentAddress).some(v => v)
-
-      if (hasPermAddr) emergencyContact.permanentAddress = formData.permanentAddress
 
       // Upload new avatar if selected
       let avatarUrl: string | undefined = existingAvatarUrl || undefined
@@ -403,6 +396,11 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
         moveInDate: formData.moveInDate ? new Date(formData.moveInDate).toISOString() : undefined,
         moveOutDate: formData.moveOutDate ? new Date(formData.moveOutDate).toISOString() : undefined,
         emergencyContact: Object.keys(emergencyContact).length > 0 ? emergencyContact : undefined,
+        occupation: formData.occupation || undefined,
+        familyMembersCount: formData.familyMembers ? (parseInt(formData.familyMembers) || 0) : undefined,
+        dob: formData.dob || undefined,
+        previousAddress: hasPrevAddr ? formData.previousAddress : undefined,
+        permanentAddress: hasPermAddr ? formData.permanentAddress : undefined,
         ghanaCardId: formData.ghanaCardId || undefined,
         idType: formData.idType || undefined,
         idCardFrontUrl: frontUrl,
