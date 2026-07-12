@@ -37,10 +37,13 @@ vi.mock('@/lib/api/properties.server', () => ({
   serverGetPropertyById: vi.fn()
 }))
 
-// We need a way to verify axios calls without breaking client.ts
-// Instead of mocking the whole axios module, we'll mock the specific import in properties.ts if possible,
-// or just skip strict axios verification if it's too complex for this spine.
-// Let's try mocking axios again but properly.
+// Mock ImageKit uploads used by uploadPropertyImages
+vi.mock('@/lib/imagekit', () => ({
+  uploadImages: vi.fn()
+}))
+
+// client.ts creates an axios instance at module load, so axios must be mocked
+// even though no test asserts on it directly.
 vi.mock('axios', async (importOriginal) => {
   const actual = await importOriginal<typeof import('axios')>()
   return {
@@ -63,8 +66,7 @@ vi.mock('axios', async (importOriginal) => {
   }
 })
 
-import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api/client'
-import axios from 'axios'
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from '@/lib/api/client'
 
 describe('Properties Service', () => {
   const tenantId = 'test-tenant-id'
@@ -149,20 +151,30 @@ describe('Properties Service', () => {
   })
 
   describe('updateProperty', () => {
-    it('should call apiPatch with correct URL and tenantId header', async () => {
-      vi.mocked(apiPatch).mockResolvedValue({ success: true, data: {} })
+    it('should call apiPut with correct URL and tenantId header', async () => {
+      vi.mocked(apiPut).mockResolvedValue({})
       const id = 'prop-1'
       const payload = { name: 'Updated Prop' }
-      
-      await updateProperty(tenantId, id, payload)
 
-      expect(apiPatch).toHaveBeenCalledWith(
+      const result = await updateProperty(tenantId, id, payload)
+
+      expect(apiPut).toHaveBeenCalledWith(
         expect.stringContaining(`/properties/${id}`),
         payload,
         expect.objectContaining({
           headers: { 'X-Tenant-ID': tenantId }
         })
       )
+      expect(result.success).toBe(true)
+    })
+
+    it('should return a failure envelope when the request fails', async () => {
+      vi.mocked(apiPut).mockRejectedValue(new Error('Failed'))
+
+      const result = await updateProperty(tenantId, 'prop-1', { name: 'X' })
+
+      expect(result.success).toBe(false)
+      expect(result.error?.message).toBe('Failed')
     })
   })
 
@@ -234,37 +246,49 @@ describe('Properties Service', () => {
   })
 
   describe('updateDraft', () => {
-    it('should call apiPatch with correct URL and tenantId header', async () => {
-      vi.mocked(apiPatch).mockResolvedValue({ success: true, data: {} })
+    it('should call apiPatch with the draft id in the URL and tenantId header', async () => {
+      vi.mocked(apiPatch).mockResolvedValue({})
       const id = 'draft-1'
       const payload = { name: 'Updated Draft' }
-      
-      await updateDraft(tenantId, id, payload)
+
+      const result = await updateDraft(tenantId, id, payload)
 
       expect(apiPatch).toHaveBeenCalledWith(
-        expect.stringContaining('/properties/drafts'),
-        expect.objectContaining({ id, name: 'Updated Draft' }),
+        expect.stringContaining(`/properties/drafts/${id}`),
+        payload,
         expect.objectContaining({
           headers: { 'X-Tenant-ID': tenantId }
         })
       )
+      expect(result.success).toBe(true)
     })
   })
 
   describe('uploadPropertyImages', () => {
-    it('should call axios.post', async () => {
-      // Accessing the mocked axios post
+    it('should upload via ImageKit into the tenant property folder', async () => {
+      const { uploadImages } = await import('@/lib/imagekit')
+      vi.mocked(uploadImages).mockResolvedValue([
+        { filePath: '/tenantx/test-tenant-id/properties/prop-1/test.jpg', url: 'https://ik.example/test.jpg', fileId: 'f1' }
+      ] as any)
       const files = [new File([], 'test.jpg')]
-      
-      await uploadPropertyImages(tenantId, files, 'prop-1')
 
-      expect(axios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/properties/upload'),
-        expect.any(FormData),
-        expect.objectContaining({
-          headers: { 'X-Tenant-ID': tenantId }
-        })
-      )
+      const result = await uploadPropertyImages(tenantId, files, 'prop-1')
+
+      expect(uploadImages).toHaveBeenCalledWith(files, {
+        folder: `/tenantx/${tenantId}/properties/prop-1`
+      })
+      expect(result.success).toBe(true)
+      expect(result.data?.count).toBe(1)
+    })
+
+    it('should return a failure envelope when the upload fails', async () => {
+      const { uploadImages } = await import('@/lib/imagekit')
+      vi.mocked(uploadImages).mockRejectedValue(new Error('Upload failed'))
+
+      const result = await uploadPropertyImages(tenantId, [new File([], 'test.jpg')])
+
+      expect(result.success).toBe(false)
+      expect(result.error?.message).toBe('Upload failed')
     })
   })
 })

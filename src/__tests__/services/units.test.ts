@@ -50,10 +50,14 @@ describe('Units Service', () => {
   })
 
   describe('getAllUnits', () => {
-    it('should call apiGet and handle raw array response', async () => {
-      const mockUnits = [{ id: '1' }, { id: '2' }]
-      vi.mocked(apiGet).mockResolvedValue(mockUnits)
-      
+    it('should call apiGet and return the response envelope as-is', async () => {
+      const envelope = {
+        success: true,
+        data: [{ id: '1' }, { id: '2' }],
+        meta: { pagination: { hasNext: false, total: 2 } }
+      }
+      vi.mocked(apiGet).mockResolvedValue(envelope)
+
       const result = await getAllUnits(tenantId)
 
       expect(apiGet).toHaveBeenCalledWith(
@@ -62,27 +66,25 @@ describe('Units Service', () => {
           headers: { 'X-Tenant-ID': tenantId }
         })
       )
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(mockUnits)
+      expect(result).toEqual(envelope)
     })
 
-    it('should handle PaginatedResponse with data property', async () => {
-      const mockResponse = { data: [{ id: '1' }], meta: { pagination: { hasNext: false } } }
-      vi.mocked(apiGet).mockResolvedValue(mockResponse)
-      
-      const result = await getAllUnits(tenantId)
+    it('should pass filters as query params', async () => {
+      vi.mocked(apiGet).mockResolvedValue({ success: true, data: [] })
 
-      expect(result.success).toBe(true)
-      expect(result.data).toEqual(mockResponse.data)
+      await getAllUnits(tenantId, { propertyId: 'p1', bedrooms: 2, bathrooms: 1 })
+
+      const url = vi.mocked(apiGet).mock.calls[0][0] as string
+
+      expect(url).toContain('propertyId=p1')
+      expect(url).toContain('bedrooms=2')
+      expect(url).toContain('bathrooms=1')
     })
 
-    it('should handle API errors', async () => {
+    it('should propagate API errors to the caller', async () => {
       vi.mocked(apiGet).mockRejectedValue(new Error('Failed'))
-      
-      const result = await getAllUnits(tenantId)
 
-      expect(result.success).toBe(false)
-      expect(result.error?.message).toBe('Failed')
+      await expect(getAllUnits(tenantId)).rejects.toThrow('Failed')
     })
   })
 
