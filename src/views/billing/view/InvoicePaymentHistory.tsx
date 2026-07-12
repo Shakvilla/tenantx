@@ -105,6 +105,11 @@ const InvoicePaymentHistory = ({ invoiceId, refreshKey }: Props) => {
     <Card sx={{ mt: 6 }} className='no-print'>
       <CardHeader title='Payment History' />
       <Divider />
+      {receiptError && (
+        <CardContent className='pb-0'>
+          <Alert severity='error' onClose={() => setReceiptError(null)}>{receiptError}</Alert>
+        </CardContent>
+      )}
       <CardContent className='flex flex-col gap-0 p-0'>
         {payments.map((p, idx) => {
           const date = p.paymentDate ?? p.createdAt

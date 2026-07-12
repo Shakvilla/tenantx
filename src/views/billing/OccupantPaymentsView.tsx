@@ -140,7 +140,7 @@ const OccupantPaymentsView = () => {
                 <Button
                   size='small'
                   variant='outlined'
-                  onClick={() => { void openPaymentReceipt(p.id) }}
+                  onClick={() => { openPaymentReceipt(p.id).catch(() => setError('Failed to open receipt')) }}
                   startIcon={<i className='ri-receipt-line' />}
                 >
                   Receipt
