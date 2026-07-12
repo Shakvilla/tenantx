@@ -65,6 +65,18 @@ export const paymentsApi = {
   }
 }
 
+/**
+ * Open a printable payment receipt in a new browser tab.
+ * Fetches as a blob so the auth header is sent (a plain window.open(url) would not
+ * carry the bearer token). Mirrors openInspectionReport.
+ */
+export async function openPaymentReceipt(id: string): Promise<void> {
+  const res = await apiClient.get<string>(`${PAYMENTS_BASE}/${id}/receipt`, { responseType: 'blob' })
+  const href = URL.createObjectURL(res.data as unknown as Blob)
+  window.open(href, '_blank', 'noopener,noreferrer')
+  setTimeout(() => URL.revokeObjectURL(href), 60_000)
+}
+
 // ── Gateway config ────────────────────────────────────────────────────────────
 
 export const gatewayConfigApi = {
