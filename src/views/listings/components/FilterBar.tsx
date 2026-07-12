@@ -66,6 +66,15 @@ export default function FilterBar(props: FilterBarProps) {
           {maxPrice !== null ? `Max GH₵ ${Number(maxPrice).toLocaleString()}` : 'Price'}
         </button>
 
+        {hasFilters && (
+          <button
+            onClick={onClearAll}
+            className='shrink-0 cursor-pointer whitespace-nowrap border-none bg-transparent px-2 py-2 text-[13px] text-[#222222] underline'
+          >
+            Clear all
+          </button>
+        )}
+
         <label className='ml-auto flex shrink-0 cursor-pointer items-center gap-2'>
           <span className='text-[13px] text-[#717171]'>Sort</span>
           <select
@@ -79,15 +88,6 @@ export default function FilterBar(props: FilterBarProps) {
             ))}
           </select>
         </label>
-
-        {hasFilters && (
-          <button
-            onClick={onClearAll}
-            className='shrink-0 cursor-pointer whitespace-nowrap border-none bg-transparent px-2 py-2 text-[13px] text-[#222222] underline'
-          >
-            Clear all
-          </button>
-        )}
       </div>
 
       {showSlider && (

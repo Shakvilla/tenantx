@@ -44,6 +44,7 @@ export default function PhotoCarousel({ images, alt }: PhotoCarouselProps) {
   const arrowClass =
     'absolute top-1/2 z-[3] flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center ' +
     'rounded-full border-none bg-white/95 shadow-md opacity-0 transition-opacity group-hover/card:opacity-100 focus-visible:opacity-100'
+  const activeDot = Math.min(idx, 4)
 
   return (
     <div className='relative h-full w-full touch-pan-y' onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
@@ -68,7 +69,7 @@ export default function PhotoCarousel({ images, alt }: PhotoCarouselProps) {
               <span
                 key={i}
                 className={`rounded-full transition-all duration-150 ${
-                  i === idx ? 'h-1.5 w-1.5 bg-white' : 'h-[5px] w-[5px] bg-white/50'
+                  i === activeDot ? 'h-1.5 w-1.5 bg-white' : 'h-[5px] w-[5px] bg-white/50'
                 }`}
               />
             ))}
