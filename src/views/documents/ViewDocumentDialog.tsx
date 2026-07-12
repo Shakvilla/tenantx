@@ -95,6 +95,18 @@ const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogP
                     </Typography>
                   </div>
                 </Grid>
+                {document.agreementNumber && (
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Agreement
+                      </Typography>
+                      <Typography variant='body1' className='font-medium'>
+                        {document.agreementNumber}
+                      </Typography>
+                    </div>
+                  </Grid>
+                )}
               </Grid>
             </CardContent>
           </Card>

@@ -69,6 +69,7 @@ function apiToDisplay(item: DocumentItem): DocumentType {
     propertyName: item.propertyName,
     unitId:       item.unitId,
     unitNo:       item.unitNo,
+    agreementNumber: item.agreementNumber,
     occupantId:   item.occupantId,
     tenantName:   item.occupantName,
     fileUrl:      item.fileUrl,
@@ -236,6 +237,11 @@ const DocumentsListTable = () => {
           <Typography variant='body2' color='text.secondary'>
             {row.original.unitNo || ''}
           </Typography>
+          {row.original.agreementNumber && (
+            <Typography variant='caption' color='text.secondary'>
+              Agreement: {row.original.agreementNumber}
+            </Typography>
+          )}
         </div>
       )
     }),
