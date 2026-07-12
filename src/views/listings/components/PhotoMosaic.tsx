@@ -45,13 +45,23 @@ export default function PhotoMosaic({ images, title }: PhotoMosaicProps) {
                 className='block h-full w-full object-cover transition-transform duration-300 hover:scale-[1.04]'
               />
             </button>
-            <div className={`hidden gap-0.5 sm:grid ${tiles.length > 2 ? 'grid-cols-2' : 'grid-cols-1'} grid-rows-2`}>
+            <div
+              className={`hidden gap-0.5 sm:grid ${
+                tiles.length === 1
+                  ? 'grid-cols-1 grid-rows-1'
+                  : tiles.length === 2
+                    ? 'grid-cols-1 grid-rows-2'
+                    : 'grid-cols-2 grid-rows-2'
+              }`}
+            >
               {tiles.map((src, i) => (
                 <button
                   key={i}
                   onClick={() => setLightbox(i + 1)}
                   aria-label={`Open photo ${i + 2}`}
-                  className='block cursor-zoom-in overflow-hidden border-none bg-transparent p-0'
+                  className={`block cursor-zoom-in overflow-hidden border-none bg-transparent p-0 ${
+                    tiles.length === 3 && i === 0 ? 'row-span-2' : ''
+                  }`}
                 >
                   <img
                     src={src} alt={`${title} ${i + 2}`}

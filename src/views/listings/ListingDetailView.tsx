@@ -60,11 +60,14 @@ export default function ListingDetailView({ listing, allListings = [] }: Listing
     const url = window.location.href
     if (typeof navigator.share === 'function') {
       navigator.share({ title: listing.title, url }).catch(() => {})
-    } else {
-      navigator.clipboard.writeText(url).then(() => {
-        setShared(true)
-        setTimeout(() => setShared(false), 2000)
-      })
+    } else if (navigator.clipboard) {
+      navigator.clipboard
+        .writeText(url)
+        .then(() => {
+          setShared(true)
+          setTimeout(() => setShared(false), 2000)
+        })
+        .catch(() => {})
     }
   }
 
