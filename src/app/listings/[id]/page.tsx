@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import { getPublicListing } from '@/lib/api/listings-public-client'
+import { getPublicListing, getPublicListings } from '@/lib/api/listings-public-client'
 import ListingDetailView from '@/views/listings/ListingDetailView'
 
 // ---------------------------------------------------------------------------
@@ -63,5 +63,8 @@ export default async function PublicListingPage({ params }: Props) {
     notFound()
   }
 
-  return <ListingDetailView listing={listing} />
+  // Full list powers the "More homes you might like" row — fail-open to empty.
+  const allListings = await getPublicListings().catch(() => [])
+
+  return <ListingDetailView listing={listing} allListings={allListings} />
 }
