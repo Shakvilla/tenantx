@@ -8,7 +8,7 @@
  * Step 3: Overall notes, tenant acknowledgement, sign-off date → submit
  */
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 import Accordion from '@mui/material/Accordion'
 import AccordionDetails from '@mui/material/AccordionDetails'
@@ -35,6 +35,7 @@ import Typography from '@mui/material/Typography'
 
 import { inspectionsApi, uploadInspectionPhotos } from '@/lib/api/inspections'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { utilitiesApi } from '@/lib/api/utilities'
 import type {
   InspectionSummary,
   InspectionType,
@@ -43,6 +44,7 @@ import type {
   InspectionCondition,
   ItemUpsert,
 } from '@/types/inspection'
+import type { UtilityMeterResponse } from '@/types/utility'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -248,9 +250,22 @@ export default function CreateInspectionDialog({
   const [notes, setNotes]         = useState('')
   const [acknowledgement, setAck] = useState('')
   const [signedOff, setSignedOff] = useState('')
+  const [meters, setMeters]                       = useState<UtilityMeterResponse[]>([])
+  const [electricityMeterId, setElectricityMeterId] = useState('')
+  const [electricityReading, setElectricityReading] = useState('')
+  const [waterMeterId, setWaterMeterId]             = useState('')
+  const [waterReading, setWaterReading]             = useState('')
 
   // Stored inspectionId after step-1 create
   const inspectionIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    utilitiesApi.getMetersByProperty(propertyId).then(setMeters).catch(() => setMeters([]))
+  }, [open, propertyId])
+
+  const electricityMeters = meters.filter(m => m.utilityType === 'ELECTRICITY')
+  const waterMeters       = meters.filter(m => m.utilityType === 'WATER')
 
   function reset() {
     setStep(0)
@@ -265,6 +280,10 @@ export default function CreateInspectionDialog({
     setNotes('')
     setAck('')
     setSignedOff('')
+    setElectricityMeterId('')
+    setElectricityReading('')
+    setWaterMeterId('')
+    setWaterReading('')
     inspectionIdRef.current = null
   }
 
@@ -381,6 +400,10 @@ export default function CreateInspectionDialog({
         tenantAcknowledgement: acknowledgement || undefined,
         signedOffDate:        signedOff || undefined,
         items,
+        electricityMeterId:  electricityMeterId || undefined,
+        electricityReading:  electricityReading ? Number(electricityReading) : undefined,
+        waterMeterId:        waterMeterId || undefined,
+        waterReading:        waterReading ? Number(waterReading) : undefined,
       })
       // refresh summary from list
       const summaries = await inspectionsApi.getByUnit(unitId)
@@ -561,6 +584,61 @@ export default function CreateInspectionDialog({
                 onChange={e => setSignedOff(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
               />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Typography variant='subtitle2' sx={{ mb: 2 }}>Meter Readings (Optional)</Typography>
+              <Grid container spacing={4}>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    select
+                    fullWidth
+                    size='small'
+                    label='Electricity Meter'
+                    value={electricityMeterId}
+                    onChange={e => setElectricityMeterId(e.target.value)}
+                  >
+                    <MenuItem value=''>No meter linked</MenuItem>
+                    {electricityMeters.map(m => (
+                      <MenuItem key={m.id} value={m.id}>{m.meterNumber}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    size='small'
+                    type='number'
+                    label='Electricity Reading'
+                    value={electricityReading}
+                    onChange={e => setElectricityReading(e.target.value)}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    select
+                    fullWidth
+                    size='small'
+                    label='Water Meter'
+                    value={waterMeterId}
+                    onChange={e => setWaterMeterId(e.target.value)}
+                  >
+                    <MenuItem value=''>No meter linked</MenuItem>
+                    {waterMeters.map(m => (
+                      <MenuItem key={m.id} value={m.id}>{m.meterNumber}</MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    size='small'
+                    type='number'
+                    label='Water Reading'
+                    value={waterReading}
+                    onChange={e => setWaterReading(e.target.value)}
+                  />
+                </Grid>
+              </Grid>
             </Grid>
             {/* summary stats */}
             <Grid size={{ xs: 12 }}>

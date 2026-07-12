@@ -68,6 +68,12 @@ export interface InspectionResponse {
   items: InspectionItemResponse[]
   createdAt: string
   updatedAt: string | null
+  electricityMeterId: string | null
+  electricityMeterNumber: string | null
+  electricityReading: number | null
+  waterMeterId: string | null
+  waterMeterNumber: string | null
+  waterReading: number | null
 }
 
 /** Lightweight summary row for the table */
@@ -106,6 +112,10 @@ export interface CompleteInspectionRequest {
   tenantAcknowledgement?: string
   signedOffDate?: string
   items: ItemUpsert[]
+  electricityMeterId?: string
+  electricityReading?: number
+  waterMeterId?: string
+  waterReading?: number
 }
 
 export interface InspectionSignOffRequest {
