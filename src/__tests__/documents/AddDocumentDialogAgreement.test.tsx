@@ -93,6 +93,7 @@ describe('AddDocumentDialog — agreement attachment', () => {
     const payload = vi.mocked(createDocument).mock.calls[0][0]
     expect(payload.documentType).toBe('Ghana Card')
     expect(payload.agreementId).toBe('agr-1')
+    expect(payload.agreementNumber).toBe('AGR-2026-001')
   })
 
   it('clears the selected agreement when the tenant is changed to a different occupant', async () => {

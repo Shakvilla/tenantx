@@ -262,7 +262,8 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
         propertyName: form.propertyName,
         unitId:       form.unitId   || undefined,
         unitNo:       form.unitNo   || undefined,
-        agreementId:  form.agreementId || undefined,
+        agreementId:     form.agreementId     || undefined,
+        agreementNumber: form.agreementNumber || undefined,
         fileUrl:      upload.status === 'done' ? upload.fileUrl : undefined,
         fileName:     upload.status === 'done' ? upload.fileName : undefined,
         fileId:       upload.status === 'done' ? upload.fileId  : undefined
