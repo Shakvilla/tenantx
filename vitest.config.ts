@@ -7,7 +7,15 @@ export default defineConfig({
   test: {
     // Environment
     environment: 'happy-dom',
-    
+    environmentOptions: {
+      happyDOM: {
+        settings: {
+          // Don't fetch real iframe pages (e.g. Google Maps embeds) during tests
+          disableIframePageLoading: true,
+        },
+      },
+    },
+
     // Global test setup
     globals: true,
     setupFiles: ['./src/__tests__/setup.ts'],
