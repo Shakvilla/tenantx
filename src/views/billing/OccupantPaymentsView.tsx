@@ -11,6 +11,9 @@ import Typography from '@mui/material/Typography'
 import Skeleton from '@mui/material/Skeleton'
 import Alert from '@mui/material/Alert'
 import TablePagination from '@mui/material/TablePagination'
+import Button from '@mui/material/Button'
+import Tooltip from '@mui/material/Tooltip'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -25,7 +28,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table'
 
 // API Imports
-import { paymentsApi } from '@/lib/api/payments'
+import { paymentsApi, openPaymentReceipt } from '@/lib/api/payments'
 import type { PaymentResponse, PaymentStatus } from '@/types/payment'
 
 // Auth Imports
@@ -55,6 +58,19 @@ const OccupantPaymentsView = () => {
   const [data, setData] = useState<PaymentResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({})
+
+  async function handleVerify(paymentId: string) {
+    setVerifying(v => ({ ...v, [paymentId]: true }))
+    try {
+      const updated = await paymentsApi.checkStatus(paymentId)
+      setData(prev => prev.map(p => p.id === paymentId ? updated : p))
+    } catch {
+      // status chip will remain unchanged
+    } finally {
+      setVerifying(v => ({ ...v, [paymentId]: false }))
+    }
+  }
 
   useEffect(() => {
     if (!user?.id) return
@@ -112,9 +128,44 @@ const OccupantPaymentsView = () => {
       columnHelper.accessor('gatewayName', {
         header: 'GATEWAY',
         cell: ({ row }) => <Typography>{row.original.gatewayName ?? '—'}</Typography>
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const p = row.original
+          if (p.status === 'PAID' || p.status === 'RECORDED') {
+            return (
+              <Tooltip title='Open printable receipt'>
+                <Button
+                  size='small'
+                  variant='outlined'
+                  onClick={() => { void openPaymentReceipt(p.id) }}
+                  startIcon={<i className='ri-receipt-line' />}
+                >
+                  Receipt
+                </Button>
+              </Tooltip>
+            )
+          }
+          if ((p.status !== 'PENDING' && p.status !== 'PROCESSING') || p.paymentMethod !== 'MOBILE_MONEY') return null
+          return (
+            <Tooltip title='Check payment status with Redde'>
+              <Button
+                size='small'
+                variant='outlined'
+                disabled={!!verifying[p.id]}
+                onClick={() => handleVerify(p.id)}
+                startIcon={verifying[p.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
+              >
+                {verifying[p.id] ? 'Checking…' : 'Verify'}
+              </Button>
+            </Tooltip>
+          )
+        }
       })
     ],
-    []
+    [verifying]
   )
 
   const table = useReactTable({

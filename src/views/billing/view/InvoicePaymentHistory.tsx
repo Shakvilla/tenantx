@@ -12,9 +12,11 @@ import Divider from '@mui/material/Divider'
 import Box from '@mui/material/Box'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Tooltip from '@mui/material/Tooltip'
 
 // API
-import { paymentsApi } from '@/lib/api/payments'
+import { paymentsApi, openPaymentReceipt } from '@/lib/api/payments'
 import type { PaymentResponse, PaymentStatus } from '@/types/payment'
 
 type Props = {
@@ -45,6 +47,28 @@ const InvoicePaymentHistory = ({ invoiceId, refreshKey }: Props) => {
   const [payments, setPayments] = useState<PaymentResponse[]>([])
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({})
+  const [receiptError, setReceiptError] = useState<string | null>(null)
+
+  const handleReceipt = async (id: string) => {
+    try {
+      await openPaymentReceipt(id)
+    } catch {
+      setReceiptError('Failed to open receipt')
+    }
+  }
+
+  async function handleVerify(paymentId: string) {
+    setVerifying(v => ({ ...v, [paymentId]: true }))
+    try {
+      const updated = await paymentsApi.checkStatus(paymentId)
+      setPayments(prev => prev.map(p => p.id === paymentId ? updated : p))
+    } catch {
+      // status chip will remain unchanged
+    } finally {
+      setVerifying(v => ({ ...v, [paymentId]: false }))
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -112,6 +136,31 @@ const InvoicePaymentHistory = ({ invoiceId, refreshKey }: Props) => {
                   size='small'
                   color={statusColor(p.status)}
                 />
+                {(p.status === 'PENDING' || p.status === 'PROCESSING') && p.paymentMethod === 'MOBILE_MONEY' && (
+                  <Tooltip title='Check payment status with Redde'>
+                    <Button
+                      size='small'
+                      variant='outlined'
+                      disabled={!!verifying[p.id]}
+                      onClick={() => handleVerify(p.id)}
+                      startIcon={verifying[p.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
+                    >
+                      {verifying[p.id] ? 'Checking…' : 'Verify'}
+                    </Button>
+                  </Tooltip>
+                )}
+                {(p.status === 'PAID' || p.status === 'RECORDED') && (
+                  <Tooltip title='Open printable receipt'>
+                    <Button
+                      size='small'
+                      variant='outlined'
+                      onClick={() => handleReceipt(p.id)}
+                      startIcon={<i className='ri-receipt-line' />}
+                    >
+                      Receipt
+                    </Button>
+                  </Tooltip>
+                )}
                 <Typography variant='body2' className='font-semibold' color='text.primary'>
                   ₵{p.amount.toFixed(2)}
                 </Typography>
