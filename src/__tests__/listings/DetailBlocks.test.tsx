@@ -54,31 +54,24 @@ describe('InquiryForm', () => {
     expect(screen.getByDisplayValue(/Unit 110 — Sunrise Apartments/)).toBeInTheDocument()
   })
 
-  describe('submission', () => {
-    afterEach(() => {
-      vi.unstubAllGlobals()
-    })
+  it('shows the error state when the server responds non-2xx', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 500 } as Response)
+    render(<InquiryForm listing={makeListing()} primaryColour='#7367F0' />)
+    fireEvent.change(screen.getByPlaceholderText('Your name *'), { target: { value: 'Ama' } })
+    fireEvent.change(screen.getByPlaceholderText('Phone number *'), { target: { value: '0244000000' } })
+    fireEvent.click(screen.getByRole('button', { name: /request a viewing/i }))
+    expect(await screen.findByText(/could not send your message/i)).toBeInTheDocument()
+    expect(screen.queryByText('Message sent!')).not.toBeInTheDocument()
+    fetchMock.mockRestore()
+  })
 
-    function fillAndSubmit() {
-      render(<InquiryForm listing={makeListing()} primaryColour='#7367F0' />)
-      fireEvent.change(screen.getByPlaceholderText('Your name *'), { target: { value: 'Ama' } })
-      fireEvent.change(screen.getByPlaceholderText('Phone number *'), { target: { value: '0244000000' } })
-      fireEvent.click(screen.getByRole('button', { name: /request a viewing/i }))
-    }
-
-    it('shows the success state when the API accepts the request', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 201 }))
-      fillAndSubmit()
-      expect(await screen.findByText('Message sent!')).toBeInTheDocument()
-    })
-
-    it('shows the error message when the API responds with an error status', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
-      fillAndSubmit()
-      expect(
-        await screen.findByText(/could not send your message/i)
-      ).toBeInTheDocument()
-      expect(screen.queryByText('Message sent!')).not.toBeInTheDocument()
-    })
+  it('shows the success state when the server responds 2xx', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 201 } as Response)
+    render(<InquiryForm listing={makeListing()} primaryColour='#7367F0' />)
+    fireEvent.change(screen.getByPlaceholderText('Your name *'), { target: { value: 'Ama' } })
+    fireEvent.change(screen.getByPlaceholderText('Phone number *'), { target: { value: '0244000000' } })
+    fireEvent.click(screen.getByRole('button', { name: /request a viewing/i }))
+    expect(await screen.findByText('Message sent!')).toBeInTheDocument()
+    fetchMock.mockRestore()
   })
 })
