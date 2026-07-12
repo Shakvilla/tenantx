@@ -19,6 +19,8 @@ export type DocumentItem = {
   propertyName?: string
   unitId?: string
   unitNo?: string
+  agreementId?: string
+  agreementNumber?: string
   fileUrl?: string
   fileName?: string
   fileId?: string
@@ -34,6 +36,8 @@ export type CreateDocumentRequest = {
   propertyName?: string
   unitId?: string
   unitNo?: string
+  agreementId?: string
+  agreementNumber?: string
   fileUrl?: string
   fileName?: string
   fileId?: string

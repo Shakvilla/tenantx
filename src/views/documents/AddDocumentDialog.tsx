@@ -22,6 +22,7 @@ import { createDocument } from '@/lib/api/documents'
 import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { getAgreements, type Agreement } from '@/lib/api/agreements'
 import {
   uploadDocument,
   formatFileSize,
@@ -33,7 +34,11 @@ import type { Property } from '@/types/property'
 
 // ---------------------------------------------------------------------------
 
-const DOCUMENT_TYPES = ['ID Card', 'Passport', 'Lease Agreement', 'Contract', 'Other']
+const DOCUMENT_TYPES = [
+  'ID Card', 'Passport', 'Lease Agreement', 'Contract', 'Other',
+  'Ghana Card', 'Passport Photo', 'Employment Letter', 'Payslip',
+  'Business Registration', 'Reference', 'Receipt'
+]
 
 const FILE_ICONS: Record<string, string> = {
   pdf:  'ri-file-pdf-line',
@@ -57,6 +62,8 @@ type FormData = {
   propertyName: string
   unitId:       string
   unitNo:       string
+  agreementId:     string
+  agreementNumber: string
 }
 
 const EMPTY: FormData = {
@@ -66,7 +73,9 @@ const EMPTY: FormData = {
   propertyId:   '',
   propertyName: '',
   unitId:       '',
-  unitNo:       ''
+  unitNo:       '',
+  agreementId:     '',
+  agreementNumber: ''
 }
 
 type Props = {
@@ -85,6 +94,7 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
 
   const [occupants,   setOccupants]   = useState<OccupantRecord[]>([])
   const [properties,  setProperties]  = useState<Property[]>([])
+  const [agreements,  setAgreements]  = useState<Agreement[]>([])
   const [loadingRefs, setLoadingRefs] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -108,6 +118,13 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
       })
       .finally(() => setLoadingRefs(false))
   }, [open])
+
+  // ---- Load agreements when the selected occupant changes ----
+
+  useEffect(() => {
+    if (!form.occupantId) { setAgreements([]); return }
+    getAgreements({ occupantId: form.occupantId }).then(setAgreements).catch(() => setAgreements([]))
+  }, [form.occupantId])
 
   // ---- Units derived from selected property ----
 
@@ -150,6 +167,11 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
   const handleUnitChange = (id: string) => {
     const unit = units.find(u => u.id === id)
     setForm(prev => ({ ...prev, unitId: id, unitNo: unit?.unitNo ?? '' }))
+  }
+
+  const handleAgreementChange = (id: string) => {
+    const agr = agreements.find(a => a.id === id)
+    setForm(prev => ({ ...prev, agreementId: id, agreementNumber: agr?.agreementNumber ?? '' }))
   }
 
   // ---- File upload ----
@@ -232,6 +254,7 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
         propertyName: form.propertyName,
         unitId:       form.unitId   || undefined,
         unitNo:       form.unitNo   || undefined,
+        agreementId:  form.agreementId || undefined,
         fileUrl:      upload.status === 'done' ? upload.fileUrl : undefined,
         fileName:     upload.status === 'done' ? upload.fileName : undefined,
         fileId:       upload.status === 'done' ? upload.fileId  : undefined
@@ -427,6 +450,21 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
                 <MenuItem value=''>None / N/A</MenuItem>
                 {units.map(u => (
                   <MenuItem key={u.id} value={u.id}>{u.unitNo}</MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+
+            {/* Agreement (optional) */}
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                select fullWidth size='small' label='Agreement (optional)'
+                value={form.agreementId}
+                onChange={e => handleAgreementChange(e.target.value)}
+                disabled={!form.occupantId}
+              >
+                <MenuItem value=''>No agreement linked</MenuItem>
+                {agreements.map(a => (
+                  <MenuItem key={a.id} value={a.id}>{a.agreementNumber}</MenuItem>
                 ))}
               </TextField>
             </Grid>

@@ -4,6 +4,8 @@ export type DocumentType = {
   propertyId?: string
   unitNo?: string
   unitId?: string
+  agreementId?: string
+  agreementNumber?: string
   tenantName?: string
   occupantId?: string
   tenantAvatar?: string
