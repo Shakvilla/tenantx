@@ -55,6 +55,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // ---------------------------------------------------------------------------
 
 export default async function PublicListingPage({ params }: Props) {
+  // Full list powers the "More homes you might like" row — fail-open to empty.
+  // Started before awaiting the single listing so both requests run concurrently.
+  const allListingsPromise = getPublicListings().catch(() => [])
+
   let listing
 
   try {
@@ -63,8 +67,7 @@ export default async function PublicListingPage({ params }: Props) {
     notFound()
   }
 
-  // Full list powers the "More homes you might like" row — fail-open to empty.
-  const allListings = await getPublicListings().catch(() => [])
+  const allListings = await allListingsPromise
 
   return <ListingDetailView listing={listing} allListings={allListings} />
 }
