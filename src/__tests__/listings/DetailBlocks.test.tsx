@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import Highlights from '@/views/listings/components/Highlights'
 import LocationMap from '@/views/listings/components/LocationMap'
@@ -52,5 +52,33 @@ describe('InquiryForm', () => {
   it('prefills the message with the listing title', () => {
     render(<InquiryForm listing={makeListing()} primaryColour='#7367F0' />)
     expect(screen.getByDisplayValue(/Unit 110 — Sunrise Apartments/)).toBeInTheDocument()
+  })
+
+  describe('submission', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function fillAndSubmit() {
+      render(<InquiryForm listing={makeListing()} primaryColour='#7367F0' />)
+      fireEvent.change(screen.getByPlaceholderText('Your name *'), { target: { value: 'Ama' } })
+      fireEvent.change(screen.getByPlaceholderText('Phone number *'), { target: { value: '0244000000' } })
+      fireEvent.click(screen.getByRole('button', { name: /request a viewing/i }))
+    }
+
+    it('shows the success state when the API accepts the request', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 201 }))
+      fillAndSubmit()
+      expect(await screen.findByText('Message sent!')).toBeInTheDocument()
+    })
+
+    it('shows the error message when the API responds with an error status', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
+      fillAndSubmit()
+      expect(
+        await screen.findByText(/could not send your message/i)
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Message sent!')).not.toBeInTheDocument()
+    })
   })
 })

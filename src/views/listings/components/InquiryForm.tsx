@@ -41,7 +41,7 @@ export default function InquiryForm({ listing, primaryColour }: InquiryFormProps
       ]
         .filter(Boolean)
         .join('\n')
-      await fetch(`${API_BASE}/support/tickets`, {
+      const res = await fetch(`${API_BASE}/support/tickets`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -52,6 +52,7 @@ export default function InquiryForm({ listing, primaryColour }: InquiryFormProps
           priority: 'MEDIUM',
         }),
       })
+      if (!res.ok) throw new Error(`Inquiry submission failed with status ${res.status}`)
       setSuccess(true)
     } catch {
       setError('Could not send your message. Please call or WhatsApp directly.')
