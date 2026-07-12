@@ -26,7 +26,7 @@ export default function SearchPill({ value, onChange, brandColour }: SearchPillP
         <button
           onClick={() => onChange('')}
           aria-label='Clear search'
-          className='flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-[#F0F0F0] text-[#717171] hover:bg-[#E4E4E4]'
+          className='flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-none bg-[#F0F0F0] text-[#717171] hover:bg-[#DDDDDD]'
         >
           <i className='ri-close-line text-sm' aria-hidden='true' />
         </button>
