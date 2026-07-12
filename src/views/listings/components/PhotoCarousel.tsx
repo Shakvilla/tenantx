@@ -43,7 +43,7 @@ export default function PhotoCarousel({ images, alt }: PhotoCarouselProps) {
 
   const arrowClass =
     'absolute top-1/2 z-[3] flex h-7 w-7 -translate-y-1/2 cursor-pointer items-center justify-center ' +
-    'rounded-full border-none bg-white/95 shadow-md opacity-0 transition-opacity group-hover/card:opacity-100'
+    'rounded-full border-none bg-white/95 shadow-md opacity-0 transition-opacity group-hover/card:opacity-100 focus-visible:opacity-100'
 
   return (
     <div className='relative h-full w-full touch-pan-y' onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
