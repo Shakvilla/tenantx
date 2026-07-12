@@ -23,14 +23,13 @@ function formatMoney(amount: number, currency = 'GHS'): string {
   return `${currency} ${amount.toLocaleString()}`
 }
 
-function transformOccupantData(
+export function transformOccupantData(
   record: OccupantRecord,
   advanceRents: AdvanceRentResponse[],
   cautionFees: CautionFeeResponse[],
   unit: Unit | null
 ) {
   const fullName = `${record.firstName} ${record.lastName}`
-  const ec = record.emergencyContact || {}
 
   // Pick the most relevant advance rent (ACTIVE > EXPIRING)
   const activeAR =
@@ -81,10 +80,10 @@ function transformOccupantData(
     status: (record.status === 'active' ? 'active' : 'inactive') as 'active' | 'inactive',
     avatar: record.avatar || undefined,
     age: undefined,
-    familyMembers: ec.familyMembersCount ? Number(ec.familyMembersCount) : undefined,
-    job: (ec.occupation as string) || undefined,
-    previousAddress: (ec.previousAddress as any) || undefined,
-    permanentAddress: (ec.permanentAddress as any) || undefined,
+    familyMembers: record.familyMembersCount ?? undefined,
+    job: record.occupation || undefined,
+    previousAddress: (record.previousAddress as any) || undefined,
+    permanentAddress: (record.permanentAddress as any) || undefined,
     propertyImage: undefined,
     propertyAddress: undefined,
     unitName: record.unitNo || '-',
