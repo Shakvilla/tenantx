@@ -16,6 +16,8 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
 import Grid from '@mui/material/Grid2'
 import Accordion from '@mui/material/Accordion'
 import AccordionSummary from '@mui/material/AccordionSummary'
@@ -74,6 +76,12 @@ type FormData = {
   conditions: string
   renewalOptions: string
   documentUrl: string
+  sublettingAllowed: boolean
+  petsAllowed: boolean
+  noiseRestrictionsApply: boolean
+  earlyTerminationAllowed: boolean
+  noticePeriodDays: string
+  witnessName: string
 }
 
 const initialData: FormData = {
@@ -94,7 +102,13 @@ const initialData: FormData = {
   terms: '',
   conditions: '',
   renewalOptions: '',
-  documentUrl: ''
+  documentUrl: '',
+  sublettingAllowed: false,
+  petsAllowed: false,
+  noiseRestrictionsApply: false,
+  earlyTerminationAllowed: false,
+  noticePeriodDays: '',
+  witnessName: ''
 }
 
 function agreementToForm(a: Agreement): FormData {
@@ -116,7 +130,13 @@ function agreementToForm(a: Agreement): FormData {
     terms: a.terms ?? '',
     conditions: a.conditions ?? '',
     renewalOptions: a.renewalOptions ?? '',
-    documentUrl: a.documentUrl ?? ''
+    documentUrl: a.documentUrl ?? '',
+    sublettingAllowed: a.sublettingAllowed ?? false,
+    petsAllowed: a.petsAllowed ?? false,
+    noiseRestrictionsApply: a.noiseRestrictionsApply ?? false,
+    earlyTerminationAllowed: a.earlyTerminationAllowed ?? false,
+    noticePeriodDays: a.noticePeriodDays != null ? String(a.noticePeriodDays) : '',
+    witnessName: a.witnessName ?? ''
   }
 }
 
@@ -214,6 +234,12 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
   }
 
+  type BoolField = 'sublettingAllowed' | 'petsAllowed' | 'noiseRestrictionsApply' | 'earlyTerminationAllowed'
+
+  const handleBoolChange = (field: BoolField, checked: boolean) => {
+    setFormData(prev => ({ ...prev, [field]: checked }))
+  }
+
   // ── Document drop handler ────────────────────────────────────────────────────
 
   const onDrop = useCallback(async (accepted: File[]) => {
@@ -294,7 +320,13 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
       terms: formData.terms || undefined,
       conditions: formData.conditions || undefined,
       renewalOptions: formData.renewalOptions || undefined,
-      documentUrl: formData.documentUrl || undefined
+      documentUrl: formData.documentUrl || undefined,
+      sublettingAllowed: formData.sublettingAllowed,
+      petsAllowed: formData.petsAllowed,
+      noiseRestrictionsApply: formData.noiseRestrictionsApply,
+      earlyTerminationAllowed: formData.earlyTerminationAllowed,
+      noticePeriodDays: formData.noticePeriodDays ? parseInt(formData.noticePeriodDays, 10) : null,
+      witnessName: formData.witnessName || undefined
     }
 
     try {
@@ -597,6 +629,76 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
             </AccordionSummary>
             <AccordionDetails>
               <Grid container spacing={6}>
+                <Grid size={{ xs: 12 }}>
+                  <Typography variant='subtitle2' color='text.secondary' className='mbe-2'>
+                    Standard Clauses
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.sublettingAllowed}
+                            onChange={e => handleBoolChange('sublettingAllowed', e.target.checked)}
+                          />
+                        }
+                        label='Subletting Allowed'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.petsAllowed}
+                            onChange={e => handleBoolChange('petsAllowed', e.target.checked)}
+                          />
+                        }
+                        label='Pets Allowed'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.noiseRestrictionsApply}
+                            onChange={e => handleBoolChange('noiseRestrictionsApply', e.target.checked)}
+                          />
+                        }
+                        label='Noise Restrictions Apply'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={formData.earlyTerminationAllowed}
+                            onChange={e => handleBoolChange('earlyTerminationAllowed', e.target.checked)}
+                          />
+                        }
+                        label='Early Termination Allowed'
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        size='small'
+                        fullWidth
+                        type='number'
+                        label='Notice Period (Days)'
+                        value={formData.noticePeriodDays}
+                        onChange={e => handleChange('noticePeriodDays', e.target.value)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        size='small'
+                        fullWidth
+                        label='Witness Name'
+                        value={formData.witnessName}
+                        onChange={e => handleChange('witnessName', e.target.value)}
+                      />
+                    </Grid>
+                  </Grid>
+                </Grid>
                 <Grid size={{ xs: 12 }}>
                   <RichTextEditor
                     label='Terms'

@@ -46,6 +46,13 @@ export interface Agreement {
   renewalOptions: string | null
   documentUrl: string | null
 
+  sublettingAllowed: boolean | null
+  petsAllowed: boolean | null
+  noiseRestrictionsApply: boolean | null
+  noticePeriodDays: number | null
+  earlyTerminationAllowed: boolean | null
+  witnessName: string | null
+
   createdAt: string
   updatedAt: string | null
 }
@@ -80,6 +87,13 @@ export interface CreateAgreementPayload {
   conditions?: string
   renewalOptions?: string
   documentUrl?: string
+
+  sublettingAllowed?: boolean | null
+  petsAllowed?: boolean | null
+  noiseRestrictionsApply?: boolean | null
+  noticePeriodDays?: number | null
+  earlyTerminationAllowed?: boolean | null
+  witnessName?: string
 }
 
 export type UpdateAgreementPayload = Partial<CreateAgreementPayload>
