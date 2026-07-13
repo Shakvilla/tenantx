@@ -66,6 +66,8 @@ const freqLabels: Record<string, string> = {
   MONTHLY: 'Monthly', QUARTERLY: 'Quarterly', YEARLY: 'Yearly', ONE_TIME: 'One-time'
 }
 
+const yesNo = (v: boolean | null | undefined): string => (v ? 'Yes' : 'No')
+
 const ViewAgreementDialog = ({ open, handleClose, agreement }: Props) => {
   if (!agreement) return null
 
@@ -276,13 +278,97 @@ const ViewAgreementDialog = ({ open, handleClose, agreement }: Props) => {
                 </>
               )}
 
-              {/* Terms & Conditions */}
-              {(agreement.terms || agreement.conditions || agreement.renewalOptions) && (
+              {/* Terms, Clauses & Conditions */}
+              {(agreement.terms || agreement.conditions || agreement.renewalOptions ||
+                agreement.sublettingAllowed != null || agreement.petsAllowed != null ||
+                agreement.noiseRestrictionsApply != null || agreement.noticePeriodDays != null ||
+                agreement.earlyTerminationAllowed != null || agreement.witnessName) && (
                 <>
                   <Grid size={{ xs: 12 }}><Divider /></Grid>
                   <Grid size={{ xs: 12 }}>
-                    <Typography variant='h6' className='mb-4'>Terms & Conditions</Typography>
+                    <Typography variant='h6' className='mb-4'>Terms &amp; Conditions</Typography>
                     <Grid container spacing={6}>
+                      {(agreement.sublettingAllowed != null || agreement.petsAllowed != null ||
+                        agreement.noiseRestrictionsApply != null || agreement.noticePeriodDays != null ||
+                        agreement.earlyTerminationAllowed != null || agreement.witnessName) && (
+                        <Grid size={{ xs: 12 }}>
+                          <Typography className='font-medium mbe-2' color='text.primary'>Clauses:</Typography>
+                          <Grid container spacing={4}>
+                            {agreement.sublettingAllowed != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Subletting Allowed:</Typography>
+                                  <Chip
+                                    size='small'
+                                    variant='tonal'
+                                    label={yesNo(agreement.sublettingAllowed)}
+                                    color={agreement.sublettingAllowed ? 'success' : 'default'}
+                                  />
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.petsAllowed != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Pets Allowed:</Typography>
+                                  <Chip
+                                    size='small'
+                                    variant='tonal'
+                                    label={yesNo(agreement.petsAllowed)}
+                                    color={agreement.petsAllowed ? 'success' : 'default'}
+                                  />
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.noiseRestrictionsApply != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Noise Restrictions Apply:</Typography>
+                                  <Chip
+                                    size='small'
+                                    variant='tonal'
+                                    label={yesNo(agreement.noiseRestrictionsApply)}
+                                    color={agreement.noiseRestrictionsApply ? 'success' : 'default'}
+                                  />
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.earlyTerminationAllowed != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Early Termination Allowed:</Typography>
+                                  <Chip
+                                    size='small'
+                                    variant='tonal'
+                                    label={yesNo(agreement.earlyTerminationAllowed)}
+                                    color={agreement.earlyTerminationAllowed ? 'success' : 'default'}
+                                  />
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.noticePeriodDays != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Notice Period:</Typography>
+                                  <Typography className='font-medium' color='text.primary'>
+                                    {agreement.noticePeriodDays} days
+                                  </Typography>
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.witnessName && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Witness:</Typography>
+                                  <Typography className='font-medium' color='text.primary'>
+                                    {agreement.witnessName}
+                                  </Typography>
+                                </div>
+                              </Grid>
+                            )}
+                          </Grid>
+                        </Grid>
+                      )}
                       {agreement.terms && (
                         <Grid size={{ xs: 12 }}>
                           <Typography className='font-medium' color='text.primary'>Terms:</Typography>
