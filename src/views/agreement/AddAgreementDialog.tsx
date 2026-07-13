@@ -76,10 +76,10 @@ type FormData = {
   conditions: string
   renewalOptions: string
   documentUrl: string
-  sublettingAllowed: boolean
-  petsAllowed: boolean
-  noiseRestrictionsApply: boolean
-  earlyTerminationAllowed: boolean
+  sublettingAllowed: boolean | null
+  petsAllowed: boolean | null
+  noiseRestrictionsApply: boolean | null
+  earlyTerminationAllowed: boolean | null
   noticePeriodDays: string
   witnessName: string
 }
@@ -103,10 +103,10 @@ const initialData: FormData = {
   conditions: '',
   renewalOptions: '',
   documentUrl: '',
-  sublettingAllowed: false,
-  petsAllowed: false,
-  noiseRestrictionsApply: false,
-  earlyTerminationAllowed: false,
+  sublettingAllowed: null,
+  petsAllowed: null,
+  noiseRestrictionsApply: null,
+  earlyTerminationAllowed: null,
   noticePeriodDays: '',
   witnessName: ''
 }
@@ -131,10 +131,10 @@ function agreementToForm(a: Agreement): FormData {
     conditions: a.conditions ?? '',
     renewalOptions: a.renewalOptions ?? '',
     documentUrl: a.documentUrl ?? '',
-    sublettingAllowed: a.sublettingAllowed ?? false,
-    petsAllowed: a.petsAllowed ?? false,
-    noiseRestrictionsApply: a.noiseRestrictionsApply ?? false,
-    earlyTerminationAllowed: a.earlyTerminationAllowed ?? false,
+    sublettingAllowed: a.sublettingAllowed,
+    petsAllowed: a.petsAllowed,
+    noiseRestrictionsApply: a.noiseRestrictionsApply,
+    earlyTerminationAllowed: a.earlyTerminationAllowed,
     noticePeriodDays: a.noticePeriodDays != null ? String(a.noticePeriodDays) : '',
     witnessName: a.witnessName ?? ''
   }
@@ -326,7 +326,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
       noiseRestrictionsApply: formData.noiseRestrictionsApply,
       earlyTerminationAllowed: formData.earlyTerminationAllowed,
       noticePeriodDays: formData.noticePeriodDays ? parseInt(formData.noticePeriodDays, 10) : null,
-      witnessName: formData.witnessName || undefined
+      witnessName: formData.witnessName || null
     }
 
     try {
@@ -638,7 +638,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={formData.sublettingAllowed}
+                            checked={!!formData.sublettingAllowed}
                             onChange={e => handleBoolChange('sublettingAllowed', e.target.checked)}
                           />
                         }
@@ -649,7 +649,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={formData.petsAllowed}
+                            checked={!!formData.petsAllowed}
                             onChange={e => handleBoolChange('petsAllowed', e.target.checked)}
                           />
                         }
@@ -660,7 +660,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={formData.noiseRestrictionsApply}
+                            checked={!!formData.noiseRestrictionsApply}
                             onChange={e => handleBoolChange('noiseRestrictionsApply', e.target.checked)}
                           />
                         }
@@ -671,7 +671,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
                       <FormControlLabel
                         control={
                           <Checkbox
-                            checked={formData.earlyTerminationAllowed}
+                            checked={!!formData.earlyTerminationAllowed}
                             onChange={e => handleBoolChange('earlyTerminationAllowed', e.target.checked)}
                           />
                         }

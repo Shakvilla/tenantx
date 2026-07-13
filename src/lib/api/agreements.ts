@@ -93,7 +93,7 @@ export interface CreateAgreementPayload {
   noiseRestrictionsApply?: boolean | null
   noticePeriodDays?: number | null
   earlyTerminationAllowed?: boolean | null
-  witnessName?: string
+  witnessName?: string | null
 }
 
 export type UpdateAgreementPayload = Partial<CreateAgreementPayload>
