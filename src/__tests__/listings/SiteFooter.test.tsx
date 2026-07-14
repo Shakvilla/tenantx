@@ -14,6 +14,12 @@ describe('SiteFooter', () => {
     expect(screen.getByRole('link', { name: 'Browse all homes' })).toHaveAttribute('href', '/listings')
   })
 
+  it('links to the terms and privacy pages', () => {
+    render(<SiteFooter />)
+    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/listings/terms')
+    expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/listings/privacy')
+  })
+
   it('has a back-to-top button', () => {
     render(<SiteFooter />)
     expect(screen.getByRole('button', { name: 'Back to top' })).toBeInTheDocument()

@@ -79,8 +79,18 @@ export default function SiteFooter({ rightNote, className = '' }: SiteFooterProp
 
         {/* ── Tier 2: legal bar ── */}
         <div className='mt-10 flex flex-wrap items-center justify-between gap-2 border-t border-[#EBEBEB] pt-5 text-xs text-[#717171]'>
-          <span>
-            © {year} {platformName} · Ghana Property Platform
+          <span className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+            <span>
+              © {year} {platformName} · Ghana Property Platform
+            </span>
+            <span aria-hidden='true'>·</span>
+            <Link href='/listings/terms' className='text-[#717171] no-underline hover:text-[#222222] hover:underline'>
+              Terms
+            </Link>
+            <span aria-hidden='true'>·</span>
+            <Link href='/listings/privacy' className='text-[#717171] no-underline hover:text-[#222222] hover:underline'>
+              Privacy
+            </Link>
           </span>
           <span className='text-[#BBBBBB]'>{rightNote ?? 'All prices in Ghana Cedis (GHS)'}</span>
         </div>
