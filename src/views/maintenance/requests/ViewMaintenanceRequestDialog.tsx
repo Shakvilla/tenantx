@@ -112,6 +112,13 @@ const PRIORITY_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' |
   low: 'info', medium: 'warning', high: 'error', urgent: 'error'
 }
 
+const COMPLAINT_CATEGORY_LABELS: Record<string, string> = {
+  NOISE: 'Noise',
+  NEIGHBOR_DISPUTE: 'Neighbor Dispute',
+  SECURITY: 'Security',
+  OTHER: 'Other'
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props) => {
@@ -430,6 +437,20 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                       </Typography>
                     </Grid>
                   )}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant='caption' color='text.secondary'>Type</Typography>
+                    <Typography variant='body2' color='text.primary'>
+                      {request.issueType === 'COMPLAINT' ? 'Complaint' : 'Repair'}
+                    </Typography>
+                  </Grid>
+                  {request.complaintCategory && (
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant='caption' color='text.secondary'>Complaint Category</Typography>
+                      <Typography variant='body2' color='text.primary'>
+                        {COMPLAINT_CATEGORY_LABELS[request.complaintCategory] ?? request.complaintCategory}
+                      </Typography>
+                    </Grid>
+                  )}
                   {request.categoryId && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Category</Typography>
@@ -488,6 +509,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
 
             {/* Photos */}
             {/* ── Maintainer Assignment ── */}
+            {request.issueType !== 'COMPLAINT' && (
             <Card variant='outlined'>
               <CardContent className='flex flex-col gap-3'>
                 <Box className='flex items-center justify-between'>
@@ -564,6 +586,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                 )}
               </CardContent>
             </Card>
+            )}
 
             {images.length > 0 && (
               <Card variant='outlined'>
