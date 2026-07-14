@@ -18,6 +18,12 @@ const SORT_OPTIONS: { label: string; value: SortValue }[] = [
   { label: 'Price: high to low', value: 'price_desc' },
 ]
 
+export interface LocationOption {
+  slug: string
+  label: string
+  count: number
+}
+
 export interface FilterBarProps {
   bedFilter: number | null
   onBedFilter: (v: number | null) => void
@@ -29,6 +35,10 @@ export interface FilterBarProps {
   hasFilters: boolean
   onClearAll: () => void
   brandColour: string
+  /** Location filter — omit all three on city pages (scope is fixed by the URL). */
+  locationFilter?: string | null
+  onLocationFilter?: (slug: string | null) => void
+  locationOptions?: LocationOption[]
 }
 
 function chipClass(active: boolean): string {
@@ -44,6 +54,7 @@ export default function FilterBar(props: FilterBarProps) {
   const {
     bedFilter, onBedFilter, maxPrice, onMaxPrice, maxRent,
     sort, onSort, hasFilters, onClearAll, brandColour,
+    locationFilter, onLocationFilter, locationOptions,
   } = props
   const [showSlider, setShowSlider] = useState(false)
 
@@ -65,6 +76,27 @@ export default function FilterBar(props: FilterBarProps) {
           <i className='ri-equalizer-line' aria-hidden='true' />
           {maxPrice !== null ? `Max GH₵ ${Number(maxPrice).toLocaleString()}` : 'Price'}
         </button>
+
+        {locationOptions && onLocationFilter && (
+          <select
+            value={locationFilter ?? ''}
+            onChange={e => onLocationFilter(e.target.value || null)}
+            aria-label='Filter by location'
+            className={
+              'shrink-0 cursor-pointer rounded-full border border-solid px-3 py-2 text-[13px] transition-colors ' +
+              ((locationFilter ?? '') !== ''
+                ? 'border-[#222222] bg-[#222222] font-semibold text-white'
+                : 'border-[#DDDDDD] bg-white font-medium text-[#222222] hover:border-[#222222]')
+            }
+          >
+            <option value=''>All locations</option>
+            {locationOptions.map(o => (
+              <option key={o.slug} value={o.slug}>
+                {o.label} ({o.count})
+              </option>
+            ))}
+          </select>
+        )}
 
         {hasFilters && (
           <button

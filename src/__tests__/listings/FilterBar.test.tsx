@@ -50,6 +50,38 @@ describe('FilterBar', () => {
     rerender(<FilterBar {...baseProps} hasFilters={true} />)
     expect(screen.getByText('Clear all')).toBeInTheDocument()
   })
+
+  const locationProps = {
+    locationFilter: null,
+    onLocationFilter: vi.fn(),
+    locationOptions: [
+      { slug: 'adenta-accra', label: 'Adenta, Accra', count: 5 },
+      { slug: 'tamale', label: 'Tamale', count: 2 },
+    ],
+  }
+
+  it('renders a location select with all options and counts', () => {
+    render(<FilterBar {...baseProps} {...locationProps} />)
+    const select = screen.getByLabelText('Filter by location')
+    expect(select).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'All locations' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Adenta, Accra (5)' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Tamale (2)' })).toBeInTheDocument()
+  })
+
+  it('reports a chosen location slug, and null for All locations', () => {
+    const onLocationFilter = vi.fn()
+    render(<FilterBar {...baseProps} {...locationProps} onLocationFilter={onLocationFilter} />)
+    fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: 'tamale' } })
+    expect(onLocationFilter).toHaveBeenCalledWith('tamale')
+    fireEvent.change(screen.getByLabelText('Filter by location'), { target: { value: '' } })
+    expect(onLocationFilter).toHaveBeenCalledWith(null)
+  })
+
+  it('renders no location select when location props are omitted', () => {
+    render(<FilterBar {...baseProps} />)
+    expect(screen.queryByLabelText('Filter by location')).not.toBeInTheDocument()
+  })
 })
 
 describe('SearchPill', () => {
