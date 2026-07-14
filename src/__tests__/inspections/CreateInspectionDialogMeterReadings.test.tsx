@@ -78,4 +78,29 @@ describe('CreateInspectionDialog — meter readings', () => {
     expect(payload.electricityReading).toBe(4213.5)
     expect(payload.waterReading).toBe(102)
   })
+
+  it('submits the selected ROUTINE inspection type in the create() payload', async () => {
+    render(
+      <CreateInspectionDialog
+        open
+        unitId='unit-1'
+        propertyId='prop-1'
+        unitNo='A1'
+        propertyName='Sunset Apartments'
+        onClose={() => {}}
+        onCreated={() => {}}
+      />
+    )
+
+    // Open the Inspection Type select and pick "Routine"
+    fireEvent.mouseDown(screen.getByLabelText(/inspection type/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Routine' }))
+
+    fireEvent.change(screen.getByLabelText(/inspector name/i), { target: { value: 'Kwame Mensah' } })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+
+    await waitFor(() => expect(inspectionsApi.create).toHaveBeenCalled())
+    const [payload] = vi.mocked(inspectionsApi.create).mock.calls[0]
+    expect(payload.type).toBe('ROUTINE')
+  })
 })

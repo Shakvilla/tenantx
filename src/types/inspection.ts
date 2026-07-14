@@ -1,6 +1,6 @@
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-export type InspectionType   = 'MOVE_IN' | 'MOVE_OUT'
+export type InspectionType   = 'MOVE_IN' | 'MOVE_OUT' | 'ROUTINE' | 'PRE_RENEWAL'
 export type InspectionStatus = 'DRAFT' | 'COMPLETED'
 export type InspectionRoom   =
   | 'LIVING_ROOM'

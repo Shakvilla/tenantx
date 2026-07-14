@@ -29,7 +29,7 @@ import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 
-import { inspectionsApi, getInspectionReportUrl } from '@/lib/api/inspections'
+import { inspectionsApi, openInspectionReport } from '@/lib/api/inspections'
 import type {
   InspectionResponse,
   InspectionItemResponse,
@@ -74,13 +74,27 @@ function conditionChip(c: InspectionCondition | null) {
   return <Chip label={label} size='small' variant='tonal' color={color} />
 }
 
+const TYPE_LABELS: Record<InspectionType, string> = {
+  MOVE_IN: 'Move-In',
+  MOVE_OUT: 'Move-Out',
+  ROUTINE: 'Routine',
+  PRE_RENEWAL: 'Pre-Renewal'
+}
+
+const TYPE_COLORS: Record<InspectionType, 'success' | 'warning' | 'info' | 'primary'> = {
+  MOVE_IN: 'success',
+  MOVE_OUT: 'warning',
+  ROUTINE: 'info',
+  PRE_RENEWAL: 'primary'
+}
+
 function typeChip(t: InspectionType) {
   return (
     <Chip
-      label={t === 'MOVE_IN' ? 'Move-In' : 'Move-Out'}
+      label={TYPE_LABELS[t] ?? t}
       size='small'
       variant='tonal'
-      color={t === 'MOVE_IN' ? 'success' : 'warning'}
+      color={TYPE_COLORS[t] ?? 'secondary'}
     />
   )
 }
@@ -133,6 +147,15 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
       .catch(err => setError(err?.response?.data?.message ?? err?.message ?? 'Failed to load inspection'))
       .finally(() => setLoading(false))
   }, [open, inspectionId])
+
+  const handleDownloadReport = async () => {
+    if (!data) return
+    try {
+      await openInspectionReport(data.id)
+    } catch {
+      setError('Failed to open inspection report')
+    }
+  }
 
   const roomGroups = data ? groupByRoom(data.items) : new Map()
 
@@ -326,10 +349,7 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
                 variant='outlined'
                 size='small'
                 startIcon={<i className='ri-file-download-line' />}
-                component='a'
-                href={data ? getInspectionReportUrl(data.id) : undefined}
-                target='_blank'
-                rel='noopener noreferrer'
+                onClick={handleDownloadReport}
                 disabled={loading || !data}
               >
                 Download Report

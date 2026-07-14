@@ -35,7 +35,7 @@ import {
 import type { ColumnDef } from '@tanstack/react-table'
 
 // API Imports
-import { inspectionsApi, signOffInspection, getInspectionReportUrl } from '@/lib/api/inspections'
+import { inspectionsApi, signOffInspection, openInspectionReport } from '@/lib/api/inspections'
 import type { InspectionSummary, InspectionType, InspectionStatus } from '@/types/inspection'
 
 // Style Imports
@@ -43,9 +43,11 @@ import tableStyles from '@core/styles/table.module.css'
 
 const columnHelper = createColumnHelper<InspectionSummary>()
 
-const typeColorMap: Record<InspectionType, 'info' | 'warning'> = {
+const typeColorMap: Record<InspectionType, 'info' | 'warning' | 'success' | 'primary'> = {
   MOVE_IN: 'info',
-  MOVE_OUT: 'warning'
+  MOVE_OUT: 'warning',
+  ROUTINE: 'success',
+  PRE_RENEWAL: 'primary'
 }
 
 const statusColorMap: Record<InspectionStatus, 'success' | 'secondary'> = {
@@ -83,6 +85,14 @@ const OccupantInspectionsView = () => {
   useEffect(() => {
     loadInspections()
   }, [])
+
+  const handleDownloadReport = async (id: string) => {
+    try {
+      await openInspectionReport(id)
+    } catch {
+      setError('Failed to open inspection report')
+    }
+  }
 
   const handleOpenSignOff = (insp: InspectionSummary) => {
     setSignOffTarget(insp)
@@ -181,13 +191,7 @@ const OccupantInspectionsView = () => {
               )}
               {insp.status === 'COMPLETED' && (
                 <Tooltip title='Download Report'>
-                  <IconButton
-                    size='small'
-                    component='a'
-                    href={getInspectionReportUrl(insp.id)}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                  >
+                  <IconButton size='small' onClick={() => handleDownloadReport(insp.id)}>
                     <i className='ri-file-download-line' />
                   </IconButton>
                 </Tooltip>

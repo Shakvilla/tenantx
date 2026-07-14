@@ -35,13 +35,27 @@ import ViewInspectionDialog   from './ViewInspectionDialog'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+const TYPE_LABELS: Record<InspectionType, string> = {
+  MOVE_IN: 'Move-in',
+  MOVE_OUT: 'Move-out',
+  ROUTINE: 'Routine',
+  PRE_RENEWAL: 'Pre-Renewal'
+}
+
+const TYPE_COLORS: Record<InspectionType, 'success' | 'warning' | 'info' | 'primary'> = {
+  MOVE_IN: 'success',
+  MOVE_OUT: 'warning',
+  ROUTINE: 'info',
+  PRE_RENEWAL: 'primary'
+}
+
 function typeChip(type: InspectionType) {
   return (
     <Chip
-      label={type === 'MOVE_IN' ? 'Move-in' : 'Move-out'}
+      label={TYPE_LABELS[type] ?? type}
       size='small'
       variant='tonal'
-      color={type === 'MOVE_IN' ? 'success' : 'warning'}
+      color={TYPE_COLORS[type] ?? 'secondary'}
     />
   )
 }

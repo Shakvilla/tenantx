@@ -3,7 +3,7 @@
 /**
  * CreateInspectionDialog — 3-step wizard
  *
- * Step 1: Type (MOVE_IN / MOVE_OUT), date, inspector name
+ * Step 1: Type (MOVE_IN / MOVE_OUT / ROUTINE / PRE_RENEWAL), date, inspector name
  * Step 2: Room-by-room checklist — accordion per room, condition chips, notes, photo upload
  * Step 3: Overall notes, tenant acknowledgement, sign-off date → submit
  */
@@ -452,6 +452,8 @@ export default function CreateInspectionDialog({
               >
                 <MenuItem value='MOVE_IN'>Move-In</MenuItem>
                 <MenuItem value='MOVE_OUT'>Move-Out</MenuItem>
+                <MenuItem value='ROUTINE'>Routine</MenuItem>
+                <MenuItem value='PRE_RENEWAL'>Pre-Renewal</MenuItem>
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
