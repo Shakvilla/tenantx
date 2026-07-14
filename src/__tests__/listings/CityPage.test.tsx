@@ -24,8 +24,8 @@ describe('CityListingsPage', () => {
     ])
     render(await CityListingsPage(params('adenta-accra')))
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Homes available in Adenta, Accra - Ghana')
-    expect(screen.getByText('Adenta One')).toBeInTheDocument()
-    expect(screen.queryByText('Tamale One')).not.toBeInTheDocument()
+    expect(screen.getByText(/Adenta One/)).toBeInTheDocument()
+    expect(screen.queryByText(/Tamale One/)).not.toBeInTheDocument()
   })
 
   it('renders the empty state (not 404) when the city exists but has no ACTIVE homes', async () => {

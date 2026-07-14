@@ -4,7 +4,7 @@ export function makeListing(overrides: Partial<PublicListingDto> = {}): PublicLi
   return {
     id: 'listing-1',
     unitId: 'unit-1',
-    unitNo: '',
+    unitNo: '110',
     unitType: 'Apartment',
     bedrooms: 2,
     bathrooms: 1,
