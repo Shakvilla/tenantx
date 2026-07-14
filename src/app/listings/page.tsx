@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { getPublicListings } from '@/lib/api/listings-public-client'
+import { getPublicListings, type PublicListingDto } from '@/lib/api/listings-public-client'
 import ListingsIndexView from '@/views/listings/ListingsIndexView'
 
 export const metadata: Metadata = {
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 }
 
 export default async function ListingsPage() {
-  let listings = []
+  let listings: PublicListingDto[] = []
 
   try {
     listings = await getPublicListings()

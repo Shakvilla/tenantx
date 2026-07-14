@@ -8,7 +8,7 @@ import ListingDetailView from '@/views/listings/ListingDetailView'
 // ---------------------------------------------------------------------------
 
 interface Props {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 // ---------------------------------------------------------------------------
@@ -17,7 +17,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
-    const listing = await getPublicListing(params.id)
+    const { id } = await params
+    const listing = await getPublicListing(id)
 
     const description = listing.description
       ? listing.description.slice(0, 155) + (listing.description.length > 155 ? '…' : '')
@@ -62,7 +63,8 @@ export default async function PublicListingPage({ params }: Props) {
   let listing
 
   try {
-    listing = await getPublicListing(params.id)
+    const { id } = await params
+    listing = await getPublicListing(id)
   } catch {
     notFound()
   }
