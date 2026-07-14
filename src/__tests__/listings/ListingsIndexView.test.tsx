@@ -107,6 +107,16 @@ describe('ListingsIndexView', () => {
     expect(screen.getByText(/Mystery Home/)).toBeInTheDocument()
   })
 
+  it('sort applies within city sections in the segmented view', () => {
+    render(<ListingsIndexView listings={cityListings} />)
+    fireEvent.change(screen.getByLabelText('Sort listings'), { target: { value: 'price_desc' } })
+    expect(screen.getByText('Explore by city')).toBeInTheDocument() // still segmented
+    const section = screen.getByText('Homes available in Adenta, Accra - Ghana').closest('section')!
+    const cards = [...section.querySelectorAll('article')].map(a => a.textContent ?? '')
+    expect(cards[0]).toContain('Adenta Two')
+    expect(cards[1]).toContain('Adenta One')
+  })
+
   describe('cityScope (dedicated city page)', () => {
     it('renders the scoped heading, breadcrumb, and only that city\'s listings', () => {
       render(<ListingsIndexView listings={cityListings} cityScope={{ slug: 'adenta-accra', label: 'Adenta, Accra' }} />)

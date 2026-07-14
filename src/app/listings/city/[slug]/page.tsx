@@ -39,11 +39,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CityListingsPage({ params }: Props) {
   const { slug } = await params
-  const listings = await getPublicListings().catch(() => [])
+  const listings = await getPublicListings()
 
   // Slug must have matched SOME listing ever (any status) — a city whose
   // homes all went INACTIVE still renders (with an empty state) so shared
-  // links don't break; a slug that never existed 404s.
+  // links don't break; a slug that never existed 404s. Fetch errors are
+  // deliberately NOT caught here — they propagate to the Next error boundary
+  // (5xx, retryable) instead of falling through to notFound() (a cacheable
+  // 404 on the feature's shareable URLs).
   const label = labelForSlug(listings, slug)
   if (!label) notFound()
 

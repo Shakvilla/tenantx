@@ -56,4 +56,9 @@ describe('CityListingsPage', () => {
     const meta = await generateMetadata(params('adenta-accra'))
     expect(meta.title).toBe('Listings')
   })
+
+  it('propagates API failures instead of serving a 404', async () => {
+    vi.mocked(getPublicListings).mockRejectedValue(new Error('api down'))
+    await expect(CityListingsPage(params('adenta-accra'))).rejects.toThrow('api down')
+  })
 })

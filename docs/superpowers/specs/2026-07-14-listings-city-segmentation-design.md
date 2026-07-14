@@ -101,7 +101,7 @@ export async function generateMetadata({ params }): Promise<Metadata> {
   const { slug } = await params
   const listings = await getPublicListings().catch(() => [])
   const label = labelForSlug(listings, slug)
-  if (!label) return { title: 'Listing not found' }
+  if (!label) return { title: 'Listings' }
   return {
     title: `Homes available in ${label} - Ghana`,
     description: `Browse rental homes available in ${label}, Ghana.`,
@@ -110,7 +110,7 @@ export async function generateMetadata({ params }): Promise<Metadata> {
 
 export default async function CityListingsPage({ params }) {
   const { slug } = await params
-  const listings = await getPublicListings().catch(() => [])
+  const listings = await getPublicListings()
   const label = labelForSlug(listings, slug)
   if (!label) notFound()
 
@@ -125,7 +125,9 @@ existing "No exact matches" / "No listings yet"-style empty state (scoped
 copy: *"No homes currently available in {label}."*) rather than a 404. A slug
 that has **never** matched any listing, ever, is the only case that 404s.
 This means a bookmarked/shared city link never breaks just because
-availability changed.
+availability changed. A failed listings fetch propagates to the error
+boundary (5xx) rather than 404ing — a transient outage must never serve a
+cacheable not-found on a shareable city URL.
 
 ## `ListingsIndexView` changes
 
@@ -159,7 +161,7 @@ price, sort — is identical code on both the main index and every city page.
    contrast), city `label`, `"{count} homes"`, links to `/listings/city/{slug}`.
 2. Below it, the feed is segmented: one section per top-10 `CityGroup`, in
    ranked order. Section heading: `Homes available in {label} - Ghana`. Each
-   section shows up to 8 `ListingCard`s in the existing responsive grid; if
+   section shows up to 8 ListingCards sorted by the active sort control; if
    the group has more than 8, a `"See all {count} homes in {label} →"` link
    to the dedicated city page follows the grid.
 3. `'Other areas'` listings (unparseable address) are never their own

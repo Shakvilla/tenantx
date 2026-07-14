@@ -16,6 +16,14 @@ import SiteFooter from './components/SiteFooter'
 /** Max cards shown per city section on the segmented main page. */
 const SECTION_CARD_CAP = 8
 
+function sortListings(listings: PublicListingDto[], sort: SortValue): PublicListingDto[] {
+  return [...listings].sort((a, b) => {
+    if (sort === 'price_asc') return (a.rent ?? 0) - (b.rent ?? 0)
+    if (sort === 'price_desc') return (b.rent ?? 0) - (a.rent ?? 0)
+    return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
+  })
+}
+
 interface ListingsIndexViewProps {
   listings: PublicListingDto[]
   /** When set, the view renders as a dedicated city page scoped to this city. */
@@ -62,11 +70,7 @@ export default function ListingsIndexView({ listings, cityScope }: ListingsIndex
     if (locationFilter !== null) {
       out = out.filter(l => citySlug(cityLabel(l.propertyAddress)) === locationFilter)
     }
-    return [...out].sort((a, b) => {
-      if (sort === 'price_asc') return (a.rent ?? 0) - (b.rent ?? 0)
-      if (sort === 'price_desc') return (b.rent ?? 0) - (a.rent ?? 0)
-      return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime()
-    })
+    return sortListings(out, sort)
   }, [scoped, searchQuery, bedFilter, maxPrice, locationFilter, sort])
 
   const hasFilters =
@@ -217,7 +221,7 @@ export default function ListingsIndexView({ listings, cityScope }: ListingsIndex
                   Homes available in {group.label} - Ghana
                 </h2>
                 <div className={`mt-4 ${gridClass}`}>
-                  {group.listings.slice(0, SECTION_CARD_CAP).map(renderCard)}
+                  {sortListings(group.listings, sort).slice(0, SECTION_CARD_CAP).map(renderCard)}
                 </div>
                 {group.listings.length > SECTION_CARD_CAP && (
                   <Link
