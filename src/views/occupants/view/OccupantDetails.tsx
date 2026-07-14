@@ -19,6 +19,7 @@ import PaymentHistoryTab from '@/views/tenants/view/PaymentHistoryTab'
 import DocumentationTab from '@/views/tenants/view/DocumentationTab'
 import GuarantorTab from './GuarantorTab'
 import NoticesTab from './NoticesTab'
+import ViolationsTab from './ViolationsTab'
 
 type OccupantData = {
   id: string
@@ -85,7 +86,8 @@ const OccupantDetails = ({
     guarantor: <GuarantorTab occupantId={tenantId} />,
     payment: <PaymentHistoryTab />,
     documentation: <DocumentationTab occupantId={tenantId} />,
-    notices: <NoticesTab occupantId={tenantId} />
+    notices: <NoticesTab occupantId={tenantId} />,
+    violations: <ViolationsTab occupantId={tenantId} />
   }
 
   return (
@@ -125,6 +127,12 @@ const OccupantDetails = ({
               icon={<i className='ri-mail-line' />}
               value='notices'
               label='Notices'
+              iconPosition='start'
+            />
+            <Tab
+              icon={<i className='ri-error-warning-line' />}
+              value='violations'
+              label='Violations'
               iconPosition='start'
             />
           </CustomTabList>
