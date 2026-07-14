@@ -143,6 +143,8 @@ export interface MaintenanceRequest {
   version?: number
   createdAt: string
   updatedAt: string
+  issueType?: string
+  complaintCategory?: string
 }
 
 export interface MaintenanceRequestStats {
@@ -173,6 +175,8 @@ export interface CreateMaintenanceRequestPayload {
   images?: string[]
   imageFileIds?: string[]
   notes?: string
+  issueType?: string
+  complaintCategory?: string
 }
 
 export interface UpdateMaintenanceRequestPayload {
@@ -193,6 +197,8 @@ export interface UpdateMaintenanceRequestPayload {
   images?: string[]
   imageFileIds?: string[]
   notes?: string
+  issueType?: string
+  complaintCategory?: string
 }
 
 // ---------------------------------------------------------------------------

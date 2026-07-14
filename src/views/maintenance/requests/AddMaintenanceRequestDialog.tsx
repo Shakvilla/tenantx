@@ -24,6 +24,8 @@ import Box from '@mui/material/Box'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
 import Tooltip from '@mui/material/Tooltip'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import { styled } from '@mui/material/styles'
 
 // API Imports
@@ -102,6 +104,8 @@ type FormData = {
   occupantId: string
   categoryId: string
   maintainerId: string
+  issueType: string          // 'REPAIR' | 'COMPLAINT'
+  complaintCategory: string
   notes: string
 }
 
@@ -117,6 +121,8 @@ const BLANK: FormData = {
   occupantId: '',
   categoryId: '',
   maintainerId: '',
+  issueType: 'REPAIR',
+  complaintCategory: '',
   notes: ''
 }
 
@@ -180,6 +186,8 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
         occupantId: editData.occupantId ?? '',
         categoryId: editData.categoryId ?? '',
         maintainerId: editData.maintainerId ?? '',
+        issueType: editData.issueType ?? 'REPAIR',
+        complaintCategory: editData.complaintCategory ?? '',
         notes: editData.notes ?? ''
       })
       setExistingImages(editData.images || [])
@@ -253,6 +261,18 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
       return next
     })
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
+  }
+
+  // ── Issue-type mode setter — clears fields irrelevant to the new mode ──────
+  const setIssueType = (value: 'REPAIR' | 'COMPLAINT') => {
+    if (!value) return // ToggleButtonGroup fires null when the active button is re-clicked
+    setFormData(prev => ({
+      ...prev,
+      issueType: value,
+      categoryId: value === 'COMPLAINT' ? '' : prev.categoryId,
+      maintainerId: value === 'COMPLAINT' ? '' : prev.maintainerId,
+      complaintCategory: value === 'REPAIR' ? '' : prev.complaintCategory
+    }))
   }
 
   // ── Image handling ─────────────────────────────────────────────────────────
@@ -334,6 +354,8 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
           unitId: formData.unitId || undefined,
           occupantId: formData.occupantId || undefined,
           categoryId: formData.categoryId || undefined,
+          issueType: formData.issueType,
+          complaintCategory: formData.issueType === 'COMPLAINT' ? (formData.complaintCategory || undefined) : undefined,
           notes: formData.notes || undefined,
           images: allImages,
           imageFileIds: allFileIds
@@ -353,6 +375,8 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
           unitId: formData.unitId || undefined,
           occupantId: formData.occupantId || undefined,
           categoryId: formData.categoryId || undefined,
+          issueType: formData.issueType,
+          complaintCategory: formData.issueType === 'COMPLAINT' ? (formData.complaintCategory || undefined) : undefined,
           notes: formData.notes || undefined
         })
         requestId = created.id
@@ -418,6 +442,20 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
         {/* ── Details tab ── */}
         {activeTab === 0 && (
           <Grid container spacing={4}>
+            {/* Issue Type */}
+            <Grid size={{ xs: 12 }}>
+              <ToggleButtonGroup
+                exclusive
+                size='small'
+                color='primary'
+                value={formData.issueType}
+                onChange={(_, v) => setIssueType(v)}
+              >
+                <ToggleButton value='REPAIR'>Repair</ToggleButton>
+                <ToggleButton value='COMPLAINT'>Complaint</ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+
             {/* Property */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth size='small' error={Boolean(errors.propertyId)} disabled={loadingInit}>
@@ -580,74 +618,98 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
               </Grid>
             )}
 
-            {/* Category */}
-            <Grid size={{ xs: 12, sm: mode === 'edit' ? 4 : 6 }}>
-              <FormControl fullWidth size='small' disabled={loadingInit}>
-                <InputLabel id='category-label'>Category</InputLabel>
-                <Select
-                  labelId='category-label'
-                  label='Category'
-                  value={formData.categoryId}
-                  onChange={e => set('categoryId', e.target.value)}
-                >
-                  <MenuItem value=''>None</MenuItem>
-                  {categories.map(c => (
-                    <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+            {/* Category — repairs only */}
+            {formData.issueType !== 'COMPLAINT' && (
+              <Grid size={{ xs: 12, sm: mode === 'edit' ? 4 : 6 }}>
+                <FormControl fullWidth size='small' disabled={loadingInit}>
+                  <InputLabel id='category-label'>Category</InputLabel>
+                  <Select
+                    labelId='category-label'
+                    label='Category'
+                    value={formData.categoryId}
+                    onChange={e => set('categoryId', e.target.value)}
+                  >
+                    <MenuItem value=''>None</MenuItem>
+                    {categories.map(c => (
+                      <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
 
-            {/* Assign To */}
-            <Grid size={{ xs: 12 }}>
-              <Autocomplete
-                size='small'
-                fullWidth
-                loading={loadingInit}
-                options={maintainers}
-                getOptionLabel={maintainerLabel}
-                value={maintainers.find(m => m.id === formData.maintainerId) ?? null}
-                onChange={(_, v) => set('maintainerId', v?.id ?? '')}
-                isOptionEqualToValue={(a, b) => a.id === b.id}
-                renderInput={params => (
-                  <TextField
-                    {...params}
-                    label='Assign To (Optional)'
-                    placeholder='Search maintainer…'
-                    slotProps={{
-                      input: {
-                        ...params.InputProps,
-                        startAdornment: (
-                          <>
-                            <InputAdornment position='start'>
-                              <i className='ri-search-line text-textSecondary' />
-                            </InputAdornment>
-                            {params.InputProps.startAdornment}
-                          </>
-                        )
-                      }
-                    }}
-                  />
-                )}
-                renderOption={(props, option) => (
-                  <li {...props} key={option.id}>
-                    <div className='flex items-center gap-2'>
-                      <CustomAvatar skin='light' size={28}>
-                        {getInitials(option.name)}
-                      </CustomAvatar>
-                      <div className='flex flex-col'>
-                        <Typography className='font-medium' color='text.primary'>
-                          {option.name}
-                        </Typography>
-                        <Typography variant='caption'>
-                          {option.specializations?.join(', ') || 'General'}
-                        </Typography>
+            {/* Complaint Category — complaints only */}
+            {formData.issueType === 'COMPLAINT' && (
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth size='small'>
+                  <InputLabel id='complaint-category-label'>Complaint Category</InputLabel>
+                  <Select
+                    labelId='complaint-category-label'
+                    label='Complaint Category'
+                    value={formData.complaintCategory}
+                    onChange={e => set('complaintCategory', e.target.value)}
+                  >
+                    <MenuItem value='NOISE'>Noise</MenuItem>
+                    <MenuItem value='NEIGHBOR_DISPUTE'>Neighbor Dispute</MenuItem>
+                    <MenuItem value='SECURITY'>Security</MenuItem>
+                    <MenuItem value='OTHER'>Other</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+
+            {/* Assign To — repairs only */}
+            {formData.issueType !== 'COMPLAINT' && (
+              <Grid size={{ xs: 12 }}>
+                <Autocomplete
+                  size='small'
+                  fullWidth
+                  loading={loadingInit}
+                  options={maintainers}
+                  getOptionLabel={maintainerLabel}
+                  value={maintainers.find(m => m.id === formData.maintainerId) ?? null}
+                  onChange={(_, v) => set('maintainerId', v?.id ?? '')}
+                  isOptionEqualToValue={(a, b) => a.id === b.id}
+                  renderInput={params => (
+                    <TextField
+                      {...params}
+                      label='Assign To (Optional)'
+                      placeholder='Search maintainer…'
+                      slotProps={{
+                        input: {
+                          ...params.InputProps,
+                          startAdornment: (
+                            <>
+                              <InputAdornment position='start'>
+                                <i className='ri-search-line text-textSecondary' />
+                              </InputAdornment>
+                              {params.InputProps.startAdornment}
+                            </>
+                          )
+                        }
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <li {...props} key={option.id}>
+                      <div className='flex items-center gap-2'>
+                        <CustomAvatar skin='light' size={28}>
+                          {getInitials(option.name)}
+                        </CustomAvatar>
+                        <div className='flex flex-col'>
+                          <Typography className='font-medium' color='text.primary'>
+                            {option.name}
+                          </Typography>
+                          <Typography variant='caption'>
+                            {option.specializations?.join(', ') || 'General'}
+                          </Typography>
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                )}
-              />
-            </Grid>
+                    </li>
+                  )}
+                />
+              </Grid>
+            )}
 
             {/* Notes */}
             <Grid size={{ xs: 12 }}>
