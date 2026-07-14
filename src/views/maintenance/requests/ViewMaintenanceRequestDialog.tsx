@@ -304,6 +304,13 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
 
   if (!request) return null
 
+  // issueType is the authoritative discriminator: a request that was switched
+  // from Repair to Complaint (or back) on edit may still carry the opposite
+  // type's fields in the DB (the null-guarded PATCH can't clear a column by
+  // omission), so gate every type-specific row on issueType, not on field
+  // presence — otherwise a complaint could render stale repair rows.
+  const isComplaint = request.issueType === 'COMPLAINT'
+
   const images = request.images?.length ? request.images : []
   const statusConfig = STATUS_CONFIG[localStatus] ?? { label: localStatus, color: 'default' as const }
   const priorityColor = PRIORITY_COLORS[request.priority?.toLowerCase()] ?? 'secondary'
@@ -417,13 +424,13 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                     <Typography variant='body2' color='text.secondary'>Requested</Typography>
                     <Typography variant='body1' className='font-medium'>{formatDate(request.createdAt)}</Typography>
                   </Grid>
-                  {request.targetResolutionDate && (
+                  {!isComplaint && request.targetResolutionDate && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Target Resolution</Typography>
                       <Typography variant='body1' className='font-medium'>{formatDate(request.targetResolutionDate)}</Typography>
                     </Grid>
                   )}
-                  {request.scheduledDate && (
+                  {!isComplaint && request.scheduledDate && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Scheduled Date</Typography>
                       <Typography variant='body1' className='font-medium'>{formatDate(request.scheduledDate)}</Typography>
@@ -443,7 +450,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                       {request.issueType === 'COMPLAINT' ? 'Complaint' : 'Repair'}
                     </Typography>
                   </Grid>
-                  {request.complaintCategory && (
+                  {isComplaint && request.complaintCategory && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='caption' color='text.secondary'>Complaint Category</Typography>
                       <Typography variant='body2' color='text.primary'>
@@ -451,7 +458,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                       </Typography>
                     </Grid>
                   )}
-                  {request.categoryId && (
+                  {!isComplaint && request.categoryId && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Category</Typography>
                       <Typography variant='body1' className='font-medium'>
@@ -467,13 +474,13 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                       </Typography>
                     </Grid>
                   )}
-                  {request.billableTo && (
+                  {!isComplaint && request.billableTo && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Billable To</Typography>
                       <Typography variant='body1' className='font-medium capitalize'>{request.billableTo}</Typography>
                     </Grid>
                   )}
-                  {request.estimatedCost != null && (
+                  {!isComplaint && request.estimatedCost != null && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Estimated Cost</Typography>
                       <Typography variant='body1' className='font-medium'>
@@ -481,7 +488,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                       </Typography>
                     </Grid>
                   )}
-                  {request.actualCost != null && (
+                  {!isComplaint && request.actualCost != null && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Actual Cost</Typography>
                       <Typography variant='body1' className='font-medium'>
@@ -489,7 +496,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                       </Typography>
                     </Grid>
                   )}
-                  {request.permissionToEnter != null && (
+                  {!isComplaint && request.permissionToEnter != null && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Permission to Enter</Typography>
                       <Typography variant='body1' className='font-medium'>
@@ -497,7 +504,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
                       </Typography>
                     </Grid>
                   )}
-                  {request.entryInstructions && (
+                  {!isComplaint && request.entryInstructions && (
                     <Grid size={{ xs: 12 }}>
                       <Typography variant='body2' color='text.secondary'>Entry Instructions</Typography>
                       <Typography variant='body1'>{request.entryInstructions}</Typography>
@@ -509,7 +516,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
 
             {/* Photos */}
             {/* ── Maintainer Assignment ── */}
-            {request.issueType !== 'COMPLAINT' && (
+            {!isComplaint && (
             <Card variant='outlined'>
               <CardContent className='flex flex-col gap-3'>
                 <Box className='flex items-center justify-between'>
