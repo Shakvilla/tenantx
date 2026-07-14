@@ -77,6 +77,16 @@ describe('groupByCity', () => {
     ])
     expect(groups.map(g => g.label)).toEqual(['Adenta, Accra', 'Ahodwo, Kumasi', 'Tamale'])
   })
+
+  it('merges labels that differ only in punctuation into one slug bucket', () => {
+    const groups = groupByCity([
+      makeListing({ id: 'p1', propertyAddress: 'St. Paul, Accra, Greater Accra' }),
+      makeListing({ id: 'p2', propertyAddress: 'St Paul, Accra, Greater Accra' }),
+    ])
+    const stPaul = groups.filter(g => g.slug === 'st-paul-accra')
+    expect(stPaul).toHaveLength(1)
+    expect(stPaul[0].listings.map(l => l.id)).toEqual(['p1', 'p2'])
+  })
 })
 
 describe('topCities', () => {

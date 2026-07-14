@@ -31,18 +31,18 @@ export function citySlug(label: string): string {
 }
 
 /**
- * Group ACTIVE listings into CityGroups. Case variants of the same label
- * merge (first-seen casing wins). Sorted by listing count desc, label asc.
+ * Group ACTIVE listings into CityGroups. Case variants and punctuation variants
+ * of the same label merge (first-seen casing wins). Sorted by listing count desc, label asc.
  */
 export function groupByCity(listings: PublicListingDto[]): CityGroup[] {
   const map = new Map<string, CityGroup>()
   for (const l of listings) {
     if (l.status !== 'ACTIVE') continue
     const label = cityLabel(l.propertyAddress)
-    const key = label.toLowerCase()
+    const key = citySlug(label)
     let group = map.get(key)
     if (!group) {
-      group = { label, slug: citySlug(label), listings: [] }
+      group = { label, slug: key, listings: [] }
       map.set(key, group)
     }
     group.listings.push(l)
