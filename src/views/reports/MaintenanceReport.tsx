@@ -28,6 +28,9 @@ import {
 // Type Imports
 import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
 
+// Util Imports
+import { toApiDateParams } from '@/utils/reports/dateUtils'
+
 type Props = {
   dateRange: DateRange
   onDateRangeChange: (dateRange: DateRange) => void
@@ -73,9 +76,11 @@ const MaintenanceReport = ({ dateRange, onDateRangeChange }: Props) => {
 
   useEffect(() => {
     setLoading(true)
+    const { startDate, endDate } = toApiDateParams(dateRange, 'datetime')
+
     Promise.all([
       getMaintenanceRequestStats(),
-      getMaintenanceRequests({ size: 500 }).then(res => res.data)
+      getMaintenanceRequests({ size: 500, startDate, endDate }).then(res => res.data)
     ])
       .then(([s, reqs]) => {
         setStats(s)
@@ -83,26 +88,12 @@ const MaintenanceReport = ({ dateRange, onDateRangeChange }: Props) => {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
-
-  // Filter by dateRange using createdAt
-  const filteredRequests = useMemo(() => {
-    return requests.filter(req => {
-      if (!req.createdAt) return false
-      const d = new Date(req.createdAt)
-
-      if (isNaN(d.getTime())) return false
-      if (dateRange.startDate && d < dateRange.startDate) return false
-      if (dateRange.endDate && d > dateRange.endDate) return false
-
-      return true
-    })
-  }, [requests, dateRange])
+  }, [dateRange])
 
   // Trend: requests per month
   const trends = useMemo(
-    () => groupByMonthCount(filteredRequests, req => req.createdAt),
-    [filteredRequests]
+    () => groupByMonthCount(requests, req => req.createdAt),
+    [requests]
   )
 
   // Status distribution donut — from stats (all-time byStatus map)

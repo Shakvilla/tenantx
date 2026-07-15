@@ -30,7 +30,6 @@ import {
   getCoreRowModel,
   useReactTable,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel
 } from '@tanstack/react-table'
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
@@ -133,22 +132,66 @@ const MaintenanceRequestsListTable = () => {
   const [requestToEdit, setRequestToEdit] = useState<MaintenanceRequest | null>(null)
   const [requestToView, setRequestToView] = useState<MaintenanceRequest | null>(null)
 
-  const fetchRequests = useCallback(async () => {
+  // Server-side pagination: the backend is cursor-based, so we track the stack of
+  // cursors we've visited (for "Previous") plus the cursor for the next page.
+  const [pageSize, setPageSize] = useState(20)
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([null])
+  const [pageIndex, setPageIndex] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+  const [total, setTotal] = useState(0)
+
+  const fetchRequests = useCallback(async (cursor: string | null) => {
     setLoading(true)
     setError(null)
     try {
       const statuses = selectedStatus ? [selectedStatus] : undefined
       const fetchFn = (isOccupant || isMaintainer) ? getMyMaintenanceRequests : getMaintenanceRequests
-      const response = await fetchFn({ size: 100, statuses })
+      const response = await fetchFn({
+        size: pageSize,
+        cursor: cursor ?? undefined,
+        statuses,
+        priority: selectedPriority || undefined,
+        categoryId: selectedCategoryId || undefined
+      })
       setData(response.data ?? [])
+      setHasNext(response.meta?.pagination?.hasNext ?? false)
+      setNextCursor(response.meta?.pagination?.cursor ?? null)
+      setTotal(response.meta?.pagination?.total ?? 0)
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load maintenance requests')
     } finally {
       setLoading(false)
     }
-  }, [selectedStatus, isOccupant, isMaintainer])
+  }, [selectedStatus, selectedPriority, selectedCategoryId, isOccupant, isMaintainer, pageSize])
 
-  useEffect(() => { fetchRequests() }, [fetchRequests])
+  // Reset to the first page whenever a filter or page size changes
+  useEffect(() => {
+    setCursorStack([null])
+    setPageIndex(0)
+    setRowSelection({})
+    fetchRequests(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedStatus, selectedPriority, selectedCategoryId, pageSize])
+
+  const handleNextPage = () => {
+    if (!hasNext || !nextCursor) return
+    setCursorStack(prev => [...prev, nextCursor])
+    setPageIndex(prev => prev + 1)
+    setRowSelection({})
+    fetchRequests(nextCursor)
+  }
+
+  const handlePrevPage = () => {
+    if (pageIndex === 0) return
+    const prevCursor = cursorStack[pageIndex - 1]
+    setCursorStack(prev => prev.slice(0, prev.length - 1))
+    setPageIndex(prev => prev - 1)
+    setRowSelection({})
+    fetchRequests(prevCursor)
+  }
+
+  const refresh = useCallback(() => fetchRequests(cursorStack[pageIndex]), [fetchRequests, cursorStack, pageIndex])
 
   // Load categories once for filter + display
   useEffect(() => {
@@ -158,21 +201,18 @@ const MaintenanceRequestsListTable = () => {
       .catch(() => {})
   }, [])
 
+  // Status/priority/category are now server-side filters (applied in fetchRequests).
+  // Text search only narrows within the currently-loaded page.
   const filteredData = useMemo(() => {
-    let filtered = data
-    if (globalFilter) {
-      const q = globalFilter.toLowerCase()
-      filtered = filtered.filter(r =>
-        r.title?.toLowerCase().includes(q) ||
-        r.description?.toLowerCase().includes(q) ||
-        r.requestNumber?.toLowerCase().includes(q) ||
-        r.status?.toLowerCase().includes(q)
-      )
-    }
-    if (selectedPriority) filtered = filtered.filter(r => r.priority?.toLowerCase() === selectedPriority)
-    if (selectedCategoryId) filtered = filtered.filter(r => r.categoryId === selectedCategoryId)
-    return filtered
-  }, [data, globalFilter, selectedPriority, selectedCategoryId])
+    if (!globalFilter) return data
+    const q = globalFilter.toLowerCase()
+    return data.filter(r =>
+      r.title?.toLowerCase().includes(q) ||
+      r.description?.toLowerCase().includes(q) ||
+      r.requestNumber?.toLowerCase().includes(q) ||
+      r.status?.toLowerCase().includes(q)
+    )
+  }, [data, globalFilter])
 
   const columns = useMemo<ColumnDef<RequestWithAction, any>[]>(() => [
     {
@@ -186,10 +226,7 @@ const MaintenanceRequestsListTable = () => {
     },
     columnHelper.display({
       id: 'sl', header: 'SL',
-      cell: ({ row, table }) => {
-        const { pageIndex, pageSize } = table.getState().pagination
-        return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
-      }
+      cell: ({ row }) => <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
     }),
     columnHelper.accessor('requestNumber', {
       header: 'Request #',
@@ -249,13 +286,12 @@ const MaintenanceRequestsListTable = () => {
       ),
       enableSorting: false
     })
-  ], [isOccupant, isMaintainer])
+  ], [isOccupant, isMaintainer, pageIndex, pageSize])
 
   const table = useReactTable({
     data: filteredData, columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { rowSelection, globalFilter },
-    initialState: { pagination: { pageSize: 10 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -263,7 +299,9 @@ const MaintenanceRequestsListTable = () => {
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel()
+    // Pagination is server-side (cursor-based) — see fetchRequests/handleNextPage/handlePrevPage
+    manualPagination: true,
+    pageCount: pageSize > 0 ? Math.ceil(total / pageSize) : 0
   })
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -301,7 +339,7 @@ const MaintenanceRequestsListTable = () => {
               {!isMaintainer && (
                 <Button variant='contained' color='primary' startIcon={<i className='ri-add-line' />} onClick={() => setAddOpen(true)}>Add Request</Button>
               )}
-              <Button variant='outlined' size='small' onClick={fetchRequests}><i className='ri-refresh-line' /></Button>
+              <Button variant='outlined' size='small' onClick={refresh}><i className='ri-refresh-line' /></Button>
             </div>
           }
         />
@@ -386,19 +424,21 @@ const MaintenanceRequestsListTable = () => {
           </div>
 
           <TablePagination
-            rowsPerPageOptions={[10, 25, 50]} component='div' className='border-bs'
-            count={table.getFilteredRowModel().rows.length}
-            rowsPerPage={table.getState().pagination.pageSize}
-            page={table.getState().pagination.pageIndex}
+            rowsPerPageOptions={[10, 20, 50]} component='div' className='border-bs'
+            count={total}
+            rowsPerPage={pageSize}
+            page={pageIndex}
             SelectProps={{ inputProps: { 'aria-label': 'rows per page' } }}
-            onPageChange={(_, page) => table.setPageIndex(page)}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
+            onPageChange={(_, page) => { if (page > pageIndex) handleNextPage(); else if (page < pageIndex) handlePrevPage() }}
+            onRowsPerPageChange={e => setPageSize(Number(e.target.value))}
+            nextIconButtonProps={{ disabled: !hasNext }}
+            backIconButtonProps={{ disabled: pageIndex === 0 }}
           />
         </CardContent>
       </Card>
 
-      <AddMaintenanceRequestDialog open={addOpen} handleClose={() => setAddOpen(false)} onSuccess={fetchRequests} mode='add' />
-      <AddMaintenanceRequestDialog open={editOpen} handleClose={() => { setEditOpen(false); setRequestToEdit(null) }} onSuccess={fetchRequests} editData={requestToEdit as any} mode='edit' />
+      <AddMaintenanceRequestDialog open={addOpen} handleClose={() => setAddOpen(false)} onSuccess={refresh} mode='add' />
+      <AddMaintenanceRequestDialog open={editOpen} handleClose={() => { setEditOpen(false); setRequestToEdit(null) }} onSuccess={refresh} editData={requestToEdit as any} mode='edit' />
       <ViewMaintenanceRequestDialog open={viewOpen} setOpen={setViewOpen} request={requestToView as any} onEdit={() => { setViewOpen(false); setRequestToEdit(requestToView); setEditOpen(true) }} />
       <ConfirmationDialog open={deleteOpen} setOpen={setDeleteOpen} type='delete-maintenance-request' onConfirm={handleDeleteConfirm} />
     </>

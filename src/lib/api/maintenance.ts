@@ -13,6 +13,8 @@ const BASE = `${API_BASE}/maintenance`
 export interface PaginationMeta {
   hasNext: boolean
   cursor?: string | null
+  total?: number
+  totalPages?: number
 }
 
 export interface PaginatedResponse<T> {
@@ -251,6 +253,10 @@ export interface RequestQuery {
   size?: number
   sort?: string
   statuses?: string[]
+  priority?: string
+  categoryId?: string
+  startDate?: string
+  endDate?: string
 }
 
 export interface MaintainerQuery {
@@ -320,6 +326,10 @@ export async function getMaintenanceRequests(query: RequestQuery = {}): Promise<
   if (query.size) params.set('size', String(query.size))
   if (query.sort) params.set('sort', query.sort)
   if (query.statuses?.length) query.statuses.forEach(s => params.append('statuses', s))
+  if (query.priority) params.set('priority', query.priority)
+  if (query.categoryId) params.set('categoryId', query.categoryId)
+  if (query.startDate) params.set('startDate', query.startDate)
+  if (query.endDate) params.set('endDate', query.endDate)
   const qs = params.toString()
   return apiGet<PaginatedResponse<MaintenanceRequest[]>>(`${BASE}/requests${qs ? `?${qs}` : ''}`)
 }
@@ -330,6 +340,8 @@ export async function getMyMaintenanceRequests(query: RequestQuery = {}): Promis
   if (query.size) params.set('size', String(query.size))
   if (query.sort) params.set('sort', query.sort)
   if (query.statuses?.length) query.statuses.forEach(s => params.append('statuses', s))
+  if (query.priority) params.set('priority', query.priority)
+  if (query.categoryId) params.set('categoryId', query.categoryId)
   const qs = params.toString()
   return apiGet<PaginatedResponse<MaintenanceRequest[]>>(`${BASE}/requests/my-requests${qs ? `?${qs}` : ''}`)
 }
@@ -376,7 +388,7 @@ export async function addComment(requestId: string, data: CreateCommentPayload):
 }
 
 export async function deleteComment(commentId: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/comments/${commentId}`)
+  return apiDelete<void>(`${BASE}/requests/comments/${commentId}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +404,7 @@ export async function addPart(requestId: string, data: CreatePartPayload): Promi
 }
 
 export async function deletePart(partId: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/parts/${partId}`)
+  return apiDelete<void>(`${BASE}/requests/parts/${partId}`)
 }
 
 // ---------------------------------------------------------------------------
