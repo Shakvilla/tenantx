@@ -32,21 +32,24 @@ import {
 import type { ColumnDef } from '@tanstack/react-table'
 
 // API Imports
-import { getMaintenanceRequests, type MaintenanceRequest } from '@/lib/api/maintenance'
+import { getMaintenanceRequests, type MaintenanceRequest, type MaintenanceStatus } from '@/lib/api/maintenance'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
 import { fuzzyFilter } from '@/utils/tableFilterFns'
 
-const STATUS_COLOR: Record<string, 'success' | 'warning' | 'info' | 'error' | 'secondary'> = {
-  NEW: 'info',
-  PENDING: 'warning',
-  IN_PROGRESS: 'info',
-  ON_HOLD: 'secondary',
-  COMPLETED: 'success',
-  CANCELLED: 'secondary',
-  REJECTED: 'error'
+// Keyed by MaintenanceStatus (not string) so a status added to the union fails the
+// build here instead of silently falling back to the default chip colour.
+// Mirrors STATUS_CONFIG in views/maintenance/requests/MaintenanceRequestsListTable.
+const STATUS_COLOR: Record<MaintenanceStatus, 'success' | 'warning' | 'info' | 'error' | 'primary' | 'secondary'> = {
+  pending: 'warning',
+  awaiting_approval: 'info',
+  approved: 'secondary',
+  in_progress: 'primary',
+  completed: 'info', // work done, awaiting tenant confirmation
+  closed: 'success',
+  cancelled: 'error'
 }
 
 const PRIORITY_COLOR: Record<string, 'success' | 'warning' | 'info' | 'error'> = {
@@ -86,6 +89,12 @@ const FilterButton = styled(Box, {
 
 type FilterType = 'all' | 'new' | 'pending' | 'completed'
 
+// Typed as MaintenanceStatus[] on purpose: a plain string[] makes `.includes(r.status)`
+// legal against any value, which is how these filters silently matched nothing.
+const NEW_STATUSES: MaintenanceStatus[] = ['pending']
+const PENDING_STATUSES: MaintenanceStatus[] = ['awaiting_approval', 'approved', 'in_progress']
+const COMPLETED_STATUSES: MaintenanceStatus[] = ['completed', 'closed', 'cancelled']
+
 const columnHelper = createColumnHelper<MaintenanceRequest>()
 
 const MaintenanceRequestsTable = () => {
@@ -103,17 +112,17 @@ const MaintenanceRequestsTable = () => {
 
   const filteredData = useMemo(() => {
     if (activeFilter === 'all') return requests
-    if (activeFilter === 'new') return requests.filter(r => r.status === 'NEW')
-    if (activeFilter === 'pending') return requests.filter(r => ['PENDING', 'IN_PROGRESS', 'ON_HOLD'].includes(r.status))
-    if (activeFilter === 'completed') return requests.filter(r => ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(r.status))
+    if (activeFilter === 'new') return requests.filter(r => NEW_STATUSES.includes(r.status))
+    if (activeFilter === 'pending') return requests.filter(r => PENDING_STATUSES.includes(r.status))
+    if (activeFilter === 'completed') return requests.filter(r => COMPLETED_STATUSES.includes(r.status))
     return requests
   }, [requests, activeFilter])
 
   const filterStats = useMemo(() => ({
     all: requests.length,
-    new: requests.filter(r => r.status === 'NEW').length,
-    pending: requests.filter(r => ['PENDING', 'IN_PROGRESS', 'ON_HOLD'].includes(r.status)).length,
-    completed: requests.filter(r => ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(r.status)).length
+    new: requests.filter(r => NEW_STATUSES.includes(r.status)).length,
+    pending: requests.filter(r => PENDING_STATUSES.includes(r.status)).length,
+    completed: requests.filter(r => COMPLETED_STATUSES.includes(r.status)).length
   }), [requests])
 
   const columns = useMemo<ColumnDef<MaintenanceRequest, any>[]>(() => [
