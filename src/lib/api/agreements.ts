@@ -3,7 +3,7 @@
  */
 
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete, API_BASE } from './client'
-import { getStoredTenantId } from './storage'
+import { getStoredToken, getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
 const tenantHeader = () => ({ 'X-Tenant-ID': getStoredTenantId() })
@@ -53,8 +53,26 @@ export interface Agreement {
   earlyTerminationAllowed: boolean | null
   witnessName: string | null
 
+  /** Renewal workflow: set on a successor — the agreement this one renewed. */
+  previousAgreementId: string | null
+  /** RENEWED | TERMINATED; null = undecided (expiry reminders still fire). */
+  renewalDecision: RenewalDecision | null
+  renewalDecidedAt: string | null
+  renewalNotes: string | null
+
   createdAt: string
   updatedAt: string | null
+}
+
+export type RenewalDecision = 'RENEWED' | 'TERMINATED'
+
+export interface RenewAgreementPayload {
+  /** Defaults to the predecessor's endDate + 1 day when omitted. */
+  startDate?: string
+  endDate: string
+  /** Defaults to the predecessor's rent when omitted. */
+  rent?: number
+  notes?: string
 }
 
 export interface AgreementStats {
@@ -131,6 +149,45 @@ export async function deleteAgreement(id: string): Promise<void> {
   return apiDelete(`${BASE}/agreements/${id}`, { headers: tenantHeader() })
 }
 
+/**
+ * Renews an expiring agreement — creates a PENDING successor linked to it via
+ * previousAgreementId and marks this one RENEWED. Returns the new successor agreement.
+ */
+export async function renewAgreement(id: string, data: RenewAgreementPayload): Promise<Agreement> {
+  return apiPost(`${BASE}/agreements/${id}/renew`, data, { headers: tenantHeader() })
+}
+
+/** Terminates an agreement — records the decision and a TERMINATION notice. */
+export async function terminateAgreement(id: string, notes?: string): Promise<Agreement> {
+  return apiPost(`${BASE}/agreements/${id}/terminate`, { notes }, { headers: tenantHeader() })
+}
+
 export async function getAgreementStats(): Promise<AgreementStats> {
   return apiGet(`${BASE}/agreements/stats`, { headers: tenantHeader() })
+}
+
+/**
+ * Downloads all agreements for the current tenant as a CSV file.
+ */
+export async function exportAgreementsCsv(): Promise<void> {
+  const token = getStoredToken() ?? ''
+  const tenantId = getStoredTenantId() ?? ''
+
+  const res = await fetch(`${BASE}/agreements/export`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Tenant-ID': tenantId
+    }
+  })
+
+  if (!res.ok) throw new Error('Failed to export agreements')
+
+  const blob = await res.blob()
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+
+  a.href = href
+  a.download = `agreements-export-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(href)
 }

@@ -35,6 +35,10 @@ const baseAgreement: Agreement = {
   noticePeriodDays: null,
   earlyTerminationAllowed: null,
   witnessName: null,
+  previousAgreementId: null,
+  renewalDecision: null,
+  renewalDecidedAt: null,
+  renewalNotes: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: null
 }

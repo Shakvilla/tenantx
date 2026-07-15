@@ -18,6 +18,10 @@ import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -48,6 +52,9 @@ import {
   getAgreements,
   deleteAgreement,
   updateAgreementStatus,
+  exportAgreementsCsv,
+  renewAgreement,
+  terminateAgreement,
   type Agreement,
   type AgreementStatus
 } from '@/lib/api/agreements'
@@ -118,6 +125,17 @@ const AgreementsListTable = () => {
   const [pendingStatus, setPendingStatus] = useState<AgreementStatus | ''>('')
   const [statusUpdating, setStatusUpdating] = useState(false)
 
+  // ── Renewal workflow (gap #5) ──────────────────────────────────────────────
+  const [renewFor, setRenewFor]         = useState<Agreement | null>(null)
+  const [renewEndDate, setRenewEndDate] = useState('')
+  const [renewRent, setRenewRent]       = useState('')
+  const [renewNotes, setRenewNotes]     = useState('')
+  const [terminateFor, setTerminateFor] = useState<Agreement | null>(null)
+  const [terminateNotes, setTerminateNotes] = useState('')
+  const [decisionBusy, setDecisionBusy]     = useState(false)
+  const [decisionError, setDecisionError]   = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
+
   const fetchData = useCallback(() => {
     setLoading(true)
     setApiError(null)
@@ -155,6 +173,46 @@ const AgreementsListTable = () => {
     }
   }
 
+  const handleRenewConfirm = async () => {
+    if (!renewFor || !renewEndDate) return
+    setDecisionBusy(true)
+    setDecisionError(null)
+    try {
+      const successor = await renewAgreement(renewFor.id, {
+        endDate: renewEndDate,
+        rent: renewRent ? Number(renewRent) : undefined,
+        notes: renewNotes || undefined
+      })
+      // The predecessor is now RENEWED; the successor is a brand-new PENDING agreement.
+      setData(prev => [
+        successor,
+        ...prev.map(a => (a.id === renewFor.id ? { ...a, renewalDecision: 'RENEWED' as const } : a))
+      ])
+      setRenewFor(null)
+      setRenewEndDate(''); setRenewRent(''); setRenewNotes('')
+    } catch (err: any) {
+      setDecisionError(err?.response?.data?.message ?? err?.message ?? 'Failed to renew agreement')
+    } finally {
+      setDecisionBusy(false)
+    }
+  }
+
+  const handleTerminateConfirm = async () => {
+    if (!terminateFor) return
+    setDecisionBusy(true)
+    setDecisionError(null)
+    try {
+      const updated = await terminateAgreement(terminateFor.id, terminateNotes || undefined)
+      setData(prev => prev.map(a => (a.id === updated.id ? updated : a)))
+      setTerminateFor(null)
+      setTerminateNotes('')
+    } catch (err: any) {
+      setDecisionError(err?.response?.data?.message ?? err?.message ?? 'Failed to terminate agreement')
+    } finally {
+      setDecisionBusy(false)
+    }
+  }
+
   const handleStatusUpdate = async () => {
     if (!selectedAgreement || !pendingStatus) return
     setStatusUpdating(true)
@@ -168,6 +226,17 @@ const AgreementsListTable = () => {
       setApiError(err?.message ?? 'Failed to update status')
     } finally {
       setStatusUpdating(false)
+    }
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+    try {
+      await exportAgreementsCsv()
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Failed to export agreements')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -234,7 +303,21 @@ const AgreementsListTable = () => {
         header: 'STATUS',
         cell: ({ row }) => {
           const s = agreementStatusObj[row.original.status] ?? { label: row.original.status, color: 'default' }
-          return <Chip variant='tonal' label={s.label} size='small' color={s.color} />
+          const decision = row.original.renewalDecision
+
+          return (
+            <div className='flex items-center gap-1'>
+              <Chip variant='tonal' label={s.label} size='small' color={s.color} />
+              {decision && (
+                <Chip
+                  variant='tonal'
+                  size='small'
+                  label={decision === 'RENEWED' ? 'Renewed' : 'Terminated'}
+                  color={decision === 'RENEWED' ? 'success' : 'error'}
+                />
+              )}
+            </div>
+          )
         }
       }),
       columnHelper.accessor('startDate', {
@@ -287,6 +370,35 @@ const AgreementsListTable = () => {
                     }
                   }
                 },
+                // Renew / Terminate only while no decision has been recorded yet
+                ...(!row.original.renewalDecision ? [
+                  {
+                    // Distinct from 'Update Status' (ri-refresh-line) — RowActions renders these as
+                    // inline icon buttons, so a duplicate icon would be ambiguous.
+                    text: 'Renew',
+                    icon: 'ri-restart-line',
+                    menuItemProps: {
+                      onClick: () => {
+                        setRenewFor(row.original)
+                        setRenewEndDate('')
+                        setRenewRent('')
+                        setRenewNotes('')
+                        setDecisionError(null)
+                      }
+                    }
+                  },
+                  {
+                    text: 'Terminate',
+                    icon: 'ri-close-circle-line',
+                    menuItemProps: {
+                      onClick: () => {
+                        setTerminateFor(row.original)
+                        setTerminateNotes('')
+                        setDecisionError(null)
+                      }
+                    }
+                  }
+                ] : []),
                 {
                   text: 'Delete',
                   icon: 'ri-delete-bin-line',
@@ -408,8 +520,14 @@ const AgreementsListTable = () => {
                   <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
                 </TextField>
-                <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
-                  Export
+                <Button
+                  variant='outlined'
+                  size='small'
+                  startIcon={exporting ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+                  onClick={handleExport}
+                  disabled={exporting}
+                >
+                  {exporting ? 'Exporting…' : 'Export'}
                 </Button>
                 {!isOccupant && (
                   <Button
@@ -514,16 +632,14 @@ const AgreementsListTable = () => {
       />
 
       {/* Status Update Dialog */}
-      {statusUpdateOpen && selectedAgreement && (
-        <Card
-          sx={{
-            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-            zIndex: 1300, p: 4, minWidth: 320, boxShadow: 24
-          }}
-        >
-          <Typography variant='h6' className='mbe-4'>
-            Update Status — {selectedAgreement.agreementNumber}
-          </Typography>
+      <Dialog
+        open={statusUpdateOpen && selectedAgreement !== null}
+        onClose={() => { if (!statusUpdating) { setStatusUpdateOpen(false); setPendingStatus('') } }}
+        maxWidth='xs'
+        fullWidth
+      >
+        <DialogTitle>Update Status{selectedAgreement ? ` — ${selectedAgreement.agreementNumber}` : ''}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           <TextField
             select
             fullWidth
@@ -531,7 +647,6 @@ const AgreementsListTable = () => {
             label='New Status'
             value={pendingStatus}
             onChange={e => setPendingStatus(e.target.value as AgreementStatus)}
-            className='mbe-4'
           >
             <MenuItem value=''>Select status</MenuItem>
             {statusOptions.map(s => (
@@ -540,25 +655,25 @@ const AgreementsListTable = () => {
               </MenuItem>
             ))}
           </TextField>
-          <div className='flex gap-2 justify-end'>
-            <Button
-              variant='outlined'
-              onClick={() => { setStatusUpdateOpen(false); setPendingStatus('') }}
-              disabled={statusUpdating}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='contained'
-              onClick={handleStatusUpdate}
-              disabled={!pendingStatus || statusUpdating}
-              startIcon={statusUpdating ? <CircularProgress size={16} color='inherit' /> : undefined}
-            >
-              Update
-            </Button>
-          </div>
-        </Card>
-      )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            variant='outlined'
+            onClick={() => { setStatusUpdateOpen(false); setPendingStatus('') }}
+            disabled={statusUpdating}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='contained'
+            onClick={handleStatusUpdate}
+            disabled={!pendingStatus || statusUpdating}
+            startIcon={statusUpdating ? <CircularProgress size={16} color='inherit' /> : undefined}
+          >
+            Update
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <ConfirmationDialog
@@ -567,6 +682,84 @@ const AgreementsListTable = () => {
         type='delete-tenant'
         onConfirm={handleDeleteConfirm}
       />
+
+      {/* ── Renew Agreement ─────────────────────────────────────────────── */}
+      <Dialog open={!!renewFor} onClose={() => !decisionBusy && setRenewFor(null)} maxWidth='xs' fullWidth>
+        <DialogTitle>Renew Agreement</DialogTitle>
+        <DialogContent>
+          <div className='flex flex-col gap-4 mbs-2'>
+            {decisionError && <Alert severity='error' onClose={() => setDecisionError(null)}>{decisionError}</Alert>}
+            <Typography variant='body2' color='text.secondary'>
+              Creates a new agreement for {renewFor?.occupantName ?? 'this occupant'} linked to{' '}
+              {renewFor?.agreementNumber}. It starts the day after the current one ends unless you set
+              a start date later.
+            </Typography>
+            <TextField
+              size='small' fullWidth required type='date' label='New End Date'
+              InputLabelProps={{ shrink: true }}
+              value={renewEndDate}
+              onChange={e => setRenewEndDate(e.target.value)}
+            />
+            <TextField
+              size='small' fullWidth type='number' label='New Rent (optional)'
+              placeholder={renewFor?.rent != null ? String(renewFor.rent) : ''}
+              helperText='Leave blank to keep the current rent'
+              value={renewRent}
+              onChange={e => setRenewRent(e.target.value)}
+            />
+            <TextField
+              size='small' fullWidth multiline rows={2} label='Notes (optional)'
+              value={renewNotes}
+              onChange={e => setRenewNotes(e.target.value)}
+            />
+          </div>
+        </DialogContent>
+        <DialogActions className='gap-2 pbs-4'>
+          <Button variant='outlined' color='secondary' onClick={() => setRenewFor(null)} disabled={decisionBusy}>
+            Cancel
+          </Button>
+          <Button
+            variant='contained'
+            onClick={handleRenewConfirm}
+            disabled={!renewEndDate || decisionBusy}
+            startIcon={decisionBusy ? <CircularProgress size={16} color='inherit' /> : <i className='ri-refresh-line' />}
+          >
+            {decisionBusy ? 'Renewing…' : 'Renew'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Terminate Agreement ─────────────────────────────────────────── */}
+      <Dialog open={!!terminateFor} onClose={() => !decisionBusy && setTerminateFor(null)} maxWidth='xs' fullWidth>
+        <DialogTitle>Terminate Agreement</DialogTitle>
+        <DialogContent>
+          <div className='flex flex-col gap-4 mbs-2'>
+            {decisionError && <Alert severity='error' onClose={() => setDecisionError(null)}>{decisionError}</Alert>}
+            <Typography variant='body2' color='text.secondary'>
+              Marks {terminateFor?.agreementNumber} as terminated and sends the occupant a termination
+              notice. This cannot be undone.
+            </Typography>
+            <TextField
+              size='small' fullWidth multiline rows={3} label='Reason / notes (optional)'
+              value={terminateNotes}
+              onChange={e => setTerminateNotes(e.target.value)}
+            />
+          </div>
+        </DialogContent>
+        <DialogActions className='gap-2 pbs-4'>
+          <Button variant='outlined' color='secondary' onClick={() => setTerminateFor(null)} disabled={decisionBusy}>
+            Cancel
+          </Button>
+          <Button
+            variant='contained' color='error'
+            onClick={handleTerminateConfirm}
+            disabled={decisionBusy}
+            startIcon={decisionBusy ? <CircularProgress size={16} color='inherit' /> : <i className='ri-close-circle-line' />}
+          >
+            {decisionBusy ? 'Terminating…' : 'Terminate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }
