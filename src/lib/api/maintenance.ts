@@ -3,7 +3,7 @@
  * Covers: maintenance requests, maintainers, categories, comments, parts
  */
 
-import { apiGet, apiPost, apiPut, apiDelete, API_BASE } from './client'
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete, API_BASE } from './client'
 
 const BASE = `${API_BASE}/maintenance`
 
@@ -110,7 +110,12 @@ export interface UpdateMaintainerPayload {
 // ---------------------------------------------------------------------------
 // Maintenance request types
 // ---------------------------------------------------------------------------
-export type MaintenanceStatus = 'pending' | 'awaiting_approval' | 'approved' | 'in_progress' | 'completed' | 'cancelled'
+/**
+ * 'completed' means the work is done but is awaiting tenant confirmation — it is no longer terminal.
+ * 'closed' is the terminal finished state (tenant-confirmed, or landlord force-closed).
+ */
+export type MaintenanceStatus =
+  | 'pending' | 'awaiting_approval' | 'approved' | 'in_progress' | 'completed' | 'closed' | 'cancelled'
 
 export interface MaintenanceRequest {
   id: string
@@ -131,6 +136,12 @@ export interface MaintenanceRequest {
   scheduledDate?: string | null
   targetResolutionDate?: string | null
   completedDate?: string | null
+  /** True only when the occupant confirmed the work; a landlord force-close leaves this false. */
+  tenantConfirmed?: boolean
+  confirmedBy?: string | null
+  confirmedAt?: string | null
+  /** Last dispute reason, set when the occupant reopened a completed request. */
+  reopenReason?: string | null
   isSlaBreached?: boolean
   permissionToEnter?: boolean
   entryInstructions?: string | null
@@ -360,6 +371,22 @@ export async function updateMaintenanceRequest(id: string, data: UpdateMaintenan
 
 export async function updateMaintenanceRequestStatus(id: string, status: string): Promise<MaintenanceRequest> {
   return apiPut<MaintenanceRequest>(`${BASE}/requests/${id}/status`, { status })
+}
+
+/**
+ * Occupant confirms a completed repair was actually done — closes the request
+ * with tenantConfirmed = true. Only the request's own occupant may confirm.
+ */
+export async function confirmMaintenanceRequest(id: string): Promise<MaintenanceRequest> {
+  return apiPatch<MaintenanceRequest>(`${BASE}/requests/${id}/confirm`, {})
+}
+
+/**
+ * Occupant disputes a completed repair — reopens it to in_progress with the reason recorded.
+ * Only the request's own occupant may dispute.
+ */
+export async function disputeMaintenanceRequest(id: string, reason?: string): Promise<MaintenanceRequest> {
+  return apiPatch<MaintenanceRequest>(`${BASE}/requests/${id}/dispute`, { reason })
 }
 
 export async function deleteMaintenanceRequest(id: string): Promise<void> {

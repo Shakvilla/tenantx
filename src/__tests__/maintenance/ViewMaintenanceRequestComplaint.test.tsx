@@ -11,10 +11,16 @@ vi.mock('@/lib/api/maintenance', () => ({
   getMaintenanceCategories: vi.fn(),
   getMaintainers: vi.fn(),
   assignMaintainerToRequest: vi.fn(),
-  updateMaintenanceRequestStatus: vi.fn()
+  updateMaintenanceRequestStatus: vi.fn(),
+  confirmMaintenanceRequest: vi.fn(),
+  disputeMaintenanceRequest: vi.fn()
 }))
 vi.mock('@/lib/api/units', () => ({ getUnitById: vi.fn() }))
 vi.mock('@/lib/api/storage', () => ({ getStoredTenantId: vi.fn() }))
+// The dialog reads the current user to decide whether to offer tenant confirm/dispute.
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { id: 'landlord-1', userType: 'LANDLORD' } })
+}))
 
 import ViewMaintenanceRequestDialog from '@/views/maintenance/requests/ViewMaintenanceRequestDialog'
 import { getComments, getParts, getMaintenanceCategories, getMaintainers } from '@/lib/api/maintenance'

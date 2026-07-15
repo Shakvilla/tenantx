@@ -41,6 +41,8 @@ import {
   getMaintainers,
   assignMaintainerToRequest,
   updateMaintenanceRequestStatus,
+  confirmMaintenanceRequest,
+  disputeMaintenanceRequest,
   type MaintenanceRequest,
   type MaintenanceComment,
   type MaintenancePartItem,
@@ -49,12 +51,15 @@ import {
 } from '@/lib/api/maintenance'
 import { getUnitById } from '@/lib/api/units'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { useAuth } from '@/contexts/AuthContext'
 
 type Props = {
   open: boolean
   setOpen: (open: boolean) => void
   request: MaintenanceRequest | null
   onEdit: () => void
+  /** Called with the updated request after the occupant confirms or disputes. */
+  onDecision?: (updated: MaintenanceRequest) => void
 }
 
 const formatDate = (d?: string | null) => {
@@ -74,7 +79,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary
   awaiting_approval: { label: 'Awaiting Approval', color: 'info'      },
   approved:          { label: 'Approved',          color: 'secondary' },
   in_progress:       { label: 'In Progress',       color: 'primary'   },
-  completed:         { label: 'Completed',         color: 'success'   },
+  // 'completed' now means the work is done but awaiting the tenant's confirmation.
+  completed:         { label: 'Awaiting Confirmation', color: 'info'  },
+  closed:            { label: 'Closed',            color: 'success'   },
   cancelled:         { label: 'Cancelled',         color: 'error'     },
 }
 
@@ -101,6 +108,13 @@ function getAvailableTransitions(currentStatus: string, hasMaintainer: boolean):
         { value: 'cancelled', label: 'Cancelled' },
       ]
     case 'completed':
+      // Awaiting the tenant's confirmation. The landlord may force-close for an unresponsive
+      // tenant (leaving tenantConfirmed false); the tenant's own path is Confirm / Dispute.
+      return [
+        { value: 'closed',    label: 'Close (no tenant confirmation)' },
+        { value: 'cancelled', label: 'Cancelled' },
+      ]
+    case 'closed':
     case 'cancelled':
       return []
     default:
@@ -121,11 +135,18 @@ const COMPLAINT_CATEGORY_LABELS: Record<string, string> = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props) => {
+const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecision }: Props) => {
+  const { user } = useAuth()
   const [tab, setTab] = useState(0)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
   const [unitNo, setUnitNo] = useState<string | null>(null)
   const [categoryName, setCategoryName] = useState<string | null>(null)
+
+  // Tenant confirmation state (gap #6)
+  const [disputeOpen, setDisputeOpen] = useState(false)
+  const [disputeReason, setDisputeReason] = useState('')
+  const [decisionBusy, setDecisionBusy] = useState(false)
+  const [decisionError, setDecisionError] = useState<string | null>(null)
 
   // Status change state
   const [localStatus, setLocalStatus] = useState<string>('')
@@ -315,8 +336,46 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
   const statusConfig = STATUS_CONFIG[localStatus] ?? { label: localStatus, color: 'default' as const }
   const priorityColor = PRIORITY_COLORS[request.priority?.toLowerCase()] ?? 'secondary'
   const totalPartsCost = parts.reduce((sum, p) => sum + (p.totalCost ?? 0), 0)
-  const isTerminal = localStatus === 'completed' || localStatus === 'cancelled'
+  // 'completed' is no longer terminal — it awaits tenant confirmation.
+  const isTerminal = localStatus === 'closed' || localStatus === 'cancelled'
   const availableTransitions = getAvailableTransitions(localStatus, !!localMaintainerId)
+
+  // The occupant who owns the request may confirm or dispute a completed repair.
+  const canDecide =
+    localStatus === 'completed' &&
+    user?.userType === 'OCCUPANT' &&
+    !!request.occupantId &&
+    request.occupantId === user?.id
+
+  const handleConfirm = async () => {
+    setDecisionBusy(true)
+    setDecisionError(null)
+    try {
+      const updated = await confirmMaintenanceRequest(request.id)
+      setLocalStatus(updated.status)
+      onDecision?.(updated)
+    } catch (err: any) {
+      setDecisionError(err?.response?.data?.message ?? err?.message ?? 'Failed to confirm the repair')
+    } finally {
+      setDecisionBusy(false)
+    }
+  }
+
+  const handleDispute = async () => {
+    setDecisionBusy(true)
+    setDecisionError(null)
+    try {
+      const updated = await disputeMaintenanceRequest(request.id, disputeReason || undefined)
+      setLocalStatus(updated.status)
+      setDisputeOpen(false)
+      setDisputeReason('')
+      onDecision?.(updated)
+    } catch (err: any) {
+      setDecisionError(err?.response?.data?.message ?? err?.message ?? 'Failed to reopen the request')
+    } finally {
+      setDecisionBusy(false)
+    }
+  }
 
   return (
     <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth>
@@ -837,11 +896,61 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit }: Props)
       </DialogContent>
 
       <DialogActions className='gap-2 pbs-4'>
+        {decisionError && <Alert severity='error' sx={{ mr: 'auto' }} onClose={() => setDecisionError(null)}>{decisionError}</Alert>}
+
+        {/* Tenant confirmation: only the owning occupant, only while awaiting confirmation */}
+        {canDecide && (
+          <>
+            <Button
+              variant='outlined' color='error' disabled={decisionBusy}
+              startIcon={<i className='ri-close-circle-line' />}
+              onClick={() => setDisputeOpen(true)}
+            >
+              Not Fixed
+            </Button>
+            <Button
+              variant='contained' color='success' disabled={decisionBusy}
+              startIcon={decisionBusy ? <CircularProgress size={16} color='inherit' /> : <i className='ri-check-line' />}
+              onClick={handleConfirm}
+            >
+              {decisionBusy ? 'Confirming…' : 'Confirm Fixed'}
+            </Button>
+          </>
+        )}
+
         <Button variant='outlined' color='secondary' onClick={() => setOpen(false)}>Close</Button>
-        <Button variant='contained' color='primary' startIcon={<i className='ri-pencil-line' />} onClick={onEdit}>
-          Edit Request
-        </Button>
+        {!canDecide && (
+          <Button variant='contained' color='primary' startIcon={<i className='ri-pencil-line' />} onClick={onEdit}>
+            Edit Request
+          </Button>
+        )}
       </DialogActions>
+
+      {/* ── Dispute (reopen) ─────────────────────────────────────────────── */}
+      <Dialog open={disputeOpen} onClose={() => !decisionBusy && setDisputeOpen(false)} maxWidth='xs' fullWidth>
+        <DialogTitle>Repair not done?</DialogTitle>
+        <DialogContent>
+          <Typography variant='body2' color='text.secondary' sx={{ mb: 3 }}>
+            This reopens the request so your property manager can follow up. Tell them what is still wrong.
+          </Typography>
+          <TextField
+            size='small' fullWidth multiline rows={3} label='What is still wrong?'
+            value={disputeReason}
+            onChange={e => setDisputeReason(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions className='gap-2 pbs-4'>
+          <Button variant='outlined' color='secondary' onClick={() => setDisputeOpen(false)} disabled={decisionBusy}>
+            Cancel
+          </Button>
+          <Button
+            variant='contained' color='error' onClick={handleDispute} disabled={decisionBusy}
+            startIcon={decisionBusy ? <CircularProgress size={16} color='inherit' /> : undefined}
+          >
+            {decisionBusy ? 'Reopening…' : 'Reopen Request'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   )
 }

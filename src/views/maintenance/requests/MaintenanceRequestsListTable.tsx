@@ -100,7 +100,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary
   awaiting_approval: { label: 'Awaiting Approval', color: 'info'      },
   approved:          { label: 'Approved',          color: 'secondary' },
   in_progress:       { label: 'In Progress',       color: 'primary'   },
-  completed:         { label: 'Completed',         color: 'success'   },
+  // 'completed' now means the work is done but awaiting the tenant's confirmation.
+  completed:         { label: 'Awaiting Confirmation', color: 'info'  },
+  closed:            { label: 'Closed',            color: 'success'   },
   cancelled:         { label: 'Cancelled',         color: 'error'     },
 }
 
