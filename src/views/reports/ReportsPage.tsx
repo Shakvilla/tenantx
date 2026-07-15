@@ -23,6 +23,7 @@ import MaintenanceReport from './MaintenanceReport'
 import GraComplianceReport from './GraComplianceReport'
 import ArrearsReport from './ArrearsReport'
 import CashFlowReport from './CashFlowReport'
+import ProfitLossReport from './ProfitLossReport'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 import { useFeature } from '@/hooks/useFeature'
 
@@ -109,6 +110,12 @@ const ReportsPage = () => {
                   icon={<i className='ri-funds-line' />}
                   label={<span>Cash Flow {!hasAdvancedReports && <LockIcon />}</span>}
                 />
+                <Tab
+                  value='pnl'
+                  iconPosition='start'
+                  icon={<i className='ri-scales-3-line' />}
+                  label={<span>P&amp;L {!hasAdvancedReports && <LockIcon />}</span>}
+                />
               </CustomTabList>
 
               {/* ── ADVANCED_REPORTS tabs (Basic+) ─────────────────── */}
@@ -139,6 +146,12 @@ const ReportsPage = () => {
               <TabPanel value='cashflow' className='p-0 mts-6'>
                 {/* CashFlowReport gates itself internally — no outer FeatureGate needed */}
                 <CashFlowReport />
+              </TabPanel>
+
+              <TabPanel value='pnl' className='p-0 mts-6'>
+                <FeatureGate feature='ADVANCED_REPORTS'>
+                  <ProfitLossReport dateRange={dateRange} onDateRangeChange={handleDateRangeChange} />
+                </FeatureGate>
               </TabPanel>
 
               {/* ── FINANCIAL_REPORTS tabs (Pro only) ──────────────── */}
