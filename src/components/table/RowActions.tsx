@@ -72,7 +72,9 @@ const RowActions = ({ options }: Props) => {
             <IconButton
               size='small'
               color={isError ? 'error' : 'default'}
-              onClick={opt.menuItemProps?.onClick as MouseEventHandler<HTMLButtonElement>}
+              // menuItemProps types onClick for <li> (MUI MenuItemProps); here it is
+              // attached to a <button>, so the handler types do not overlap directly.
+              onClick={opt.menuItemProps?.onClick as unknown as MouseEventHandler<HTMLButtonElement>}
             >
               {iconEl}
             </IconButton>

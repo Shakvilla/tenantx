@@ -183,7 +183,7 @@ const SendNoticeDialog = ({
 
   const handleFieldChange = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    if (errors[field as string]) setErrors(prev => ({ ...prev, [field]: false }))
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
   }
 
   // ---- Validation ----

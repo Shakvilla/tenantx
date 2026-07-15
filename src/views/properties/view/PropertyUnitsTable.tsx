@@ -32,7 +32,7 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 // Component Imports
 import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
-import AddUnitDialog from './AddUnitDialog'
+import AddUnitDialog from '../AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import { UnitCapGate } from '@/components/subscription/UnitCapGate'
 import { useSubscription } from '@/contexts/SubscriptionContext'
@@ -517,8 +517,8 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
                   status: editUnit.status,
                   rent: editUnit.rent?.toString() || '',
                   currency: editUnit.currency || 'GHS',
-                  bedrooms: editUnit.bedrooms,
-                  bathrooms: editUnit.bathrooms,
+                  bedrooms: editUnit.bedrooms ?? undefined,
+                  bathrooms: editUnit.bathrooms ?? undefined,
                   size: editUnit.sizeSqft?.toString() || '',
                   floor: (editUnit as any).floor,
                   type: editUnit.type,
