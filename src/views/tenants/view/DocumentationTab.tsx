@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -10,68 +10,56 @@ import Typography from '@mui/material/Typography'
 import IconButton from '@mui/material/IconButton'
 import Box from '@mui/material/Box'
 import Avatar from '@mui/material/Avatar'
+import Chip from '@mui/material/Chip'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
+import Tooltip from '@mui/material/Tooltip'
 
-type Document = {
-  id: string
-  name: string
-  type: string
-  size?: string
-  url?: string
+import { getDocuments, type DocumentItem } from '@/lib/api/documents'
+
+const STATUS_COLOR: Record<DocumentItem['status'], 'warning' | 'success' | 'error'> = {
+  pending: 'warning',
+  accepted: 'success',
+  rejected: 'error'
 }
 
-// Sample documents data
-const sampleDocuments: Document[] = [
-  {
-    id: '1',
-    name: 'Invoice file.PNG',
-    type: 'image/png',
-    size: '2.5 MB',
-    url: '#'
-  },
-  {
-    id: '2',
-    name: 'Lease Agreement.pdf',
-    type: 'application/pdf',
-    size: '1.2 MB',
-    url: '#'
-  },
-  {
-    id: '3',
-    name: 'ID Card.jpg',
-    type: 'image/jpeg',
-    size: '800 KB',
-    url: '#'
-  },
-  {
-    id: '4',
-    name: 'Contract Document.pdf',
-    type: 'application/pdf',
-    size: '3.1 MB',
-    url: '#'
-  }
-]
+function fileIcon(item: DocumentItem) {
+  const name = (item.fileName || '').toLowerCase()
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name)) return <i className='ri-image-line text-2xl' />
+  if (/\.pdf$/.test(name)) return <i className='ri-file-pdf-line text-2xl' />
+  return <i className='ri-file-text-line text-2xl' />
+}
 
-const DocumentationTab = () => {
-  // States
-  const [documents] = useState<Document[]>(sampleDocuments)
+function prettyType(type: string) {
+  return type.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
 
-  const handleDownload = (document: Document) => {
-    // In a real app, this would trigger the download
-    console.log('Downloading:', document.name)
+const DocumentationTab = ({ occupantId }: { occupantId?: string }) => {
+  const [documents, setDocuments] = useState<DocumentItem[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState<string | null>(null)
 
-    if (document.url) {
-      window.open(document.url, '_blank')
+  useEffect(() => {
+    if (!occupantId) {
+      setDocuments([])
+      setLoading(false)
+      return
     }
-  }
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    // Backend /documents filters by status/type only, so filter to this occupant client-side.
+    getDocuments()
+      .then(all => {
+        if (!cancelled) setDocuments((all ?? []).filter(d => d.occupantId === occupantId))
+      })
+      .catch(() => { if (!cancelled) setError('Failed to load documents') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [occupantId])
 
-  const getFileIcon = (type: string) => {
-    if (type.startsWith('image/')) {
-      return <i className='ri-image-line text-2xl' />
-    } else if (type.includes('pdf')) {
-      return <i className='ri-file-pdf-line text-2xl' />
-    } else {
-      return <i className='ri-file-text-line text-2xl' />
-    }
+  const handleDownload = (item: DocumentItem) => {
+    if (item.fileUrl) window.open(item.fileUrl, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -81,7 +69,13 @@ const DocumentationTab = () => {
           Documents
         </Typography>
 
-        {documents.length === 0 ? (
+        {error && <Alert severity='error'>{error}</Alert>}
+
+        {loading ? (
+          <Box className='flex items-center justify-center py-12'>
+            <CircularProgress />
+          </Box>
+        ) : documents.length === 0 ? (
           <Box className='flex items-center justify-center py-12'>
             <Typography variant='body2' color='text.secondary'>
               No documents available
@@ -94,36 +88,42 @@ const DocumentationTab = () => {
                 key={document.id}
                 className='flex items-center justify-between gap-4 p-4 border rounded-lg hover:bg-actionHover transition-colors'
               >
-                <Box className='flex items-center gap-4 flex-1'>
+                <Box className='flex items-center gap-4 flex-1 min-w-0'>
                   <Avatar
                     variant='rounded'
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      bgcolor: 'primary.main',
-                      color: 'primary.contrastText'
-                    }}
+                    sx={{ width: 48, height: 48, bgcolor: 'primary.main', color: 'primary.contrastText' }}
                   >
-                    {getFileIcon(document.type)}
+                    {fileIcon(document)}
                   </Avatar>
-                  <Box className='flex flex-col'>
-                    <Typography color='text.primary' className='font-medium'>
-                      {document.name}
+                  <Box className='flex flex-col min-w-0'>
+                    <Typography color='text.primary' className='font-medium' noWrap>
+                      {document.fileName || prettyType(document.documentType)}
                     </Typography>
-                    {document.size && (
-                      <Typography variant='body2' color='text.secondary'>
-                        {document.size}
-                      </Typography>
-                    )}
+                    <Typography variant='body2' color='text.secondary'>
+                      {prettyType(document.documentType)}
+                    </Typography>
                   </Box>
                 </Box>
-                <IconButton
-                  onClick={() => handleDownload(document)}
-                  className='text-primary'
-                  size='small'
-                >
-                  <i className='ri-download-line text-xl' />
-                </IconButton>
+                <Box className='flex items-center gap-2 flex-shrink-0'>
+                  <Chip
+                    size='small'
+                    variant='tonal'
+                    label={document.status.charAt(0).toUpperCase() + document.status.slice(1)}
+                    color={STATUS_COLOR[document.status] ?? 'default'}
+                  />
+                  <Tooltip title={document.fileUrl ? 'Download' : 'No file attached'}>
+                    <span>
+                      <IconButton
+                        onClick={() => handleDownload(document)}
+                        disabled={!document.fileUrl}
+                        className='text-primary'
+                        size='small'
+                      >
+                        <i className='ri-download-line text-xl' />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
               </Box>
             ))}
           </Box>
@@ -134,4 +134,3 @@ const DocumentationTab = () => {
 }
 
 export default DocumentationTab
-
