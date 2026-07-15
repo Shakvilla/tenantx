@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { format } from 'date-fns'
 
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -29,6 +28,9 @@ import {
 } from '@/lib/api/agents'
 import type { AgentType, AgentCommission, AgentCommissionStats } from '@/types/members/agentTypes'
 import { formatCurrency } from '@/utils/currency'
+
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
 const statusColor: Record<string, 'warning' | 'success' | 'error'> = {
   pending:   'warning',
@@ -245,7 +247,7 @@ const AgentCommissionsDialog = ({ open, agent, onClose }: Props) => {
                 {commissions.map(c => (
                   <tr key={c.id} style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                     <td style={{ padding: '10px 12px', fontSize: 13 }}>
-                      {format(new Date(c.commissionDate), 'dd MMM yyyy')}
+                      {fmtDate(c.commissionDate)}
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 600 }}>
                       {formatCurrency(c.amount, c.currency)}
@@ -263,7 +265,7 @@ const AgentCommissionsDialog = ({ open, agent, onClose }: Props) => {
                       {c.notes || '—'}
                     </td>
                     <td style={{ padding: '10px 12px', fontSize: 13, color: 'rgba(0,0,0,0.6)' }}>
-                      {c.paidAt ? format(new Date(c.paidAt), 'dd MMM yyyy') : '—'}
+                      {c.paidAt ? fmtDate(c.paidAt) : '—'}
                     </td>
                     <td style={{ padding: '10px 12px' }}>
                       <div className='flex items-center gap-1'>
