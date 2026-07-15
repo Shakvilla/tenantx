@@ -90,8 +90,9 @@ const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
     [filteredExpenses]
   )
 
-  // Monthly comparison bar chart (same data as trends — bar view)
-  const monthlyComparison = trends
+  // Monthly comparison bar chart (same data as trends — bar view).
+  // BarChart keys on `label`, LineChart on `date`, hence the remap.
+  const monthlyComparison = useMemo(() => trends.map(t => ({ label: t.date, value: t.value })), [trends])
 
   // By category: group by expense item name
   const byCategory = useMemo(() => {

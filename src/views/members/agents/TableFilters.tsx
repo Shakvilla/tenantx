@@ -32,7 +32,7 @@ const TableFilters = ({
       // Date range filtering
       if (startDate || endDate) {
         // Parse registration date (format: "2023-10-30 11:19:51")
-        const registrationDateStr = agent.registrationDate.split(' ')[0] // Get date part only
+        const registrationDateStr = agent.createdAt.split(' ')[0] // Get date part only
         const registrationDate = new Date(registrationDateStr)
 
         if (startDate) {

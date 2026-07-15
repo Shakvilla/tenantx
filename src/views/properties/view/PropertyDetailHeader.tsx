@@ -40,7 +40,7 @@ type PropertyData = {
   images?: string[]
   thumbnailIndex?: number | null
   price?: string
-  ownership?: string
+  ownership?: 'own' | 'lease' // matches Property['ownership']; the edit dialog needs the literal union
   totalUnits?: number
   occupiedUnits?: number
   purchasePrice?: number

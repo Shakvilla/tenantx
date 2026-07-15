@@ -107,7 +107,7 @@ const UnitDetailHeader = ({
         bedrooms: unitData.bedrooms,
         bathrooms: unitData.bathrooms,
         size: unitData.size,
-        floor: unitData.floor,
+        floor: unitData.floor ?? undefined,
         type: unitData.type,
         images: unitData.images,
         amenities: unitData.amenities,

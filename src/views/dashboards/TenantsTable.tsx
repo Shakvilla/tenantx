@@ -76,7 +76,7 @@ const TenantsTable = () => {
         return (
           <Link href={`/occupants/${row.original.id}`} style={{ textDecoration: 'none' }}>
             <div className='flex items-center gap-3'>
-              <CustomAvatar skin='light' size={34} src={row.original.avatar}>
+              <CustomAvatar skin='light' size={34} src={row.original.avatar ?? undefined}>
                 {!row.original.avatar ? getInitials(fullName) : undefined}
               </CustomAvatar>
               <div>
