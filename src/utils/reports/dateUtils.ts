@@ -61,6 +61,24 @@ export const formatDateRange = (dateRange: DateRange): string => {
   return `${start} - ${end}`
 }
 
+/**
+ * Convert a DateRange's startDate/endDate into ISO strings suitable for API query params.
+ * - `date` mode returns 'yyyy-MM-dd' (for LocalDate params, e.g. invoices/expenses).
+ * - `datetime` mode returns a full ISO-8601 datetime string (for LocalDateTime params,
+ *   e.g. occupants/maintenance requests, which filter on createdAt).
+ */
+export const toApiDateParams = (
+  dateRange: DateRange,
+  mode: 'date' | 'datetime' = 'date'
+): { startDate?: string; endDate?: string } => {
+  const format = (d: Date) => (mode === 'date' ? d.toISOString().slice(0, 10) : d.toISOString())
+
+  return {
+    startDate: dateRange.startDate ? format(dateRange.startDate) : undefined,
+    endDate: dateRange.endDate ? format(dateRange.endDate) : undefined
+  }
+}
+
 export const getPresetLabel = (preset: DateRangePreset): string => {
   const labels: Record<DateRangePreset, string> = {
     last7days: 'Last 7 days',
