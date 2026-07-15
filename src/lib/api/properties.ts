@@ -268,13 +268,22 @@ export async function saveDraft(tenantId: string, data: DraftPayload): Promise<A
  * Update an existing property draft.
  */
 export async function updateDraft(tenantId: string, id: string, data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPatch(
-    `${API_BASE}/properties/drafts`,
-    { id, ...data },
-    {
+  // Backend is PATCH /properties/drafts/{id} (@PathVariable id + @RequestBody payload),
+  // and returns a bare PropertyResponse — there is no envelope to pass through, so build
+  // one here to honour the declared ApiResponse type that AddPropertyDialog checks.
+  try {
+    const updated = await apiPatch<Property>(`${API_BASE}/properties/drafts/${id}`, data, {
       headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return { success: true, data: updated }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'DRAFT_UPDATE_ERROR', message: error?.message || 'Failed to update draft' }
     }
-  )
+  }
 }
 
 // ---------------------------------------------------------------------------
