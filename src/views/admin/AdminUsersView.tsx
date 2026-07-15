@@ -40,6 +40,8 @@ import {
   type AdminUserRecord,
 } from '@/lib/api/admin-auth-client'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ---------------------------------------------------------------------------
 // Row action menu
 // ---------------------------------------------------------------------------
@@ -294,6 +296,7 @@ export default function AdminUsersView() {
   ]
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: users,
     columns,
     getCoreRowModel: getCoreRowModel(),

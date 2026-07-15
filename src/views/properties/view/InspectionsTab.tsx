@@ -33,6 +33,8 @@ import tableStyles from '@core/styles/table.module.css'
 import CreateInspectionDialog from './CreateInspectionDialog'
 import ViewInspectionDialog   from './ViewInspectionDialog'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<InspectionType, string> = {
@@ -181,6 +183,7 @@ export default function InspectionsTab({ unitId, propertyId, unitNo, propertyNam
   ], []) // eslint-disable-line
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),

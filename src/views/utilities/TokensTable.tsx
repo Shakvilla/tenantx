@@ -28,6 +28,8 @@ import type { UtilityTokenResponse, UtilityMeterResponse } from '@/types/utility
 
 import tableStyles from '@core/styles/table.module.css'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PAYER_LABELS: Record<string, string> = {
@@ -174,6 +176,7 @@ export default function TokensTable({ meter, onRecordToken }: Props) {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data,
     columns,
     state: { rowSelection },

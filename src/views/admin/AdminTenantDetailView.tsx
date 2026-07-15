@@ -108,6 +108,8 @@ import {
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -1300,6 +1302,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     loginColHelper.accessor('createdAt', { header: 'Time', cell: info => <Typography variant='body2' sx={{ fontSize: '0.75rem' }} color='text.secondary'>{new Date(info.getValue()).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })}</Typography> }),
   ]
   const loginTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: loginHistory,
     columns: loginCols,
     manualFiltering: true,
@@ -1343,6 +1346,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     }),
   ]
   const apiKeyTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: apiKeys,
     columns: apiKeyCols,
     getCoreRowModel: getCoreRowModel(),
@@ -1402,6 +1406,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     }),
   ]
   const invTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: invoices,
     columns: invCols,
     manualFiltering: true,
@@ -1446,6 +1451,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     }),
   ]
   const sessTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: sessions,
     columns: sessCols,
     getCoreRowModel: getCoreRowModel(),
@@ -1463,6 +1469,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     propColHelper.accessor('occupiedUnits', { header: 'Occ.', cell: info => <Typography variant='body2' sx={{ fontSize: '0.78rem', textAlign: 'right', display: 'block' }}>{info.getValue()}</Typography> }),
   ]
   const propTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: properties,
     columns: propCols,
     manualFiltering: true,
@@ -1487,6 +1494,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     }),
   ]
   const unitTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: units,
     columns: unitCols,
     manualFiltering: true,
@@ -1511,6 +1519,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     occColHelper.accessor('moveInDate', { header: 'Move-in', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
   ]
   const occTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: occupants,
     columns: occCols,
     manualFiltering: true,
@@ -1545,6 +1554,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     }),
   ]
   const teamTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: team,
     columns: teamCols,
     manualFiltering: true,
@@ -1568,6 +1578,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     agreeColHelper.accessor('endDate', { header: 'End', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
   ]
   const agreeTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: agreements,
     columns: agreeCols,
     manualFiltering: true,
@@ -1589,6 +1600,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     payColHelper.accessor('paymentDate', { header: 'Date', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
   ]
   const payTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: payments,
     columns: payCols,
     manualFiltering: true,
@@ -1611,6 +1623,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     inspColHelper.accessor('signedOffDate', { header: 'Signed Off', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
   ]
   const inspTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: inspections,
     columns: inspCols,
     manualFiltering: true,
@@ -1633,6 +1646,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     maintColHelper.accessor('scheduledDate', { header: 'Scheduled', cell: info => <Typography variant='body2' color='text.secondary' sx={{ fontSize: '0.75rem' }}>{info.getValue() ? new Date(info.getValue()!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</Typography> }),
   ]
   const maintTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: maintenance,
     columns: maintCols,
     manualFiltering: true,

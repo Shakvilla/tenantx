@@ -57,6 +57,8 @@ import {
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -352,6 +354,7 @@ function InvoiceTable({
   }, [showRetry, onRetry, onVoid])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: invoices,
     columns,
     getCoreRowModel: getCoreRowModel(),
@@ -765,6 +768,7 @@ function RenewalsTab() {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: renewals,
     columns,
     getCoreRowModel: getCoreRowModel(),

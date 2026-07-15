@@ -37,6 +37,8 @@ import { useAuth } from '@/contexts/AuthContext'
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 const columnHelper = createColumnHelper<PaymentResponse>()
 
 const statusColorMap: Record<PaymentStatus, 'success' | 'warning' | 'error' | 'info' | 'secondary'> = {
@@ -169,6 +171,7 @@ const OccupantPaymentsView = () => {
   )
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data,
     columns,
     state: {},

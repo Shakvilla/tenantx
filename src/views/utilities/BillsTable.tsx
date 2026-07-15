@@ -31,6 +31,8 @@ import type { UtilityBillResponse, UtilityMeterResponse, PaymentResponsibility }
 
 import tableStyles from '@core/styles/table.module.css'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Props = {
@@ -209,6 +211,7 @@ export default function BillsTable({ meter, onRecordBill, onBillPaid }: Props) {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data,
     columns,
     state: { rowSelection },

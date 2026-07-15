@@ -35,6 +35,8 @@ import tableStyles from '@core/styles/table.module.css'
 import CreateVacateNoticeDialog from './CreateVacateNoticeDialog'
 import VacateWorkflowDialog from './VacateWorkflowDialog'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<VacateNoticeStatus, { label: string; color: 'warning' | 'info' | 'error' | 'success' }> = {
@@ -191,6 +193,7 @@ export default function VacateTab({ unitId, propertyId, unitNo, propertyName, te
   ], []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: rows,
     columns,
     getCoreRowModel: getCoreRowModel(),

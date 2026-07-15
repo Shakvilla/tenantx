@@ -46,6 +46,8 @@ import {
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ---------------------------------------------------------------------------
 // Compose dialog (shared by both tabs)
 // ---------------------------------------------------------------------------
@@ -192,6 +194,7 @@ function TargetedTab({ onToast }: TargetedTabProps) {
   ]
 
   const targetedTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: filteredTenants,
     columns: tenantCols,
     state: { rowSelection },
@@ -451,6 +454,7 @@ function HistoryTab() {
   ]
 
   const histTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: logs,
     columns: histCols,
     manualFiltering: true,

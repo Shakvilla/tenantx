@@ -20,7 +20,9 @@ import type { VerticalMenuDataType } from '@/types/menuTypes'
  * in VerticalMenu.tsx which reads from the SubscriptionContext.
  */
 
-interface NavItem extends VerticalMenuDataType {
+// VerticalMenuDataType is a union (item | submenu | section), and an interface cannot
+// extend a union — hence the intersection alias.
+type NavItem = VerticalMenuDataType & {
   allowedUserTypes?: string[]
   requiredFeature?: string
   children?: NavItem[]
@@ -221,7 +223,8 @@ const verticalMenuData = (
           // Recurse into children
           ...(children ? { children: process(children as NavItem[]) } : {})
         }
-      })
+        // TS cannot re-narrow to the union after the rest/spread rebuild above.
+      }) as VerticalMenuDataType[]
 
   return process(allItems)
 }

@@ -42,6 +42,8 @@ import { getInitials } from '@/utils/getInitials'
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 'secondary'> = {
   active: 'success',
   inactive: 'error',
@@ -133,6 +135,7 @@ const TenantsTable = () => {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: occupants,
     columns,
     state: { globalFilter },

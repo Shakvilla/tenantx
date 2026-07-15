@@ -48,6 +48,8 @@ import { walletApi } from '@/lib/api/wallet'
 import type { WalletResponse, LedgerEntryResponse, LedgerCategory, MomoNetwork } from '@/types/wallet'
 import { CATEGORY_LABELS, MOMO_NETWORKS } from '@/types/wallet'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
@@ -466,6 +468,7 @@ const LedgerTable = () => {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: filtered,
     columns,
     getCoreRowModel: getCoreRowModel(),

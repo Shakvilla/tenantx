@@ -49,6 +49,8 @@ import {
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 
+import { fuzzyFilter } from '@/utils/tableFilterFns'
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -335,6 +337,7 @@ export default function AdminAnnouncementsView() {
   ]
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: announcements,
     columns,
     state: { pagination: { pageIndex: page, pageSize } },
