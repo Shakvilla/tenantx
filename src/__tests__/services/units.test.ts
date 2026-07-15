@@ -72,19 +72,24 @@ describe('Units Service', () => {
     it('should pass filters as query params', async () => {
       vi.mocked(apiGet).mockResolvedValue({ success: true, data: [] })
 
-      await getAllUnits(tenantId, { propertyId: 'p1', bedrooms: 2, bathrooms: 1 })
+      await getAllUnits(tenantId, { propertyId: 'p1', status: 'available', minRent: 500, maxRent: 900 })
 
       const url = vi.mocked(apiGet).mock.calls[0][0] as string
 
       expect(url).toContain('propertyId=p1')
-      expect(url).toContain('bedrooms=2')
-      expect(url).toContain('bathrooms=1')
+      expect(url).toContain('status=available')
+      expect(url).toContain('minRent=500')
+      expect(url).toContain('maxRent=900')
     })
 
-    it('should propagate API errors to the caller', async () => {
+    it('should return a failure envelope rather than throwing when the API errors', async () => {
       vi.mocked(apiGet).mockRejectedValue(new Error('Failed'))
 
-      await expect(getAllUnits(tenantId)).rejects.toThrow('Failed')
+      const result = await getAllUnits(tenantId)
+
+      expect(result.success).toBe(false)
+      expect(result.data).toEqual([])
+      expect(result.error).toMatchObject({ code: 'UNITS_FETCH_ERROR', message: 'Failed' })
     })
   })
 
