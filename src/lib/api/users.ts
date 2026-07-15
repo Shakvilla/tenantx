@@ -135,7 +135,7 @@ export async function updateUser(id: string, data: UpdateUserPayload): Promise<U
 
 /** Soft-deletes (deactivates) a user */
 export async function deactivateUser(id: string): Promise<void> {
-  return apiDelete<void>(`${USERS_BASE}/${id}`)
+  return apiDelete(`${USERS_BASE}/${id}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -164,7 +164,7 @@ export async function updateRole(id: string, data: UpdateRolePayload): Promise<T
 }
 
 export async function deleteRole(id: string): Promise<void> {
-  return apiDelete<void>(`${ROLES_BASE}/${id}`)
+  return apiDelete(`${ROLES_BASE}/${id}`)
 }
 
 /** Get all roles assigned to a specific user */

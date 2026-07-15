@@ -157,7 +157,7 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
     }
   }
 
-  const roomGroups = data ? groupByRoom(data.items) : new Map()
+  const roomGroups = data ? groupByRoom(data.items) : new Map<InspectionRoom, InspectionItemResponse[]>()
 
   return (
     <>

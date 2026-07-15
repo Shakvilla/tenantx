@@ -65,6 +65,7 @@ type PropertyEditData = {
   rooms?: number | string
   amenities?: Record<string, boolean>
   images?: string[] // URLs for existing images
+  imageFileIds?: string[] // ImageKit file IDs, positionally matching `images`
   thumbnailIndex?: number | null
   price?: string
   address?: string
