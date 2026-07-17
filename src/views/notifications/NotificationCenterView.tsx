@@ -200,7 +200,13 @@ export default function NotificationCenterView() {
 
       {/* Tab filter */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 0 }}>
-        <Tabs value={tab} onChange={(_, v) => { setTab(v); setPage(0) }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => { setTab(v); setPage(0) }}
+          variant='scrollable'
+          scrollButtons='auto'
+          allowScrollButtonsMobile
+        >
           <Tab label='All' />
           <Tab label={
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

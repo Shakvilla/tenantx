@@ -62,7 +62,13 @@ const UnitDetails = ({
 
       <TabContext value={tab}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
-          <TabList onChange={(_, v) => setTab(v)} aria-label='unit detail tabs'>
+          <TabList
+            onChange={(_, v) => setTab(v)}
+            aria-label='unit detail tabs'
+            variant='scrollable'
+            scrollButtons='auto'
+            allowScrollButtonsMobile
+          >
             <Tab
               value='overview'
               label='Overview'
