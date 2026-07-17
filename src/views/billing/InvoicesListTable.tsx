@@ -444,7 +444,7 @@ const InvoicesListTable = () => {
           </CardContent>
         )}
 
-        <div className='overflow-x-auto'>
+        <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
           {loading ? (
             <div className='p-4 flex flex-col gap-3'>
               {[...Array(5)].map((_, i) => (

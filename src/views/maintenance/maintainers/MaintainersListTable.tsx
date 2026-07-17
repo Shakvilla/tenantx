@@ -307,7 +307,7 @@ const MaintainersListTable = () => {
             <DebouncedInput value={globalFilter ?? ''} onChange={v => setGlobalFilter(String(v))} placeholder='Search maintainers...' className='sm:is-auto min-is-[200px]' />
           </div>
 
-          <div className='overflow-x-auto'>
+          <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             {loading ? (
               <div className='flex justify-center py-10'><CircularProgress /></div>
             ) : (

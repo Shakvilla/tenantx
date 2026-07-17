@@ -496,7 +496,7 @@ const CommunicationsListTable = () => {
               {[0, 1, 2, 3, 4].map(i => <Skeleton key={i} variant='rectangular' height={44} />)}
             </Box>
           ) : (
-            <div className='overflow-x-auto'>
+            <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
               <table className={tableStyles.table}>
                 <thead>
                   {table.getHeaderGroups().map(headerGroup => (

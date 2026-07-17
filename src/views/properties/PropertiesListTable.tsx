@@ -575,7 +575,7 @@ const PropertiesListTable = () => {
           </Box>
 
           {/* Table */}
-          <div className='overflow-x-auto'>
+          <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             {loading ? (
               <Box className='flex justify-center items-center py-10'>
                 <CircularProgress />

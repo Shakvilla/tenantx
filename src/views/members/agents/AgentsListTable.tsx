@@ -223,7 +223,7 @@ const AgentsListTable = () => {
               <Typography color='error'>{error}</Typography>
             </Box>
           ) : (
-            <div className='overflow-x-auto'>
+            <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
               <table className={tableStyles.table}>
                 <thead>
                   {table.getHeaderGroups().map(hg => (
