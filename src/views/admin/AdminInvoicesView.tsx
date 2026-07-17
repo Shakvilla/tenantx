@@ -244,7 +244,7 @@ function InvoiceTable({
         cell: info => {
           const inv = info.row.original
           return (
-            <Link href='/admin/tenants' style={{ textDecoration: 'none' }}>
+            <Link href={`/admin/tenants/${inv.tenantUuid}`} style={{ textDecoration: 'none' }}>
               <Box>
                 <Typography variant='body2' fontWeight={600} sx={{ '&:hover': { textDecoration: 'underline' } }}>
                   {inv.tenantName}

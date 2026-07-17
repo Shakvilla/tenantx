@@ -566,6 +566,7 @@ export async function getAdminTenantSnapshot(tenantUuid: string): Promise<AdminT
 export interface AdminInvoiceDto {
   id: string
   tenantId: string
+  tenantUuid: string
   tenantName: string
   planName: string
   targetPlanName: string | null
