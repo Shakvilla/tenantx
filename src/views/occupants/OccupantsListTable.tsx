@@ -3,6 +3,9 @@
 // React Imports
 import { useState, useMemo, useEffect, useCallback } from 'react'
 
+// Next Imports
+import { useSearchParams, useRouter } from 'next/navigation'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -77,6 +80,9 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
 const columnHelper = createColumnHelper<OccupantWithAction>()
 
 const OccupantsListTable = () => {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
   // States
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState<OccupantRecord[]>([])
@@ -97,6 +103,14 @@ const OccupantsListTable = () => {
   const [editOccupantOpen, setEditOccupantOpen] = useState(false)
   const [deleteOccupantOpen, setDeleteOccupantOpen] = useState(false)
   const [selectedOccupant, setSelectedOccupant] = useState<OccupantRecord | null>(null)
+
+  // Auto-open the Add Occupant dialog when arriving via the topbar "+ Create" menu (?create=1)
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setAddOccupantOpen(true)
+      router.replace('/occupants')
+    }
+  }, [searchParams, router])
 
   // Properties for filter dropdown + name lookup
   const [properties, setProperties] = useState<Property[]>([])

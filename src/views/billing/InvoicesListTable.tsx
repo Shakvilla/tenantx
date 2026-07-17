@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 
 // Next Imports
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -142,6 +143,8 @@ const getAvailableStatuses = (current: string): string[] => {
 const columnHelper = createColumnHelper<InvoiceWithAction>()
 
 const InvoicesListTable = () => {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState<Invoice[]>([])
@@ -158,6 +161,14 @@ const InvoicesListTable = () => {
   // Add/Edit dialog
   const [addInvoiceOpen, setAddInvoiceOpen] = useState(false)
   const [editInvoice, setEditInvoice] = useState<Invoice | null>(null)
+
+  // Auto-open the Add Invoice dialog when arriving via the topbar "+ Create" menu (?create=1)
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setAddInvoiceOpen(true)
+      router.replace('/billing/invoices')
+    }
+  }, [searchParams, router])
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true)

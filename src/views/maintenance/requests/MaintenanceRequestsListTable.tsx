@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react'
 
+// Next Imports
+import { useSearchParams, useRouter } from 'next/navigation'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -113,6 +116,8 @@ const PRIORITY_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' |
 const columnHelper = createColumnHelper<RequestWithAction>()
 
 const MaintenanceRequestsListTable = () => {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const { user } = useAuth()
   const isOccupant   = user?.userType === 'OCCUPANT'
   const isMaintainer = user?.userType === 'MAINTAINER'
@@ -132,6 +137,14 @@ const MaintenanceRequestsListTable = () => {
   const [editOpen, setEditOpen] = useState(false)
   const [viewOpen, setViewOpen] = useState(false)
   const [requestToEdit, setRequestToEdit] = useState<MaintenanceRequest | null>(null)
+
+  // Auto-open the Add Maintenance Request dialog when arriving via the topbar "+ Create" menu (?create=1)
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setAddOpen(true)
+      router.replace('/maintenance/requests')
+    }
+  }, [searchParams, router])
   const [requestToView, setRequestToView] = useState<MaintenanceRequest | null>(null)
 
   // Server-side pagination: the backend is cursor-based, so we track the stack of

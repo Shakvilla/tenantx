@@ -3,6 +3,9 @@
 // React Imports
 import { useState, useMemo, useEffect, useCallback } from 'react'
 
+// Next Imports
+import { useSearchParams, useRouter } from 'next/navigation'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -101,6 +104,8 @@ const columnHelper = createColumnHelper<PropertyWithAction>()
 
 const PropertiesListTable = () => {
   const { ref } = useReferenceData()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   // States
   const [rowSelection, setRowSelection] = useState({})
@@ -139,6 +144,14 @@ const PropertiesListTable = () => {
 
   // Keep a history of cursors so we can go "back"
   const [cursorHistory, setCursorHistory] = useState<string[]>([])
+
+  // Auto-open the Add Property dialog when arriving via the topbar "+ Create" menu (?create=1)
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setAddPropertyOpen(true)
+      router.replace('/properties')
+    }
+  }, [searchParams, router])
 
   // Fetch properties
   const fetchProperties = useCallback(

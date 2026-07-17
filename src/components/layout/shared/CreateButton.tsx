@@ -40,11 +40,11 @@ const CreateButton = () => {
   }
 
   const createOptions = [
-    { label: 'New Property', icon: 'ri-building-line', href: '/properties/add' },
-    { label: 'New Tenant', icon: 'ri-user-add-line', href: '/tenants/add' },
-    { label: 'New Invoice', icon: 'ri-file-add-line', href: '/billing/invoices/add' },
-    { label: 'New Expense', icon: 'ri-money-dollar-circle-line', href: '/expenses/add' },
-    { label: 'New Maintenance Request', icon: 'ri-tools-line', href: '/maintenance/requests/add' }
+    { label: 'New Property', icon: 'ri-building-line', href: '/properties?create=1' },
+    { label: 'New Tenant', icon: 'ri-user-add-line', href: '/occupants?create=1' },
+    { label: 'New Invoice', icon: 'ri-file-add-line', href: '/billing/invoices?create=1' },
+    { label: 'New Expense', icon: 'ri-money-dollar-circle-line', href: '/expenses?create=1' },
+    { label: 'New Maintenance Request', icon: 'ri-tools-line', href: '/maintenance/requests?create=1' }
   ]
 
   return (

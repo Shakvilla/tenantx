@@ -3,6 +3,9 @@
 // React Imports
 import { useEffect, useState, useMemo, useCallback } from 'react'
 
+// Next Imports
+import { useSearchParams, useRouter } from 'next/navigation'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -115,6 +118,8 @@ const statusChipColor: Record<string, 'success' | 'error' | 'warning'> = {
 }
 
 const ExpensesListTable = () => {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState<ExpenseType[]>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -129,6 +134,14 @@ const ExpensesListTable = () => {
   const [addOpen, setAddOpen] = useState(false)
   const [editExpense, setEditExpense] = useState<ExpenseType | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+
+  // Auto-open the Add Expense dialog when arriving via the topbar "+ Create" menu (?create=1)
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setAddOpen(true)
+      router.replace('/expenses')
+    }
+  }, [searchParams, router])
 
   // Delete
   const [deleteOpen, setDeleteOpen] = useState(false)
