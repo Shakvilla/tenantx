@@ -53,7 +53,10 @@ const DashboardPage = () => {
       </Grid>
 
       {/* Row 4: Occupants Table */}
-      <Grid size={{ xs: 12 }}>
+      {/* Extra bottom margin on mobile reserves room below the last widget so the
+          floating scroll-to-top button never ends up sitting on top of this card's
+          own pagination controls once the page is scrolled all the way down. */}
+      <Grid size={{ xs: 12 }} sx={{ mb: { xs: 40, md: 0 } }}>
         <TenantsTable />
       </Grid>
     </Grid>

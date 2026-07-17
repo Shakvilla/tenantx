@@ -149,13 +149,13 @@ const TenantsTable = () => {
       <CardHeader
         title='Recent Occupants'
         action={
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-wrap items-center gap-2'>
             <TextField
               size='small'
               placeholder='Search'
               value={globalFilter}
               onChange={e => setGlobalFilter(e.target.value)}
-              className='is-[200px]'
+              className='is-full sm:is-[200px]'
             />
             <Link
               href='/occupants'
@@ -167,6 +167,10 @@ const TenantsTable = () => {
             </Link>
           </div>
         }
+        sx={{
+          flexWrap: 'wrap',
+          '& .MuiCardHeader-action': { inlineSize: { xs: '100%', sm: 'auto' }, mt: { xs: 2, sm: 0 }, m: 0 }
+        }}
       />
       {loading ? (
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
