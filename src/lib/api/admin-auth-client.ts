@@ -36,7 +36,13 @@ adminClient.interceptors.request.use(config => {
 adminClient.interceptors.response.use(
   res => res,
   error => {
-    if (error.response?.status === 401) {
+    // Only /api/v1/admin/** calls (the default baseURL) represent the admin's own session.
+    // A request with a different baseURL override hitting a non-admin endpoint outside
+    // AdminJwtAuthenticationFilter's scope will always 401 for an admin token — that's a
+    // misrouted-request error, not proof the admin's session has expired.
+    const isAdminScopedRequest = (error.config?.baseURL ?? ADMIN_API_BASE) === ADMIN_API_BASE
+
+    if (error.response?.status === 401 && isAdminScopedRequest) {
       clearStoredAdminToken()
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('ADMIN_SESSION_EXPIRED'))
