@@ -157,7 +157,10 @@ const TenantsTable = () => {
               onChange={e => setGlobalFilter(e.target.value)}
               className='is-[200px]'
             />
-            <Link href='/occupants' style={{ textDecoration: 'none' }}>
+            <Link
+              href='/occupants'
+              style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 48 }}
+            >
               <Typography variant='body2' color='primary' className='cursor-pointer'>
                 View All
               </Typography>

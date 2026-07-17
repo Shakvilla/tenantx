@@ -135,7 +135,11 @@ const iconButton: Theme['components'] = {
       }),
       sizeMedium: ({ theme }) => ({
         padding: theme.spacing(2),
-        fontSize: '1.375rem'
+        fontSize: '1.375rem',
+        [theme.breakpoints.down('sm')]: {
+          minWidth: 48,
+          minHeight: 48
+        }
       }),
       sizeLarge: ({ theme }) => ({
         padding: theme.spacing(2.25),

@@ -202,11 +202,11 @@ const WalletSummaryCard = ({
             ].map((stat, i) => (
               <Grid
                 key={stat.label}
-                size={{ xs: 6 }}
+                size={{ xs: 12, sm: 6 }}
                 sx={{
                   p: 3,
                   borderLeft: { md: '1px solid' },
-                  borderTop: i >= 2 ? '1px solid' : 'none',
+                  borderTop: { xs: i >= 1 ? '1px solid' : 'none', sm: i >= 2 ? '1px solid' : 'none' },
                   borderColor: 'divider',
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -229,11 +229,11 @@ const WalletSummaryCard = ({
                   {stat.value === null ? (
                     <Skeleton variant='text' width={100} height={28} />
                   ) : (
-                    <Typography variant='subtitle1' fontWeight={700} noWrap>
+                    <Typography variant='subtitle1' fontWeight={700} sx={{ wordBreak: 'break-word' }}>
                       {stat.value}
                     </Typography>
                   )}
-                  <Typography variant='caption' color='text.disabled' noWrap>
+                  <Typography variant='caption' color='text.disabled' sx={{ wordBreak: 'break-word' }}>
                     {stat.hint}
                   </Typography>
                 </div>

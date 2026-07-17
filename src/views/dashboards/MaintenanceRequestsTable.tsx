@@ -174,7 +174,10 @@ const MaintenanceRequestsTable = () => {
       <CardHeader
         title='Maintenance Requests'
         action={
-          <Link href='/maintenance/requests' style={{ textDecoration: 'none' }}>
+          <Link
+            href='/maintenance/requests'
+            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 48 }}
+          >
             <Typography variant='body2' color='primary' className='cursor-pointer'>
               View All
             </Typography>
