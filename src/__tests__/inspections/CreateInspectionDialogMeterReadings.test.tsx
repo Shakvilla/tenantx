@@ -61,9 +61,14 @@ describe('CreateInspectionDialog — meter readings', () => {
     // Step 1 requires Inspector Name before handleNext1 will call create() and advance
     fireEvent.change(screen.getByLabelText(/inspector name/i), { target: { value: 'Kwame Mensah' } })
 
-    // Step 1 → Step 2 (Room Checklist) → Step 3 (Finalise)
+    // Step 1 → Step 2 (Room Checklist)
     fireEvent.click(screen.getByRole('button', { name: /next/i }))
     await waitFor(() => expect(inspectionsApi.create).toHaveBeenCalled())
+
+    // Rate at least one item — Complete Inspection is disabled with zero rated items
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Good' }))[0])
+
+    // Step 2 → Step 3 (Finalise)
     fireEvent.click(screen.getByRole('button', { name: /next/i }))
 
     await screen.findByText(/meter readings/i)

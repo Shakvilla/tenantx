@@ -21,12 +21,12 @@ import { getInvoiceStats, getInvoices, type InvoiceStats, type Invoice } from '@
 // Styled Component Imports
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
 
-/** Get last N months of outstanding (PENDING + OVERDUE) invoice amounts */
+/** Get last N months of outstanding (PENDING + PARTIAL + OVERDUE) invoice amounts */
 function getOutstandingMonthlyTrend(invoices: Invoice[], months = 12): number[] {
   const map: Record<string, number> = {}
 
   invoices.forEach(inv => {
-    if (inv.status !== 'PENDING' && inv.status !== 'OVERDUE') return
+    if (inv.status !== 'PENDING' && inv.status !== 'PARTIAL' && inv.status !== 'OVERDUE') return
     const d = new Date(inv.issuedDate)
 
     if (isNaN(d.getTime())) return

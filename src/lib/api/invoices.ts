@@ -35,7 +35,7 @@ export interface Invoice {
   amount: number
   balance: number
   currency: string
-  status: 'DRAFT' | 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+  status: 'DRAFT' | 'PENDING' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELLED'
   invoiceType?: string | null
   description?: string | null
   invoiceItems?: InvoiceItem[]
@@ -85,6 +85,7 @@ export interface InvoiceStats {
   total: number
   draft: number
   pending: number
+  partial: number
   paid: number
   overdue: number
   cancelled: number

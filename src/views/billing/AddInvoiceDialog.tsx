@@ -16,6 +16,7 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import FormHelperText from '@mui/material/FormHelperText'
 import Grid from '@mui/material/Grid2'
 import InputAdornment from '@mui/material/InputAdornment'
 import Divider from '@mui/material/Divider'
@@ -475,10 +476,18 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                 >
                   <MenuItem value='DRAFT'>Draft</MenuItem>
                   <MenuItem value='PENDING'>Pending</MenuItem>
-                  <MenuItem value='PAID'>Paid</MenuItem>
+                  <MenuItem value='PARTIAL' disabled={formData.status !== 'PARTIAL'}>
+                    Partial
+                  </MenuItem>
+                  <MenuItem value='PAID' disabled={formData.status !== 'PAID'}>
+                    Paid
+                  </MenuItem>
                   <MenuItem value='OVERDUE'>Overdue</MenuItem>
                   <MenuItem value='CANCELLED'>Cancelled</MenuItem>
                 </Select>
+                {formData.status !== 'PAID' && formData.status !== 'PARTIAL' && (
+                  <FormHelperText>Use &quot;Record Payment&quot; on the invoice to mark it Paid or Partial.</FormHelperText>
+                )}
               </FormControl>
             </Grid>
 

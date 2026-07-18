@@ -8,7 +8,7 @@
  * Step 3: Overall notes, tenant acknowledgement, sign-off date → submit
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 
 import Accordion from '@mui/material/Accordion'
 import AccordionDetails from '@mui/material/AccordionDetails'
@@ -245,6 +245,13 @@ export default function CreateInspectionDialog({
   const [checklist, setChecklist]           = useState<ChecklistMap>({})
   const [expandedRoom, setExpandedRoom]     = useState<InspectionRoom | false>('LIVING_ROOM')
   const [uploadingKey, setUploadingKey]     = useState<ItemKey | null>(null)
+
+  // Count of room items rated in step 2 — an inspection with zero rated items has nothing
+  // on record, so completion is blocked until at least one item is rated (see step 3 warning).
+  const ratedItemsCount = useMemo(
+    () => Object.values(checklist).filter(v => v?.condition).length,
+    [checklist]
+  )
 
   // Step 3
   const [notes, setNotes]         = useState('')
@@ -651,7 +658,7 @@ export default function CreateInspectionDialog({
                   else if (v?.condition === 'FAIR') fair++
                   else if (v?.condition === 'POOR') poor++
                 }
-                const total = good + fair + poor
+                const total = ratedItemsCount
                 return total > 0 ? (
                   <Box sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
                     <Typography variant='caption' color='text.secondary' sx={{ mb: 1, display: 'block' }}>
@@ -703,7 +710,7 @@ export default function CreateInspectionDialog({
             variant='contained'
             color='success'
             onClick={handleComplete}
-            disabled={saving}
+            disabled={saving || ratedItemsCount === 0}
             startIcon={saving ? <CircularProgress size={16} color='inherit' /> : <i className='ri-check-line' />}
           >
             {saving ? 'Saving…' : 'Complete Inspection'}

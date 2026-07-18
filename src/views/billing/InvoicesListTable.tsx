@@ -97,6 +97,7 @@ type StatusConfig = {
 
 const invoiceStatusObj: Record<string, StatusConfig> = {
   PAID:      { color: 'success',   icon: 'ri-checkbox-circle-line' },
+  PARTIAL:   { color: 'primary',   icon: 'ri-pie-chart-2-line' },
   PENDING:   { color: 'warning',   icon: 'ri-time-line' },
   OVERDUE:   { color: 'error',     icon: 'ri-error-warning-line' },
   DRAFT:     { color: 'info',      icon: 'ri-file-edit-line' },
@@ -136,6 +137,7 @@ const getAvailableStatuses = (current: string): string[] => {
     case 'DRAFT':   return ['PENDING', 'CANCELLED']
     case 'PENDING': return ['PAID', 'OVERDUE', 'CANCELLED']
     case 'OVERDUE': return ['PAID', 'CANCELLED']
+    case 'PARTIAL': return ['CANCELLED']
     default:        return []
   }
 }
@@ -440,6 +442,7 @@ const InvoicesListTable = () => {
               >
                 <MenuItem value=''>All Status</MenuItem>
                 <MenuItem value='PAID'>Paid</MenuItem>
+                <MenuItem value='PARTIAL'>Partial</MenuItem>
                 <MenuItem value='PENDING'>Pending</MenuItem>
                 <MenuItem value='OVERDUE'>Overdue</MenuItem>
                 <MenuItem value='DRAFT'>Draft</MenuItem>
