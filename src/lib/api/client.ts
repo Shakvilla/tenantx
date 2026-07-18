@@ -192,7 +192,7 @@ apiClient.interceptors.response.use(
 /**
  * Extract error message from axios error
  */
-function getErrorMessage(error: AxiosError): string {
+export function getErrorMessage(error: AxiosError): string {
   const data = error.response?.data as { error?: { message?: string }; message?: string } | undefined
 
 

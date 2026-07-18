@@ -25,7 +25,10 @@ import Box from '@mui/material/Box'
 import Snackbar from '@mui/material/Snackbar'
 
 // API
+import { isAxiosError } from 'axios'
+
 import { paymentsApi } from '@/lib/api/payments'
+import { getErrorMessage } from '@/lib/api/client'
 import type { MobileNetwork, PaymentResponse } from '@/types/payment'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -268,7 +271,7 @@ const AddPaymentDrawer = ({ open, handleClose, invoiceData, onPaymentRecorded }:
     } catch (error) {
       setSnackbar({
         open: true,
-        message: error instanceof Error ? error.message : 'Failed to process payment',
+        message: isAxiosError(error) ? getErrorMessage(error) : 'Failed to process payment',
         severity: 'error'
       })
     } finally {

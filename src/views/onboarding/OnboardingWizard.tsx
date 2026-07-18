@@ -192,9 +192,9 @@ return
                   tenantId={tenantId}
                   entityIds={entityIds}
                   onComplete={advance}
-                  onUnitCreated={(unitId, r) => {
+                  onUnitCreated={(unitId, r, unitNo) => {
                     setRent(r)
-                    advance({ unitId })
+                    advance({ unitId, unitNo })
                   }}
                   onSkip={() => advance({})}
                 />

@@ -20,7 +20,7 @@ import type { OnboardingStepProps } from '../onboardingTypes'
 
 // Extend onComplete payload with rent so later steps (agreement/invoice) can prefill.
 interface UnitStepProps extends OnboardingStepProps {
-  onUnitCreated: (unitId: string, rent: number) => void
+  onUnitCreated: (unitId: string, rent: number, unitNo: string) => void
   onSkip?: () => void
 }
 
@@ -66,7 +66,7 @@ return
 return
       }
 
-      onUnitCreated(res.data.id, rentNum)
+      onUnitCreated(res.data.id, rentNum, form.unitNo)
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e?.message ?? 'Could not create unit. Please try again.')
     } finally {

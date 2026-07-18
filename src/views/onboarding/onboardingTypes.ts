@@ -1,6 +1,7 @@
 export interface OnboardingEntityIds {
   propertyId?: string
   unitId?: string
+  unitNo?: string
   occupantId?: string
   agreementId?: string
   invoiceId?: string

@@ -13,11 +13,17 @@ import { createOccupant } from '@/lib/api/occupants'
 import type { OnboardingStepProps } from '../onboardingTypes'
 
 export default function OccupantStep({ tenantId, entityIds, onComplete, onSkip }: OnboardingStepProps) {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    moveInDate: new Date().toISOString().split('T')[0]
+  })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const valid = Boolean(form.firstName && form.lastName && form.email && form.phone)
+  const valid = Boolean(form.firstName && form.lastName && form.email && form.phone && form.moveInDate)
 
   const handleSubmit = async () => {
     setError(null)
@@ -30,7 +36,9 @@ export default function OccupantStep({ tenantId, entityIds, onComplete, onSkip }
         email: form.email,
         phone: form.phone,
         propertyId: entityIds.propertyId,
-        unitId: entityIds.unitId
+        unitId: entityIds.unitId,
+        unitNo: entityIds.unitNo,
+        moveInDate: new Date(form.moveInDate).toISOString()
       })
 
       if (!record?.id) {
@@ -90,6 +98,17 @@ return
             required
             value={form.phone}
             onChange={e => setForm({ ...form, phone: e.target.value })}
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField
+            fullWidth
+            type='date'
+            label='Move-in date'
+            required
+            slotProps={{ inputLabel: { shrink: true } }}
+            value={form.moveInDate}
+            onChange={e => setForm({ ...form, moveInDate: e.target.value })}
           />
         </Grid>
         <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
