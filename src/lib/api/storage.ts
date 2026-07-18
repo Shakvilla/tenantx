@@ -9,6 +9,39 @@ const TENANT_ID_KEY = 'tenant_id'
 const USER_ROLE_KEY = 'user_role'
 const USER_TYPE_KEY = 'user_type'
 
+/** Returns true only if the string has exactly the header.payload.signature structure of a JWT */
+function isValidJwt(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.split('.').length === 3
+}
+
+/**
+ * Reads a JWT's own `exp` claim (Unix seconds) without verifying the signature —
+ * used only to size the auth cookie's max-age so it can't outlive the token it holds.
+ * Previously the cookie was hardcoded to 24h regardless of the token's real ~15min
+ * lifetime, so a stale-but-present cookie passed middleware's presence-only check long
+ * after the token had actually expired, silently deferring the "you're logged out"
+ * moment to whenever the next API call happened to fire.
+ */
+function decodeJwtExpiry(token: string): number | null {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(base64))
+
+    return typeof payload.exp === 'number' ? payload.exp : null
+  } catch {
+    return null
+  }
+}
+
+/** Cookie max-age (seconds) that matches the token's real expiry, with a 60s floor and a 24h fallback. */
+function maxAgeForToken(token: string): number {
+  const exp = decodeJwtExpiry(token)
+
+  if (exp === null) return 86400
+
+  return Math.max(60, exp - Math.floor(Date.now() / 1000))
+}
+
 export function getStoredToken(): string | null {
   if (typeof window === 'undefined') return null
 
@@ -20,16 +53,31 @@ export function getStoredToken(): string | null {
 
   if (cookieValue) {
     const decoded = decodeURIComponent(cookieValue)
-    
+
+    if (!isValidJwt(decoded)) {
+      // Stale or corrupted cookie — wipe it so we don't keep sending garbage to the backend
+      deleteCookie(TOKEN_KEY)
+      localStorage.removeItem(TOKEN_KEY)
+      return null
+    }
+
     // Sync localStorage if it's missing or different
     if (localStorage.getItem(TOKEN_KEY) !== decoded) {
       localStorage.setItem(TOKEN_KEY, decoded)
     }
-    
+
     return decoded
   }
 
-  return localStorage.getItem(TOKEN_KEY)
+  const stored = localStorage.getItem(TOKEN_KEY)
+
+  if (!isValidJwt(stored)) {
+    // e.g. "undefined", "null", or any other non-JWT string stored by accident
+    localStorage.removeItem(TOKEN_KEY)
+    return null
+  }
+
+  return stored
 }
 
 export function getStoredRefreshToken(): string | null {
@@ -76,22 +124,37 @@ function deleteCookie(name: string): void {
 
 export function setStoredTokens(token: string, refreshToken: string): void {
   if (typeof window === 'undefined') return
+
+  if (!isValidJwt(token)) {
+    console.warn('[storage] setStoredTokens called with an invalid access token — ignoring.')
+    return
+  }
+
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
-  setCookie(TOKEN_KEY, token)
 
-  // Also refresh the tenant_id cookie if it exists to keep expiration in sync
+  const maxAge = maxAgeForToken(token)
+
+  setCookie(TOKEN_KEY, token, maxAge)
+
+  // Also refresh the tenant_id cookie if it exists, matching the token's real expiry —
+  // both cookies gate middleware auth together, so they must expire together too.
   const currentTenantId = getStoredTenantId()
 
   if (currentTenantId) {
-    setCookie(TENANT_ID_KEY, currentTenantId)
+    setCookie(TENANT_ID_KEY, currentTenantId, maxAge)
   }
 }
 
 export function setStoredTenantId(tenantId: string): void {
   if (typeof window === 'undefined') return
   localStorage.setItem(TENANT_ID_KEY, tenantId)
-  setCookie(TENANT_ID_KEY, tenantId)
+
+  // Match whatever token is currently stored so both cookies expire together —
+  // falls back to the default if no token is available yet (e.g. called before login completes).
+  const currentToken = getStoredToken()
+
+  setCookie(TENANT_ID_KEY, tenantId, currentToken ? maxAgeForToken(currentToken) : undefined)
 }
 
 export function getStoredUserRole(): string {

@@ -352,7 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ---- Logout ----
   const logout = useCallback(
-    async (_reason?: string) => {
+    async (reason?: string) => {
       await logoutUser()
       setState({
         user: null,
@@ -365,7 +365,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         needsPasswordSetup: false
       })
 
-      router.push('/login')
+      // A reason means this was an involuntary logout (session expired / invalid token) —
+      // surface it on the login page and preserve where the user was headed, so a landlord
+      // mid-form doesn't just silently vanish back to a blank login screen. A voluntary
+      // logout (UserDropdown's "Log out") passes no reason and gets the plain redirect.
+      if (reason && typeof window !== 'undefined') {
+        const currentPath = window.location.pathname + window.location.search
+        const params = new URLSearchParams({ reason })
+
+        if (currentPath && !currentPath.startsWith('/login')) {
+          params.set('redirectTo', currentPath)
+        }
+
+        router.push(`/login?${params.toString()}`)
+      } else {
+        router.push('/login')
+      }
     },
     [router]
   )

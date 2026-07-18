@@ -4,7 +4,7 @@
 import { useState } from 'react'
 
 // Next Imports
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
 import Typography from '@mui/material/Typography'
@@ -40,6 +40,19 @@ import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
 import { useAuth } from '@/contexts/AuthContext'
 
+/**
+ * Only ever follow a same-origin relative path back into the app — a `redirectTo` that
+ * isn't a real internal path (protocol-relative `//evil.com`, an absolute URL, or the
+ * login page itself) falls back to the dashboard instead of being trusted blindly.
+ */
+function sanitizeRedirect(path: string | null): string {
+  if (!path || !path.startsWith('/') || path.startsWith('//') || path.startsWith('/login')) {
+    return '/dashboard'
+  }
+
+  return path
+}
+
 const LoginV2 = ({ mode }: { mode: Mode }) => {
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
@@ -50,6 +63,11 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
   // Admin auth
   const { adminLogin } = useAdminAuth()
+
+  const searchParams = useSearchParams()
+  const sessionReason = searchParams.get('reason')
+  const [showSessionNotice, setShowSessionNotice] = useState(!!sessionReason)
+  const redirectTo = sanitizeRedirect(searchParams.get('redirectTo'))
 
   // Vars
   const darkImg = '/images/pages/auth-v2-mask-1-dark.png'
@@ -105,7 +123,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     if (result.success && !needsWorkspaceSelection) {
       // Small delay to let the state settle (auto-select case)
       setTimeout(() => {
-        router.push('/dashboard')
+        router.push(redirectTo)
       }, 100)
     }
 
@@ -119,7 +137,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     const result = await selectWorkspace(workspace)
 
     if (result.success) {
-      router.push('/dashboard')
+      router.push(redirectTo)
     } else {
       setError(result.error || 'Failed to select workspace.')
     }
@@ -155,6 +173,11 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
             <Logo />
           </Link>
           <div className='flex flex-col gap-5 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
+            {showSessionNotice && sessionReason && (
+              <Alert severity='warning' onClose={() => setShowSessionNotice(false)}>
+                {sessionReason}
+              </Alert>
+            )}
             {error && (
               <Alert severity='error' onClose={() => setError(null)}>
                 {error}
@@ -202,9 +225,13 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
             <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
             <Typography className='mbs-1'>Please sign-in to your account and start the adventure</Typography>
           </div>
-          
 
-          
+          {showSessionNotice && sessionReason && (
+            <Alert severity='warning' onClose={() => setShowSessionNotice(false)}>
+              {sessionReason}
+            </Alert>
+          )}
+
           {error && (
             <Alert severity='error' onClose={() => setError(null)}>
               {error}
