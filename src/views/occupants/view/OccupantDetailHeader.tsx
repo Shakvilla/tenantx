@@ -110,7 +110,7 @@ const OccupantDetailHeader = ({
       <ConfirmationDialog
         open={deleteDialogOpen}
         setOpen={setDeleteDialogOpen}
-        type='delete-unit'
+        type='delete-occupant'
         onConfirm={handleDelete}
       />
     </>
