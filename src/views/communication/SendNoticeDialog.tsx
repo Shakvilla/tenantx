@@ -93,6 +93,7 @@ const SendNoticeDialog = ({
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // ---- Derived lists ----
 
@@ -183,7 +184,7 @@ const SendNoticeDialog = ({
 
   const handleFieldChange = (field: keyof FormDataType, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    if (errors[field as string]) setErrors(prev => ({ ...prev, [field]: false }))
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
   }
 
   // ---- Validation ----
@@ -202,6 +203,7 @@ const SendNoticeDialog = ({
   const handleSubmit = async () => {
     if (!validateForm()) return
     setSubmitting(true)
+    setSubmitError(null)
     try {
       const selectedProperty = properties.find(p => p.id.toString() === formData.propertyId)
       const selectedUnit      = units.find(u => u.id.toString() === formData.unitId)
@@ -217,8 +219,9 @@ const SendNoticeDialog = ({
       })
       onSuccess()
       handleClose()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to send notice:', err)
+      setSubmitError(err?.response?.data?.message ?? err?.message ?? 'Failed to send notice')
     } finally {
       setSubmitting(false)
     }
@@ -227,6 +230,7 @@ const SendNoticeDialog = ({
   const handleClose = () => {
     setFormData(initialData)
     setErrors({})
+    setSubmitError(null)
     setOpen(false)
   }
 
@@ -242,6 +246,7 @@ const SendNoticeDialog = ({
       </DialogTitle>
 
       <DialogContent className='flex flex-col gap-4'>
+        {submitError && <Alert severity='error' onClose={() => setSubmitError(null)}>{submitError}</Alert>}
         <Grid container spacing={4}>
 
           {/* Subject */}

@@ -11,7 +11,7 @@ export type NoticeType =
   | 'WARNING'
   | 'GENERAL'
 
-export type NoticeStatus = 'SENT' | 'DELIVERED' | 'ACKNOWLEDGED'
+export type NoticeStatus = 'SENT' | 'PARTIAL' | 'FAILED' | 'DELIVERED' | 'ACKNOWLEDGED'
 
 export type NoticeChannel = 'SMS' | 'IN_APP' | 'WHATSAPP'
 
@@ -22,6 +22,8 @@ export interface NoticeSummary {
   title: string
   deliveryMethod: string
   status: NoticeStatus
+  /** Non-null when a requested channel could not be delivered (e.g. SMS not configured). */
+  deliveryNote: string | null
   sourceType: string | null
   issuedByName: string | null
   issuedAt: string

@@ -58,10 +58,20 @@ const TYPE_COLORS: Record<NoticeType, 'default' | 'primary' | 'warning' | 'error
   GENERAL:      'default',
 }
 
-const STATUS_COLORS: Record<NoticeStatus, 'default' | 'info' | 'success'> = {
+const STATUS_COLORS: Record<NoticeStatus, 'default' | 'info' | 'success' | 'warning' | 'error'> = {
   SENT:         'info',
+  PARTIAL:      'warning',
+  FAILED:       'error',
   DELIVERED:    'info',
   ACKNOWLEDGED: 'success',
+}
+
+const STATUS_LABELS: Record<NoticeStatus, string> = {
+  SENT:         'Sent',
+  PARTIAL:      'Partly sent',
+  FAILED:       'Not delivered',
+  DELIVERED:    'Delivered',
+  ACKNOWLEDGED: 'Acknowledged',
 }
 
 const CHANNELS: { value: NoticeChannel; label: string }[] = [
@@ -88,6 +98,7 @@ export default function NoticesTab({ occupantId }: Props) {
   const [notices, setNotices] = useState<NoticeSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm]             = useState({ ...BLANK_FORM })
@@ -134,6 +145,13 @@ export default function NoticesTab({ occupantId }: Props) {
       })
       setNotices(prev => [created, ...prev])
       setDialogOpen(false)
+      // Surface a warning when the backend reports a channel couldn't be delivered, instead of
+      // silently showing the notice as "Sent".
+      if (created.deliveryNote || created.status === 'FAILED' || created.status === 'PARTIAL') {
+        setWarning(created.deliveryNote ?? 'This notice could not be delivered on some channels.')
+      } else {
+        setWarning(null)
+      }
     } catch (err: any) {
       setSaveError(err?.response?.data?.message ?? err?.message ?? 'Failed to issue notice')
     } finally {
@@ -161,6 +179,7 @@ export default function NoticesTab({ occupantId }: Props) {
         />
         <CardContent>
           {error && <Alert severity='error' sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
+          {warning && <Alert severity='warning' sx={{ mb: 3 }} onClose={() => setWarning(null)}>{warning}</Alert>}
 
           {notices.length === 0 ? (
             <Box className='flex flex-col items-center justify-center gap-3 py-12' sx={{ color: 'text.disabled' }}>
@@ -197,9 +216,14 @@ export default function NoticesTab({ occupantId }: Props) {
                         {n.issuedByName ? ` · by ${n.issuedByName}` : ''}
                         {n.sourceType && n.sourceType !== 'MANUAL' ? ` · auto (${n.sourceType.toLowerCase()})` : ''}
                       </Typography>
+                      {n.deliveryNote && (
+                        <Typography variant='caption' color='warning.main' className='flex items-center gap-1'>
+                          <i className='ri-error-warning-line' />{n.deliveryNote}
+                        </Typography>
+                      )}
                     </Box>
                     <Box className='flex flex-col items-end gap-1'>
-                      <Chip label={n.status === 'ACKNOWLEDGED' ? 'Acknowledged' : n.status === 'DELIVERED' ? 'Delivered' : 'Sent'}
+                      <Chip label={STATUS_LABELS[n.status] ?? 'Sent'}
                         size='small' variant='tonal' color={STATUS_COLORS[n.status] ?? 'default'} />
                       {n.acknowledgedAt && (
                         <Typography variant='caption' color='text.secondary'>{fmtDate(n.acknowledgedAt)}</Typography>
