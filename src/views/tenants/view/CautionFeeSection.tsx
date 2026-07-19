@@ -197,7 +197,7 @@ const CautionFeeSection = ({ occupantId, unitId, propertyId }: Props) => {
   // ---- forfeit ----
 
   const handleForfeit = async (id: string) => {
-    if (!confirm('Forfeit this caution fee? The tenant will not receive a refund.')) return
+    if (!confirm('Forfeit this caution fee? You keep the full deposit, the tenant receives no refund, and this cannot be undone.')) return
     setForfeitLoading(id)
     try {
       const updated = await cautionFeesApi.forfeit(id)
