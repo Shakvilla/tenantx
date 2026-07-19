@@ -388,7 +388,7 @@ const ExpensesListTable = () => {
       {/* Stats Card */}
       <ExpenseStatsCard
         totalExpenses={stats?.totalAmount ?? 0}
-        upcomingExpenses={0}
+        averageExpense={stats && stats.total > 0 ? stats.totalAmount / stats.total : 0}
         unfulfilledExpenses={stats?.unpaidAmount ?? 0}
         paidExpenses={stats?.paidAmount ?? 0}
       />

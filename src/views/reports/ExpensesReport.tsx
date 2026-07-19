@@ -18,10 +18,13 @@ import ExportButtons from '@/components/reports/ExportButtons'
 import { LineChart, BarChart, DonutChart } from '@/components/reports/ReportCharts'
 
 // API Imports
-import { getExpenseStats, getExpenses, type ExpenseStats, type Expense } from '@/lib/api/expenses'
+import { getExpenses, getExpenseConfigs, type Expense, type ExpenseConfig } from '@/lib/api/expenses'
 
 // Type Imports
 import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
+
+// Util Imports
+import { toApiDateParams } from '@/utils/reports/dateUtils'
 
 type Props = {
   dateRange: DateRange
@@ -55,64 +58,67 @@ function groupByMonth<T>(
 const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const [stats, setStats] = useState<ExpenseStats | null>(null)
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [configs, setConfigs] = useState<ExpenseConfig[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([getExpenseStats(), getExpenses()])
-      .then(([s, exp]) => {
-        setStats(s)
+    const { startDate, endDate } = toApiDateParams(dateRange, 'date')
+
+    // Both the summary tiles and the charts are derived from the same date-filtered
+    // expense list, so they stay consistent when the range changes (the /stats endpoint
+    // is all-time only, which previously made the tiles ignore the filter).
+    Promise.all([getExpenses({ startDate, endDate }), getExpenseConfigs(false)])
+      .then(([exp, cfg]) => {
         setExpenses(exp)
+        setConfigs(cfg)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
-
-  // Filter by dateRange
-  const filteredExpenses = useMemo(() => {
-    return expenses.filter(exp => {
-      if (!exp.date) return false
-      const d = new Date(exp.date)
-
-      if (isNaN(d.getTime())) return false
-      if (dateRange.startDate && d < dateRange.startDate) return false
-      if (dateRange.endDate && d > dateRange.endDate) return false
-
-      return true
-    })
-  }, [expenses, dateRange])
+  }, [dateRange])
 
   // Expense trend: amount per month
   const trends = useMemo(
-    () => groupByMonth(filteredExpenses, exp => exp.date, exp => exp.amount),
-    [filteredExpenses]
+    () => groupByMonth(expenses, exp => exp.date, exp => exp.amount),
+    [expenses]
   )
 
   // Monthly comparison bar chart (same data as trends — bar view)
   const monthlyComparison = trends
 
-  // By category: group by expense item name
+  // By category: group by the expense item's configured category (Administrative /
+  // Occupancy / Maintenance / Utilities / Other), not the item name.
   const byCategory = useMemo(() => {
+    const categoryByConfigId: Record<string, string> = {}
+    configs.forEach(c => { if (c.category) categoryByConfigId[c.id] = c.category })
+
     const map: Record<string, number> = {}
 
-    filteredExpenses.forEach(exp => {
-      const name = exp.item || 'Other'
+    expenses.forEach(exp => {
+      const category = (exp.expenseConfigId && categoryByConfigId[exp.expenseConfigId]) || 'Other'
+      const label = category.charAt(0) + category.slice(1).toLowerCase()
 
-      map[name] = (map[name] || 0) + exp.amount
+      map[label] = (map[label] || 0) + exp.amount
     })
 
     return Object.entries(map)
       .map(([label, value]) => ({ label, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 6)
-  }, [filteredExpenses])
+  }, [expenses, configs])
 
-  const totalExpenses = stats?.totalAmount ?? 0
-  const paidExpenses = stats?.paidAmount ?? 0
-  const unpaidExpenses = stats?.unpaidAmount ?? 0
-  const averageExpense = stats && stats.total > 0 ? Math.round(totalExpenses / stats.total) : 0
+  // Summary tiles are computed from the same date-filtered list as the charts.
+  const totalExpenses = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses])
+  const paidExpenses = useMemo(
+    () => expenses.filter(e => e.status === 'PAID').reduce((s, e) => s + e.amount, 0),
+    [expenses]
+  )
+  const unpaidExpenses = useMemo(
+    () => expenses.filter(e => e.status === 'UNPAID').reduce((s, e) => s + e.amount, 0),
+    [expenses]
+  )
+  const averageExpense = expenses.length > 0 ? Math.round(totalExpenses / expenses.length) : 0
 
   const summaries: ReportSummary[] = [
     {

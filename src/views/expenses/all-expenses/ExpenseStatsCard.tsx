@@ -24,14 +24,14 @@ type DataType = {
 
 type Props = {
   totalExpenses: number
-  upcomingExpenses: number
+  averageExpense: number
   unfulfilledExpenses: number
   paidExpenses: number
 }
 
 const ExpenseStatsCard = ({
   totalExpenses = 0,
-  upcomingExpenses = 0,
+  averageExpense = 0,
   unfulfilledExpenses = 0,
   paidExpenses = 0
 }: Props) => {
@@ -49,10 +49,10 @@ const ExpenseStatsCard = ({
       iconColor: 'primary'
     },
     {
-      title: 'Upcoming Expenses',
-      value: `₵${upcomingExpenses.toFixed(2)}`,
-      icon: 'ri-calendar-event-line',
-      desc: 'Future expenses',
+      title: 'Avg per Expense',
+      value: `₵${averageExpense.toFixed(2)}`,
+      icon: 'ri-bar-chart-line',
+      desc: 'Average expense value',
       iconColor: 'info'
     },
     {
