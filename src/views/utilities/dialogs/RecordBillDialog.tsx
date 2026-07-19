@@ -67,7 +67,7 @@ export default function RecordBillDialog({ open, meter, onClose, onCreated }: Pr
   const [notes,           setNotes]           = useState('')
   const [saving,          setSaving]          = useState(false)
   const [saveErr,         setSaveErr]         = useState<string | null>(null)
-  const [errors,          setErrors]          = useState<{ amount?: boolean; splits?: boolean }>({})
+  const [errors,          setErrors]          = useState<{ amount?: boolean; splits?: boolean; reading?: boolean }>({})
 
   // Initialise manual splits when meter units or split method changes
   useEffect(() => {
@@ -107,10 +107,12 @@ export default function RecordBillDialog({ open, meter, onClose, onCreated }: Pr
 
   async function handleSave() {
     const amtNum = parseFloat(amount)
-    const errs: { amount?: boolean; splits?: boolean } = {}
+    const errs: { amount?: boolean; splits?: boolean; reading?: boolean } = {}
     if (!amount || isNaN(amtNum) || amtNum <= 0) errs.amount = true
+    // Reject a current reading below the previous one (matches the backend guard).
+    if (prevReading && currReading && parseFloat(currReading) < parseFloat(prevReading)) errs.reading = true
     if (splitMethod === 'MANUAL' && !validateManualSplits()) errs.splits = true
-    if (errs.amount || errs.splits) { setErrors(errs); return }
+    if (errs.amount || errs.splits || errs.reading) { setErrors(errs); return }
 
     setSaving(true)
     setSaveErr(null)
@@ -194,7 +196,9 @@ export default function RecordBillDialog({ open, meter, onClose, onCreated }: Pr
                   size='small' fullWidth type='number' label='Current Reading'
                   placeholder='e.g. 1540'
                   value={currReading}
-                  onChange={e => setCurrReading(e.target.value)}
+                  onChange={e => { setCurrReading(e.target.value); setErrors(prev => ({ ...prev, reading: false })) }}
+                  error={errors.reading}
+                  helperText={errors.reading ? 'Current reading cannot be less than the previous reading' : ''}
                   slotProps={{ input: { endAdornment: <InputAdornment position='end'>units</InputAdornment> } }}
                 />
               </Grid>
