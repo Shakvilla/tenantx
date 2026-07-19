@@ -85,6 +85,10 @@ export default function ViolationsTab({ occupantId }: Props) {
   const [notesFor, setNotesFor] = useState<{ id: string; action: 'resolve' | 'escalate' } | null>(null)
   const [notes, setNotes]       = useState('')
 
+  // delete confirm (OPEN violations only)
+  const [deleteFor, setDeleteFor] = useState<string | null>(null)
+  const [deleting, setDeleting]   = useState(false)
+
   useEffect(() => { load() }, [occupantId]) // eslint-disable-line
 
   function load() {
@@ -142,6 +146,21 @@ export default function ViolationsTab({ occupantId }: Props) {
     setNotesFor(null); setNotes('')
   }
 
+  async function handleDelete() {
+    if (!deleteFor) return
+    setDeleting(true)
+    setError(null)
+    try {
+      await violationsApi.delete(deleteFor)
+      setViolations(prev => prev.filter(v => v.id !== deleteFor))
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to delete violation')
+    } finally {
+      setDeleting(false)
+      setDeleteFor(null)
+    }
+  }
+
   if (loading) return (
     <Box className='flex justify-center items-center' sx={{ minHeight: 200 }}>
       <CircularProgress />
@@ -190,15 +209,26 @@ export default function ViolationsTab({ occupantId }: Props) {
                           {v.fineAmount != null ? ` · Fine GHS ${v.fineAmount} (${v.fineStatus})` : ''}
                         </Typography>
                       </Box>
+                      {/* Delete is only allowed while still Open (backend rejects it otherwise) */}
+                      {v.status === 'OPEN' && (
+                        <IconButton size='small' color='error' disabled={busy}
+                          onClick={() => setDeleteFor(v.id)} title='Delete violation'>
+                          <i className='ri-delete-bin-line text-base' />
+                        </IconButton>
+                      )}
                     </Box>
 
                     {!terminal && (
                       <Box className='flex items-center gap-2 flex-wrap mbs-3'>
-                        <Button size='small' variant='outlined' color='warning' disabled={busy}
-                          onClick={() => run(v.id, () => violationsApi.warn(v.id))}
-                          startIcon={busy ? <CircularProgress size={14} color='inherit' /> : <i className='ri-alarm-warning-line' />}>
-                          Warn
-                        </Button>
+                        {/* A warning is the first escalation step — only offered on an Open violation
+                            (re-warning previously spammed the occupant a duplicate notice). */}
+                        {v.status === 'OPEN' && (
+                          <Button size='small' variant='outlined' color='warning' disabled={busy}
+                            onClick={() => run(v.id, () => violationsApi.warn(v.id))}
+                            startIcon={busy ? <CircularProgress size={14} color='inherit' /> : <i className='ri-alarm-warning-line' />}>
+                            Warn
+                          </Button>
+                        )}
                         <Button size='small' variant='outlined' disabled={busy}
                           onClick={() => { setFineFor(v.id); setFineAmount('') }}
                           startIcon={<i className='ri-money-dollar-circle-line' />}>
@@ -301,6 +331,24 @@ export default function ViolationsTab({ occupantId }: Props) {
           <Button variant='outlined' color='secondary' onClick={() => setNotesFor(null)}>Cancel</Button>
           <Button variant='contained' color={notesFor?.action === 'escalate' ? 'error' : 'success'} onClick={submitNotes}>
             {notesFor?.action === 'escalate' ? 'Escalate' : 'Resolve'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Delete Violation Confirm ────────────────────────────────────── */}
+      <Dialog open={!!deleteFor} onClose={() => !deleting && setDeleteFor(null)} maxWidth='xs' fullWidth>
+        <DialogTitle className='flex items-center gap-2'>
+          <i className='ri-error-warning-line' style={{ color: 'var(--mui-palette-error-main)' }} />
+          Delete Violation
+        </DialogTitle>
+        <DialogContent>
+          <Typography>Delete this violation? This permanently removes the record and cannot be undone.</Typography>
+        </DialogContent>
+        <DialogActions className='gap-2 pbs-4'>
+          <Button variant='outlined' color='secondary' onClick={() => setDeleteFor(null)} disabled={deleting}>Cancel</Button>
+          <Button variant='contained' color='error' onClick={handleDelete} disabled={deleting}
+            startIcon={deleting ? <CircularProgress size={16} color='inherit' /> : <i className='ri-delete-bin-line' />}>
+            {deleting ? 'Deleting…' : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>
