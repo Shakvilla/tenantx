@@ -30,6 +30,10 @@ type Props = {
   open: boolean
   handleClose: () => void
   agreement: Agreement | null
+  /** Agreement number this one was renewed FROM (its predecessor), resolved by the parent. */
+  renewedFromNumber?: string | null
+  /** Agreement number this one was renewed TO (its successor), resolved by the parent. */
+  renewedToNumber?: string | null
 }
 
 const formatDate = (dateString?: string | null): string => {
@@ -68,7 +72,7 @@ const freqLabels: Record<string, string> = {
 
 const yesNo = (v: boolean | null | undefined): string => (v ? 'Yes' : 'No')
 
-const ViewAgreementDialog = ({ open, handleClose, agreement }: Props) => {
+const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber }: Props) => {
   if (!agreement) return null
 
   // ---- Stamp Duty calculation (frontend-only) ----
@@ -388,6 +392,43 @@ const ViewAgreementDialog = ({ open, handleClose, agreement }: Props) => {
                         </Grid>
                       )}
                     </Grid>
+                  </Grid>
+                </>
+              )}
+
+              {/* Renewal lineage */}
+              {(renewedFromNumber || renewedToNumber || agreement.renewalDecision) && (
+                <>
+                  <Grid size={{ xs: 12 }}><Divider /></Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant='h6' className='mb-4'>Renewal</Typography>
+                    <div className='flex flex-col gap-2'>
+                      {renewedFromNumber && (
+                        <Typography variant='body2'>
+                          <span className='text-textSecondary'>Renewed from: </span>
+                          <span className='font-medium'>{renewedFromNumber}</span>
+                        </Typography>
+                      )}
+                      {renewedToNumber && (
+                        <Typography variant='body2'>
+                          <span className='text-textSecondary'>Renewed to: </span>
+                          <span className='font-medium'>{renewedToNumber}</span>
+                        </Typography>
+                      )}
+                      {agreement.renewalDecision && (
+                        <Typography variant='body2'>
+                          <span className='text-textSecondary'>Decision: </span>
+                          <span className='font-medium'>{agreement.renewalDecision}</span>
+                          {agreement.renewalDecidedAt ? ` on ${formatDate(agreement.renewalDecidedAt)}` : ''}
+                        </Typography>
+                      )}
+                      {agreement.renewalNotes && (
+                        <Typography variant='body2'>
+                          <span className='text-textSecondary'>Notes: </span>
+                          {agreement.renewalNotes}
+                        </Typography>
+                      )}
+                    </div>
                   </Grid>
                 </>
               )}

@@ -126,10 +126,11 @@ const AgreementsListTable = () => {
   const [statusUpdating, setStatusUpdating] = useState(false)
 
   // ── Renewal workflow (gap #5) ──────────────────────────────────────────────
-  const [renewFor, setRenewFor]         = useState<Agreement | null>(null)
-  const [renewEndDate, setRenewEndDate] = useState('')
-  const [renewRent, setRenewRent]       = useState('')
-  const [renewNotes, setRenewNotes]     = useState('')
+  const [renewFor, setRenewFor]           = useState<Agreement | null>(null)
+  const [renewStartDate, setRenewStartDate] = useState('')
+  const [renewEndDate, setRenewEndDate]   = useState('')
+  const [renewRent, setRenewRent]         = useState('')
+  const [renewNotes, setRenewNotes]       = useState('')
   const [terminateFor, setTerminateFor] = useState<Agreement | null>(null)
   const [terminateNotes, setTerminateNotes] = useState('')
   const [decisionBusy, setDecisionBusy]     = useState(false)
@@ -179,6 +180,7 @@ const AgreementsListTable = () => {
     setDecisionError(null)
     try {
       const successor = await renewAgreement(renewFor.id, {
+        startDate: renewStartDate || undefined,
         endDate: renewEndDate,
         rent: renewRent ? Number(renewRent) : undefined,
         notes: renewNotes || undefined
@@ -189,7 +191,7 @@ const AgreementsListTable = () => {
         ...prev.map(a => (a.id === renewFor.id ? { ...a, renewalDecision: 'RENEWED' as const } : a))
       ])
       setRenewFor(null)
-      setRenewEndDate(''); setRenewRent(''); setRenewNotes('')
+      setRenewStartDate(''); setRenewEndDate(''); setRenewRent(''); setRenewNotes('')
     } catch (err: any) {
       setDecisionError(err?.response?.data?.message ?? err?.message ?? 'Failed to renew agreement')
     } finally {
@@ -336,7 +338,9 @@ const AgreementsListTable = () => {
         header: 'AMOUNT',
         cell: ({ row }) => (
           <Typography color='text.primary' className='font-medium'>
-            {formatCurrency(row.original.totalAmount ?? undefined)}
+            {row.original.totalAmount != null || row.original.rent != null
+              ? formatCurrency(row.original.totalAmount ?? row.original.rent ?? undefined)
+              : '—'}
           </Typography>
         )
       }),
@@ -380,6 +384,7 @@ const AgreementsListTable = () => {
                     menuItemProps: {
                       onClick: () => {
                         setRenewFor(row.original)
+                        setRenewStartDate('')
                         setRenewEndDate('')
                         setRenewRent('')
                         setRenewNotes('')
@@ -629,6 +634,16 @@ const AgreementsListTable = () => {
         open={viewAgreement !== null}
         handleClose={() => setViewAgreement(null)}
         agreement={viewAgreement}
+        renewedFromNumber={
+          viewAgreement?.previousAgreementId
+            ? (data.find(a => a.id === viewAgreement.previousAgreementId)?.agreementNumber ?? null)
+            : null
+        }
+        renewedToNumber={
+          viewAgreement
+            ? (data.find(a => a.previousAgreementId === viewAgreement.id)?.agreementNumber ?? null)
+            : null
+        }
       />
 
       {/* Status Update Dialog */}
@@ -691,9 +706,16 @@ const AgreementsListTable = () => {
             {decisionError && <Alert severity='error' onClose={() => setDecisionError(null)}>{decisionError}</Alert>}
             <Typography variant='body2' color='text.secondary'>
               Creates a new agreement for {renewFor?.occupantName ?? 'this occupant'} linked to{' '}
-              {renewFor?.agreementNumber}. It starts the day after the current one ends unless you set
-              a start date later.
+              {renewFor?.agreementNumber}. Leave the start date blank to begin the day after the
+              current agreement ends.
             </Typography>
+            <TextField
+              size='small' fullWidth type='date' label='New Start Date (optional)'
+              InputLabelProps={{ shrink: true }}
+              helperText='Leave blank to start the day after the current agreement ends'
+              value={renewStartDate}
+              onChange={e => setRenewStartDate(e.target.value)}
+            />
             <TextField
               size='small' fullWidth required type='date' label='New End Date'
               InputLabelProps={{ shrink: true }}
