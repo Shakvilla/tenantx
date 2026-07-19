@@ -144,8 +144,9 @@ const ReportsPage = () => {
               </TabPanel>
 
               <TabPanel value='cashflow' className='p-0 mts-6'>
-                {/* CashFlowReport gates itself internally — no outer FeatureGate needed */}
-                <CashFlowReport />
+                <FeatureGate feature='ADVANCED_REPORTS'>
+                  <CashFlowReport />
+                </FeatureGate>
               </TabPanel>
 
               <TabPanel value='pnl' className='p-0 mts-6'>
