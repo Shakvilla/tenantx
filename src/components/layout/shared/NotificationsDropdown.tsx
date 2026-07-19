@@ -195,6 +195,7 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
   const [notificationsState, setNotificationsState] = useState<UINotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
 
   // Router (for click-to-navigate to a notification's source record)
   const router = useRouter()
@@ -213,10 +214,12 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true)
+      setError(false)
       const page = await getInAppNotifications({ size: 10 })
       setNotificationsState(page.content.map(mapInAppToUI))
     } catch {
-      // silently fail — badge will still show cached count
+      // Surface the failure instead of showing a silent empty state (which reads as "no notifications").
+      setError(true)
     } finally {
       setLoading(false)
     }
@@ -399,6 +402,19 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
                           </Box>
                         </div>
                       ))
+                    ) : error ? (
+                      <Box sx={{ textAlign: 'center', py: 6 }}>
+                        <i
+                          className='ri-error-warning-line'
+                          style={{ fontSize: '2.5rem', color: 'var(--mui-palette-error-main)' }}
+                        />
+                        <Typography color='text.secondary' variant='body2' sx={{ mt: 1 }}>
+                          Couldn&apos;t load notifications
+                        </Typography>
+                        <Button size='small' variant='text' sx={{ mt: 1 }} onClick={() => fetchNotifications()}>
+                          Retry
+                        </Button>
+                      </Box>
                     ) : notificationsState.length === 0 ? (
                       <Box sx={{ textAlign: 'center', py: 6 }}>
                         <i

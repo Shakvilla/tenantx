@@ -125,14 +125,13 @@ export default function NotificationCenterView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // ── Delivery log state (tab 2) ────────────────────────────────────────────
-  const [dlPage, setDlPage]       = useState(0)
-  const [dlRPP, setDlRPP]         = useState(20)
-  const [dlData, setDlData]       = useState<{ data: Notification[]; meta: { pagination: { hasNext: boolean } } } | null>(null)
+  // ── Delivery log state (tab 2) — cursor-based (the /notifications endpoint is forward-cursor only) ──
+  const DL_SIZE = 20
+  const [dlItems, setDlItems]     = useState<Notification[]>([])
+  const [dlHasNext, setDlHasNext] = useState(false)
+  const [dlCursor, setDlCursor]   = useState<string | null>(null)
   const [dlLoading, setDlLoading] = useState(false)
   const [dlError, setDlError]     = useState<string | null>(null)
-  const [dlCursor, setDlCursor]   = useState<string | undefined>(undefined)
-  const [dlTypeFilter, setDlTypeFilter] = useState<string>('EMAIL,SMS')
 
   // ── Reminder log state (tab 3) ────────────────────────────────────────────
   const [rlPage, setRlPage]       = useState(0)
@@ -150,22 +149,21 @@ export default function NotificationCenterView() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Single combined stream (omit `type` → all outbox rows: EMAIL/SMS/WhatsApp), forward-cursor.
+  // cursor undefined → first page (replace); cursor set → append the next page ("Load more").
   const loadDeliveryLog = useCallback((cursor?: string) => {
     setDlLoading(true)
     setDlError(null)
-    // Fetch EMAIL + SMS separately and merge
-    Promise.all([
-      getNotifications({ type: 'EMAIL', cursor, size: dlRPP }),
-      getNotifications({ type: 'SMS',   cursor, size: dlRPP }),
-    ])
-      .then(([emails, sms]) => {
-        const merged = [...(emails.data ?? []), ...(sms.data ?? [])]
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-        setDlData({ data: merged, meta: emails.meta })
+    getNotifications({ cursor, size: DL_SIZE })
+      .then(res => {
+        const rows = res.data ?? []
+        setDlItems(prev => (cursor ? [...prev, ...rows] : rows))
+        setDlHasNext(res.meta?.pagination?.hasNext ?? false)
+        setDlCursor(res.meta?.pagination?.cursor ?? null)
       })
       .catch(() => setDlError('Failed to load delivery log.'))
       .finally(() => setDlLoading(false))
-  }, [dlRPP])
+  }, [])
 
   const loadReminderLog = useCallback((pg: number, rpp: number) => {
     setRlLoading(true)
@@ -264,52 +262,61 @@ export default function NotificationCenterView() {
       {tab === 2 && (
         <Card variant='outlined' sx={{ borderTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
           {dlError && <Alert severity='error' sx={{ m: 2 }}>{dlError}</Alert>}
-          {dlLoading ? (
+          {dlLoading && dlItems.length === 0 ? (
             Array.from({ length: 5 }).map((_, i) => (
               <Box key={i} sx={{ px: 3, py: 2 }}>
                 <Skeleton variant='text' width='40%' />
                 <Skeleton variant='text' width='70%' />
               </Box>
             ))
-          ) : !dlData?.data?.length ? (
+          ) : !dlItems.length ? (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <i className='ri-mail-line' style={{ fontSize: '3rem', color: 'var(--mui-palette-text-disabled)' }} />
               <Typography color='text.secondary' sx={{ mt: 1 }}>No email or SMS notifications sent yet</Typography>
             </Box>
           ) : (
-            <Box component='table' sx={{ width: '100%', borderCollapse: 'collapse' }}>
-              <Box component='thead'>
-                <Box component='tr' sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
-                  {['Type', 'Recipient', 'Subject', 'Status', 'Sent'].map(h => (
-                    <Box component='th' key={h} sx={{ px: 2, py: 1.5, textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</Box>
+            <>
+              <Box component='table' sx={{ width: '100%', borderCollapse: 'collapse' }}>
+                <Box component='thead'>
+                  <Box component='tr' sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'action.hover' }}>
+                    {['Type', 'Recipient', 'Subject', 'Status', 'Sent'].map(h => (
+                      <Box component='th' key={h} sx={{ px: 2, py: 1.5, textAlign: 'left', fontSize: 11, fontWeight: 600, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</Box>
+                    ))}
+                  </Box>
+                </Box>
+                <Box component='tbody'>
+                  {dlItems.map((n, idx) => (
+                    <Box component='tr' key={n.id} sx={{ borderBottom: idx < dlItems.length - 1 ? '1px solid' : 'none', borderColor: 'divider', '&:hover': { bgcolor: 'action.hover' } }}>
+                      <Box component='td' sx={{ px: 2, py: 1.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <i className={typeIcon(n.type)} style={{ fontSize: '1rem', opacity: 0.7 }} />
+                          <Typography variant='caption' fontWeight={600}>{n.type}</Typography>
+                        </Box>
+                      </Box>
+                      <Box component='td' sx={{ px: 2, py: 1.5 }}>
+                        <Typography variant='caption' sx={{ fontFamily: 'monospace' }}>{n.recipientAddress}</Typography>
+                      </Box>
+                      <Box component='td' sx={{ px: 2, py: 1.5 }}>
+                        <Typography variant='caption' color='text.secondary'>{n.subject ?? '—'}</Typography>
+                      </Box>
+                      <Box component='td' sx={{ px: 2, py: 1.5 }}>
+                        <Chip label={n.status} size='small' color={statusColor(n.status)} variant='tonal' />
+                      </Box>
+                      <Box component='td' sx={{ px: 2, py: 1.5 }}>
+                        <Typography variant='caption' color='text.disabled'>{relativeTime(n.createdAt)}</Typography>
+                      </Box>
+                    </Box>
                   ))}
                 </Box>
               </Box>
-              <Box component='tbody'>
-                {dlData.data.map((n, idx) => (
-                  <Box component='tr' key={n.id} sx={{ borderBottom: idx < (dlData.data?.length ?? 0) - 1 ? '1px solid' : 'none', borderColor: 'divider', '&:hover': { bgcolor: 'action.hover' } }}>
-                    <Box component='td' sx={{ px: 2, py: 1.5 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <i className={typeIcon(n.type)} style={{ fontSize: '1rem', opacity: 0.7 }} />
-                        <Typography variant='caption' fontWeight={600}>{n.type}</Typography>
-                      </Box>
-                    </Box>
-                    <Box component='td' sx={{ px: 2, py: 1.5 }}>
-                      <Typography variant='caption' sx={{ fontFamily: 'monospace' }}>{n.recipientAddress}</Typography>
-                    </Box>
-                    <Box component='td' sx={{ px: 2, py: 1.5 }}>
-                      <Typography variant='caption' color='text.secondary'>{n.subject ?? '—'}</Typography>
-                    </Box>
-                    <Box component='td' sx={{ px: 2, py: 1.5 }}>
-                      <Chip label={n.status} size='small' color={statusColor(n.status)} variant='tonal' />
-                    </Box>
-                    <Box component='td' sx={{ px: 2, py: 1.5 }}>
-                      <Typography variant='caption' color='text.disabled'>{relativeTime(n.createdAt)}</Typography>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            </Box>
+              {dlHasNext && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <Button variant='outlined' size='small' disabled={dlLoading} onClick={() => loadDeliveryLog(dlCursor ?? undefined)}>
+                    {dlLoading ? 'Loading…' : 'Load more'}
+                  </Button>
+                </Box>
+              )}
+            </>
           )}
         </Card>
       )}

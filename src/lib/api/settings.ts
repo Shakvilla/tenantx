@@ -52,7 +52,10 @@ export const paymentSettingsApi = {
 
 // ---- Notification (Email Templates + Email Preferences only) ---------------
 
-export type LandlordNotificationSettings = Pick<NotificationSettings, 'emailTemplates' | 'emailPreferences'>
+export type LandlordNotificationSettings = Pick<NotificationSettings, 'emailTemplates' | 'emailPreferences'> & {
+  /** Master toggle for in-app (bell) notifications. Defaults to true when unset. */
+  inAppEnabled?: boolean
+}
 
 export const notificationSettingsApi = {
   get:    ()                                            => getSettings<LandlordNotificationSettings>('notification'),
