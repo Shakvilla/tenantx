@@ -4,6 +4,9 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
 import type { ReactNode } from 'react'
 
+// Next Imports
+import { useRouter } from 'next/navigation'
+
 // MUI Imports
 import IconButton from '@mui/material/IconButton'
 import Badge from '@mui/material/Badge'
@@ -48,8 +51,32 @@ import {
   getInAppUnreadCount,
   markInAppNotificationRead,
   markAllInAppNotificationsRead,
+  deleteInAppNotification,
   type InAppNotification
 } from '@/lib/api/notifications'
+
+// Maps a notification's entityType/entityId to the in-app route for its source record.
+// Only INVOICE and OCCUPANT have detail pages; everything else lands on the relevant list.
+function entityRoute(entityType: string | null, entityId: string | null): string | null {
+  switch (entityType) {
+    case 'INVOICE':
+      return entityId ? `/billing/invoices/${entityId}` : '/billing/invoices'
+    case 'PAYMENT':
+      return '/billing/payments'
+    case 'AGREEMENT':
+      return '/agreement'
+    case 'RENT_REVIEW':
+      return '/rent-reviews'
+    case 'MAINTENANCE_REQUEST':
+      return '/maintenance/requests'
+    case 'OCCUPANT':
+      return entityId ? `/occupants/${entityId}` : '/occupants'
+    case 'INSPECTION':
+      return '/inspections'
+    default:
+      return null
+  }
+}
 
 export type NotificationsType = {
   title: string
@@ -109,15 +136,19 @@ function mapEntityToAvatar(entityType: string | null): Pick<NotificationsType, '
   }
 }
 
-function mapInAppToUI(n: InAppNotification): NotificationsType & { id: string } {
+type UINotification = NotificationsType & { id: string; entityType: string | null; entityId: string | null }
+
+function mapInAppToUI(n: InAppNotification): UINotification {
   return {
     id: n.id,
     title: n.title,
     subtitle: n.body ?? '',
     time: relativeTime(n.createdAt),
     read: n.read,
+    entityType: n.entityType,
+    entityId: n.entityId,
     ...mapEntityToAvatar(n.entityType)
-  } as NotificationsType & { id: string }
+  } as UINotification
 }
 
 // ── Scroll Wrapper ────────────────────────────────────────────────────────────
@@ -161,9 +192,12 @@ const getAvatar = (
 const NotificationsDropdown = ({ notifications: _propNotifications }: { notifications?: NotificationsType[] }) => {
   // States
   const [open, setOpen] = useState(false)
-  const [notificationsState, setNotificationsState] = useState<(NotificationsType & { id: string })[]>([])
+  const [notificationsState, setNotificationsState] = useState<UINotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // Router (for click-to-navigate to a notification's source record)
+  const router = useRouter()
 
   // Refs
   const anchorRef = useRef<HTMLButtonElement>(null)
@@ -221,33 +255,41 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
     if (!open) fetchNotifications()
   }
 
-  // Mark individual notification as read via API
+  // Clicking a notification: mark it read (if unread) and navigate to its source record.
   const handleReadNotification = async (id: string, index: number) => {
     const notification = notificationsState[index]
-    if (notification.read) return
-    try {
-      await markInAppNotificationRead(id)
-      setNotificationsState(prev => {
-        const next = [...prev]
-        next[index] = { ...next[index], read: true }
-        return next
-      })
-      setUnreadCount(prev => Math.max(0, prev - 1))
-    } catch {
-      // ignore
+    if (!notification.read) {
+      try {
+        await markInAppNotificationRead(id)
+        setNotificationsState(prev => {
+          const next = [...prev]
+          next[index] = { ...next[index], read: true }
+          return next
+        })
+        setUnreadCount(prev => Math.max(0, prev - 1))
+      } catch {
+        // ignore — still attempt to navigate below
+      }
+    }
+    const route = entityRoute(notification.entityType, notification.entityId)
+    if (route) {
+      setOpen(false)
+      router.push(route)
     }
   }
 
-  // Remove notification from local state (no API delete endpoint)
-  const handleRemoveNotification = (index: number) => {
-    setNotificationsState(prev => {
-      const next = [...prev]
-      const removed = next.splice(index, 1)
-      if (!removed[0].read) {
-        setUnreadCount(c => Math.max(0, c - 1))
-      }
-      return next
-    })
+  // Permanently dismiss a notification via the API (was previously a local-only splice that
+  // reverted on reload). Optimistically removes it, then deletes server-side.
+  const handleRemoveNotification = async (id: string, index: number) => {
+    const wasUnread = !notificationsState[index]?.read
+    setNotificationsState(prev => prev.filter((_, i) => i !== index))
+    if (wasUnread) setUnreadCount(c => Math.max(0, c - 1))
+    try {
+      await deleteInAppNotification(id)
+    } catch {
+      // On failure, refetch to restore the true server state
+      fetchNotifications()
+    }
   }
 
   // Mark all as read via API
@@ -321,7 +363,7 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
                       <Chip variant='tonal' size='small' color='primary' label={`${unreadCount} New`} />
                     )}
                     <Tooltip
-                      title={readAll ? 'Mark all as unread' : 'Mark all as read'}
+                      title='Mark all as read'
                       placement={placement === 'bottom-end' ? 'left' : 'right'}
                       slotProps={{
                         popper: {
@@ -334,9 +376,9 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
                         }
                       }}
                     >
-                      {notificationsState.length > 0 ? (
+                      {!readAll ? (
                         <IconButton size='small' onClick={() => readAllNotifications()} className='text-textPrimary'>
-                          <i className={classnames(readAll ? 'ri-mail-line' : 'ri-mail-open-line', 'text-xl')} />
+                          <i className={classnames('ri-mail-open-line', 'text-xl')} />
                         </IconButton>
                       ) : (
                         <></>
@@ -413,7 +455,7 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
                               />
                               <i
                                 className='ri-close-line text-xl invisible group-hover:visible text-textSecondary'
-                                onClick={e => { e.stopPropagation(); handleRemoveNotification(index) }}
+                                onClick={e => { e.stopPropagation(); handleRemoveNotification(id, index) }}
                               />
                             </div>
                           </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import Chip from '@mui/material/Chip'
@@ -30,6 +31,28 @@ import {
 } from '@/lib/api/notifications'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Maps a notification's entityType/entityId to the in-app route for its source record.
+function entityRoute(entityType: string | null, entityId: string | null): string | null {
+  switch (entityType) {
+    case 'INVOICE':
+      return entityId ? `/billing/invoices/${entityId}` : '/billing/invoices'
+    case 'PAYMENT':
+      return '/billing/payments'
+    case 'AGREEMENT':
+      return '/agreement'
+    case 'RENT_REVIEW':
+      return '/rent-reviews'
+    case 'MAINTENANCE_REQUEST':
+      return '/maintenance/requests'
+    case 'OCCUPANT':
+      return entityId ? `/occupants/${entityId}` : '/occupants'
+    case 'INSPECTION':
+      return '/inspections'
+    default:
+      return null
+  }
+}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -90,6 +113,8 @@ function typeIcon(t: string): string {
 }
 
 export default function NotificationCenterView() {
+  const router = useRouter()
+
   // 0=All  1=Unread  2=Delivery Log  3=SMS Reminders
   const [tab, setTab] = useState(0)
 
@@ -167,6 +192,20 @@ export default function NotificationCenterView() {
     if (n.read) return
     await markInAppNotificationRead(n.id)
     load(page, rowsPerPage, tab === 1)
+  }
+
+  // Row click: mark read (if unread) and navigate to the notification's source record.
+  const handleNotificationClick = async (n: InAppNotification) => {
+    if (!n.read) {
+      try {
+        await markInAppNotificationRead(n.id)
+      } catch {
+        // ignore — still navigate below
+      }
+    }
+    const route = entityRoute(n.entityType, n.entityId)
+    if (route) router.push(route)
+    else if (!n.read) load(page, rowsPerPage, tab === 1)
   }
 
   const handleMarkAllRead = async () => {
@@ -386,7 +425,7 @@ export default function NotificationCenterView() {
                     '&:hover': { bgcolor: 'action.selected' },
                     transition: 'background-color 0.15s'
                   }}
-                  onClick={() => handleMarkRead(n)}
+                  onClick={() => handleNotificationClick(n)}
                 >
                   {/* Icon */}
                   <Box

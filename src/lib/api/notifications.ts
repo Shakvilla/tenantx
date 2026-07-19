@@ -3,7 +3,7 @@
  * Covers: listing notifications with filters, resending failed notifications
  */
 
-import { apiGet, apiPost, apiPatch, API_BASE } from './client'
+import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from './client'
 
 // ---------------------------------------------------------------------------
 // Enums
@@ -167,4 +167,8 @@ export async function markInAppNotificationRead(id: string): Promise<void> {
 
 export async function markAllInAppNotificationsRead(): Promise<void> {
   return apiPatch<void>(`${API_BASE}/in-app-notifications/read-all`, {})
+}
+
+export async function deleteInAppNotification(id: string): Promise<void> {
+  return apiDelete(`${API_BASE}/in-app-notifications/${id}`)
 }
