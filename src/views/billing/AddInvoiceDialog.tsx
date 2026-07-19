@@ -167,7 +167,15 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
     setFormData(prev => {
       const next: FormData = { ...prev, [field]: value }
       if (field === 'propertyId') { next.unitId = ''; next.occupantId = '' }
-      if (field === 'unitId') next.occupantId = ''
+      if (field === 'unitId') {
+        next.occupantId = ''
+        // Prefill the amount from the selected unit's current (possibly rent-reviewed) rent, but only
+        // when the amount hasn't been typed and no line items drive it — never overwrite a manual entry.
+        const selectedUnit = units.find(u => u.id === value)
+        if (selectedUnit && !prev.amount && prev.invoiceItems.length === 0 && selectedUnit.rent != null) {
+          next.amount = String(selectedUnit.rent)
+        }
+      }
       return next
     })
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))

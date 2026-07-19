@@ -18,6 +18,7 @@ import UnitAmenitiesCard from './UnitAmenitiesCard'
 import InspectionsTab    from './InspectionsTab'
 import VacateTab         from './VacateTab'
 import AdvertiseUnitCard from './AdvertiseUnitCard'
+import RentReviewHistoryTab from './RentReviewHistoryTab'
 
 // Type Imports
 import type { Property } from '@/types/property'
@@ -87,6 +88,12 @@ const UnitDetails = ({
               icon={<i className='ri-door-open-line' />}
               iconPosition='start'
             />
+            <Tab
+              value='rent-reviews'
+              label='Rent Reviews'
+              icon={<i className='ri-line-chart-line' />}
+              iconPosition='start'
+            />
           </TabList>
         </Box>
 
@@ -139,6 +146,11 @@ const UnitDetails = ({
             propertyName={unitData?.propertyName}
             tenantName={unitData?.tenantName ?? undefined}
           />
+        </TabPanel>
+
+        {/* ── Rent Reviews ─────────────────────────────────────────────── */}
+        <TabPanel value='rent-reviews' className='p-0'>
+          <RentReviewHistoryTab unitId={unitId} />
         </TabPanel>
       </TabContext>
     </Box>
