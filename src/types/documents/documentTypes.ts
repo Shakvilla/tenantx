@@ -12,6 +12,7 @@ export type DocumentType = {
   documentImage?: string
   fileUrl?: string
   fileName?: string
+  fileId?: string
   documentType: string
   status: 'accepted' | 'rejected' | 'pending'
   rejectReason?: string

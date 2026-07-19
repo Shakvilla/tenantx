@@ -71,6 +71,24 @@ export function uploadDocument(
   })
 }
 
+/**
+ * Delete an uploaded file from Supabase Storage via the /api/upload-document
+ * server route. Best-effort: callers should not block a document's own deletion
+ * on this succeeding (an orphaned storage object is far less harmful than a
+ * document row that can't be removed).
+ *
+ * @param fileId The document's stored file id (equals its storage path)
+ */
+export async function deleteUploadedFile(fileId: string): Promise<void> {
+  const res = await fetch(`/api/upload-document?path=${encodeURIComponent(fileId)}`, {
+    method: 'DELETE'
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error((body as any)?.error ?? `Delete failed (HTTP ${res.status})`)
+  }
+}
+
 /** Format bytes into a human-readable string, e.g. "1.2 MB" */
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024)         return `${bytes} B`

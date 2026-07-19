@@ -14,6 +14,7 @@ import Chip from '@mui/material/Chip'
 import Avatar from '@mui/material/Avatar'
 import Skeleton from '@mui/material/Skeleton'
 import Box from '@mui/material/Box'
+import Alert from '@mui/material/Alert'
 import type { TextFieldProps } from '@mui/material/TextField'
 
 import classnames from 'classnames'
@@ -32,6 +33,7 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 import type { DocumentType } from '@/types/documents/documentTypes'
 import { getDocuments, deleteDocument, updateDocumentStatus, type DocumentItem } from '@/lib/api/documents'
+import { deleteUploadedFile } from '@/lib/supabase-storage'
 
 import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -40,7 +42,7 @@ import ViewDocumentDialog from './ViewDocumentDialog'
 import AcceptDocumentDialog from './AcceptDocumentDialog'
 import RejectDocumentDialog from './RejectDocumentDialog'
 import AddDocumentDialog from './AddDocumentDialog'
-import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+import DeleteDocumentDialog from './DeleteDocumentDialog'
 
 import tableStyles from '@core/styles/table.module.css'
 
@@ -73,7 +75,8 @@ function apiToDisplay(item: DocumentItem): DocumentType {
     occupantId:   item.occupantId,
     tenantName:   item.occupantName,
     fileUrl:      item.fileUrl,
-    fileName:     item.fileName
+    fileName:     item.fileName,
+    fileId:       item.fileId
   }
 }
 
@@ -127,6 +130,7 @@ const DocumentsListTable = () => {
   const [rejectDocumentOpen, setRejectDocumentOpen] = useState(false)
   const [deleteDocumentOpen, setDeleteDocumentOpen] = useState(false)
   const [selectedDocument,   setSelectedDocument]   = useState<DocumentType | null>(null)
+  const [actionError,        setActionError]        = useState<string | null>(null)
 
   // ---- Fetch ----
 
@@ -166,9 +170,10 @@ const DocumentsListTable = () => {
     if (!selectedDocument) return
     try {
       await updateDocumentStatus(selectedDocument.id, { status: 'accepted' })
+      setActionError(null)
       fetchDocuments()
-    } catch (err) {
-      console.error('Failed to accept document:', err)
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message ?? err?.message ?? 'Failed to accept document')
     }
   }
 
@@ -184,11 +189,19 @@ const DocumentsListTable = () => {
 
   const handleDelete = async () => {
     if (!selectedDocument) return
+    const doc = selectedDocument
     try {
-      await deleteDocument(selectedDocument.id)
+      await deleteDocument(doc.id)
+      // Best-effort storage cleanup — never block the record deletion on it.
+      if (doc.fileId) {
+        deleteUploadedFile(doc.fileId).catch(err =>
+          console.warn('Document deleted, but its storage file could not be removed:', err)
+        )
+      }
+      setActionError(null)
       fetchDocuments()
-    } catch (err) {
-      console.error('Failed to delete document:', err)
+    } catch (err: any) {
+      setActionError(err?.response?.data?.message ?? err?.message ?? 'Failed to delete document')
     } finally {
       setDeleteDocumentOpen(false)
       setSelectedDocument(null)
@@ -267,11 +280,13 @@ const DocumentsListTable = () => {
               menuItemProps: { onClick: () => { setSelectedDocument(row.original); setViewDocumentOpen(true) } }
             },
             {
-              text: 'Accept',
+              // A document can't be approved before a file is attached — mirrors the
+              // backend guard (DOCUMENT_FILE_REQUIRED). Empty records can still be rejected.
+              text: row.original.fileUrl ? 'Accept' : 'Accept (attach a file first)',
               icon: 'ri-check-line',
               menuItemProps: {
                 onClick: () => { setSelectedDocument(row.original); setAcceptDocumentOpen(true) },
-                disabled: row.original.status === 'accepted'
+                disabled: row.original.status === 'accepted' || !row.original.fileUrl
               }
             },
             {
@@ -344,6 +359,9 @@ const DocumentsListTable = () => {
           }
         />
         <CardContent className='flex flex-col gap-4'>
+          {actionError && (
+            <Alert severity='error' onClose={() => setActionError(null)}>{actionError}</Alert>
+          )}
           {/* Filters */}
           <div className='flex flex-wrap gap-4'>
             <TextField
@@ -458,11 +476,11 @@ const DocumentsListTable = () => {
         onConfirm={handleReject}
       />
 
-      <ConfirmationDialog
+      <DeleteDocumentDialog
         open={deleteDocumentOpen}
         setOpen={setDeleteDocumentOpen}
-        type='delete-customer'
         onConfirm={handleDelete}
+        documentName={selectedDocument?.documentType}
       />
     </>
   )

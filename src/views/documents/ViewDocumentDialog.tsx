@@ -12,6 +12,7 @@ import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import Avatar from '@mui/material/Avatar'
 import Button from '@mui/material/Button'
+import Tooltip from '@mui/material/Tooltip'
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -158,9 +159,20 @@ const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogP
         <Button variant='outlined' color='secondary' onClick={handleClose}>
           Close
         </Button>
-        <Button variant='contained' color='primary' startIcon={<i className='ri-download-line' />} onClick={handleDownload}>
-          Download
-        </Button>
+        <Tooltip title={document.fileUrl ? '' : 'No file attached'}>
+          {/* span keeps the tooltip working while the button is disabled */}
+          <span>
+            <Button
+              variant='contained'
+              color='primary'
+              startIcon={<i className='ri-download-line' />}
+              onClick={handleDownload}
+              disabled={!document.fileUrl}
+            >
+              Download
+            </Button>
+          </span>
+        </Tooltip>
       </DialogActions>
     </Dialog>
   )

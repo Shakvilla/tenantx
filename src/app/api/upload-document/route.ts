@@ -66,3 +66,37 @@ export async function POST(req: NextRequest) {
     mimeType: file.type
   })
 }
+
+/**
+ * DELETE /api/upload-document?path=<tenantId>/<file>
+ *
+ * Removes a previously-uploaded object from Supabase Storage so deleting a
+ * document doesn't leave an orphaned file behind. `path` is the document's
+ * stored `fileId` (which equals its storage path).
+ */
+export async function DELETE(req: NextRequest) {
+  if (!SUPABASE_URL || !SERVICE_KEY) {
+    return NextResponse.json(
+      { error: 'Supabase is not configured on the server.' },
+      { status: 500 }
+    )
+  }
+
+  const path = req.nextUrl.searchParams.get('path')
+  if (!path) return NextResponse.json({ error: 'No path provided.' }, { status: 400 })
+
+  const delRes = await fetch(
+    `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${SERVICE_KEY}` } }
+  )
+
+  if (!delRes.ok) {
+    const body = await delRes.json().catch(() => ({}))
+    return NextResponse.json(
+      { error: (body as any)?.message ?? `Delete failed (HTTP ${delRes.status})` },
+      { status: delRes.status }
+    )
+  }
+
+  return NextResponse.json({ ok: true })
+}

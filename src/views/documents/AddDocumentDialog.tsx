@@ -481,7 +481,7 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
             {/* File upload */}
             <Grid size={{ xs: 12 }}>
               <Typography variant='body2' color='text.secondary' className='mbe-2'>
-                Document File <Typography component='span' variant='caption' color='text.disabled'>(optional but recommended)</Typography>
+                Document File <Typography component='span' variant='caption' color='text.disabled'>(needed before the document can be accepted)</Typography>
               </Typography>
               {renderDropZone()}
             </Grid>
