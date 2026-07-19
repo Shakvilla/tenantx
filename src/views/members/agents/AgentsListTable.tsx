@@ -89,7 +89,7 @@ const AgentsListTable = () => {
   }
 
   const handleDelete = async (agent: AgentType) => {
-    if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return
+    if (!confirm(`Delete agent "${agent.name}"? Their pending commission records will be removed too, and this cannot be undone. (Agents with paid commission history can't be deleted.)`)) return
     try {
       await deleteAgent(agent.id)
       await loadAgents()
