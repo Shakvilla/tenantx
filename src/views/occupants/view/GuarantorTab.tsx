@@ -47,6 +47,10 @@ const BLANK_FORM: Omit<CreateGuarantorRequest, 'occupantId'> = {
 
 type Props = { occupantId: string }
 
+// Kept in sync with the backend GuarantorDto validation (@Pattern / @Email).
+const PHONE_RE = /^\+?[0-9\s\-()]{7,20}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 // ── small helper ──────────────────────────────────────────────────────────────
 function SectionLabel({ icon, label }: { icon: string; label: string }) {
   return (
@@ -76,8 +80,9 @@ export default function GuarantorTab({ occupantId }: Props) {
   const [error, setError]           = useState<string | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editId, setEditId]         = useState<string | null>(null)
   const [form, setForm]             = useState({ ...BLANK_FORM })
-  const [formErrors, setFormErrors] = useState<{ firstName?: boolean; lastName?: boolean; phone?: boolean }>({})
+  const [formErrors, setFormErrors] = useState<{ firstName?: string; lastName?: string; phone?: string; email?: string }>({})
   const [saving, setSaving]         = useState(false)
   const [saveError, setSaveError]   = useState<string | null>(null)
 
@@ -96,7 +101,26 @@ export default function GuarantorTab({ occupantId }: Props) {
   }
 
   function openAdd() {
+    setEditId(null)
     setForm({ ...BLANK_FORM })
+    setFormErrors({})
+    setSaveError(null)
+    setDialogOpen(true)
+  }
+
+  function openEdit(g: GuarantorResponse) {
+    setEditId(g.id)
+    setForm({
+      firstName:    g.firstName ?? '',
+      lastName:     g.lastName ?? '',
+      phone:        g.phone ?? '',
+      email:        g.email ?? '',
+      relationship: g.relationship ?? 'OTHER',
+      employerName: g.employerName ?? '',
+      jobTitle:     g.jobTitle ?? '',
+      workAddress:  g.workAddress ?? '',
+      notes:        g.notes ?? '',
+    })
     setFormErrors({})
     setSaveError(null)
     setDialogOpen(true)
@@ -108,24 +132,33 @@ export default function GuarantorTab({ occupantId }: Props) {
 
   function field(key: keyof typeof BLANK_FORM, value: string) {
     setForm(prev => ({ ...prev, [key]: value }))
-    if (key === 'firstName' || key === 'lastName' || key === 'phone') {
-      setFormErrors(prev => ({ ...prev, [key]: false }))
-    }
+    setFormErrors(prev => ({ ...prev, [key]: undefined }))
+  }
+
+  function validate(): boolean {
+    const errs: typeof formErrors = {}
+    if (!form.firstName.trim())  errs.firstName = 'Required'
+    if (!form.lastName.trim())   errs.lastName  = 'Required'
+    if (!form.phone?.trim())     errs.phone     = 'Required'
+    else if (!PHONE_RE.test(form.phone.trim())) errs.phone = 'Enter a valid phone number'
+    if (form.email?.trim() && !EMAIL_RE.test(form.email.trim())) errs.email = 'Enter a valid email address'
+    setFormErrors(errs)
+    return Object.keys(errs).length === 0
   }
 
   async function handleSave() {
-    const errs = {
-      firstName: !form.firstName.trim(),
-      lastName:  !form.lastName.trim(),
-      phone:     !form.phone?.trim(),
-    }
-    if (errs.firstName || errs.lastName || errs.phone) { setFormErrors(errs); return }
+    if (!validate()) return
 
     setSaving(true)
     setSaveError(null)
     try {
-      const created = await guarantorsApi.create({ ...form, occupantId })
-      setGuarantors(prev => [created, ...prev])
+      if (editId) {
+        const updated = await guarantorsApi.update(editId, form)
+        setGuarantors(prev => prev.map(g => (g.id === editId ? updated : g)))
+      } else {
+        const created = await guarantorsApi.create({ ...form, occupantId })
+        setGuarantors(prev => [created, ...prev])
+      }
       setDialogOpen(false)
     } catch (err: any) {
       setSaveError(err?.response?.data?.message ?? err?.message ?? 'Failed to save guarantor')
@@ -222,9 +255,14 @@ export default function GuarantorTab({ occupantId }: Props) {
                         />
                       </Box>
                     </Box>
-                    <IconButton size='small' color='error' onClick={() => setDeleteId(g.id)} title='Remove'>
-                      <i className='ri-delete-bin-line text-base' />
-                    </IconButton>
+                    <Box className='flex items-center'>
+                      <IconButton size='small' onClick={() => openEdit(g)} title='Edit'>
+                        <i className='ri-pencil-line text-base' />
+                      </IconButton>
+                      <IconButton size='small' color='error' onClick={() => setDeleteId(g.id)} title='Remove'>
+                        <i className='ri-delete-bin-line text-base' />
+                      </IconButton>
+                    </Box>
                   </Box>
 
                   {/* Detail grid */}
@@ -262,7 +300,7 @@ export default function GuarantorTab({ occupantId }: Props) {
       {/* ── Add Guarantor Dialog ───────────────────────────────────────── */}
       <Dialog open={dialogOpen} onClose={closeDialog} maxWidth='sm' fullWidth>
         <DialogTitle className='flex items-center justify-between'>
-          <span>Add Guarantor</span>
+          <span>{editId ? 'Edit Guarantor' : 'Add Guarantor'}</span>
           <IconButton size='small' onClick={closeDialog} disabled={saving}>
             <i className='ri-close-line' />
           </IconButton>
@@ -287,8 +325,8 @@ export default function GuarantorTab({ occupantId }: Props) {
                     placeholder='First name'
                     value={form.firstName}
                     onChange={e => field('firstName', e.target.value)}
-                    error={formErrors.firstName}
-                    helperText={formErrors.firstName ? 'Required' : ''}
+                    error={!!formErrors.firstName}
+                    helperText={formErrors.firstName ?? ''}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
@@ -300,8 +338,8 @@ export default function GuarantorTab({ occupantId }: Props) {
                     placeholder='Last name'
                     value={form.lastName}
                     onChange={e => field('lastName', e.target.value)}
-                    error={formErrors.lastName}
-                    helperText={formErrors.lastName ? 'Required' : ''}
+                    error={!!formErrors.lastName}
+                    helperText={formErrors.lastName ?? ''}
                   />
                 </Grid>
                 <Grid size={{ xs: 12 }}>
@@ -336,8 +374,8 @@ export default function GuarantorTab({ occupantId }: Props) {
                     placeholder='+233 XX XXX XXXX'
                     value={form.phone}
                     onChange={e => field('phone', e.target.value)}
-                    error={formErrors.phone}
-                    helperText={formErrors.phone ? 'Required' : ''}
+                    error={!!formErrors.phone}
+                    helperText={formErrors.phone ?? ''}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
@@ -349,6 +387,8 @@ export default function GuarantorTab({ occupantId }: Props) {
                     placeholder='email@example.com'
                     value={form.email}
                     onChange={e => field('email', e.target.value)}
+                    error={!!formErrors.email}
+                    helperText={formErrors.email ?? ''}
                   />
                 </Grid>
               </Grid>
@@ -419,9 +459,9 @@ export default function GuarantorTab({ occupantId }: Props) {
             variant='contained'
             onClick={handleSave}
             disabled={saving}
-            startIcon={saving ? <CircularProgress size={16} color='inherit' /> : <i className='ri-user-add-line' />}
+            startIcon={saving ? <CircularProgress size={16} color='inherit' /> : <i className={editId ? 'ri-save-line' : 'ri-user-add-line'} />}
           >
-            {saving ? 'Saving…' : 'Add Guarantor'}
+            {saving ? 'Saving…' : editId ? 'Save Changes' : 'Add Guarantor'}
           </Button>
         </DialogActions>
       </Dialog>
