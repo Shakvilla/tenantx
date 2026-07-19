@@ -71,12 +71,15 @@ const AdvanceRentSection = ({ occupantId, unitId, propertyId, monthlyRent }: Pro
     setRecords(prev => [record, ...prev])
   }
 
-  const handleCancel = async (id: string) => {
-    if (!confirm('Cancel this advance rent record?')) return
-    setCancelling(id)
+  const handleCancel = async (record: AdvanceRentResponse) => {
+    const invoicePart = record.invoiceCount > 0
+      ? ` It will void ${record.invoiceCount} paid invoice${record.invoiceCount !== 1 ? 's' : ''} and reverse the ₵${record.totalAmount.toFixed(2)} wallet credit.`
+      : ''
+    if (!confirm(`Cancel this advance rent record?${invoicePart} This cannot be undone.`)) return
+    setCancelling(record.id)
     try {
-      const updated = await advanceRentsApi.cancel(id)
-      setRecords(prev => prev.map(r => r.id === id ? updated : r))
+      const updated = await advanceRentsApi.cancel(record.id)
+      setRecords(prev => prev.map(r => r.id === record.id ? updated : r))
     } catch (err: any) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Failed to cancel')
     } finally {
@@ -198,7 +201,7 @@ const AdvanceRentSection = ({ occupantId, unitId, propertyId, monthlyRent }: Pro
                         <IconButton
                           size='small'
                           color='error'
-                          onClick={() => handleCancel(r.id)}
+                          onClick={() => handleCancel(r)}
                           disabled={cancelling === r.id}
                         >
                           {cancelling === r.id
