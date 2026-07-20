@@ -266,6 +266,21 @@ function EditPermissionsDialog({ role, allPermissions, onClose, onUpdated }: Edi
     setSelected(prev => prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm])
   }
 
+  // Same grouping the tenant-side role editor uses: 38 flat checkboxes are unreadable, and the
+  // module is the unit an admin actually thinks in ("give support read access to tenants").
+  const permissionGroups = useMemo(() => {
+    const live = allPermissions.filter(p => p.module !== 'legacy')
+    const byModule = new Map<string, PermissionRecord[]>()
+    for (const p of live) {
+      const key = p.module ?? 'other'
+      if (!byModule.has(key)) byModule.set(key, [])
+      byModule.get(key)!.push(p)
+    }
+    return [...byModule.entries()]
+      .map(([module, perms]) => ({ module, perms: perms.sort((a, b) => a.name.localeCompare(b.name)) }))
+      .sort((a, b) => a.module.localeCompare(b.module))
+  }, [allPermissions])
+
   async function handleSave() {
     if (!role) return
     setSaving(true); setError(null)
@@ -285,32 +300,60 @@ function EditPermissionsDialog({ role, allPermissions, onClose, onUpdated }: Edi
       <DialogTitle>Edit Permissions — {role?.name}</DialogTitle>
       <DialogContent sx={{ pt: '8px !important' }}>
         {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
-        {allPermissions.length === 0 ? (
+        {permissionGroups.length === 0 ? (
           <Typography variant='body2' color='text.secondary'>No permissions defined in the system.</Typography>
         ) : (
-          <FormGroup>
-            {allPermissions.map(p => (
-              <FormControlLabel
-                key={p.id}
-                control={
-                  <Checkbox
+          permissionGroups.map(({ module, perms }) => {
+            const names = perms.map(p => p.name)
+            const allOn = names.every(n => selected.includes(n))
+            return (
+              <Box key={module} sx={{ mb: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography variant='caption' color='text.secondary' fontWeight={600} sx={{ textTransform: 'uppercase' }}>
+                    {module}
+                  </Typography>
+                  <Button
                     size='small'
-                    checked={selected.includes(p.name)}
-                    onChange={() => toggle(p.name)}
+                    variant='text'
                     disabled={saving}
-                  />
-                }
-                label={
-                  <Box>
-                    <Typography variant='body2'>{p.name}</Typography>
-                    {p.description && (
-                      <Typography variant='caption' color='text.secondary'>{p.description}</Typography>
-                    )}
-                  </Box>
-                }
-              />
-            ))}
-          </FormGroup>
+                    onClick={() =>
+                      setSelected(prev =>
+                        allOn ? prev.filter(p => !names.includes(p)) : [...new Set([...prev, ...names])]
+                      )
+                    }
+                    sx={{ fontSize: '0.7rem', minWidth: 0 }}
+                  >
+                    {allOn ? 'Clear' : 'Select all'}
+                  </Button>
+                </Box>
+                <FormGroup>
+                  {perms.map(p => (
+                    <FormControlLabel
+                      key={p.id}
+                      control={
+                        <Checkbox
+                          size='small'
+                          checked={selected.includes(p.name)}
+                          onChange={() => toggle(p.name)}
+                          disabled={saving}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant='body2' sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                            {p.name.replace(/^platform:/, '')}
+                          </Typography>
+                          {p.description && (
+                            <Typography variant='caption' color='text.secondary'>{p.description}</Typography>
+                          )}
+                        </Box>
+                      }
+                    />
+                  ))}
+                </FormGroup>
+              </Box>
+            )
+          })
         )}
       </DialogContent>
       <DialogActions>
@@ -522,14 +565,21 @@ interface RoleCardProps {
 }
 
 function RoleCard({ role, canManage, onView, onEdit, onDelete }: RoleCardProps) {
+  // Codes are namespaced `platform:` to stay disjoint from the tenant vocabulary, but that prefix
+  // is noise on every chip — it is the same for all of them. Drop it for display only.
+  const shortLabel = (code: string) => code.replace(/^platform:/, '')
+
   return (
-    <Card variant='outlined' sx={{ mb: 2 }}>
+    <Card variant='outlined'>
       <CardContent>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
               <Typography variant='subtitle2' fontWeight={700}>{role.name}</Typography>
-              <Chip size='small' label={`${role.permissions.length} permissions`} variant='tonal' color='primary' />
+              {role.name === 'SUPER_ADMIN' && (
+                <Chip size='small' label='Built-in' color='primary' variant='tonal' />
+              )}
+              <Chip size='small' label={`${role.permissions.length} permissions`} variant='tonal' />
             </Box>
             {role.description && (
               <Typography variant='body2' color='text.secondary' sx={{ mb: 1.5 }}>
@@ -542,12 +592,13 @@ function RoleCard({ role, canManage, onView, onEdit, onDelete }: RoleCardProps) 
             ) : (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                 {role.permissions.map(p => (
-                  <Chip
-                    key={p}
-                    size='small'
-                    label={p}
-                    sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'action.hover' }}
-                  />
+                  <Tooltip key={p} title={p} placement='top'>
+                    <Chip
+                      size='small'
+                      label={shortLabel(p)}
+                      sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'action.hover' }}
+                    />
+                  </Tooltip>
                 ))}
               </Box>
             )}
@@ -566,11 +617,14 @@ function RoleCard({ role, canManage, onView, onEdit, onDelete }: RoleCardProps) 
                     <i className='ri-edit-line' style={{ fontSize: '1rem' }} />
                   </IconButton>
                 </Tooltip>
-                <Tooltip title='Delete role'>
-                  <IconButton size='small' color='error' onClick={() => onDelete(role)}>
-                    <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
-                  </IconButton>
-                </Tooltip>
+                {/* SUPER_ADMIN is built in and the backend rejects deleting it — don't offer it. */}
+                {role.name !== 'SUPER_ADMIN' && (
+                  <Tooltip title='Delete role'>
+                    <IconButton size='small' color='error' onClick={() => onDelete(role)}>
+                      <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
               </>
             )}
           </Box>
@@ -910,14 +964,10 @@ export default function AdminRolesView() {
 
   return (
     <Box>
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Box>
-          <Typography variant='h5' fontWeight={700}>Roles & Permissions</Typography>
-          <Typography variant='body2' color='text.secondary'>
-            Define what each admin role can do on the platform
-          </Typography>
-        </Box>
+      {/* ── Header ──────────────────────────────────────────────────────────────
+          Title and description live in the PageBanner on the route, matching how
+          /settings/team is composed — don't repeat them here. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 3 }}>
         {canManage && tab === 0 && (
           <Button
             variant='contained'
@@ -967,16 +1017,18 @@ export default function AdminRolesView() {
             </CardContent>
           </Card>
         ) : (
-          roles.map(role => (
-            <RoleCard
-              key={role.id}
-              role={role}
-              canManage={canManage}
-              onView={r => setViewTargetId(r.id)}
-              onEdit={setEditTarget}
-              onDelete={setDeleteTarget}
-            />
-          ))
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
+            {roles.map(role => (
+              <RoleCard
+                key={role.id}
+                role={role}
+                canManage={canManage}
+                onView={r => setViewTargetId(r.id)}
+                onEdit={setEditTarget}
+                onDelete={setDeleteTarget}
+              />
+            ))}
+          </Box>
         )
       ) : (
         /* ── Permission Matrix tab ──────────────────────────────────────── */
