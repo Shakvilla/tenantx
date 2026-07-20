@@ -837,6 +837,14 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
   const [wallet, setWallet]                 = useState<AdminWalletSummary | null>(null)
   const [walletLoading, setWalletLoading]   = useState(false)
   const [walletActing, setWalletActing]     = useState(false)
+
+  // Confirmation targets. Revoking a key breaks any integration using it, and freezing a wallet
+  // halts the landlord's rent collection and withdrawals — neither should fire on a single click.
+  const [revokeKeyTarget, setRevokeKeyTarget] = useState<ApiKeyDto | null>(null)
+  const [freezeWalletOpen, setFreezeWalletOpen] = useState(false)
+  // Terminating one session is a routine security action and stays a single click; terminating
+  // *all* of them signs out every user of the tenant at once, so that one asks first.
+  const [terminateAllOpen, setTerminateAllOpen] = useState(false)
   const [walletError, setWalletError]       = useState('')
   const [adjustOpen, setAdjustOpen]         = useState(false)
   const [adjustType, setAdjustType]         = useState<'CREDIT' | 'DEBIT'>('CREDIT')
@@ -1025,13 +1033,15 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
     finally { setGeneratingKey(false) }
   }
 
-  async function handleRevokeKey(keyId: string) {
-    if (!tenant) return
+  async function handleRevokeKey() {
+    const target = revokeKeyTarget
+    if (!tenant || !target) return
     try {
-      await revokeTenantApiKey(tenant.tenant_id, keyId)
-      setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, active: false } : k))
+      await revokeTenantApiKey(tenant.tenant_id, target.id)
+      setApiKeys(prev => prev.map(k => k.id === target.id ? { ...k, active: false } : k))
       setToast('API key revoked')
     } catch { setToast('Failed to revoke API key') }
+    finally { setRevokeKeyTarget(null) }
   }
 
   async function handleExportData() {
@@ -1333,7 +1343,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
         <Box sx={{ textAlign: 'right' }}>
           {info.row.original.active && (
             <Tooltip title='Revoke key'>
-              <IconButton size='small' color='error' onClick={() => handleRevokeKey(info.row.original.id)}>
+              <IconButton size='small' color='error' onClick={() => setRevokeKeyTarget(info.row.original)}>
                 <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
               </IconButton>
             </Tooltip>
@@ -1436,7 +1446,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
         <Box sx={{ textAlign: 'right' }}>
           <Tooltip title='Terminate this session'>
             <span>
-              <IconButton size='small' color='error' onClick={() => handleTerminateSession(info.row.original.familyId)} disabled={terminatingSession === info.row.original.familyId || terminatingAll}>
+              <IconButton size='small' color='error' aria-label='Terminate session' onClick={() => handleTerminateSession(info.row.original.familyId)} disabled={terminatingSession === info.row.original.familyId || terminatingAll}>
                 {terminatingSession === info.row.original.familyId ? <CircularProgress size={14} color='inherit' /> : <i className='ri-logout-box-r-line' style={{ fontSize: '0.9rem' }} />}
               </IconButton>
             </span>
@@ -2337,7 +2347,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
                   variant='outlined'
                   color='error'
                   startIcon={terminatingAll ? <CircularProgress size={14} color='inherit' /> : <i className='ri-shut-down-line' />}
-                  onClick={handleTerminateAllSessions}
+                  onClick={() => setTerminateAllOpen(true)}
                   disabled={terminatingAll}
                 >
                   Terminate All
@@ -2659,7 +2669,9 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
                   color={wallet.status === 'FROZEN' ? 'success' : 'warning'}
                   disabled={walletActing || wallet.status === 'SUSPENDED'}
                   startIcon={walletActing ? <CircularProgress size={12} color='inherit' /> : <i className={wallet.status === 'FROZEN' ? 'ri-lock-unlock-line' : 'ri-lock-line'} />}
-                  onClick={handleWalletFreeze}
+                  /* Unfreezing restores access, so it stays a single click; freezing is the one
+                     that cuts off rent collection, so it asks first. */
+                  onClick={() => wallet.status === 'FROZEN' ? handleWalletFreeze() : setFreezeWalletOpen(true)}
                 >
                   {wallet.status === 'FROZEN' ? 'Unfreeze' : 'Freeze'}
                 </Button>
@@ -3050,6 +3062,36 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
         confirmColor='success'
         onClose={() => setReactivateOpen(false)}
         onConfirm={handleReactivate}
+      />
+
+      <ConfirmDialog
+        open={revokeKeyTarget !== null}
+        title='Revoke API Key'
+        message={<>Revoke <strong>{revokeKeyTarget?.name}</strong>? Any integration still using this key will stop working immediately. This cannot be undone — a new key would have to be generated.</>}
+        confirmLabel='Revoke Key'
+        confirmColor='error'
+        onClose={() => setRevokeKeyTarget(null)}
+        onConfirm={handleRevokeKey}
+      />
+
+      <ConfirmDialog
+        open={terminateAllOpen}
+        title='Terminate All Sessions'
+        message={<>Sign out every active session for <strong>{tenant.name}</strong>? All {sessions.length} of their signed-in users will be logged out and will have to sign in again.</>}
+        confirmLabel='Terminate All'
+        confirmColor='error'
+        onClose={() => setTerminateAllOpen(false)}
+        onConfirm={async () => { await handleTerminateAllSessions(); setTerminateAllOpen(false) }}
+      />
+
+      <ConfirmDialog
+        open={freezeWalletOpen}
+        title='Freeze Wallet'
+        message={<>Freeze <strong>{tenant.name}</strong>&apos;s wallet? They will not be able to collect rent or withdraw funds until it is unfrozen. The balance itself is not affected.</>}
+        confirmLabel='Freeze Wallet'
+        confirmColor='error'
+        onClose={() => setFreezeWalletOpen(false)}
+        onConfirm={async () => { await handleWalletFreeze(); setFreezeWalletOpen(false) }}
       />
 
       {overrideOpen && sub && (
