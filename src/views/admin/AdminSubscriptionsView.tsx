@@ -73,7 +73,6 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
   }, [plan])
 
   const isFree = plan?.name === 'FREE'
-  const isPro  = plan?.name === 'PRO'
 
   async function handleSave() {
     if (!plan) return
@@ -83,8 +82,8 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
       const payload: UpdatePlanRequestDto = {
         displayName,
         pricePerUnit: parseFloat(pricePerUnit) || 0,
-        freeUnitCap:  isFree && freeUnitCap ? parseInt(freeUnitCap, 10) : null,
-        transactionFeePct: isPro && transactionFeePct ? parseFloat(transactionFeePct) : null,
+        freeUnitCap:  freeUnitCap ? parseInt(freeUnitCap, 10) : null,
+        transactionFeePct: transactionFeePct ? parseFloat(transactionFeePct) : null,
         featureFlags: features,
         active,
         popular,
@@ -118,7 +117,8 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth='sm' fullWidth>
-      <DialogTitle>Edit {plan?.displayName} Plan</DialogTitle>
+      {/* displayName already ends in "Plan" for every seeded tier — don't append a second one. */}
+      <DialogTitle>Edit {plan?.displayName}</DialogTitle>
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
 
         {error && <Alert severity='error'>{error}</Alert>}
@@ -146,34 +146,39 @@ function EditPlanDialog({ plan, open, onClose, onSaved }: EditPlanDialogProps) {
           helperText='Set to 0 for free plans'
         />
 
-        {isFree && (
-          <TextField
-            label='Free Unit Cap'
-            value={freeUnitCap}
-            onChange={e => setFreeUnitCap(e.target.value)}
-            type='number'
-            fullWidth
-            size='small'
-            helperText='Maximum units a Free tenant can have. Lowering this will grandfather existing tenants.'
-          />
-        )}
+        {/*
+          Both fields apply to every plan, not just FREE / PRO — all three seeded plans carry a
+          transaction fee, and a custom plan can carry a unit cap. Gating them on the plan name
+          left those values invisible and uneditable on every other plan.
+        */}
+        <TextField
+          label='Free Unit Cap'
+          value={freeUnitCap}
+          onChange={e => setFreeUnitCap(e.target.value)}
+          type='number'
+          fullWidth
+          size='small'
+          helperText={
+            isFree
+              ? 'Maximum units a Free tenant can have. Lowering this will grandfather existing tenants.'
+              : 'Maximum units included before per-unit billing applies. Leave blank for no cap.'
+          }
+        />
 
-        {isPro && (
-          <TextField
-            label='Transaction Fee %'
-            value={transactionFeePct}
-            onChange={e => setTransactionFeePct(e.target.value)}
-            type='number'
-            fullWidth
-            size='small'
-            slotProps={{
-              input: {
-                endAdornment: <InputAdornment position='end'>%</InputAdornment>,
-              }
-            }}
-            helperText='Charged on rent collected via the platform on Pro plan'
-          />
-        )}
+        <TextField
+          label='Transaction Fee %'
+          value={transactionFeePct}
+          onChange={e => setTransactionFeePct(e.target.value)}
+          type='number'
+          fullWidth
+          size='small'
+          slotProps={{
+            input: {
+              endAdornment: <InputAdornment position='end'>%</InputAdornment>,
+            }
+          }}
+          helperText='Charged on rent collected via the platform. Leave blank for no fee.'
+        />
 
         <Box>
           <Typography variant='body2' fontWeight={600} sx={{ mb: 1 }}>Feature Flags</Typography>
