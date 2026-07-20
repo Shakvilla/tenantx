@@ -123,7 +123,16 @@ export default function OnboardTenantWizard() {
                   </Step>
                 ))}
               </Stepper>
-              {step === 0 && tenantId && <TenantHomeStep tenantId={tenantId} onComplete={handleHomeComplete} />}
+              {step === 0 && tenantId && (
+                <TenantHomeStep
+                  tenantId={tenantId}
+                  onComplete={handleHomeComplete}
+                  onExit={route => {
+                    setOpen(false)
+                    router.push(route)
+                  }}
+                />
+              )}
               {step === 1 && (
                 <LeaseTermsStep
                   entityIds={entityIds}

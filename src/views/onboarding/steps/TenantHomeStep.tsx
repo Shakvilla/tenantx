@@ -8,6 +8,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Button from '@mui/material/Button'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
+import AlertTitle from '@mui/material/AlertTitle'
 import Typography from '@mui/material/Typography'
 import CircularProgress from '@mui/material/CircularProgress'
 
@@ -26,10 +27,14 @@ export interface TenantHomeResult {
 interface Props {
   tenantId: string
   onComplete: (result: TenantHomeResult) => void
+
+  // Closes the wizard and navigates to `route` — used by the "add property/unit" links.
+  onExit: (route: string) => void
 }
 
-export default function TenantHomeStep({ tenantId, onComplete }: Props) {
+export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) {
   const [properties, setProperties] = useState<Array<{ id: string; name: string }>>([])
+  const [loadingProperties, setLoadingProperties] = useState(true)
   const [units, setUnits] = useState<Array<{ id: string; unitNo: string; rent: number }>>([])
   const [loadingUnits, setLoadingUnits] = useState(false)
 
@@ -47,11 +52,13 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
+    setLoadingProperties(true)
     getProperties(tenantId, { size: 100 })
       .then(res => {
         if (res.success && res.data) setProperties(res.data.map(p => ({ id: p.id, name: p.name })))
       })
       .catch(() => setError('Could not load your properties. Please close and try again.'))
+      .finally(() => setLoadingProperties(false))
   }, [tenantId])
 
   useEffect(() => {
@@ -69,6 +76,13 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
   }, [tenantId, form.propertyId])
 
   const selectedUnit = useMemo(() => units.find(u => u.id === form.unitId), [units, form.unitId])
+
+  // Empty-state flags: a landlord can't onboard until a property with a vacant unit exists.
+  const noProperties = !loadingProperties && properties.length === 0
+  const noUnitsForProperty = Boolean(form.propertyId) && !loadingUnits && units.length === 0
+
+  // Disable the tenant details + Continue whenever there's nothing to onboard into.
+  const blocked = noProperties || noUnitsForProperty
 
   const valid = Boolean(
     form.propertyId && form.unitId && form.firstName && form.lastName && form.email && form.phone && form.moveInDate
@@ -117,6 +131,37 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
           {error}
         </Alert>
       )}
+
+      {noProperties && (
+        <Alert
+          severity='warning'
+          sx={{ mb: 4 }}
+          action={
+            <Button color='inherit' size='small' onClick={() => onExit('/properties?create=1')}>
+              Add a property
+            </Button>
+          }
+        >
+          <AlertTitle>No properties yet</AlertTitle>
+          You need to add a property and a unit before you can onboard a tenant.
+        </Alert>
+      )}
+
+      {noUnitsForProperty && (
+        <Alert
+          severity='warning'
+          sx={{ mb: 4 }}
+          action={
+            <Button color='inherit' size='small' onClick={() => onExit('/properties/units')}>
+              Add a unit
+            </Button>
+          }
+        >
+          <AlertTitle>No available units in this property</AlertTitle>
+          Add a vacant unit to this property (or pick another property) before onboarding a tenant.
+        </Alert>
+      )}
+
       <Typography variant='body2' color='text.secondary' sx={{ mb: 4 }}>
         Pick the home this tenant is moving into, then enter their basic details. You can add ID, a photo and an
         emergency contact later from the tenant&apos;s profile.
@@ -128,6 +173,7 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
             fullWidth
             required
             label='Property'
+            disabled={noProperties}
             value={form.propertyId}
             onChange={e => setForm({ ...form, propertyId: e.target.value, unitId: '' })}
           >
@@ -144,10 +190,8 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
             fullWidth
             required
             label='Unit'
-            disabled={!form.propertyId || loadingUnits}
-            helperText={
-              form.propertyId && !loadingUnits && units.length === 0 ? 'No vacant units in this property' : ' '
-            }
+            disabled={!form.propertyId || loadingUnits || noUnitsForProperty}
+            helperText={loadingUnits ? 'Loading units…' : ' '}
             value={form.unitId}
             onChange={e => setForm({ ...form, unitId: e.target.value })}
           >
@@ -163,6 +207,7 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
             fullWidth
             required
             label='First name'
+            disabled={blocked}
             value={form.firstName}
             onChange={e => setForm({ ...form, firstName: e.target.value })}
           />
@@ -172,6 +217,7 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
             fullWidth
             required
             label='Last name'
+            disabled={blocked}
             value={form.lastName}
             onChange={e => setForm({ ...form, lastName: e.target.value })}
           />
@@ -182,6 +228,7 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
             required
             type='email'
             label='Email'
+            disabled={blocked}
             value={form.email}
             onChange={e => setForm({ ...form, email: e.target.value })}
           />
@@ -191,6 +238,7 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
             fullWidth
             required
             label='Phone number'
+            disabled={blocked}
             value={form.phone}
             onChange={e => setForm({ ...form, phone: e.target.value })}
           />
@@ -201,6 +249,7 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
             required
             type='date'
             label='Move-in date'
+            disabled={blocked}
             slotProps={{ inputLabel: { shrink: true } }}
             value={form.moveInDate}
             onChange={e => setForm({ ...form, moveInDate: e.target.value })}
@@ -209,7 +258,7 @@ export default function TenantHomeStep({ tenantId, onComplete }: Props) {
         <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
           <Button
             variant='contained'
-            disabled={!valid || submitting}
+            disabled={!valid || submitting || blocked}
             onClick={handleSubmit}
             endIcon={submitting ? <CircularProgress size={18} color='inherit' /> : undefined}
           >

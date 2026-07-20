@@ -1,27 +1,21 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-vi.mock('@/lib/api/properties', () => ({
-  getProperties: vi.fn()
-}))
-vi.mock('@/lib/api/units', () => ({
-  getAllUnits: vi.fn()
-}))
-vi.mock('@/lib/api/occupants', () => ({
-  createOccupant: vi.fn()
-}))
-
 import TenantHomeStep from '@/views/onboarding/steps/TenantHomeStep'
 import { getProperties } from '@/lib/api/properties'
 import { getAllUnits } from '@/lib/api/units'
 import { createOccupant } from '@/lib/api/occupants'
 
-const setup = () => {
+vi.mock('@/lib/api/properties')
+vi.mock('@/lib/api/units')
+vi.mock('@/lib/api/occupants')
+
+const setup = (onExit = vi.fn()) => {
   const onComplete = vi.fn()
 
-  render(<TenantHomeStep tenantId='t1' onComplete={onComplete} />)
-  
-return { onComplete }
+  render(<TenantHomeStep tenantId='t1' onComplete={onComplete} onExit={onExit} />)
+
+  return { onComplete, onExit }
 }
 
 describe('TenantHomeStep', () => {
@@ -61,5 +55,36 @@ describe('TenantHomeStep', () => {
         occupantName: 'Kwabena Owusu'
       })
     )
+  })
+
+  it('shows an add-property message and disables the form when there are no properties', async () => {
+    vi.mocked(getProperties).mockResolvedValue({ success: true, data: [] } as any)
+    const { onExit } = setup()
+
+    // message appears once properties finish loading
+    expect(await screen.findByText(/add a property and a unit/i)).toBeInTheDocument()
+
+    // Continue is disabled and the tenant fields are disabled
+    expect(screen.getByRole('button', { name: /continue/i })).toBeDisabled()
+    expect(screen.getByLabelText(/first name/i)).toBeDisabled()
+
+    // the action link exits the wizard to the Add Property page
+    fireEvent.click(screen.getByRole('button', { name: /add a property/i }))
+    expect(onExit).toHaveBeenCalledWith('/properties?create=1')
+  })
+
+  it('shows an add-unit message and disables downstream fields when the property has no available units', async () => {
+    vi.mocked(getAllUnits).mockResolvedValue({ success: true, data: [] } as any)
+    const { onExit } = setup()
+
+    fireEvent.mouseDown(screen.getByLabelText(/property/i))
+    fireEvent.click(await screen.findByText('Xorla House 2'))
+
+    expect(await screen.findByText(/no available units/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /continue/i })).toBeDisabled()
+    expect(screen.getByLabelText(/first name/i)).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: /add a unit/i }))
+    expect(onExit).toHaveBeenCalledWith('/properties/units')
   })
 })
