@@ -23,6 +23,7 @@ import SubscriptionWarningBanner from '@components/banner/SubscriptionWarningBan
 import ImpersonationBanner from '@components/banner/ImpersonationBanner'
 import ResumeOnboardingBanner from '@components/banner/ResumeOnboardingBanner'
 import OnboardingWizard from '@views/onboarding/OnboardingWizard'
+import OnboardTenantWizard from '@views/onboarding/OnboardTenantWizard'
 import { ReferenceDataProvider } from '@/contexts/ReferenceDataContext'
 import { PlatformBrandingProvider } from '@/contexts/PlatformBrandingContext'
 import BrandingThemeBridge from '@components/theme/BrandingThemeBridge'
@@ -47,6 +48,7 @@ const Layout = async (props: ChildrenType) => {
       <AnnouncementBanner />
       <ResumeOnboardingBanner />
       <OnboardingWizard />
+      <OnboardTenantWizard />
       <SubscriptionWarningBanner />
       <LayoutWrapper
         systemMode={systemMode}

@@ -93,6 +93,18 @@ const CreateButton = () => {
             <Paper className={settings.skin === 'bordered' ? 'border shadow-none' : 'shadow-lg'}>
               <ClickAwayListener onClickAway={handleClose}>
                 <MenuList>
+                  <MenuItem
+                    className='gap-3 pli-4'
+                    onClick={() => {
+                      handleClose()
+                      window.dispatchEvent(new CustomEvent('onboard-tenant:open'))
+                    }}
+                  >
+                    <i className='ri-user-follow-line' />
+                    <Typography color='primary' sx={{ fontWeight: 600 }}>
+                      Onboard a Tenant
+                    </Typography>
+                  </MenuItem>
                   {createOptions.map((option, index) => (
                     <MenuItem
                       key={index}

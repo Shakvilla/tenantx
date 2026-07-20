@@ -491,6 +491,15 @@ const OccupantsListTable = () => {
                   variant='contained'
                   color='primary'
                   size='small'
+                  startIcon={<i className='ri-user-follow-line' />}
+                  onClick={() => window.dispatchEvent(new CustomEvent('onboard-tenant:open'))}
+                >
+                  Onboard a Tenant
+                </Button>
+                <Button
+                  variant='outlined'
+                  color='primary'
+                  size='small'
                   startIcon={<i className='ri-add-line' />}
                   onClick={() => setAddOccupantOpen(true)}
                 >
