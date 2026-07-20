@@ -16,6 +16,9 @@ import { getStoredAdminToken, setStoredAdminToken, clearStoredAdminToken } from 
 const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1')
   .replace(/\/api\/v1$/, '') + '/api/v1/admin'
 
+// SystemNotificationController lives at /api/v1/system/notifications — not under /admin
+const API_V1_BASE = ADMIN_API_BASE.replace(/\/admin$/, '')
+
 // ---------------------------------------------------------------------------
 // Axios instance
 // ---------------------------------------------------------------------------
@@ -27,28 +30,34 @@ const adminClient: AxiosInstance = axios.create({
 
 adminClient.interceptors.request.use(config => {
   const token = getStoredAdminToken()
+
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`
   }
-  return config
+
+  
+return config
 })
 
 adminClient.interceptors.response.use(
   res => res,
   error => {
     // Only /api/v1/admin/** calls (the default baseURL) represent the admin's own session.
-    // A request with a different baseURL override hitting a non-admin endpoint outside
-    // AdminJwtAuthenticationFilter's scope will always 401 for an admin token — that's a
-    // misrouted-request error, not proof the admin's session has expired.
+    // Calls that override baseURL to API_V1_BASE (e.g. getSystemNotifications) hit tenant-scoped
+    // endpoints outside AdminJwtAuthenticationFilter's scope and will always 401 for an admin
+    // token — that's a misrouted-request error, not proof the admin's session has expired.
     const isAdminScopedRequest = (error.config?.baseURL ?? ADMIN_API_BASE) === ADMIN_API_BASE
 
     if (error.response?.status === 401 && isAdminScopedRequest) {
       clearStoredAdminToken()
+
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('ADMIN_SESSION_EXPIRED'))
       }
     }
-    return Promise.reject(error)
+
+
+return Promise.reject(error)
   }
 )
 
@@ -137,22 +146,30 @@ export interface PaginatedResponse<T> {
 
 async function adminGet<T>(path: string): Promise<T> {
   const res = await adminClient.get<T>(path)
-  return res.data
+
+  
+return res.data
 }
 
 async function adminPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await adminClient.post<T>(path, body)
-  return res.data
+
+  
+return res.data
 }
 
 async function adminPut<T>(path: string, body: unknown): Promise<T> {
   const res = await adminClient.put<T>(path, body)
-  return res.data
+
+  
+return res.data
 }
 
 async function adminDelete<T = void>(path: string): Promise<T> {
   const res = await adminClient.delete<T>(path)
-  return res.data
+
+  
+return res.data
 }
 
 // ---------------------------------------------------------------------------
@@ -162,12 +179,24 @@ async function adminDelete<T = void>(path: string): Promise<T> {
 export async function adminLogin(email: string, password: string): Promise<AdminLoginResponse> {
   // Call directly (no auth header needed for login)
   const res = await axios.post<AdminLoginResponse>(`${ADMIN_API_BASE}/auth/login`, { email, password })
+
   setStoredAdminToken(res.data.accessToken)
-  return res.data
+  
+return res.data
 }
 
 export async function getAdminMe(): Promise<AdminProfile> {
   return adminGet<AdminProfile>('/auth/me')
+}
+
+export interface UpdateAdminProfilePayload {
+  fullName: string
+  email: string
+}
+
+/** Updates the authenticated admin's own name/email. Returns the refreshed profile. */
+export async function updateAdminProfile(payload: UpdateAdminProfilePayload): Promise<AdminProfile> {
+  return adminPut<AdminProfile>('/auth/me', payload)
 }
 
 export function adminLogout(): void {
@@ -184,8 +213,10 @@ export async function changeAdminPassword(currentPassword: string, newPassword: 
 
 export async function getAdminTenants(cursor?: string, size = 50): Promise<PaginatedResponse<TenantRecord[]>> {
   const params = new URLSearchParams({ size: String(size) })
+
   if (cursor) params.set('cursor', cursor)
-  return adminGet<PaginatedResponse<TenantRecord[]>>(`/tenants?${params}`)
+  
+return adminGet<PaginatedResponse<TenantRecord[]>>(`/tenants?${params}`)
 }
 
 export async function getAdminTenant(id: string): Promise<TenantRecord> {
@@ -208,6 +239,7 @@ export async function exportTenantsCsv(): Promise<void> {
   const res = await adminClient.get('/tenants/export', { responseType: 'blob' })
   const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }))
   const a = document.createElement('a')
+
   a.href = url
   a.download = `tenants-export-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
@@ -255,8 +287,10 @@ export async function resetTenantPassword(id: string): Promise<PasswordResetResp
 
 export async function getSystemAdmins(cursor?: string, size = 50): Promise<PaginatedResponse<AdminRecord[]>> {
   const params = new URLSearchParams({ size: String(size) })
+
   if (cursor) params.set('cursor', cursor)
-  return adminGet<PaginatedResponse<AdminRecord[]>>(`/system-admins?${params}`)
+  
+return adminGet<PaginatedResponse<AdminRecord[]>>(`/system-admins?${params}`)
 }
 
 export async function getSystemAdmin(id: string): Promise<AdminRecord> {
@@ -265,6 +299,16 @@ export async function getSystemAdmin(id: string): Promise<AdminRecord> {
 
 export async function createSystemAdmin(payload: CreateAdminPayload): Promise<AdminRecord> {
   return adminPost<AdminRecord>('/system-admins', payload)
+}
+
+export interface UpdateSystemAdminPayload {
+  fullName: string
+  email: string
+}
+
+/** Updates another system admin's name/email (requires manage_admins permission). */
+export async function updateSystemAdmin(id: string, payload: UpdateSystemAdminPayload): Promise<AdminRecord> {
+  return adminPut<AdminRecord>(`/system-admins/${id}`, payload)
 }
 
 export async function deactivateSystemAdmin(id: string): Promise<void> {
@@ -309,6 +353,10 @@ export async function createRole(payload: CreateRolePayload): Promise<RoleRecord
   return adminPost<RoleRecord>('/roles', payload)
 }
 
+export async function getRoleById(id: string): Promise<RoleRecord> {
+  return adminGet<RoleRecord>(`/roles/${id}`)
+}
+
 export async function updateRolePermissions(roleId: string, permissionNames: string[]): Promise<RoleRecord> {
   return adminPut<RoleRecord>(`/roles/${roleId}/permissions`, permissionNames)
 }
@@ -321,10 +369,29 @@ export interface PermissionRecord {
   id: string
   name: string
   description: string | null
+  /** Grouping key for the permission matrix (e.g. 'tenants', 'billing', 'system'). */
+  module: string | null
+}
+
+export interface CreatePermissionPayload {
+  name: string
+  description?: string
 }
 
 export async function getPermissions(): Promise<PermissionRecord[]> {
   return adminGet<PermissionRecord[]>('/permissions')
+}
+
+export async function createPermission(payload: CreatePermissionPayload): Promise<PermissionRecord> {
+  return adminPost<PermissionRecord>('/permissions', payload)
+}
+
+export async function getPermissionById(id: string): Promise<PermissionRecord> {
+  return adminGet<PermissionRecord>(`/permissions/${id}`)
+}
+
+export async function deletePermission(id: string): Promise<void> {
+  return adminDelete(`/permissions/${id}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -338,6 +405,7 @@ export interface AnnouncementDto {
   severity: 'info' | 'warning' | 'error' | 'success'
   active: boolean
   expiresAt: string | null
+
   /** ISO-8601 datetime when this announcement should start showing. null = immediate. */
   scheduledAt: string | null
   createdBy: string | null
@@ -351,12 +419,20 @@ export interface CreateAnnouncementPayload {
   severity?: string
   active?: boolean
   expiresAt?: string
+
   /** datetime-local value (YYYY-MM-DDTHH:mm) or empty string to clear. */
   scheduledAt?: string
 }
 
-export async function getAnnouncements(): Promise<AnnouncementDto[]> {
-  return adminGet<AnnouncementDto[]>('/announcements')
+export interface PagedAnnouncements {
+  data: AnnouncementDto[]
+  total: number
+  page: number
+  size: number
+}
+
+export async function getAnnouncements(page = 0, size = 20): Promise<PagedAnnouncements> {
+  return adminGet<PagedAnnouncements>(`/announcements?page=${page}&size=${size}`)
 }
 
 export async function createAnnouncement(payload: CreateAnnouncementPayload): Promise<AnnouncementDto> {
@@ -437,6 +513,7 @@ export interface SubscriptionPlanDto {
   features: Record<string, FeatureInfo>
   marketingFeatures: string[]
   subscriberCount: number
+  annualDiscountPct: number | null   // e.g. 0.15 = 15% off for annual billing; null = no annual option
 }
 
 export interface UpdatePlanRequestDto {
@@ -448,6 +525,20 @@ export interface UpdatePlanRequestDto {
   active: boolean
   popular?: boolean
   marketingFeatures?: string[]
+  annualDiscountPct?: number | null
+}
+
+export interface CreatePlanRequestDto {
+  name: string
+  displayName: string
+  pricePerUnit: number
+  freeUnitCap: number | null
+  transactionFeePct: number | null
+  featureFlags: Record<string, boolean>
+  active?: boolean
+  popular?: boolean
+  marketingFeatures?: string[]
+  annualDiscountPct?: number | null
 }
 
 export interface TenantSubscriptionDto {
@@ -470,6 +561,10 @@ export async function getSubscriptionPlans(): Promise<SubscriptionPlanDto[]> {
 
 export async function updateSubscriptionPlan(planId: string, payload: UpdatePlanRequestDto): Promise<SubscriptionPlanDto> {
   return adminPut<SubscriptionPlanDto>(`/subscription-plans/${planId}`, payload)
+}
+
+export async function createSubscriptionPlan(payload: CreatePlanRequestDto): Promise<SubscriptionPlanDto> {
+  return adminPost<SubscriptionPlanDto>('/subscription-plans', payload)
 }
 
 export async function getAdminTenantSubscription(tenantId: string): Promise<TenantSubscriptionDto> {
@@ -505,6 +600,37 @@ export interface UpcomingRenewalDto {
 
 export async function getUpcomingRenewals(days: 7 | 14 | 30 = 30): Promise<UpcomingRenewalDto[]> {
   return adminGet<UpcomingRenewalDto[]>(`/subscription-plans/renewals?days=${days}`)
+}
+
+export interface TenantSubscriptionSummaryDto {
+  tenantId: string
+  tenantName: string
+  planName: string
+  planDisplayName: string
+  status: string
+  billedUnitCount: number | null
+  currentPeriodStart: string | null
+  currentPeriodEnd: string | null
+  pendingPlanName: string | null
+  cancelledAt: string | null
+}
+
+/** Shape of a Spring Data `Page<T>` JSON response. */
+export interface SpringPage<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  number: number // current page index, 0-based
+  size: number
+}
+
+export async function getAllSubscriptions(
+  page = 0,
+  size = 50
+): Promise<SpringPage<TenantSubscriptionSummaryDto>> {
+  return adminGet<SpringPage<TenantSubscriptionSummaryDto>>(
+    `/subscription-plans/subscriptions?page=${page}&size=${size}`
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -608,8 +734,10 @@ export async function getAdminInvoices(
   size = 50
 ): Promise<PagedInvoiceResponse> {
   const params = new URLSearchParams({ page: String(page), size: String(size) })
+
   if (status) params.set('status', status)
-  return adminGet<PagedInvoiceResponse>(`/invoices?${params}`)
+  
+return adminGet<PagedInvoiceResponse>(`/invoices?${params}`)
 }
 
 export async function getTenantInvoices(
@@ -618,7 +746,9 @@ export async function getTenantInvoices(
   size = 20
 ): Promise<PagedInvoiceResponse> {
   const params = new URLSearchParams({ page: String(page), size: String(size) })
-  return adminGet<PagedInvoiceResponse>(`/invoices/by-tenant/${tenantId}?${params}`)
+
+  
+return adminGet<PagedInvoiceResponse>(`/invoices/by-tenant/${tenantId}?${params}`)
 }
 
 export async function getAdminFailedInvoices(): Promise<AdminInvoiceDto[]> {
@@ -637,14 +767,26 @@ export async function adminVoidInvoice(invoiceId: string, reason?: string): Prom
   return adminPost<AdminInvoiceDto>(`/invoices/${invoiceId}/void`, { reason: reason ?? null })
 }
 
+/** PENDING invoices awaiting admin confirmation of a manual bank-transfer payment. */
+export async function getAdminManualPendingInvoices(): Promise<AdminInvoiceDto[]> {
+  return adminGet<AdminInvoiceDto[]>('/invoices/manual-pending')
+}
+
+/** Confirms a manual bank-transfer lodgment — marks the invoice PAID and activates the plan. */
+export async function adminConfirmManualPayment(invoiceId: string): Promise<void> {
+  await adminClient.post(`/invoices/${invoiceId}/confirm-manual-payment`)
+}
+
 /** Download PAID invoices as CSV. Optionally filter by ISO date range (YYYY-MM-DD). */
 export async function exportRevenueCsv(start?: string, end?: string): Promise<void> {
   const params = new URLSearchParams()
+
   if (start) params.set('start', start)
   if (end)   params.set('end', end)
   const res = await adminClient.get(`/invoices/export?${params}`, { responseType: 'blob' })
   const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }))
   const a = document.createElement('a')
+
   a.href = url
   a.download = `revenue-export-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
@@ -720,8 +862,10 @@ export interface NotifStatsDto {
 export interface SystemHealthResponse {
   jobs: JobStatusDto[]
   reddeHealth: ReddeHealthDto
+
   /** Distinct tenant users with a successful login in the last 30 minutes. */
   activeSessionsApprox: number
+
   // --- new ---
   services: ServiceStatusDto[]
   flyway: FlywayInfoDto
@@ -764,15 +908,23 @@ export async function getSystemNotifications(params?: {
   size?: number
 }): Promise<SystemNotificationPage> {
   const q = new URLSearchParams()
+
   if (params?.status) q.set('status', params.status)
   if (params?.type)   q.set('type',   params.type)
   if (params?.page !== undefined) q.set('page', String(params.page))
   if (params?.size !== undefined) q.set('size', String(params.size))
-  return adminGet<SystemNotificationPage>(`/system/notifications${q.toString() ? `?${q}` : ''}`)
+
+  const res = await adminClient.get<SystemNotificationPage>(
+    `/system/notifications${q.toString() ? `?${q}` : ''}`,
+    { baseURL: API_V1_BASE }
+  )
+
+  
+return res.data
 }
 
 export async function resendSystemNotification(id: string): Promise<void> {
-  return adminPost<void>(`/system/notifications/${id}/resend`, {})
+  await adminClient.post<void>(`/system/notifications/${id}/resend`, {}, { baseURL: API_V1_BASE })
 }
 
 // ---------------------------------------------------------------------------
@@ -897,10 +1049,16 @@ export async function getRevenueByPlan(months = 12): Promise<RevenueByPlanDto> {
   return adminGet<RevenueByPlanDto>(`/reports/revenue-by-plan?months=${months}`)
 }
 
-export function buildSummaryExportUrl(start: string, end: string): string {
-  const base = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1')
-    .replace(/\/api\/v1$/, '') + '/api/v1/admin'
-  return `${base}/reports/summary/export?start=${start}&end=${end}`
+/** Download the admin summary report as CSV for the given ISO date range (YYYY-MM-DD). */
+export async function exportSummaryReportCsv(start: string, end: string): Promise<void> {
+  const res = await adminClient.get(`/reports/summary/export?start=${start}&end=${end}`, { responseType: 'blob' })
+  const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+
+  a.href = url
+  a.download = `tenant-report-${start}_${end}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ---------------------------------------------------------------------------
@@ -962,13 +1120,15 @@ export async function getAdminTickets(params: {
   status?: string; priority?: string; tenantId?: string; search?: string; page?: number; size?: number
 }): Promise<TicketPageDto> {
   const q = new URLSearchParams()
+
   if (params.status)   q.set('status',   params.status)
   if (params.priority) q.set('priority', params.priority)
   if (params.tenantId) q.set('tenantId', params.tenantId)
   if (params.search)   q.set('search',   params.search)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
-  return adminGet<TicketPageDto>(`/support/tickets?${q}`)
+  
+return adminGet<TicketPageDto>(`/support/tickets?${q}`)
 }
 
 export async function getTicketCounts(): Promise<TicketCountsDto> {
@@ -989,11 +1149,13 @@ export async function getAdminFeedback(params: {
   category?: string; tenantId?: string; page?: number; size?: number
 }): Promise<FeedbackPageDto> {
   const q = new URLSearchParams()
+
   if (params.category) q.set('category', params.category)
   if (params.tenantId) q.set('tenantId', params.tenantId)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
-  return adminGet<FeedbackPageDto>(`/support/feedback?${q}`)
+  
+return adminGet<FeedbackPageDto>(`/support/feedback?${q}`)
 }
 
 export async function getFeedbackSummary(): Promise<FeedbackSummaryDto> {
@@ -1028,12 +1190,14 @@ export async function getTenantLoginHistory(
   params: { success?: boolean; from?: string; to?: string; page?: number; size?: number }
 ): Promise<LoginHistoryPage> {
   const q = new URLSearchParams()
+
   if (params.success !== undefined) q.set('success', String(params.success))
   if (params.from) q.set('from', params.from)
   if (params.to)   q.set('to',   params.to)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
-  return adminGet<LoginHistoryPage>(`/tenants/${tenantId}/login-history?${q}`)
+  
+return adminGet<LoginHistoryPage>(`/tenants/${tenantId}/login-history?${q}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -1093,7 +1257,9 @@ export async function getPlatformSettings(): Promise<Record<string, PlatformSett
  */
 export async function updatePlatformSetting(key: string, value: string): Promise<PlatformSettingDto> {
   const encodedKey = key.replace(/\./g, '__')
-  return adminPut<PlatformSettingDto>(`/platform-settings/${encodedKey}`, { value })
+
+  
+return adminPut<PlatformSettingDto>(`/platform-settings/${encodedKey}`, { value })
 }
 
 // ---------------------------------------------------------------------------
@@ -1131,6 +1297,7 @@ export async function getAuditLog(params: {
   size?: number
 }): Promise<AuditLogPage> {
   const q = new URLSearchParams()
+
   if (params.adminEmail) q.set('adminEmail', params.adminEmail)
   if (params.entityType) q.set('entityType', params.entityType)
   if (params.action)     q.set('action',     params.action)
@@ -1138,7 +1305,8 @@ export async function getAuditLog(params: {
   if (params.to)         q.set('to',         params.to)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 50))
-  return adminGet<AuditLogPage>(`/audit-log?${q}`)
+  
+return adminGet<AuditLogPage>(`/audit-log?${q}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -1178,15 +1346,19 @@ export interface FeeLedgerSummary {
 export async function getFeeLedgerEntries(params: {
   tenantId?: string
   status?: string
+  sourceType?: string
   page?: number
   size?: number
 }): Promise<PagedLedgerResponse> {
   const q = new URLSearchParams()
+
   if (params.tenantId) q.set('tenantId', params.tenantId)
   if (params.status)   q.set('status',   params.status)
+  if (params.sourceType) q.set('sourceType', params.sourceType)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 50))
-  return adminGet<PagedLedgerResponse>(`/fee-ledger?${q}`)
+  
+return adminGet<PagedLedgerResponse>(`/fee-ledger?${q}`)
 }
 
 export async function getFeeLedgerSummary(): Promise<FeeLedgerSummary> {
@@ -1204,7 +1376,9 @@ export interface BatchSettleResponse {
 
 export async function settleBatch(tenantId?: string): Promise<BatchSettleResponse> {
   const q = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : ''
-  return adminPost<BatchSettleResponse>(`/fee-ledger/settle-batch${q}`)
+
+  
+return adminPost<BatchSettleResponse>(`/fee-ledger/settle-batch${q}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -1217,10 +1391,12 @@ export async function exportTenantData(tenantId: string): Promise<void> {
     {},
     { responseType: 'blob' }
   )
+
   const url = URL.createObjectURL(res.data)
   const a   = document.createElement('a')
   const cd  = res.headers['content-disposition'] ?? ''
   const m   = cd.match(/filename="?([^"]+)"?/)
+
   a.href     = url
   a.download = m ? m[1] : `tenantx_export_${tenantId}.json`
   a.click()
@@ -1287,6 +1463,16 @@ export async function getImpersonationLog(
 ): Promise<ImpersonationLogPage> {
   return adminGet<ImpersonationLogPage>(
     `/tenants/${tenantId}/impersonate/log?page=${page}&size=${size}`
+  )
+}
+
+/** Global impersonation audit trail — all tenants, newest first. */
+export async function getGlobalImpersonationLog(
+  page = 0,
+  size = 25
+): Promise<ImpersonationLogPage> {
+  return adminGet<ImpersonationLogPage>(
+    `/impersonate/log?page=${page}&size=${size}`
   )
 }
 
@@ -1626,13 +1812,15 @@ export interface GetAdminUsersParams {
 /** List all platform users with optional filtering and pagination. */
 export async function getAdminUsers(params: GetAdminUsersParams = {}): Promise<PagedAdminUsers> {
   const q = new URLSearchParams()
+
   if (params.tenantId !== undefined) q.set('tenantId', params.tenantId)
   if (params.role     !== undefined) q.set('role',     params.role)
   if (params.active   !== undefined) q.set('active',   String(params.active))
   if (params.search   !== undefined && params.search !== '') q.set('search', params.search)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 50))
-  return adminGet<PagedAdminUsers>(`/users?${q}`)
+  
+return adminGet<PagedAdminUsers>(`/users?${q}`)
 }
 
 /** Get a single platform user by UUID. */
@@ -1643,13 +1831,17 @@ export async function getAdminUser(id: string): Promise<AdminUserRecord> {
 /** Deactivate a user — blocks login. Returns the updated record. */
 export async function deactivateAdminUser(id: string): Promise<AdminUserRecord> {
   const res = await adminClient.patch<AdminUserRecord>(`/users/${id}/deactivate`)
-  return res.data
+
+  
+return res.data
 }
 
 /** Reactivate a previously deactivated user. Returns the updated record. */
 export async function reactivateAdminUser(id: string): Promise<AdminUserRecord> {
   const res = await adminClient.patch<AdminUserRecord>(`/users/${id}/reactivate`)
-  return res.data
+
+  
+return res.data
 }
 
 /**
@@ -1658,4 +1850,131 @@ export async function reactivateAdminUser(id: string): Promise<AdminUserRecord> 
  */
 export async function resetAdminUserPassword(id: string): Promise<PasswordResetResponse> {
   return adminPost<PasswordResetResponse>(`/users/${id}/reset-password`, {})
+}
+
+// ---------------------------------------------------------------------------
+// Platform Gateway Config — admin configures ONE set of Redde apps for all tenants
+// ---------------------------------------------------------------------------
+
+import type { GatewayConfigRequest, GatewayConfigResponse } from '@/types/payment'
+
+export const adminGatewayConfigApi = {
+  list: (): Promise<GatewayConfigResponse[]> =>
+    adminGet<GatewayConfigResponse[]>('/gateway-configs'),
+
+  save: (req: GatewayConfigRequest): Promise<GatewayConfigResponse> =>
+    adminClient.post<GatewayConfigResponse>('/gateway-configs', req).then(r => r.data),
+
+  delete: (id: string): Promise<void> =>
+    adminClient.delete(`/gateway-configs/${id}`).then(() => undefined),
+}
+
+// ---------------------------------------------------------------------------
+// SMS Sender ID Requests (admin review)
+// ---------------------------------------------------------------------------
+
+export interface SenderIdRequestRecord {
+  id: string
+  requestedSenderId: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  rejectionReason: string | null
+  createdAt: string
+  approvedAt: string | null
+  rejectedAt: string | null
+}
+
+export interface AdminSenderIdRequestDto {
+  id: string | null
+  tenantId: string
+  tenantName: string
+  requestedSenderId: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  rejectionReason: string | null
+  createdAt: string | null
+  approvedAt: string | null
+  rejectedAt: string | null
+  isActive: boolean
+  deactivatedAt: string | null
+}
+
+export interface PagedSenderIdRequestResponse {
+  data: AdminSenderIdRequestDto[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasMore: boolean
+}
+
+export async function getSenderIdRequests(params: {
+  status?: string
+  search?: string
+  from?: string
+  to?: string
+  page?: number
+  size?: number
+}): Promise<PagedSenderIdRequestResponse> {
+  const query = new URLSearchParams({
+    page: String(params.page ?? 0),
+    size: String(params.size ?? 25),
+  })
+
+  if (params.status) query.set('status', params.status)
+  if (params.search) query.set('search', params.search)
+  if (params.from) query.set('from', params.from)
+  if (params.to) query.set('to', params.to)
+  
+return adminGet<PagedSenderIdRequestResponse>(`/sms/sender-id-requests?${query}`)
+}
+
+export async function approveSenderIdRequest(id: string): Promise<SenderIdRequestRecord> {
+  return adminPost<SenderIdRequestRecord>(`/sms/sender-id-requests/${id}/approve`, {})
+}
+
+export async function rejectSenderIdRequest(id: string, reason: string): Promise<SenderIdRequestRecord> {
+  return adminPost<SenderIdRequestRecord>(`/sms/sender-id-requests/${id}/reject`, { reason })
+}
+
+export async function deactivateSenderId(tenantId: string, reason: string): Promise<AdminSenderIdRequestDto> {
+  return adminPost<AdminSenderIdRequestDto>(`/sms/sender-id-requests/tenant/${tenantId}/deactivate`, { reason })
+}
+
+export async function reactivateSenderId(tenantId: string): Promise<AdminSenderIdRequestDto> {
+  return adminPost<AdminSenderIdRequestDto>(`/sms/sender-id-requests/tenant/${tenantId}/reactivate`, {})
+}
+
+// ---------------------------------------------------------------------------
+// SMS Top-Up Fee Tiers (admin)
+// ---------------------------------------------------------------------------
+
+export interface SmsFeeTierRecord {
+  id: string
+  minAmount: number
+  maxAmount: number | null
+  feeType: 'PERCENTAGE' | 'FLAT'
+  feeValue: number
+  createdAt: string
+}
+
+export interface SmsFeeTierRequest {
+  minAmount: number
+  maxAmount: number | null
+  feeType: 'PERCENTAGE' | 'FLAT'
+  feeValue: number
+}
+
+export async function getSmsFeeTiers(): Promise<SmsFeeTierRecord[]> {
+  return adminGet<SmsFeeTierRecord[]>('/sms/fee-tiers')
+}
+
+export async function createSmsFeeTier(payload: SmsFeeTierRequest): Promise<SmsFeeTierRecord> {
+  return adminPost<SmsFeeTierRecord>('/sms/fee-tiers', payload)
+}
+
+export async function updateSmsFeeTier(id: string, payload: SmsFeeTierRequest): Promise<SmsFeeTierRecord> {
+  return adminPut<SmsFeeTierRecord>(`/sms/fee-tiers/${id}`, payload)
+}
+
+export async function deleteSmsFeeTier(id: string): Promise<void> {
+  return adminDelete(`/sms/fee-tiers/${id}`)
 }

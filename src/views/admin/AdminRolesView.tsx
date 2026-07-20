@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -35,13 +35,17 @@ import Paper from '@mui/material/Paper'
 
 import {
   getRoles,
+  getRoleById,
   createRole,
   updateRolePermissions,
   deleteRole,
   getPermissions,
+  createPermission,
+  deletePermission,
   type RoleRecord,
   type PermissionRecord,
   type CreateRolePayload,
+  type CreatePermissionPayload,
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 
@@ -157,6 +161,82 @@ function CreateRoleDialog({ open, allPermissions, onClose, onCreated }: CreateRo
         >
           Create Role
         </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// View Role Detail dialog
+// ---------------------------------------------------------------------------
+
+interface ViewRoleDialogProps {
+  roleId: string | null
+  onClose: () => void
+}
+
+function ViewRoleDialog({ roleId, onClose }: ViewRoleDialogProps) {
+  const [role, setRole]       = useState<RoleRecord | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!roleId) {
+      setRole(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true); setError(null)
+    getRoleById(roleId)
+      .then(r => { if (!cancelled) setRole(r) })
+      .catch((e: any) => { if (!cancelled) setError(e?.response?.data?.message ?? e?.message ?? 'Failed to load role') })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [roleId])
+
+  return (
+    <Dialog open={!!roleId} onClose={onClose} maxWidth='sm' fullWidth>
+      <DialogTitle>Role Detail</DialogTitle>
+      <DialogContent sx={{ pt: '8px !important' }}>
+        {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : role ? (
+          <Box>
+            <Typography variant='subtitle1' fontWeight={700}>{role.name}</Typography>
+            <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
+              {role.description || 'No description'}
+            </Typography>
+            {role.createdAt && (
+              <Typography variant='caption' color='text.disabled' sx={{ display: 'block', mb: 1 }}>
+                Created {new Date(role.createdAt).toLocaleString()}
+              </Typography>
+            )}
+            <Divider sx={{ my: 1.5 }} />
+            <Typography variant='caption' color='text.secondary' fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+              Permissions ({role.permissions.length})
+            </Typography>
+            {role.permissions.length === 0 ? (
+              <Typography variant='caption' color='text.disabled'>No permissions assigned</Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                {role.permissions.map(p => (
+                  <Chip
+                    key={p}
+                    size='small'
+                    label={p}
+                    sx={{ fontFamily: 'monospace', fontSize: '0.7rem', bgcolor: 'action.hover' }}
+                  />
+                ))}
+              </Box>
+            )}
+          </Box>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
   )
@@ -297,17 +377,151 @@ function DeleteRoleDialog({ role, onClose, onDeleted }: DeleteRoleDialogProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Create Permission dialog
+// ---------------------------------------------------------------------------
+
+interface CreatePermissionDialogProps {
+  open: boolean
+  onClose: () => void
+  onCreated: (perm: PermissionRecord) => void
+}
+
+function CreatePermissionDialog({ open, onClose, onCreated }: CreatePermissionDialogProps) {
+  const [name, setName]         = useState('')
+  const [description, setDesc]  = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+
+  function handleClose() {
+    setName(''); setDesc(''); setError(null)
+    onClose()
+  }
+
+  function normalizeName(raw: string) {
+    return raw.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+/, '')
+  }
+
+  async function handleSave() {
+    const normalized = normalizeName(name)
+    if (!normalized) return
+    setSaving(true); setError(null)
+    try {
+      const payload: CreatePermissionPayload = {
+        name: normalized,
+        description: description.trim() || undefined,
+      }
+      const created = await createPermission(payload)
+      onCreated(created)
+      handleClose()
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? 'Failed to create permission')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+      <DialogTitle>New Permission</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+        {error && <Alert severity='error'>{error}</Alert>}
+        <TextField
+          label='Permission Name'
+          size='small'
+          fullWidth
+          value={name}
+          onChange={e => setName(e.target.value)}
+          disabled={saving}
+          required
+          helperText='Lowercase with underscores, e.g. manage_tenants'
+        />
+        <TextField
+          label='Description (optional)'
+          size='small'
+          fullWidth
+          multiline
+          rows={2}
+          value={description}
+          onChange={e => setDesc(e.target.value)}
+          disabled={saving}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose} disabled={saving}>Cancel</Button>
+        <Button
+          variant='contained'
+          onClick={handleSave}
+          disabled={saving || !normalizeName(name)}
+          startIcon={saving ? <CircularProgress size={14} color='inherit' /> : undefined}
+        >
+          Create Permission
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Delete Permission confirm dialog
+// ---------------------------------------------------------------------------
+
+interface DeletePermissionDialogProps {
+  permission: PermissionRecord | null
+  onClose: () => void
+  onDeleted: (id: string) => void
+}
+
+function DeletePermissionDialog({ permission, onClose, onDeleted }: DeletePermissionDialogProps) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+
+  async function handle() {
+    if (!permission) return
+    setLoading(true); setError(null)
+    try {
+      await deletePermission(permission.id)
+      onDeleted(permission.id)
+      onClose()
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? 'Failed to delete permission')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={!!permission} onClose={onClose}>
+      <DialogTitle>Delete Permission</DialogTitle>
+      <DialogContent>
+        {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
+        <DialogContentText>
+          Permanently delete permission <strong>{permission?.name}</strong>? Any role currently granting this permission will lose it immediately.
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button color='error' variant='contained' onClick={handle} disabled={loading}
+          startIcon={loading ? <CircularProgress size={14} color='inherit' /> : undefined}
+        >
+          Delete
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Role card
 // ---------------------------------------------------------------------------
 
 interface RoleCardProps {
   role: RoleRecord
   canManage: boolean
+  onView: (role: RoleRecord) => void
   onEdit: (role: RoleRecord) => void
   onDelete: (role: RoleRecord) => void
 }
 
-function RoleCard({ role, canManage, onEdit, onDelete }: RoleCardProps) {
+function RoleCard({ role, canManage, onView, onEdit, onDelete }: RoleCardProps) {
   return (
     <Card variant='outlined' sx={{ mb: 2 }}>
       <CardContent>
@@ -339,20 +553,27 @@ function RoleCard({ role, canManage, onEdit, onDelete }: RoleCardProps) {
             )}
           </Box>
 
-          {canManage && (
-            <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-              <Tooltip title='Edit permissions'>
-                <IconButton size='small' onClick={() => onEdit(role)}>
-                  <i className='ri-edit-line' style={{ fontSize: '1rem' }} />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title='Delete role'>
-                <IconButton size='small' color='error' onClick={() => onDelete(role)}>
-                  <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          )}
+          <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+            <Tooltip title='View details'>
+              <IconButton size='small' onClick={() => onView(role)}>
+                <i className='ri-eye-line' style={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
+            {canManage && (
+              <>
+                <Tooltip title='Edit permissions'>
+                  <IconButton size='small' onClick={() => onEdit(role)}>
+                    <i className='ri-edit-line' style={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title='Delete role'>
+                  <IconButton size='small' color='error' onClick={() => onDelete(role)}>
+                    <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
+          </Box>
         </Box>
       </CardContent>
     </Card>
@@ -369,9 +590,10 @@ interface PermissionMatrixProps {
   canManage: boolean
   onRoleUpdated: (role: RoleRecord) => void
   onError: (msg: string) => void
+  onDeletePermission: (perm: PermissionRecord) => void
 }
 
-function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onError }: PermissionMatrixProps) {
+function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onError, onDeletePermission }: PermissionMatrixProps) {
   // savingCell: roleId-permName pairs currently being saved
   const [saving, setSaving] = useState<Set<string>>(new Set())
 
@@ -400,7 +622,28 @@ function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onE
     }
   }
 
-  if (roles.length === 0 || allPermissions.length === 0) {
+  // The catalog grew from 3 permissions to ~40, so a flat column list is unreadable.
+  // Group by module the way the tenant-side matrix does, and drop the retired
+  // pre-namespacing codes (module 'legacy') — no controller references them any more.
+  const groups = useMemo(() => {
+    const live = allPermissions.filter(p => p.module !== 'legacy')
+    const byModule = new Map<string, PermissionRecord[]>()
+    for (const p of live) {
+      const key = p.module ?? 'other'
+      if (!byModule.has(key)) byModule.set(key, [])
+      byModule.get(key)!.push(p)
+    }
+    return [...byModule.entries()]
+      .map(([module, perms]) => ({ module, perms: perms.sort((a, b) => a.name.localeCompare(b.name)) }))
+      .sort((a, b) => a.module.localeCompare(b.module))
+  }, [allPermissions])
+
+  const orderedPermissions = useMemo(() => groups.flatMap(g => g.perms), [groups])
+
+  /** `platform:gateway:write` reads better as `gateway:write` under a "system" group header. */
+  const shortLabel = (name: string) => name.replace(/^platform:/, '')
+
+  if (roles.length === 0 || orderedPermissions.length === 0) {
     return (
       <Typography variant='body2' color='text.secondary' sx={{ py: 4, textAlign: 'center' }}>
         {roles.length === 0 ? 'No roles defined yet.' : 'No permissions defined yet.'}
@@ -412,6 +655,38 @@ function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onE
     <TableContainer component={Paper} variant='outlined' sx={{ overflowX: 'auto' }}>
       <Table size='small' stickyHeader>
         <TableHead>
+          {/* Module band — keeps ~40 columns navigable by grouping them like the tenant matrix */}
+          <TableRow>
+            <TableCell
+              sx={{
+                bgcolor: 'background.paper',
+                borderRight: '1px solid',
+                borderColor: 'divider',
+                position: 'sticky',
+                left: 0,
+                zIndex: 3,
+              }}
+            />
+            {groups.map(g => (
+              <TableCell
+                key={g.module}
+                align='center'
+                colSpan={g.perms.length}
+                sx={{
+                  fontWeight: 700,
+                  fontSize: '0.7rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  whiteSpace: 'nowrap',
+                  borderLeft: '1px solid',
+                  borderColor: 'divider',
+                  color: 'text.secondary',
+                }}
+              >
+                {g.module}
+              </TableCell>
+            ))}
+          </TableRow>
           <TableRow>
             <TableCell
               sx={{
@@ -427,15 +702,24 @@ function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onE
             >
               Role ↓ / Permission →
             </TableCell>
-            {allPermissions.map(p => (
+            {orderedPermissions.map(p => (
               <TableCell
                 key={p.id}
                 align='center'
                 sx={{ fontFamily: 'monospace', fontSize: '0.7rem', whiteSpace: 'nowrap', minWidth: 100 }}
               >
-                <Tooltip title={p.description ?? p.name} placement='top'>
-                  <span>{p.name}</span>
-                </Tooltip>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+                  <Tooltip title={`${p.name}${p.description ? ` — ${p.description}` : ''}`} placement='top'>
+                    <span>{shortLabel(p.name)}</span>
+                  </Tooltip>
+                  {canManage && (
+                    <Tooltip title='Delete permission'>
+                      <IconButton size='small' color='error' onClick={() => onDeletePermission(p)} sx={{ p: 0.25 }}>
+                        <i className='ri-delete-bin-line' style={{ fontSize: '0.85rem' }} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
               </TableCell>
             ))}
           </TableRow>
@@ -457,7 +741,7 @@ function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onE
               >
                 {role.name}
               </TableCell>
-              {allPermissions.map(p => {
+              {orderedPermissions.map(p => {
                 const key = `${role.id}-${p.name}`
                 const checked = role.permissions.includes(p.name)
                 const isSaving = saving.has(key)
@@ -493,15 +777,18 @@ export default function AdminRolesView() {
   const { hasPermission } = useAdminAuth()
   const canManage = hasPermission('manage_admins')
 
-  const [tab, setTab]                   = useState(0)
-  const [roles, setRoles]               = useState<RoleRecord[]>([])
-  const [allPerms, setAllPerms]         = useState<PermissionRecord[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [error, setError]               = useState<string | null>(null)
-  const [createOpen, setCreateOpen]     = useState(false)
-  const [editTarget, setEditTarget]     = useState<RoleRecord | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<RoleRecord | null>(null)
-  const [toast, setToast]               = useState<string | null>(null)
+  const [tab, setTab]                             = useState(0)
+  const [roles, setRoles]                         = useState<RoleRecord[]>([])
+  const [allPerms, setAllPerms]                   = useState<PermissionRecord[]>([])
+  const [loading, setLoading]                     = useState(true)
+  const [error, setError]                         = useState<string | null>(null)
+  const [createOpen, setCreateOpen]               = useState(false)
+  const [viewTargetId, setViewTargetId]           = useState<string | null>(null)
+  const [editTarget, setEditTarget]               = useState<RoleRecord | null>(null)
+  const [deleteTarget, setDeleteTarget]           = useState<RoleRecord | null>(null)
+  const [createPermOpen, setCreatePermOpen]       = useState(false)
+  const [deletePermTarget, setDeletePermTarget]   = useState<PermissionRecord | null>(null)
+  const [toast, setToast]                         = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
@@ -530,6 +817,20 @@ export default function AdminRolesView() {
     setToast('Role deleted')
   }
 
+  function handlePermissionCreated(perm: PermissionRecord) {
+    setAllPerms(prev => [...prev, perm])
+    setToast(`Permission "${perm.name}" created`)
+  }
+
+  function handlePermissionDeleted(id: string) {
+    setAllPerms(prev => prev.filter(p => p.id !== id))
+    setRoles(prev => prev.map(r => ({ ...r, permissions: r.permissions.filter(name => {
+      const deleted = allPerms.find(p => p.id === id)
+      return !deleted || name !== deleted.name
+    }) })))
+    setToast('Permission deleted')
+  }
+
   return (
     <Box>
       {/* ── Header ──────────────────────────────────────────────────────────── */}
@@ -547,6 +848,15 @@ export default function AdminRolesView() {
             onClick={() => setCreateOpen(true)}
           >
             Create Role
+          </Button>
+        )}
+        {canManage && tab === 1 && (
+          <Button
+            variant='contained'
+            startIcon={<i className='ri-add-line' />}
+            onClick={() => setCreatePermOpen(true)}
+          >
+            New Permission
           </Button>
         )}
       </Box>
@@ -585,6 +895,7 @@ export default function AdminRolesView() {
               key={role.id}
               role={role}
               canManage={canManage}
+              onView={r => setViewTargetId(r.id)}
               onEdit={setEditTarget}
               onDelete={setDeleteTarget}
             />
@@ -604,6 +915,7 @@ export default function AdminRolesView() {
             canManage={canManage}
             onRoleUpdated={r => setRoles(prev => prev.map(x => x.id === r.id ? r : x))}
             onError={msg => setError(msg)}
+            onDeletePermission={setDeletePermTarget}
           />
         </Box>
       )}
@@ -613,6 +925,11 @@ export default function AdminRolesView() {
         allPermissions={allPerms}
         onClose={() => setCreateOpen(false)}
         onCreated={handleCreated}
+      />
+
+      <ViewRoleDialog
+        roleId={viewTargetId}
+        onClose={() => setViewTargetId(null)}
       />
 
       <EditPermissionsDialog
@@ -626,6 +943,18 @@ export default function AdminRolesView() {
         role={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onDeleted={handleDeleted}
+      />
+
+      <CreatePermissionDialog
+        open={createPermOpen}
+        onClose={() => setCreatePermOpen(false)}
+        onCreated={handlePermissionCreated}
+      />
+
+      <DeletePermissionDialog
+        permission={deletePermTarget}
+        onClose={() => setDeletePermTarget(null)}
+        onDeleted={handlePermissionDeleted}
       />
 
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
