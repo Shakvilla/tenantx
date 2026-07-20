@@ -964,10 +964,14 @@ export default function AdminRolesView() {
 
   return (
     <Box>
-      {/* ── Header ──────────────────────────────────────────────────────────────
-          Title and description live in the PageBanner on the route, matching how
-          /settings/team is composed — don't repeat them here. */}
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 3 }}>
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+        <Box>
+          <Typography variant='h5' fontWeight={700}>Roles & Permissions</Typography>
+          <Typography variant='body2' color='text.secondary'>
+            Define what each admin role can do on the platform
+          </Typography>
+        </Box>
         {canManage && tab === 0 && (
           <Button
             variant='contained'
