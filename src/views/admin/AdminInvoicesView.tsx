@@ -845,7 +845,7 @@ function RenewalsTab() {
 
 export default function AdminInvoicesView() {
   const { hasPermission } = useAdminAuth()
-  const canManage = hasPermission('manage_tenants')
+  const canManage = hasPermission('platform:billing:write')
 
   const [tab, setTab] = useState(0)
 

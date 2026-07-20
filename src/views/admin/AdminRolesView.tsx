@@ -476,7 +476,7 @@ function CreatePermissionDialog({ open, onClose, onCreated }: CreatePermissionDi
           onChange={e => setName(e.target.value)}
           disabled={saving}
           required
-          helperText='Lowercase with underscores, e.g. manage_tenants'
+          helperText='Namespaced and colon-separated, e.g. platform:tenants:read'
         />
         <TextField
           label='Description (optional)'
@@ -906,7 +906,7 @@ function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onE
 
 export default function AdminRolesView() {
   const { hasPermission } = useAdminAuth()
-  const canManage = hasPermission('manage_admins')
+  const canManage = hasPermission('platform:roles:manage')
 
   const [tab, setTab]                             = useState(0)
   const [roles, setRoles]                         = useState<RoleRecord[]>([])

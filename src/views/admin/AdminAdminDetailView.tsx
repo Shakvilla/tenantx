@@ -194,7 +194,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
   const router = useRouter()
   const { hasPermission, adminUser } = useAdminAuth()
-  const canManage = hasPermission('manage_admins')
+  const canManage = hasPermission('platform:admins:manage')
 
   const [admin, setAdmin]           = useState<AdminRecord | null>(null)
   const [loading, setLoading]       = useState(true)

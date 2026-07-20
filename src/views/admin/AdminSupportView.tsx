@@ -292,7 +292,7 @@ function TicketDrawer({ ticket, open, canManage, onClose, onUpdated }: TicketDra
 
 function TicketsTab() {
   const { hasPermission } = useAdminAuth()
-  const canManage = hasPermission('manage_tenants')
+  const canManage = hasPermission('platform:support:write')
 
   const [counts,   setCounts]  = useState<TicketCountsDto | null>(null)
   const [page,     setPage]    = useState<TicketPageDto | null>(null)

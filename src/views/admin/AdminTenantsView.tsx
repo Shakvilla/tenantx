@@ -324,7 +324,7 @@ function ReactivateDialog({ tenant, onClose, onConfirm }: ReactivateDialogProps)
 export default function AdminTenantsView() {
   const { hasPermission } = useAdminAuth()
 
-  const canManage = hasPermission('manage_tenants')
+  const canManage = hasPermission('platform:tenants:write')
 
   const [tenants, setTenants]         = useState<TenantRecord[]>([])
   const [loading, setLoading]         = useState(true)

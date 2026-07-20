@@ -473,7 +473,7 @@ function StatsBar({ plans }: { plans: SubscriptionPlanDto[] }) {
 
 export default function AdminSubscriptionsView() {
   const { hasPermission } = useAdminAuth()
-  const canManage = hasPermission('manage_tenants')
+  const canManage = hasPermission('platform:plans:write')
 
   const [plans, setPlans]           = useState<SubscriptionPlanDto[]>([])
   const [loading, setLoading]       = useState(true)

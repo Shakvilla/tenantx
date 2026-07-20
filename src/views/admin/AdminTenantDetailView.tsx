@@ -730,7 +730,7 @@ function ImpersonateDialog({ open, tenant, onClose }: ImpersonateDialogProps) {
 export default function AdminTenantDetailView({ tenantId }: { tenantId: string }) {
   const router = useRouter()
   const { hasPermission } = useAdminAuth()
-  const canManage = hasPermission('manage_tenants')
+  const canManage = hasPermission('platform:tenants:write')
 
   // ── Core tenant ───────────────────────────────────────────────────────────
   const [tenant, setTenant]               = useState<TenantRecord | null>(null)

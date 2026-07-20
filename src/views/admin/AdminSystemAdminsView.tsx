@@ -276,7 +276,7 @@ const columnHelper = createColumnHelper<AdminRecord>()
 
 export default function AdminSystemAdminsView() {
   const { hasPermission } = useAdminAuth()
-  const canManage = hasPermission('manage_admins')
+  const canManage = hasPermission('platform:admins:manage')
 
   const [admins, setAdmins]             = useState<AdminRecord[]>([])
   const [loading, setLoading]           = useState(true)

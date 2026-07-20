@@ -219,7 +219,7 @@ const columnHelper = createColumnHelper<AnnouncementDto>()
 
 export default function AdminAnnouncementsView() {
   const { hasPermission } = useAdminAuth()
-  const canManage = hasPermission('manage_tenants')
+  const canManage = hasPermission('platform:announcements:write')
 
   const [announcements, setAnnouncements] = useState<AnnouncementDto[]>([])
   const [loading, setLoading]             = useState(true)
