@@ -193,7 +193,7 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
 
 export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
   const router = useRouter()
-  const { hasPermission } = useAdminAuth()
+  const { hasPermission, adminUser } = useAdminAuth()
   const canManage = hasPermission('manage_admins')
 
   const [admin, setAdmin]           = useState<AdminRecord | null>(null)
@@ -249,10 +249,18 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
 
   async function handleDeactivate() {
     if (!admin) return
-    await deactivateSystemAdmin(admin.id)
-    setAdmin(prev => prev ? { ...prev, active: false } : prev)
-    setDeactivateOpen(false)
-    setToast(`${admin.fullName} deactivated`)
+    try {
+      await deactivateSystemAdmin(admin.id)
+      setAdmin(prev => prev ? { ...prev, active: false } : prev)
+      setToast(`${admin.fullName} deactivated`)
+    } catch (e: unknown) {
+      // The server refuses to deactivate the last admin able to manage admins, and says why.
+      // Without this the rejected promise left the dialog spinning with no explanation.
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setToast(msg ?? 'Failed to deactivate admin')
+    } finally {
+      setDeactivateOpen(false)
+    }
   }
 
   async function handleReactivate() {
@@ -337,14 +345,25 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
               Reset Password
             </Button>
             {admin.active ? (
-              <Button
-                variant='outlined'
-                color='error'
-                startIcon={<i className='ri-forbid-line' />}
-                onClick={() => setDeactivateOpen(true)}
-              >
-                Deactivate
-              </Button>
+              /* Deactivating yourself strands your own session, and the server rejects it. Block
+                 it here too so the button never invites an action that cannot succeed. The other
+                 lockout case — removing the last admin who can manage admins — depends on roles
+                 this view does not load, so it stays server-enforced and surfaces via the toast. */
+              <Tooltip title={adminUser?.id === admin.id
+                ? 'You cannot deactivate your own account — ask another administrator'
+                : ''}>
+                <span>
+                  <Button
+                    variant='outlined'
+                    color='error'
+                    startIcon={<i className='ri-forbid-line' />}
+                    disabled={adminUser?.id === admin.id}
+                    onClick={() => setDeactivateOpen(true)}
+                  >
+                    Deactivate
+                  </Button>
+                </span>
+              </Tooltip>
             ) : (
               <Button
                 variant='outlined'
