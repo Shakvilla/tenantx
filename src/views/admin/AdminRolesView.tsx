@@ -596,37 +596,53 @@ interface PermissionMatrixProps {
 function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onError, onDeletePermission }: PermissionMatrixProps) {
   // savingCell: roleId-permName pairs currently being saved
   const [saving, setSaving] = useState<Set<string>>(new Set())
+  const [query, setQuery] = useState('')
 
-  async function handleToggle(role: RoleRecord, permName: string) {
-    const key = `${role.id}-${permName}`
-    if (saving.has(key)) return
-
-    const hasIt = role.permissions.includes(permName)
-    const newPerms = hasIt
-      ? role.permissions.filter(p => p !== permName)
-      : [...role.permissions, permName]
-
-    // Optimistic update
+  async function persist(role: RoleRecord, newPerms: string[], keys: string[]) {
+    const prev = role
     onRoleUpdated({ ...role, permissions: newPerms })
-    setSaving(prev => new Set(prev).add(key))
-
+    setSaving(s => { const n = new Set(s); keys.forEach(k => n.add(k)); return n })
     try {
       const updated = await updateRolePermissions(role.id, newPerms)
       onRoleUpdated(updated)
     } catch (e: any) {
-      // Revert on error
-      onRoleUpdated(role)
+      onRoleUpdated(prev)
       onError(e?.response?.data?.message ?? 'Failed to update permission')
     } finally {
-      setSaving(prev => { const s = new Set(prev); s.delete(key); return s })
+      setSaving(s => { const n = new Set(s); keys.forEach(k => n.delete(k)); return n })
     }
   }
 
-  // The catalog grew from 3 permissions to ~40, so a flat column list is unreadable.
-  // Group by module the way the tenant-side matrix does, and drop the retired
-  // pre-namespacing codes (module 'legacy') — no controller references them any more.
+  function handleToggle(role: RoleRecord, permName: string) {
+    const key = `${role.id}-${permName}`
+    if (saving.has(key)) return
+    const hasIt = role.permissions.includes(permName)
+    persist(role, hasIt ? role.permissions.filter(p => p !== permName) : [...role.permissions, permName], [key])
+  }
+
+  /** Grant or revoke a whole module for one role in a single request. */
+  function handleToggleModule(role: RoleRecord, perms: PermissionRecord[]) {
+    const names = perms.map(p => p.name)
+    const keys = names.map(n => `${role.id}-${n}`)
+    if (keys.some(k => saving.has(k))) return
+    const allGranted = names.every(n => role.permissions.includes(n))
+    const next = allGranted
+      ? role.permissions.filter(p => !names.includes(p))
+      : [...new Set([...role.permissions, ...names])]
+    persist(role, next, keys)
+  }
+
+  // Permissions outnumber roles roughly ten to one, and always will. Rendering roles as rows
+  // produced a table ~5,200px wide that needed 4,000px of horizontal scrolling to read a single
+  // role. Transposing it — permissions down, roles across — trades that for vertical scrolling,
+  // which costs nothing, and lets each permission carry its description inline.
   const groups = useMemo(() => {
-    const live = allPermissions.filter(p => p.module !== 'legacy')
+    const q = query.trim().toLowerCase()
+    const live = allPermissions.filter(p => {
+      if (p.module === 'legacy') return false
+      if (!q) return true
+      return p.name.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q)
+    })
     const byModule = new Map<string, PermissionRecord[]>()
     for (const p of live) {
       const key = p.module ?? 'other'
@@ -636,136 +652,197 @@ function PermissionMatrix({ roles, allPermissions, canManage, onRoleUpdated, onE
     return [...byModule.entries()]
       .map(([module, perms]) => ({ module, perms: perms.sort((a, b) => a.name.localeCompare(b.name)) }))
       .sort((a, b) => a.module.localeCompare(b.module))
-  }, [allPermissions])
+  }, [allPermissions, query])
 
-  const orderedPermissions = useMemo(() => groups.flatMap(g => g.perms), [groups])
+  const totalShown = groups.reduce((n, g) => n + g.perms.length, 0)
 
-  /** `platform:gateway:write` reads better as `gateway:write` under a "system" group header. */
+  /** `platform:gateway:write` reads better as `gateway:write` under a "system" heading. */
   const shortLabel = (name: string) => name.replace(/^platform:/, '')
 
-  if (roles.length === 0 || orderedPermissions.length === 0) {
+  /** Built-in codes are referenced literally by the backend guards; deleting one is unrecoverable. */
+  const isBuiltIn = (name: string) => name.startsWith('platform:')
+
+  if (roles.length === 0) {
     return (
       <Typography variant='body2' color='text.secondary' sx={{ py: 4, textAlign: 'center' }}>
-        {roles.length === 0 ? 'No roles defined yet.' : 'No permissions defined yet.'}
+        No roles defined yet.
       </Typography>
     )
   }
 
   return (
-    <TableContainer component={Paper} variant='outlined' sx={{ overflowX: 'auto' }}>
-      <Table size='small' stickyHeader>
-        <TableHead>
-          {/* Module band — keeps ~40 columns navigable by grouping them like the tenant matrix */}
-          <TableRow>
-            <TableCell
-              sx={{
-                bgcolor: 'background.paper',
-                borderRight: '1px solid',
-                borderColor: 'divider',
-                position: 'sticky',
-                left: 0,
-                zIndex: 3,
-              }}
-            />
-            {groups.map(g => (
-              <TableCell
-                key={g.module}
-                align='center'
-                colSpan={g.perms.length}
-                sx={{
-                  fontWeight: 700,
-                  fontSize: '0.7rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  whiteSpace: 'nowrap',
-                  borderLeft: '1px solid',
-                  borderColor: 'divider',
-                  color: 'text.secondary',
-                }}
-              >
-                {g.module}
-              </TableCell>
-            ))}
-          </TableRow>
-          <TableRow>
-            <TableCell
-              sx={{
-                fontWeight: 700,
-                minWidth: 160,
-                bgcolor: 'background.paper',
-                borderRight: '1px solid',
-                borderColor: 'divider',
-                position: 'sticky',
-                left: 0,
-                zIndex: 3,
-              }}
-            >
-              Role ↓ / Permission →
-            </TableCell>
-            {orderedPermissions.map(p => (
-              <TableCell
-                key={p.id}
-                align='center'
-                sx={{ fontFamily: 'monospace', fontSize: '0.7rem', whiteSpace: 'nowrap', minWidth: 100 }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  <Tooltip title={`${p.name}${p.description ? ` — ${p.description}` : ''}`} placement='top'>
-                    <span>{shortLabel(p.name)}</span>
-                  </Tooltip>
-                  {canManage && (
-                    <Tooltip title='Delete permission'>
-                      <IconButton size='small' color='error' onClick={() => onDeletePermission(p)} sx={{ p: 0.25 }}>
-                        <i className='ri-delete-bin-line' style={{ fontSize: '0.85rem' }} />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </Box>
-              </TableCell>
-            ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {roles.map(role => (
-            <TableRow key={role.id} hover>
-              <TableCell
-                sx={{
-                  fontWeight: 600,
-                  fontSize: '0.8rem',
-                  position: 'sticky',
-                  left: 0,
-                  bgcolor: 'background.paper',
-                  borderRight: '1px solid',
-                  borderColor: 'divider',
-                  zIndex: 1,
-                }}
-              >
-                {role.name}
-              </TableCell>
-              {orderedPermissions.map(p => {
-                const key = `${role.id}-${p.name}`
-                const checked = role.permissions.includes(p.name)
-                const isSaving = saving.has(key)
-                return (
-                  <TableCell key={p.id} align='center' sx={{ p: 0.5 }}>
-                    {isSaving ? (
-                      <CircularProgress size={16} />
-                    ) : (
-                      <Checkbox
-                        size='small'
-                        checked={checked}
-                        disabled={!canManage}
-                        onChange={() => handleToggle(role, p.name)}
-                        sx={{ p: 0.5 }}
-                      />
-                    )}
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <TextField
+          size='small'
+          placeholder='Filter permissions…'
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          sx={{ minWidth: 260 }}
+        />
+        <Typography variant='caption' color='text.secondary'>
+          {totalShown} permission{totalShown === 1 ? '' : 's'}
+          {query ? ' matching' : ''} across {groups.length} module{groups.length === 1 ? '' : 's'}
+        </Typography>
+      </Box>
+
+      {totalShown === 0 ? (
+        <Typography variant='body2' color='text.secondary' sx={{ py: 4, textAlign: 'center' }}>
+          No permissions match “{query}”.
+        </Typography>
+      ) : (
+        <TableContainer component={Paper} variant='outlined' sx={{ maxHeight: 620, overflow: 'auto' }}>
+          <Table size='small' stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell
+                  sx={{
+                    fontWeight: 700,
+                    minWidth: 280,
+                    bgcolor: 'background.paper',
+                    borderRight: '1px solid',
+                    borderColor: 'divider',
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 4,
+                  }}
+                >
+                  Permission
+                </TableCell>
+                {roles.map(role => (
+                  <TableCell key={role.id} align='center' sx={{ minWidth: 132 }}>
+                    <Typography variant='body2' sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                      {role.name}
+                    </Typography>
+                    <Typography variant='caption' color='text.secondary'>
+                      {role.permissions.length} granted
+                    </Typography>
                   </TableCell>
-                )
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {groups.map(g => {
+                return [
+                  <TableRow key={`m-${g.module}`}>
+                    <TableCell
+                      sx={{
+                        bgcolor: 'action.hover',
+                        fontWeight: 700,
+                        fontSize: '0.72rem',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'text.secondary',
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 2,
+                      }}
+                    >
+                      {g.module}
+                      <Typography component='span' variant='caption' sx={{ ml: 1, opacity: 0.7, letterSpacing: 0 }}>
+                        ({g.perms.length})
+                      </Typography>
+                    </TableCell>
+                    {roles.map(role => {
+                      const names = g.perms.map(p => p.name)
+                      const granted = names.filter(n => role.permissions.includes(n)).length
+                      const all = granted === names.length
+                      return (
+                        <TableCell key={role.id} align='center' sx={{ bgcolor: 'action.hover', p: 0.5 }}>
+                          <Tooltip title={all ? `Revoke all ${g.module}` : `Grant all ${g.module}`}>
+                            <span>
+                              <Button
+                                size='small'
+                                variant='text'
+                                disabled={!canManage}
+                                onClick={() => handleToggleModule(role, g.perms)}
+                                sx={{ minWidth: 0, px: 0.75, fontSize: '0.68rem', lineHeight: 1.4 }}
+                              >
+                                {granted}/{names.length}
+                              </Button>
+                            </span>
+                          </Tooltip>
+                        </TableCell>
+                      )
+                    })}
+                  </TableRow>,
+                  ...g.perms.map(p => (
+                    <TableRow key={p.id} hover>
+                      <TableCell
+                        sx={{
+                          position: 'sticky',
+                          left: 0,
+                          bgcolor: 'background.paper',
+                          borderRight: '1px solid',
+                          borderColor: 'divider',
+                          zIndex: 1,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography
+                              variant='body2'
+                              sx={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 600 }}
+                            >
+                              {shortLabel(p.name)}
+                            </Typography>
+                            {p.description && (
+                              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', lineHeight: 1.3 }}>
+                                {p.description}
+                              </Typography>
+                            )}
+                          </Box>
+                          {canManage && !isBuiltIn(p.name) && (
+                            <Tooltip title='Delete this custom permission'>
+                              <IconButton
+                                size='small'
+                                color='error'
+                                onClick={() => onDeletePermission(p)}
+                                sx={{ p: 0.25, ml: 'auto' }}
+                              >
+                                <i className='ri-delete-bin-line' style={{ fontSize: '0.85rem' }} />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Box>
+                      </TableCell>
+                      {roles.map(role => {
+                        const key = `${role.id}-${p.name}`
+                        const checked = role.permissions.includes(p.name)
+                        const isSaving = saving.has(key)
+                        return (
+                          <TableCell key={role.id} align='center' sx={{ p: 0.5 }}>
+                            {isSaving ? (
+                              <CircularProgress size={16} />
+                            ) : (
+                              <Checkbox
+                                size='small'
+                                checked={checked}
+                                disabled={!canManage}
+                                onChange={() => handleToggle(role, p.name)}
+                                inputProps={{ 'aria-label': `${p.name} for ${role.name}` }}
+                                sx={{ p: 0.5 }}
+                              />
+                            )}
+                          </TableCell>
+                        )
+                      })}
+                    </TableRow>
+                  )),
+                ]
               })}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {canManage && (
+        <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 1.5 }}>
+          Built-in <code>platform:</code> permissions cannot be deleted — they are referenced directly by the
+          server. Revoke one from a role instead.
+        </Typography>
+      )}
+    </Box>
   )
 }
 
