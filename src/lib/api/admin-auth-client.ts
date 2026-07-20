@@ -122,7 +122,12 @@ export interface CreateAdminPayload {
 
 export interface CreateTenantPayload {
   name: string
-  tenantId: string
+  /**
+   * snake_case on purpose: CreateTenantRequestDto declares `tenant_id`, and TenantRecord above
+   * reads it back the same way. Sending `tenantId` here silently loses the value and the request
+   * fails with "Tenant ID is required".
+   */
+  tenant_id: string
   description?: string
 }
 

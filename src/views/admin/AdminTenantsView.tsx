@@ -65,17 +65,26 @@ function CreateTenantDialog({ open, onClose, onCreated }: CreateTenantDialogProp
     onClose()
   }
 
-  // Auto-generate tenant_id from name
+  // Auto-generate tenant_id from name.
+  // Hyphens, not underscores: the backend validates ^[a-z0-9-]+$ and every existing tenant slug
+  // follows it (atkaada-company-ltd, qa-wizard-test-co). Deriving with underscores meant any
+  // multi-word company name produced a slug the server always rejected.
   function handleNameChange(v: string) {
     setName(v)
-    setTenantId(v.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').slice(0, 30))
+    setTenantId(
+      v.toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 30)
+    )
   }
 
   async function handleSave() {
     if (!name.trim() || !tenantId.trim()) return
     setSaving(true); setError(null)
     try {
-      const payload: CreateTenantPayload = { name: name.trim(), tenantId: tenantId.trim(), description: description.trim() || undefined }
+      const payload: CreateTenantPayload = { name: name.trim(), tenant_id: tenantId.trim(), description: description.trim() || undefined }
       const created = await createAdminTenant(payload)
       onCreated(created)
       handleClose()
@@ -105,10 +114,10 @@ function CreateTenantDialog({ open, onClose, onCreated }: CreateTenantDialogProp
           size='small'
           fullWidth
           value={tenantId}
-          onChange={e => setTenantId(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 30))}
+          onChange={e => setTenantId(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30))}
           disabled={saving}
           required
-          helperText='Unique identifier (lowercase, underscores only)'
+          helperText='Unique identifier — lowercase letters, numbers and hyphens (e.g. acme-properties)'
         />
         <TextField
           label='Description'
@@ -510,7 +519,7 @@ export default function AdminTenantsView() {
                 onClick={async () => {
                   setExporting(true)
                   try { await exportTenantsCsv() }
-                  catch { /* ignore */ }
+                  catch (e: any) { setActionError(e?.message ?? 'Failed to export tenant CSV') }
                   finally { setExporting(false) }
                 }}
               >
