@@ -32,7 +32,6 @@ import {
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
@@ -232,14 +231,18 @@ export default function AdminAnnouncementsView() {
   const [toast, setToast]                   = useState<string | null>(null)
   const [page, setPage]                     = useState(0)
   const [pageSize, setPageSize]             = useState(10)
+  const [total, setTotal]                   = useState(0)
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      setAnnouncements(await getAnnouncements())
+      const res = await getAnnouncements(page, pageSize)
+
+      setAnnouncements(res.data)
+      setTotal(res.total)
     } catch { setError('Failed to load announcements') }
     finally { setLoading(false) }
-  }, [])
+  }, [page, pageSize])
 
   useEffect(() => { load() }, [load])
 
@@ -262,9 +265,9 @@ export default function AdminAnnouncementsView() {
     setDeleting(true)
     try {
       await deleteAnnouncement(id)
-      setAnnouncements(prev => prev.filter(x => x.id !== id))
       setToast('Announcement deleted')
       setDeleteTarget(null)
+      load()
     } catch {
       setToast('Failed to delete announcement')
     } finally {
@@ -273,15 +276,18 @@ export default function AdminAnnouncementsView() {
   }
 
   function handleSaved(a: AnnouncementDto) {
+    const isEdit = !!editing
+
     setAnnouncements(prev => {
       const idx = prev.findIndex(x => x.id === a.id)
       if (idx >= 0) {
         const next = [...prev]; next[idx] = a; return next
       }
-      return [a, ...prev]
+      return prev
     })
-    setToast(editing ? 'Announcement updated' : 'Announcement published')
+    setToast(isEdit ? 'Announcement updated' : 'Announcement published')
     setEditing(null)
+    if (!isEdit) load()
   }
 
   function openEdit(a: AnnouncementDto) { setEditing(a); setFormOpen(true) }
@@ -334,19 +340,14 @@ export default function AdminAnnouncementsView() {
     })] : []),
   ]
 
+  // Pagination is server-driven — `announcements` already holds only the current page,
+  // so the table renders it directly without a client-side pagination row model.
   const table = useReactTable({
     data: announcements,
     columns,
-    state: { pagination: { pageIndex: page, pageSize } },
-    onPaginationChange: updater => {
-      const next = typeof updater === 'function' ? updater({ pageIndex: page, pageSize }) : updater
-      setPage(next.pageIndex)
-      setPageSize(next.pageSize)
-    },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
   })
 
   return (
@@ -434,11 +435,11 @@ export default function AdminAnnouncementsView() {
                 }
               </tbody>
             </table>
-            {announcements.length > 10 && (
+            {total > 0 && (
               <TablePagination
                 rowsPerPageOptions={[10, 25, 50]}
                 component='div'
-                count={announcements.length}
+                count={total}
                 rowsPerPage={pageSize}
                 page={page}
                 onPageChange={(_, p) => setPage(p)}

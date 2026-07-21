@@ -18,6 +18,7 @@ export type LedgerCategory =
   // Debits
   | 'WITHDRAWAL_INITIATED'
   | 'PLATFORM_FEE'
+  | 'SUBSCRIPTION_FEE'
   | 'REFUND_ISSUED'
   | 'ADMIN_DEBIT'
 
@@ -112,6 +113,7 @@ export const CATEGORY_LABELS: Record<LedgerCategory, string> = {
   WITHDRAWAL_REVERSAL:        'Withdrawal Reversal',
   WITHDRAWAL_INITIATED:       'Withdrawal',
   PLATFORM_FEE:               'Platform Fee',
+  SUBSCRIPTION_FEE:           'Subscription Fee',
   REFUND_ISSUED:              'Refund',
   ADMIN_DEBIT:                'Admin Debit',
 }

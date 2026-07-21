@@ -4,6 +4,7 @@
  */
 
 import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from './client'
+import { getStoredToken, getStoredTenantId } from './storage'
 import type { Unit } from '@/types/property'
 
 // ---------------------------------------------------------------------------
@@ -42,6 +43,8 @@ interface UnitQuery {
   status?: string
   minRent?: number
   maxRent?: number
+  bedrooms?: number
+  bathrooms?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +77,9 @@ export async function getUnitsByProperty(
 
 /**
  * Get all units across all properties (with optional filters).
+ * Backend always returns the standard { success, data, meta } envelope
+ * (see PaginatedResponseDto on UnitController#getAllUnits), so no
+ * response-shape normalisation is needed here.
  */
 export async function getAllUnits(tenantId: string, query: UnitQuery = {}): Promise<PaginatedResponse<Unit>> {
   const params = new URLSearchParams()
@@ -85,66 +91,14 @@ export async function getAllUnits(tenantId: string, query: UnitQuery = {}): Prom
   if (query.status) params.set('status', query.status)
   if (query.minRent) params.set('minRent', query.minRent.toString())
   if (query.maxRent) params.set('maxRent', query.maxRent.toString())
+  if (query.bedrooms) params.set('bedrooms', query.bedrooms.toString())
+  if (query.bathrooms) params.set('bathrooms', query.bathrooms.toString())
 
   const qs = params.toString()
-  const url = `${API_BASE}/units${qs ? `?${qs}` : ''}`
 
-  try {
-    const response = await apiGet<any>(url, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
-
-    // Defensive check: If response is already an array, backend is returning raw list
-    if (Array.isArray(response)) {
-      return {
-        success: true,
-        data: response,
-        meta: {
-          pagination: {
-            hasNext: false,
-            total: response.length
-          }
-        }
-      }
-    }
-
-    // If response has success: false, it's already an ApiResponse-like object
-    if (response && response.success === false) {
-      return response as PaginatedResponse<Unit>
-    }
-
-    // If response has data but no success field, it might be a partial PaginatedResponse
-    if (response && response.data && !('success' in response)) {
-      return {
-        success: true,
-        data: response.data,
-        meta: response.meta || { pagination: { hasNext: false } }
-      }
-    }
-
-    // If it's a raw object with no data field but looks like a unit or unit list
-    // (Wait, if it's not an array and doesn't have data, it's likely a single unit or an error)
-    if (response && !response.data && !Array.isArray(response) && typeof response === 'object') {
-      // Check if it's an error from Spring Cloud Gateway or similar
-      if (response.status && response.status >= 400) {
-        throw new Error(response.message || 'Backend returned an error')
-      }
-    }
-
-    return response as PaginatedResponse<Unit>
-  } catch (error: any) {
-    console.error(`getAllUnits failed for URL [${url}]:`, error)
-
-    return {
-      success: false,
-      data: [],
-      meta: { pagination: { hasNext: false } },
-      error: {
-        code: 'UNITS_FETCH_ERROR',
-        message: error.message || 'Failed to fetch units'
-      }
-    } as any
-  }
+  return apiGet(`${API_BASE}/units${qs ? `?${qs}` : ''}`, {
+    headers: { 'X-Tenant-ID': tenantId }
+  })
 }
 
 /**
@@ -166,23 +120,6 @@ export async function getAvailableUnits(tenantId: string, query: UnitQuery = {})
 }
 
 /**
- * All units this occupant currently occupies within the tenant.
- * API: GET /units/by-occupant/{occupantId}
- * Backend returns a bare JSON array (no envelope).
- */
-export async function getUnitsByOccupant(tenantId: string, occupantId: string): Promise<Unit[]> {
-  try {
-    const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
-
-    return Array.isArray(res) ? res : []
-  } catch {
-    return []
-  }
-}
-
-/**
  * Get a single unit by ID
  */
 export async function getUnitById(tenantId: string, id: string): Promise<ApiResponse<Unit>> {
@@ -198,6 +135,23 @@ export async function getUnitById(tenantId: string, id: string): Promise<ApiResp
     return { success: false, data: null, error: { code: 'NOT_FOUND', message: 'Unit not found' } }
   } catch (error: any) {
     return { success: false, data: null, error: { code: 'GET_UNIT_ERROR', message: error.message || 'Failed to fetch unit' } }
+  }
+}
+
+/**
+ * All units this occupant currently occupies within the tenant.
+ * API: GET /units/by-occupant/{occupantId}
+ * Backend returns a bare JSON array (no envelope).
+ */
+export async function getUnitsByOccupant(tenantId: string, occupantId: string): Promise<Unit[]> {
+  try {
+    const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return Array.isArray(res) ? res : []
+  } catch {
+    return []
   }
 }
 
@@ -316,6 +270,32 @@ export async function uploadUnitImages(
       }
     }
   }
+}
+
+/**
+ * Downloads all units for the current tenant as a CSV file.
+ */
+export async function exportUnitsCsv(): Promise<void> {
+  const token = getStoredToken() ?? ''
+  const tenantId = getStoredTenantId() ?? ''
+
+  const res = await fetch(`${API_BASE}/units/export`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Tenant-ID': tenantId
+    }
+  })
+
+  if (!res.ok) throw new Error('Failed to export units')
+
+  const blob = await res.blob()
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+
+  a.href = href
+  a.download = `units-export-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(href)
 }
 
 // Re-export types

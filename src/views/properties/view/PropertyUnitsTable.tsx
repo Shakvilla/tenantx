@@ -505,30 +505,9 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       {propertyId && (
         <AddUnitDialog
           open={addDialogOpen}
-          handleClose={handleDialogClose}
-          properties={[{ id: propertyId, name: '' }]}
-          mode={editUnit ? 'edit' : 'add'}
-          editData={
-            editUnit
-              ? {
-                  id: editUnit.id,
-                  unitNumber: editUnit.unitNo,
-                  propertyId,
-                  status: editUnit.status,
-                  rent: editUnit.rent?.toString() || '',
-                  currency: editUnit.currency || 'GHS',
-                  bedrooms: editUnit.bedrooms,
-                  bathrooms: editUnit.bathrooms,
-                  size: editUnit.sizeSqft?.toString() || '',
-                  floor: (editUnit as any).floor,
-                  type: editUnit.type,
-                  images: editUnit.images || [],
-                  imageFileIds: editUnit.imageFileIds || [],
-                  features: (editUnit as any).features,
-                  metadata: (editUnit as any).metadata
-                }
-              : null
-          }
+          onClose={handleDialogClose}
+          propertyId={propertyId}
+          editUnit={editUnit}
           onSuccess={handleAddSuccess}
         />
       )}

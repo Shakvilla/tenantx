@@ -25,6 +25,9 @@ import { getStoredTenantId } from '@/lib/api/storage'
 // Type Imports
 import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
 
+// Util Imports
+import { toApiDateParams } from '@/utils/reports/dateUtils'
+
 type Props = {
   dateRange: DateRange
   onDateRangeChange: (dateRange: DateRange) => void
@@ -72,9 +75,11 @@ const TenantsReport = ({ dateRange, onDateRangeChange }: Props) => {
 
     setLoading(true)
 
+    const { startDate, endDate } = toApiDateParams(dateRange, 'datetime')
+
     Promise.all([
       getOccupantStats(tenantId),
-      getOccupants(tenantId, { size: 500 }),
+      getOccupants(tenantId, { size: 500, startDate, endDate }),
       getPropertyStats(tenantId)
     ])
       .then(([oStats, occupantsRes, propStatsRes]) => {
@@ -84,26 +89,12 @@ const TenantsReport = ({ dateRange, onDateRangeChange }: Props) => {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
-
-  // Filter occupants by dateRange using createdAt
-  const filteredOccupants = useMemo(() => {
-    return occupants.filter(occ => {
-      if (!occ.createdAt) return false
-      const d = new Date(occ.createdAt)
-
-      if (isNaN(d.getTime())) return false
-      if (dateRange.startDate && d < dateRange.startDate) return false
-      if (dateRange.endDate && d > dateRange.endDate) return false
-
-      return true
-    })
-  }, [occupants, dateRange])
+  }, [dateRange])
 
   // New tenants per month trend
   const trends = useMemo(
-    () => groupByMonthCount(filteredOccupants, occ => occ.createdAt),
-    [filteredOccupants]
+    () => groupByMonthCount(occupants, occ => occ.createdAt),
+    [occupants]
   )
 
   // Distribution donut: Active vs Inactive vs Pending

@@ -21,6 +21,7 @@ type ConfirmationType =
   | 'delete-customer'
   | 'delete-property'
   | 'delete-unit'
+  | 'delete-occupant'
   | 'delete-tenant'
   | 'delete-expense'
   | 'delete-document'
@@ -76,6 +77,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
               {type === 'delete-customer' && 'Are you sure?'}
               {type === 'delete-property' && 'Are you sure?'}
               {type === 'delete-unit' && 'Are you sure?'}
+              {type === 'delete-occupant' && 'Are you sure?'}
               {type === 'delete-tenant' && 'Are you sure?'}
               {type === 'delete-expense' && 'Are you sure?'}
               {type === 'delete-document' && 'Are you sure?'}
@@ -97,6 +99,9 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
             )}
             {type === 'delete-unit' && (
               <Typography color='text.primary'>You won&#39;t be able to revert unit!</Typography>
+            )}
+            {type === 'delete-occupant' && (
+              <Typography color='text.primary'>You won&#39;t be able to revert occupant!</Typography>
             )}
             {type === 'delete-tenant' && (
               <Typography color='text.primary'>You won&#39;t be able to revert tenant!</Typography>
@@ -130,6 +135,8 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
                     ? 'Yes, Delete Property!'
                     : type === 'delete-unit'
                       ? 'Yes, Delete Unit!'
+                      : type === 'delete-occupant'
+                        ? 'Yes, Delete Occupant!'
                       : type === 'delete-tenant'
                         ? 'Yes, Delete Tenant!'
                       : type === 'delete-expense'
@@ -169,7 +176,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
           />
           <Typography variant='h4' className='mbe-2'>
             {userInput
-              ? `${type === 'delete-account' ? 'Deactivated' : type === 'unsubscribe' ? 'Unsubscribed' : type === 'delete-order' || type === 'delete-customer' || type === 'delete-property' || type === 'delete-unit' || type === 'delete-tenant' || type === 'delete-expense' || type === 'delete-document' || type === 'delete-communication' || type === 'delete-maintainer' || type === 'delete-maintenance-request' ? 'Deleted' : 'Suspended!'}`
+              ? `${type === 'delete-account' ? 'Deactivated' : type === 'unsubscribe' ? 'Unsubscribed' : type === 'delete-order' || type === 'delete-customer' || type === 'delete-property' || type === 'delete-unit' || type === 'delete-occupant' || type === 'delete-tenant' || type === 'delete-expense' || type === 'delete-document' || type === 'delete-communication' || type === 'delete-maintainer' || type === 'delete-maintenance-request' ? 'Deleted' : 'Suspended!'}`
               : 'Cancelled'}
           </Typography>
           <Typography color='text.primary'>
@@ -182,6 +189,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
                 {type === 'delete-customer' && 'Your customer removed successfully.'}
                 {type === 'delete-property' && 'Property deleted successfully.'}
                 {type === 'delete-unit' && 'Unit deleted successfully.'}
+                {type === 'delete-occupant' && 'Occupant deleted successfully.'}
                 {type === 'delete-tenant' && 'Tenant deleted successfully.'}
                 {type === 'delete-expense' && 'Expense deleted successfully.'}
                 {type === 'delete-document' && 'Document deleted successfully.'}
@@ -198,6 +206,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
                 {type === 'delete-customer' && 'Customer Deletion Cancelled'}
                 {type === 'delete-property' && 'Property Deletion Cancelled'}
                 {type === 'delete-unit' && 'Unit Deletion Cancelled'}
+                {type === 'delete-occupant' && 'Occupant Deletion Cancelled'}
                 {type === 'delete-tenant' && 'Tenant Deletion Cancelled'}
                 {type === 'delete-expense' && 'Expense Deletion Cancelled'}
                 {type === 'delete-document' && 'Document Deletion Cancelled'}

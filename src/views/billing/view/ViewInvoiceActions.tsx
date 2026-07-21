@@ -37,7 +37,11 @@ const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecor
     window.print()
   }
 
-  // Handle Download
+  // Handle Print / Save as PDF
+  // Note: there is no backend PDF-generation endpoint for invoices (only a CSV
+  // export exists at GET /api/v1/invoices/export). This opens a print-friendly
+  // version of the invoice in a new tab and triggers the browser print dialog,
+  // where the user can choose "Save as PDF" as their destination.
   const handleDownload = () => {
     // Create a printable version of the invoice
     const printWindow = window.open('', '_blank')
@@ -454,9 +458,9 @@ return `
             variant='outlined'
             className='capitalize'
             onClick={handleDownload}
-            startIcon={<i className='ri-download-line' />}
+            startIcon={<i className='ri-printer-line' />}
           >
-            Download
+            Print / Save as PDF
           </Button>
           <div className='flex items-center gap-4'>
             <Button
@@ -467,7 +471,7 @@ return `
               onClick={handlePrint}
               startIcon={<i className='ri-printer-line' />}
             >
-              Print
+              Print Page
             </Button>
             <Button
               fullWidth

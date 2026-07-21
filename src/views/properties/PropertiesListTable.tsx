@@ -46,7 +46,7 @@ import type { ThemeColor } from '@core/types'
 import type { Property, PropertyStats } from '@/types/property'
 
 // API Imports
-import { getProperties, getPropertyStats, deleteProperty } from '@/lib/api/properties'
+import { getProperties, getPropertyStats, deleteProperty, exportPropertiesCsv } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 
 // Context Imports
@@ -137,6 +137,7 @@ const PropertiesListTable = () => {
   const [editPropertyOpen, setEditPropertyOpen] = useState(false)
   const [deletePropertyOpen, setDeletePropertyOpen] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   // Cursor-based pagination state
   const [cursor, setCursor] = useState<string | null>(null)
@@ -252,6 +253,19 @@ const PropertiesListTable = () => {
       setDeletePropertyOpen(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete property')
+    }
+  }
+
+  // Handle export
+  const handleExport = async () => {
+    setExporting(true)
+
+    try {
+      await exportPropertiesCsv()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export properties')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -571,8 +585,14 @@ const PropertiesListTable = () => {
                   <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
                 </TextField>
-                <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
-                  Export
+                <Button
+                  variant='outlined'
+                  size='small'
+                  startIcon={exporting ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+                  onClick={handleExport}
+                  disabled={exporting}
+                >
+                  {exporting ? 'Exporting…' : 'Export'}
                 </Button>
                 <Button
                   variant='contained'

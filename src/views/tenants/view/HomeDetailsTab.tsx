@@ -40,15 +40,32 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
       {/* Property Image Section */}
       <Grid size={{ xs: 12, md: 7 }}>
         <Card elevation={0}>
-          <CardMedia
-            component='img'
-            image={
-              tenantData?.propertyImage ||
-              'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'
-            }
-            alt={tenantData?.propertyName || 'Property'}
-            sx={{ height: 500, objectFit: 'cover' }}
-          />
+          {tenantData?.propertyImage ? (
+            <CardMedia
+              component='img'
+              image={tenantData.propertyImage}
+              alt={tenantData?.propertyName || 'Property'}
+              sx={{ height: 500, objectFit: 'cover' }}
+            />
+          ) : (
+            <Box
+              sx={{
+                height: 500,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1,
+                bgcolor: 'action.hover',
+                color: 'text.disabled'
+              }}
+            >
+              <i className='ri-home-4-line' style={{ fontSize: '3rem' }} />
+              <Typography variant='body2' color='text.disabled'>
+                No property image
+              </Typography>
+            </Box>
+          )}
         </Card>
       </Grid>
 

@@ -21,6 +21,8 @@ export const walletApi = {
     from?: string        // YYYY-MM-DD
     to?: string          // YYYY-MM-DD
     category?: string    // LedgerCategory enum value, e.g. PLATFORM_FEE
+    entryType?: 'CREDIT' | 'DEBIT'  // filter by money-in vs money-out
+    search?: string      // free-text: description, occupant, invoice, property
     propertyId?: string
     occupantId?: string
     page?: number

@@ -4,6 +4,7 @@
  */
 
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete, API_BASE } from './client'
+import { getStoredToken, getStoredTenantId } from './storage'
 import type { Property, PropertyStats } from '@/types/property'
 
 // ---------------------------------------------------------------------------
@@ -194,11 +195,11 @@ export async function getPropertyStats(tenantId: string): Promise<ApiResponse<Pr
     })
 
     // Map backend fields to frontend PropertyStats interface
-    // Backend: { totalProperties, occupiedUnits, vacantUnits, damagedUnits }
+    // Backend: { totalProperties, activeProperties, inactiveProperties, occupiedUnits, vacantUnits, damagedUnits }
     const mappedStats: PropertyStats = {
       total: rawData.totalProperties || 0,
-      active: rawData.totalProperties || 0, // Fallback if active not provided
-      inactive: 0,
+      active: rawData.activeProperties || 0,
+      inactive: rawData.inactiveProperties || 0,
       maintenance: rawData.damagedUnits || 0,
       totalUnits: (rawData.occupiedUnits || 0) + (rawData.vacantUnits || 0),
       occupiedUnits: rawData.occupiedUnits || 0,
@@ -257,24 +258,43 @@ interface DraftPayload {
 
 /**
  * Save a property as draft (incomplete form).
+ *
+ * NOTE: The backend returns PropertyResponse directly (no ApiResponse wrapper).
+ * We wrap it here for consistency with the rest of the API layer.
  */
 export async function saveDraft(tenantId: string, data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPost(`${API_BASE}/properties/drafts`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  try {
+    const result = await apiPost<Property>(`${API_BASE}/properties/drafts`, data, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return { success: true, data: result }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'DRAFT_SAVE_FAILED', message: error.message || 'Failed to save draft' }
+    }
+  }
 }
 
 /**
  * Update an existing property draft.
  */
 export async function updateDraft(tenantId: string, id: string, data: DraftPayload): Promise<ApiResponse<Property>> {
-  return apiPatch(
-    `${API_BASE}/properties/drafts`,
-    { id, ...data },
-    {
+  try {
+    const result = await apiPatch<Property>(`${API_BASE}/properties/drafts/${id}`, data, {
       headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return { success: true, data: result }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'DRAFT_UPDATE_FAILED', message: error.message || 'Failed to update draft' }
     }
-  )
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -339,6 +359,32 @@ export async function uploadPropertyImages(
       }
     }
   }
+}
+
+/**
+ * Downloads all properties for the current tenant as a CSV file.
+ */
+export async function exportPropertiesCsv(): Promise<void> {
+  const token = getStoredToken() ?? ''
+  const tenantId = getStoredTenantId() ?? ''
+
+  const res = await fetch(`${API_BASE}/properties/export`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Tenant-ID': tenantId
+    }
+  })
+
+  if (!res.ok) throw new Error('Failed to export properties')
+
+  const blob = await res.blob()
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+
+  a.href = href
+  a.download = `properties-export-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(href)
 }
 
 // ---------------------------------------------------------------------------

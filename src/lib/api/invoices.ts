@@ -3,7 +3,7 @@
  */
 
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete, API_BASE } from './client'
-import { getStoredTenantId } from './storage'
+import { getStoredToken, getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
 
@@ -98,9 +98,20 @@ export interface InvoiceStats {
 // API functions
 // ---------------------------------------------------------------------------
 
-export async function getInvoices(params?: { status?: string }): Promise<Invoice[]> {
-  const query = params?.status ? `?status=${params.status}` : ''
-  return apiGet(`${BASE}/invoices${query}`, { headers: tenantHeader() })
+export async function getInvoices(params?: {
+  status?: string
+  startDate?: string
+  endDate?: string
+}): Promise<Invoice[]> {
+  const query = new URLSearchParams()
+
+  if (params?.status) query.set('status', params.status)
+  if (params?.startDate) query.set('startDate', params.startDate)
+  if (params?.endDate) query.set('endDate', params.endDate)
+
+  const qs = query.toString()
+
+  return apiGet(`${BASE}/invoices${qs ? `?${qs}` : ''}`, { headers: tenantHeader() })
 }
 
 export async function getInvoiceById(id: string): Promise<Invoice> {
@@ -125,4 +136,30 @@ export async function deleteInvoice(id: string): Promise<void> {
 
 export async function getInvoiceStats(): Promise<InvoiceStats> {
   return apiGet(`${BASE}/invoices/stats`, { headers: tenantHeader() })
+}
+
+/**
+ * Downloads all invoices for the current tenant as a CSV file.
+ */
+export async function exportInvoicesCsv(): Promise<void> {
+  const token = getStoredToken() ?? ''
+  const tenantId = getStoredTenantId() ?? ''
+
+  const res = await fetch(`${BASE}/invoices/export`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Tenant-ID': tenantId
+    }
+  })
+
+  if (!res.ok) throw new Error('Failed to export invoices')
+
+  const blob = await res.blob()
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+
+  a.href = href
+  a.download = `invoices-export-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(href)
 }

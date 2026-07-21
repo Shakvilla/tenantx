@@ -36,6 +36,7 @@ import {
   deactivateSystemAdmin,
   reactivateSystemAdmin,
   resetSystemAdminPassword,
+  updateSystemAdmin,
   getRoles,
   assignAdminRole,
   removeAdminRole,
@@ -130,6 +131,88 @@ function ResetPasswordDialog({ open, admin, onClose }: ResetPasswordDialogProps)
 }
 
 // ---------------------------------------------------------------------------
+// Edit Admin dialog
+// ---------------------------------------------------------------------------
+
+interface EditAdminDialogProps {
+  open: boolean
+  admin: AdminRecord
+  onClose: () => void
+  onSaved: (updated: AdminRecord) => void
+}
+
+function EditAdminDialog({ open, admin, onClose, onSaved }: EditAdminDialogProps) {
+  const [fullName, setFullName] = useState(admin.fullName)
+  const [email, setEmail]       = useState(admin.email)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      setFullName(admin.fullName)
+      setEmail(admin.email)
+      setError(null)
+    }
+  }, [open, admin])
+
+  function handleClose() {
+    if (saving) return
+    setError(null)
+    onClose()
+  }
+
+  async function handleSave() {
+    if (!fullName.trim() || !email.trim()) return
+    setSaving(true); setError(null)
+    try {
+      const updated = await updateSystemAdmin(admin.id, { fullName: fullName.trim(), email: email.trim() })
+      onSaved(updated)
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? 'Failed to update admin')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth='xs' fullWidth>
+      <DialogTitle>Edit Admin</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+        {error && <Alert severity='error'>{error}</Alert>}
+        <TextField
+          label='Full Name'
+          size='small'
+          fullWidth
+          value={fullName}
+          onChange={e => setFullName(e.target.value)}
+          disabled={saving}
+        />
+        <TextField
+          label='Email'
+          size='small'
+          fullWidth
+          type='email'
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          disabled={saving}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose} disabled={saving}>Cancel</Button>
+        <Button
+          variant='contained'
+          onClick={handleSave}
+          disabled={saving || !fullName.trim() || !email.trim()}
+          startIcon={saving ? <CircularProgress size={14} color='inherit' /> : undefined}
+        >
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Confirm dialog (deactivate / reactivate)
 // ---------------------------------------------------------------------------
 
@@ -204,6 +287,7 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
   const [roleLoading, setRoleLoading] = useState(false)
   const [mfaLoading, setMfaLoading] = useState(false)
   const [resetPwOpen, setResetPwOpen]       = useState(false)
+  const [editOpen, setEditOpen]             = useState(false)
   const [deactivateOpen, setDeactivateOpen] = useState(false)
   const [reactivateOpen, setReactivateOpen] = useState(false)
   const [toast, setToast]                   = useState<string | null>(null)
@@ -231,6 +315,8 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
       await assignAdminRole(admin.id, roleToAdd)
       setAdmin(prev => prev ? { ...prev, roles: [...prev.roles, roleToAdd] } : prev)
       setRoleToAdd('')
+    } catch (e: any) {
+      setToast(e?.response?.data?.message ?? e?.message ?? 'Failed to assign role')
     } finally {
       setRoleLoading(false)
     }
@@ -242,6 +328,8 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
     try {
       await removeAdminRole(admin.id, roleName)
       setAdmin(prev => prev ? { ...prev, roles: prev.roles.filter(r => r !== roleName) } : prev)
+    } catch (e: any) {
+      setToast(e?.response?.data?.message ?? e?.message ?? 'Failed to remove role')
     } finally {
       setRoleLoading(false)
     }
@@ -269,6 +357,12 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
     setAdmin(updated)
     setReactivateOpen(false)
     setToast(`${updated.fullName} reactivated`)
+  }
+
+  function handleEditSaved(updated: AdminRecord) {
+    setAdmin(updated)
+    setEditOpen(false)
+    setToast('Admin details updated')
   }
 
   async function handleMfaToggle() {
@@ -337,6 +431,13 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
 
         {canManage && (
           <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant='outlined'
+              startIcon={<i className='ri-edit-line' />}
+              onClick={() => setEditOpen(true)}
+            >
+              Edit
+            </Button>
             <Button
               variant='outlined'
               startIcon={<i className='ri-lock-password-line' />}
@@ -518,6 +619,15 @@ export default function AdminAdminDetailView({ adminId }: { adminId: string }) {
       </Card>
 
       {/* Dialogs */}
+      {editOpen && (
+        <EditAdminDialog
+          open={editOpen}
+          admin={admin}
+          onClose={() => setEditOpen(false)}
+          onSaved={handleEditSaved}
+        />
+      )}
+
       {resetPwOpen && (
         <ResetPasswordDialog
           open={resetPwOpen}

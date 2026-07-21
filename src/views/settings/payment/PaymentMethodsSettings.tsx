@@ -217,7 +217,7 @@ const PaymentMethodsSettings = () => {
               <div className='flex flex-col'>
                 <Typography className='font-medium'>Mobile Money</Typography>
                 <Typography variant='body2' color='text.secondary'>
-                  Accept payments via mobile money (MTN, Vodafone, AirtelTigo)
+                  Accept payments via mobile money (MTN, Telecel, AirtelTigo)
                 </Typography>
               </div>
             }
@@ -269,7 +269,7 @@ const PaymentMethodsSettings = () => {
                           onChange={() => handleMobileMoneyProviderToggle('vodafone')}
                         />
                       }
-                      label='Vodafone Cash'
+                      label='Telecel Cash'
                     />
                     <FormControlLabel
                       control={

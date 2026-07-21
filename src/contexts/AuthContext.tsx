@@ -74,6 +74,20 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Decodes the JWT payload (no signature verification — used for client-side scope checks only). */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(base64))
+  } catch {
+    return null
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -115,10 +129,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isTokenError) {
         // Clear the bad session and redirect to login so the user re-authenticates
         logout('Your session is invalid. Please log in again.')
-      } else {
-        // Genuine permission error — send to 403 page
-        router.push('/403')
+        return
       }
+
+      // During an impersonation session, certain endpoints legitimately return 403
+      // (impersonation tokens have restricted scope). Don't eject the user — let the
+      // individual page/component surface the error.
+      const currentToken = getStoredToken()
+      if (currentToken) {
+        const payload = decodeJwtPayload(currentToken)
+        if (payload?.scope === 'impersonation') return
+      }
+
+      // Genuine permission error — send to 403 page
+      router.push('/403')
     }
 
     window.addEventListener('AUTH_SESSION_EXPIRED', handleSessionExpired)
@@ -142,6 +166,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Restore persisted role/userType so they survive page refresh
       const savedRole     = getStoredUserRole()
       const savedUserType = getStoredUserType()
+
+      // Impersonation tokens carry scope=impersonation and the backend restricts
+      // /users/me for this token type (returning 403). Skip the getCurrentUser call
+      // entirely — ImpersonateHandoff already stored role/userType for us.
+      const payload = decodeJwtPayload(token)
+      if (payload?.scope === 'impersonation') {
+        setState({
+          user: { id: '', email: '', name: '', role: savedRole, userType: savedUserType },
+          tenant: { id: tenantId, name: '' },
+          isAuthenticated: true,
+          isLoading: false,
+          isRefreshing: false,
+          pendingWorkspaces: null,
+          needsWorkspaceSelection: false,
+          needsPasswordSetup: false
+        })
+        return
+      }
 
       getCurrentUser(tenantId)
         .then(res => {

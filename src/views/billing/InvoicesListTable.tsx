@@ -47,12 +47,7 @@ import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 // API Imports
-import {
-  getInvoices,
-  updateInvoiceStatus,
-  deleteInvoice,
-  type Invoice
-} from '@/lib/api/invoices'
+import { getInvoices, updateInvoiceStatus, deleteInvoice, exportInvoicesCsv, type Invoice } from '@/lib/api/invoices'
 
 // Component Imports
 import RowActions from '@components/table/RowActions'
@@ -71,11 +66,13 @@ const formatDate = (dateString: string): string => {
   const day = String(date.getDate()).padStart(2, '0')
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const year = date.getFullYear()
+
   return `${day}/${month}/${year}`
 }
 
 const formatCurrency = (amount: number, currency = 'GHS'): string => {
   const symbol = currency === 'GHS' ? '₵' : currency
+
   return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
@@ -96,17 +93,19 @@ type StatusConfig = {
 }
 
 const invoiceStatusObj: Record<string, StatusConfig> = {
-  PAID:      { color: 'success',   icon: 'ri-checkbox-circle-line' },
-  PARTIAL:   { color: 'primary',   icon: 'ri-pie-chart-2-line' },
-  PENDING:   { color: 'warning',   icon: 'ri-time-line' },
-  OVERDUE:   { color: 'error',     icon: 'ri-error-warning-line' },
-  DRAFT:     { color: 'info',      icon: 'ri-file-edit-line' },
+  PAID: { color: 'success', icon: 'ri-checkbox-circle-line' },
+  PARTIAL: { color: 'primary', icon: 'ri-pie-chart-2-line' },
+  PENDING: { color: 'warning', icon: 'ri-time-line' },
+  OVERDUE: { color: 'error', icon: 'ri-error-warning-line' },
+  DRAFT: { color: 'info', icon: 'ri-file-edit-line' },
   CANCELLED: { color: 'secondary', icon: 'ri-close-circle-line' }
 }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
+
   return itemRank.passed
 }
 
@@ -122,10 +121,15 @@ const DebouncedInput = ({
 } & Omit<TextFieldProps, 'onChange'>) => {
   const [value, setValue] = useState(initialValue)
 
-  useEffect(() => { setValue(initialValue) }, [initialValue])
+  useEffect(() => {
+    setValue(initialValue)
+  }, [initialValue])
 
   useEffect(() => {
-    const timeout = setTimeout(() => { onChange(value) }, debounce)
+    const timeout = setTimeout(() => {
+      onChange(value)
+    }, debounce)
+
     return () => clearTimeout(timeout)
   }, [value, debounce, onChange])
 
@@ -134,11 +138,16 @@ const DebouncedInput = ({
 
 const getAvailableStatuses = (current: string): string[] => {
   switch (current) {
-    case 'DRAFT':   return ['PENDING', 'CANCELLED']
-    case 'PENDING': return ['PAID', 'OVERDUE', 'CANCELLED']
-    case 'OVERDUE': return ['PAID', 'CANCELLED']
-    case 'PARTIAL': return ['CANCELLED']
-    default:        return []
+    case 'DRAFT':
+      return ['PENDING', 'CANCELLED']
+    case 'PENDING':
+      return ['PAID', 'OVERDUE', 'CANCELLED']
+    case 'OVERDUE':
+      return ['PAID', 'CANCELLED']
+    case 'PARTIAL':
+      return ['CANCELLED']
+    default:
+      return []
   }
 }
 
@@ -163,6 +172,9 @@ const InvoicesListTable = () => {
   // Add/Edit dialog
   const [addInvoiceOpen, setAddInvoiceOpen] = useState(false)
   const [editInvoice, setEditInvoice] = useState<Invoice | null>(null)
+
+  // Export state
+  const [exporting, setExporting] = useState(false)
 
   // Prefill carried over from the onboarding wizard's "Create first invoice" action
   const [invoicePrefill, setInvoicePrefill] = useState<
@@ -190,8 +202,10 @@ const InvoicesListTable = () => {
   const fetchInvoices = useCallback(async () => {
     setLoading(true)
     setError(null)
+
     try {
       const result = await getInvoices(statusFilter ? { status: statusFilter } : undefined)
+
       setData(Array.isArray(result) ? result : [])
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load invoices')
@@ -200,10 +214,13 @@ const InvoicesListTable = () => {
     }
   }, [statusFilter])
 
-  useEffect(() => { fetchInvoices() }, [fetchInvoices])
+  useEffect(() => {
+    fetchInvoices()
+  }, [fetchInvoices])
 
   const handleEditClick = useCallback((invoice: Invoice) => {
     const available = getAvailableStatuses(invoice.status)
+
     if (available.length > 0) {
       setSelectedInvoice(invoice)
       setNewStatus(available[0])
@@ -214,9 +231,11 @@ const InvoicesListTable = () => {
   const handleStatusUpdate = async () => {
     if (!selectedInvoice) return
     setUpdating(true)
+
     try {
       const updated = await updateInvoiceStatus(selectedInvoice.id, newStatus)
-      setData(prev => prev.map(inv => inv.id === updated.id ? updated : inv))
+
+      setData(prev => prev.map(inv => (inv.id === updated.id ? updated : inv)))
       setUpdateDialogOpen(false)
       setSelectedInvoice(null)
     } catch (err: any) {
@@ -229,11 +248,15 @@ const InvoicesListTable = () => {
   const handleSaved = (saved: Invoice) => {
     setData(prev => {
       const idx = prev.findIndex(i => i.id === saved.id)
+
       if (idx >= 0) {
         const next = [...prev]
+
         next[idx] = saved
+
         return next
       }
+
       return [saved, ...prev]
     })
   }
@@ -244,6 +267,18 @@ const InvoicesListTable = () => {
       setData(prev => prev.filter(inv => inv.id !== id))
     } catch (err: any) {
       setError(err?.message ?? 'Failed to delete invoice')
+    }
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+
+    try {
+      await exportInvoicesCsv()
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to export invoices')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -280,6 +315,7 @@ const InvoicesListTable = () => {
         cell: ({ row }) => {
           const cfg = invoiceStatusObj[row.original.status] ?? { color: 'secondary', icon: 'ri-question-line' }
           const available = getAvailableStatuses(row.original.status)
+
           return (
             <div className='flex items-center gap-2'>
               <Tooltip
@@ -342,9 +378,7 @@ const InvoicesListTable = () => {
       columnHelper.accessor('amount', {
         header: 'AMOUNT',
         cell: ({ row }) => (
-          <Typography className='font-medium'>
-            {formatCurrency(row.original.amount, row.original.currency)}
-          </Typography>
+          <Typography className='font-medium'>{formatCurrency(row.original.amount, row.original.currency)}</Typography>
         )
       }),
       columnHelper.accessor('issuedDate', {
@@ -384,6 +418,7 @@ const InvoicesListTable = () => {
                 menuItemProps: {
                   onClick: () => {
                     setEditInvoice(row.original)
+                    setInvoicePrefill(undefined)
                     setAddInvoiceOpen(true)
                   }
                 }
@@ -430,13 +465,26 @@ const InvoicesListTable = () => {
               variant='contained'
               startIcon={<i className='ri-add-line' />}
               className='max-sm:is-full'
-              onClick={() => { setEditInvoice(null); setAddInvoiceOpen(true) }}
+              onClick={() => {
+                setEditInvoice(null)
+                setInvoicePrefill(undefined)
+                setAddInvoiceOpen(true)
+              }}
             >
               Create Invoice
             </Button>
             <IconButton onClick={fetchInvoices} title='Refresh'>
               <i className='ri-refresh-line' />
             </IconButton>
+            <Button
+              variant='outlined'
+              size='small'
+              startIcon={exporting ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              {exporting ? 'Exporting…' : 'Export'}
+            </Button>
           </div>
           <div className='flex items-center flex-col sm:flex-row max-sm:is-full gap-4'>
             <DebouncedInput
@@ -469,7 +517,9 @@ const InvoicesListTable = () => {
 
         {error && (
           <CardContent>
-            <Alert severity='error' onClose={() => setError(null)}>{error}</Alert>
+            <Alert severity='error' onClose={() => setError(null)}>
+              {error}
+            </Alert>
           </CardContent>
         )}
 

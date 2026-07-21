@@ -38,13 +38,13 @@ import { getMaintenanceRequests, type MaintenanceRequest } from '@/lib/api/maint
 import tableStyles from '@core/styles/table.module.css'
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'info' | 'error' | 'secondary'> = {
-  NEW: 'info',
-  PENDING: 'warning',
-  IN_PROGRESS: 'info',
-  ON_HOLD: 'secondary',
-  COMPLETED: 'success',
-  CANCELLED: 'secondary',
-  REJECTED: 'error'
+  pending: 'warning',
+  awaiting_approval: 'info',
+  approved: 'secondary',
+  in_progress: 'info',
+  completed: 'success',
+  closed: 'success',
+  cancelled: 'secondary'
 }
 
 const PRIORITY_COLOR: Record<string, 'success' | 'warning' | 'info' | 'error'> = {
@@ -101,17 +101,17 @@ const MaintenanceRequestsTable = () => {
 
   const filteredData = useMemo(() => {
     if (activeFilter === 'all') return requests
-    if (activeFilter === 'new') return requests.filter(r => r.status === 'NEW')
-    if (activeFilter === 'pending') return requests.filter(r => ['PENDING', 'IN_PROGRESS', 'ON_HOLD'].includes(r.status))
-    if (activeFilter === 'completed') return requests.filter(r => ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(r.status))
+    if (activeFilter === 'new') return requests.filter(r => r.status === 'pending')
+    if (activeFilter === 'pending') return requests.filter(r => ['awaiting_approval', 'approved', 'in_progress'].includes(r.status))
+    if (activeFilter === 'completed') return requests.filter(r => ['completed', 'closed', 'cancelled'].includes(r.status))
     return requests
   }, [requests, activeFilter])
 
   const filterStats = useMemo(() => ({
     all: requests.length,
-    new: requests.filter(r => r.status === 'NEW').length,
-    pending: requests.filter(r => ['PENDING', 'IN_PROGRESS', 'ON_HOLD'].includes(r.status)).length,
-    completed: requests.filter(r => ['COMPLETED', 'CANCELLED', 'REJECTED'].includes(r.status)).length
+    new: requests.filter(r => r.status === 'pending').length,
+    pending: requests.filter(r => ['awaiting_approval', 'approved', 'in_progress'].includes(r.status)).length,
+    completed: requests.filter(r => ['completed', 'closed', 'cancelled'].includes(r.status)).length
   }), [requests])
 
   const columns = useMemo<ColumnDef<MaintenanceRequest, any>[]>(() => [

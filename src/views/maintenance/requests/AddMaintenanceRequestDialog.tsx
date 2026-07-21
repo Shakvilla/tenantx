@@ -38,7 +38,6 @@ import {
   createMaintenanceRequest,
   updateMaintenanceRequest,
   assignMaintainerToRequest,
-  updateMaintenanceRequestStatus,
   uploadMaintenanceImages,
   type MaintenanceRequest,
   type Maintainer,
@@ -98,7 +97,6 @@ type FormData = {
   title: string
   description: string
   priority: string
-  status: string
   propertyId: string
   unitId: string
   occupantId: string
@@ -115,7 +113,6 @@ const BLANK: FormData = {
   title: '',
   description: '',
   priority: 'MEDIUM',
-  status: 'NEW',
   propertyId: '',
   unitId: '',
   occupantId: '',
@@ -180,7 +177,6 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
         title: editData.title ?? '',
         description: editData.description ?? '',
         priority: editData.priority ?? 'MEDIUM',
-        status: editData.status ?? 'NEW',
         propertyId: editData.propertyId ?? '',
         unitId: editData.unitId ?? '',
         occupantId: editData.occupantId ?? '',
@@ -361,10 +357,6 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
           imageFileIds: allFileIds
         })
         requestId = editData.id
-
-        if (formData.status && formData.status !== editData.status) {
-          await updateMaintenanceRequestStatus(requestId, formData.status)
-        }
       } else {
         // Create first (need ID for folder), then upload, then update with image URLs
         const created = await createMaintenanceRequest({
@@ -578,7 +570,7 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
             </Grid>
 
             {/* Priority */}
-            <Grid size={{ xs: 12, sm: mode === 'edit' ? 4 : 6 }}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth size='small'>
                 <InputLabel id='priority-label'>Priority</InputLabel>
                 <Select
@@ -595,32 +587,9 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
               </FormControl>
             </Grid>
 
-            {/* Status — edit mode only */}
-            {mode === 'edit' && (
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <FormControl fullWidth size='small'>
-                  <InputLabel id='status-label'>Status</InputLabel>
-                  <Select
-                    labelId='status-label'
-                    label='Status'
-                    value={formData.status}
-                    onChange={e => set('status', e.target.value)}
-                  >
-                    <MenuItem value='NEW'>New</MenuItem>
-                    <MenuItem value='PENDING'>Pending</MenuItem>
-                    <MenuItem value='IN_PROGRESS'>In Progress</MenuItem>
-                    <MenuItem value='ON_HOLD'>On Hold</MenuItem>
-                    <MenuItem value='COMPLETED'>Completed</MenuItem>
-                    <MenuItem value='CANCELLED'>Cancelled</MenuItem>
-                    <MenuItem value='REJECTED'>Rejected</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            )}
-
             {/* Category — repairs only */}
             {formData.issueType !== 'COMPLAINT' && (
-              <Grid size={{ xs: 12, sm: mode === 'edit' ? 4 : 6 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth size='small' disabled={loadingInit}>
                   <InputLabel id='category-label'>Category</InputLabel>
                   <Select

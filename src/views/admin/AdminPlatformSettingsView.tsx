@@ -20,12 +20,34 @@ import InputLabel from '@mui/material/InputLabel'
 import Tooltip from '@mui/material/Tooltip'
 import InputAdornment from '@mui/material/InputAdornment'
 import IconButton from '@mui/material/IconButton'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import FormControlLabel from '@mui/material/FormControlLabel'
+
+import Chip from '@mui/material/Chip'
+import Grid from '@mui/material/Grid2'
 
 import {
   getPlatformSettings,
   updatePlatformSetting,
+  adminGatewayConfigApi,
+  getSmsFeeTiers,
+  createSmsFeeTier,
+  updateSmsFeeTier,
+  deleteSmsFeeTier,
   type PlatformSettingDto,
+  type SmsFeeTierRecord,
+  type SmsFeeTierRequest,
 } from '@/lib/api/admin-auth-client'
+
+import type { GatewayConfigResponse } from '@/types/payment'
 
 import { useAdminBranding } from '@/contexts/AdminBrandingContext'
 
@@ -117,6 +139,37 @@ export default function AdminPlatformSettingsView() {
   const [logoUploading, setLogoUploading] = useState(false)
   const logoInputRef = useRef<HTMLInputElement>(null)
 
+  // ── Redde gateway configs (PLATFORM-level) ────────────────────────────────
+  type ReddePurpose = 'RENT' | 'SUBSCRIPTION'
+  interface GwForm { apiKey: string; appId: string; nickname: string; isLive: boolean; baseUrl: string; showKey: boolean }
+  const DEFAULT_REDDE_URL = 'https://api.reddeonline.com'
+  const emptyGwForm = (): GwForm => ({ apiKey: '', appId: '', nickname: '', isLive: false, baseUrl: DEFAULT_REDDE_URL, showKey: false })
+
+  const [gwConfigs, setGwConfigs] = useState<Record<ReddePurpose, GatewayConfigResponse | null>>({ RENT: null, SUBSCRIPTION: null })
+  const [gwForms,   setGwForms]   = useState<Record<ReddePurpose, GwForm>>({ RENT: emptyGwForm(), SUBSCRIPTION: emptyGwForm() })
+  const [gwSaving,  setGwSaving]  = useState<ReddePurpose | null>(null)
+
+  const baseAppUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/api\/v1$/, '')
+  const cbUrls = {
+    RENT_RECEIVE:         `${baseAppUrl}/api/v1/payments/webhook/redde/rent`,
+    RENT_CASHOUT:         `${baseAppUrl}/api/v1/payments/webhook/redde/cashout`,
+    SUBSCRIPTION_RECEIVE: `${baseAppUrl}/api/v1/payments/webhook/redde/subscription`,
+  }
+
+  // ── SMS top-up fee tiers ──────────────────────────────────────────────────
+  const [feeTiers, setFeeTiers] = useState<SmsFeeTierRecord[]>([])
+  const [feeTiersLoading, setFeeTiersLoading] = useState(true)
+  const [tierDialogOpen, setTierDialogOpen] = useState(false)
+  const [editingTierId, setEditingTierId] = useState<string | null>(null)
+  const [tierForm, setTierForm] = useState({
+    minAmount: '', maxAmount: '', noUpperLimit: false,
+    feeType: 'PERCENTAGE' as 'PERCENTAGE' | 'FLAT', feeValue: '',
+  })
+  const [tierSaving, setTierSaving] = useState(false)
+  const [tierError, setTierError] = useState<string | null>(null)
+  const [deletingTierId, setDeletingTierId] = useState<string | null>(null)
+  const [tierDeleting, setTierDeleting] = useState(false)
+
   // Branding context — refresh sidebar/nav when branding keys are saved
   const { refresh: refreshBranding } = useAdminBranding()
 
@@ -141,6 +194,37 @@ export default function AdminPlatformSettingsView() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  const loadFeeTiers = useCallback(async () => {
+    setFeeTiersLoading(true)
+    try {
+      const data = await getSmsFeeTiers()
+      setFeeTiers(data)
+    } catch {
+      setToast('Failed to load SMS fee tiers')
+    } finally {
+      setFeeTiersLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadFeeTiers() }, [loadFeeTiers])
+
+  useEffect(() => {
+    adminGatewayConfigApi.list().then(list => {
+      const cfgs = { RENT: null, SUBSCRIPTION: null } as Record<ReddePurpose, GatewayConfigResponse | null>
+      const frms = { RENT: emptyGwForm(), SUBSCRIPTION: emptyGwForm() }
+      list.forEach(c => {
+        const p = (c.purpose ?? 'RENT') as ReddePurpose
+        if (p === 'RENT' || p === 'SUBSCRIPTION') {
+          cfgs[p] = c
+          frms[p] = { apiKey: '', appId: c.appId, nickname: c.nickname, isLive: c.isLive, baseUrl: c.baseUrl ?? DEFAULT_REDDE_URL, showKey: false }
+        }
+      })
+      setGwConfigs(cfgs)
+      setGwForms(frms)
+    }).catch(() => setToast('Failed to load gateway configs'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Save a single key immediately (used by toggles and selects)
   async function save(key: string, value: string) {
@@ -213,6 +297,92 @@ export default function AdminPlatformSettingsView() {
   }
 
   // ── Feature-flag labels ───────────────────────────────────────────────────
+  // ── Gateway save ────────────────────────────────────────────────────────
+  async function saveGateway(purpose: ReddePurpose) {
+    const f   = gwForms[purpose]
+    const cfg = gwConfigs[purpose]
+    if (!f.appId.trim() || !f.nickname.trim()) { setToast('App ID and Nickname are required'); return }
+    if (!f.apiKey && !cfg) { setToast('API Key is required for a new config'); return }
+    setGwSaving(purpose)
+    try {
+      const saved = await adminGatewayConfigApi.save({
+        gatewayName: 'REDDE', apiKey: f.apiKey || '__unchanged__',
+        appId: f.appId, nickname: f.nickname, isLive: f.isLive,
+        isDefault: false, purpose, baseUrl: f.baseUrl || DEFAULT_REDDE_URL,
+      })
+      setGwConfigs(prev => ({ ...prev, [purpose]: saved }))
+      setGwForms(prev => ({ ...prev, [purpose]: { ...prev[purpose], apiKey: '', showKey: false } }))
+      setToast(`${purpose === 'RENT' ? 'Rent & Withdrawals' : 'Subscription'} gateway saved`)
+    } catch { setToast('Failed to save gateway config') }
+    finally { setGwSaving(null) }
+  }
+
+  function openCreateTierDialog() {
+    setEditingTierId(null)
+    setTierForm({ minAmount: '', maxAmount: '', noUpperLimit: false, feeType: 'PERCENTAGE', feeValue: '' })
+    setTierError(null)
+    setTierDialogOpen(true)
+  }
+
+  function openEditTierDialog(tier: SmsFeeTierRecord) {
+    setEditingTierId(tier.id)
+    setTierForm({
+      minAmount: String(tier.minAmount),
+      maxAmount: tier.maxAmount == null ? '' : String(tier.maxAmount),
+      noUpperLimit: tier.maxAmount == null,
+      feeType: tier.feeType,
+      feeValue: tier.feeType === 'PERCENTAGE' ? String(tier.feeValue * 100) : String(tier.feeValue),
+    })
+    setTierError(null)
+    setTierDialogOpen(true)
+  }
+
+  async function handleSaveTier() {
+    const minAmount = parseFloat(tierForm.minAmount)
+    const feeValueRaw = parseFloat(tierForm.feeValue)
+    if (isNaN(minAmount) || minAmount < 0) { setTierError('Enter a valid minimum amount'); return }
+    if (isNaN(feeValueRaw) || feeValueRaw < 0) { setTierError('Enter a valid fee value'); return }
+    const maxAmount = tierForm.noUpperLimit ? null : parseFloat(tierForm.maxAmount)
+    if (!tierForm.noUpperLimit && (isNaN(maxAmount as number) || (maxAmount as number) <= minAmount)) {
+      setTierError('Max amount must be greater than min amount')
+      return
+    }
+    const feeValue = tierForm.feeType === 'PERCENTAGE' ? feeValueRaw / 100 : feeValueRaw
+
+    setTierSaving(true)
+    setTierError(null)
+    try {
+      const payload: SmsFeeTierRequest = { minAmount, maxAmount, feeType: tierForm.feeType, feeValue }
+      if (editingTierId) {
+        await updateSmsFeeTier(editingTierId, payload)
+      } else {
+        await createSmsFeeTier(payload)
+      }
+      setTierDialogOpen(false)
+      loadFeeTiers()
+      setToast('Fee tier saved')
+    } catch (e: any) {
+      setTierError(e?.response?.data?.message ?? 'Failed to save fee tier')
+    } finally {
+      setTierSaving(false)
+    }
+  }
+
+  async function handleDeleteTier() {
+    if (!deletingTierId) return
+    setTierDeleting(true)
+    try {
+      await deleteSmsFeeTier(deletingTierId)
+      setDeletingTierId(null)
+      loadFeeTiers()
+      setToast('Fee tier deleted')
+    } catch {
+      setToast('Failed to delete fee tier')
+    } finally {
+      setTierDeleting(false)
+    }
+  }
+
   const FLAG_LABELS: Record<string, { label: string; desc: string }> = {
     'feature.sms_reminders.enabled':            { label: 'SMS Reminders',             desc: 'Allow tenants to send SMS payment reminders to occupants' },
     'feature.whatsapp_reminders.enabled':       { label: 'WhatsApp Reminders',        desc: 'Allow tenants to send WhatsApp payment reminders' },
@@ -335,76 +505,110 @@ export default function AdminPlatformSettingsView() {
       </Card>
 
       {/* ── 2. Payment Gateway ───────────────────────────────────────────────── */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <SectionHeader
-            icon='ri-bank-card-line'
-            title='Payment Gateway'
-            subtitle='Configure the active payment gateway and operating environment.'
-          />
-          <Divider sx={{ mb: 2 }} />
+      {([
+        { purpose: 'RENT' as ReddePurpose,         title: 'Payment Gateway — App 1: Rent Collection & Withdrawals',  subtitle: 'All occupant rent payments are collected into this Redde app. Landlord withdrawal cashouts also go through it. Both Redde callback slots are used.' },
+        { purpose: 'SUBSCRIPTION' as ReddePurpose, title: 'Payment Gateway — App 2: Subscription Billing',           subtitle: 'Charges landlord subscription fees on behalf of the platform. Uses the Receive callback only — no cashouts.' },
+      ] as const).map(({ purpose, title, subtitle }) => {
+        const f   = gwForms[purpose]
+        const cfg = gwConfigs[purpose]
+        const isSaving = gwSaving === purpose
+        return (
+          <Card key={purpose} sx={{ mb: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+                <SectionHeader icon='ri-bank-card-line' title={title} subtitle={subtitle} />
+                {cfg && <Chip size='small' label={cfg.isActive ? 'Configured' : 'Inactive'} color={cfg.isActive ? 'success' : 'default'} sx={{ mt: 0.5, flexShrink: 0 }} />}
+              </Box>
+              <Divider sx={{ mb: 3 }} />
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-            <FormControl size='small' fullWidth>
-              <InputLabel>Active Gateway</InputLabel>
-              <Select
-                label='Active Gateway'
-                value={localValues['gateway.active'] ?? 'REDDE'}
-                onChange={e => save('gateway.active', e.target.value)}
-                disabled={saving.has('gateway.active')}
-              >
-                <MenuItem value='REDDE'>Redde</MenuItem>
-                <MenuItem value='PAYSTACK'>Paystack</MenuItem>
-                <MenuItem value='FLUTTERWAVE'>Flutterwave</MenuItem>
-              </Select>
-            </FormControl>
+              <Grid container spacing={2}>
+                {/* API Key */}
+                <Grid size={{ xs: 12 }}>
+                  <TextField fullWidth size='small'
+                    label={cfg ? 'API Key (leave blank to keep existing)' : 'API Key'}
+                    type={f.showKey ? 'text' : 'password'}
+                    value={f.apiKey}
+                    onChange={e => setGwForms(p => ({ ...p, [purpose]: { ...p[purpose], apiKey: e.target.value } }))}
+                    placeholder={cfg ? `Current: ${cfg.apiKeyMasked}` : 'Enter API key from Redde portal'}
+                    slotProps={{ input: { endAdornment: (
+                      <InputAdornment position='end'>
+                        <IconButton size='small' onClick={() => setGwForms(p => ({ ...p, [purpose]: { ...p[purpose], showKey: !f.showKey } }))}>
+                          <i className={f.showKey ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                        </IconButton>
+                      </InputAdornment>
+                    ) } }}
+                  />
+                </Grid>
 
-            <FormControl size='small' fullWidth>
-              <InputLabel>Environment</InputLabel>
-              <Select
-                label='Environment'
-                value={localValues['gateway.environment'] ?? 'PRODUCTION'}
-                onChange={e => save('gateway.environment', e.target.value)}
-                disabled={saving.has('gateway.environment')}
-              >
-                <MenuItem value='PRODUCTION'>Production</MenuItem>
-                <MenuItem value='SANDBOX'>Sandbox</MenuItem>
-              </Select>
-            </FormControl>
+                {/* App ID */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField fullWidth size='small' required label='App ID (from Wigal/Redde portal)'
+                    value={f.appId}
+                    onChange={e => setGwForms(p => ({ ...p, [purpose]: { ...p[purpose], appId: e.target.value } }))}
+                  />
+                </Grid>
 
-            <TextField
-              size='small'
-              label='Platform Merchant ID (optional)'
-              placeholder='Leave blank to use per-tenant config'
-              value={localValues['gateway.redde.merchant_id'] ?? ''}
-              onChange={e => setLocal('gateway.redde.merchant_id', e.target.value)}
-              helperText='Overrides per-tenant merchant ID when set'
-            />
+                {/* Nickname */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField fullWidth size='small' required label='Merchant Nickname'
+                    value={f.nickname}
+                    onChange={e => setGwForms(p => ({ ...p, [purpose]: { ...p[purpose], nickname: e.target.value } }))}
+                    helperText='Shown on the customer MoMo prompt'
+                  />
+                </Grid>
 
-            <TextField
-              size='small'
-              label='Platform API Key (optional)'
-              placeholder='Leave blank to use per-tenant config'
-              value={localValues['gateway.redde.api_key'] ?? ''}
-              onChange={e => setLocal('gateway.redde.api_key', e.target.value)}
-              type='password'
-            />
-          </Box>
+                {/* Base URL */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField fullWidth size='small' label='Base API URL'
+                    value={f.baseUrl}
+                    onChange={e => setGwForms(p => ({ ...p, [purpose]: { ...p[purpose], baseUrl: e.target.value } }))}
+                    placeholder={DEFAULT_REDDE_URL}
+                    helperText='Only change if Redde provides a custom endpoint'
+                  />
+                </Grid>
 
-          {['gateway.redde.merchant_id', 'gateway.redde.api_key'].some(k => dirty.has(k)) && (
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                variant='contained'
-                size='small'
-                onClick={() => saveDirty(['gateway.redde.merchant_id', 'gateway.redde.api_key'])}
-                disabled={['gateway.redde.merchant_id', 'gateway.redde.api_key'].some(k => saving.has(k))}
-              >
-                Save Gateway Settings
-              </Button>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+                {/* Mode */}
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <FormControl fullWidth size='small'>
+                    <InputLabel>Mode</InputLabel>
+                    <Select label='Mode' value={f.isLive ? 'live' : 'test'}
+                      onChange={e => setGwForms(p => ({ ...p, [purpose]: { ...p[purpose], isLive: e.target.value === 'live' } }))}>
+                      <MenuItem value='test'>Test / Sandbox</MenuItem>
+                      <MenuItem value='live'>Live (Production)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* Callback URLs */}
+                <Grid size={{ xs: 12 }}>
+                  <Typography variant='caption' color='text.secondary' fontWeight={600} sx={{ display: 'block', mb: 1 }}>
+                    Callback URLs — register in app.reddeonline.com → Apps → Modify
+                  </Typography>
+                  {purpose === 'RENT' ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                      <TextField fullWidth size='small' label='Receive Callback URL' value={cbUrls.RENT_RECEIVE} slotProps={{ input: { readOnly: true } }} helperText='Fires when an occupant completes a rent payment' />
+                      <TextField fullWidth size='small' label='Cash Out Callback URL' value={cbUrls.RENT_CASHOUT}  slotProps={{ input: { readOnly: true } }} helperText='Fires when a landlord withdrawal is confirmed' />
+                    </Box>
+                  ) : (
+                    <TextField fullWidth size='small' label='Receive Callback URL' value={cbUrls.SUBSCRIPTION_RECEIVE} slotProps={{ input: { readOnly: true } }} helperText='Fires when a subscription payment is confirmed' />
+                  )}
+                </Grid>
+
+                {/* Save */}
+                <Grid size={{ xs: 12 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button variant='contained' size='small' disabled={isSaving}
+                      startIcon={isSaving ? <CircularProgress size={14} color='inherit' /> : undefined}
+                      onClick={() => saveGateway(purpose)}>
+                      {isSaving ? 'Saving…' : `Save ${purpose === 'RENT' ? 'Rent & Withdrawals' : 'Subscription'} App`}
+                    </Button>
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        )
+      })}
 
       {/* ── 3. Transaction Fee Rate ──────────────────────────────────────────── */}
       <Card sx={{ mb: 3 }}>
@@ -473,6 +677,169 @@ export default function AdminPlatformSettingsView() {
           </Box>
         </CardContent>
       </Card>
+
+      {/* ── 3.5. SMS Top-Up Platform Fee ─────────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-coins-line'
+            title='SMS Top-Up Platform Fee'
+            subtitle='Platform commission taken when a landlord tops up their SMS credit. Configurable by amount tier; recorded in the Fee Ledger.'
+          />
+          <Divider sx={{ mb: 2 }} />
+
+          <ToggleRow
+            label='Charge platform fee on SMS credit top-ups'
+            description="When off, 100% of every top-up goes to the landlord's SMS credit with zero platform commission."
+            checked={localValues['sms.fee.enabled'] === 'true'}
+            saving={saving.has('sms.fee.enabled')}
+            onChange={v => save('sms.fee.enabled', String(v))}
+          />
+
+          <Box sx={{
+            mt: 2,
+            opacity: localValues['sms.fee.enabled'] === 'true' ? 1 : 0.5,
+            pointerEvents: localValues['sms.fee.enabled'] === 'true' ? 'auto' : 'none',
+          }}>
+            <Table size='small'>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Min Amount</TableCell>
+                  <TableCell>Max Amount</TableCell>
+                  <TableCell>Fee Type</TableCell>
+                  <TableCell>Fee Value</TableCell>
+                  <TableCell align='right'>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {feeTiersLoading ? (
+                  <TableRow><TableCell colSpan={5}><CircularProgress size={20} /></TableCell></TableRow>
+                ) : feeTiers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5}>
+                      <Typography variant='body2' color='text.secondary'>No fee tiers configured.</Typography>
+                    </TableCell>
+                  </TableRow>
+                ) : feeTiers.map(tier => (
+                  <TableRow key={tier.id}>
+                    <TableCell>GHS {tier.minAmount.toFixed(2)}</TableCell>
+                    <TableCell>{tier.maxAmount == null ? 'and above' : `GHS ${tier.maxAmount.toFixed(2)}`}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={tier.feeType}
+                        size='small'
+                        color={tier.feeType === 'FLAT' ? 'info' : 'default'}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {tier.feeType === 'PERCENTAGE' ? `${(tier.feeValue * 100).toFixed(2)}%` : `GHS ${tier.feeValue.toFixed(2)}`}
+                    </TableCell>
+                    <TableCell align='right'>
+                      <IconButton size='small' onClick={() => openEditTierDialog(tier)}>
+                        <i className='ri-edit-line' style={{ fontSize: '1rem' }} />
+                      </IconButton>
+                      <IconButton size='small' color='error' onClick={() => setDeletingTierId(tier.id)}>
+                        <i className='ri-delete-bin-line' style={{ fontSize: '1rem' }} />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            <Button
+              size='small'
+              variant='outlined'
+              startIcon={<i className='ri-add-line' />}
+              sx={{ mt: 2 }}
+              onClick={openCreateTierDialog}
+            >
+              Add Tier
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* ── Fee tier add/edit dialog ──────────────────────────────────────── */}
+      <Dialog open={tierDialogOpen} onClose={() => setTierDialogOpen(false)} maxWidth='xs' fullWidth>
+        <DialogTitle>{editingTierId ? 'Edit Fee Tier' : 'Add Fee Tier'}</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          {tierError && <Alert severity='error'>{tierError}</Alert>}
+          <TextField
+            size='small' label='Min Amount (GHS)' type='number'
+            value={tierForm.minAmount}
+            onChange={e => setTierForm(f => ({ ...f, minAmount: e.target.value }))}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                size='small'
+                checked={tierForm.noUpperLimit}
+                onChange={e => setTierForm(f => ({ ...f, noUpperLimit: e.target.checked }))}
+              />
+            }
+            label='No upper limit (and above)'
+          />
+          {!tierForm.noUpperLimit && (
+            <TextField
+              size='small' label='Max Amount (GHS)' type='number'
+              value={tierForm.maxAmount}
+              onChange={e => setTierForm(f => ({ ...f, maxAmount: e.target.value }))}
+            />
+          )}
+          <FormControl size='small' fullWidth>
+            <InputLabel>Fee Type</InputLabel>
+            <Select
+              label='Fee Type'
+              value={tierForm.feeType}
+              onChange={e => setTierForm(f => ({ ...f, feeType: e.target.value as 'PERCENTAGE' | 'FLAT' }))}
+            >
+              <MenuItem value='PERCENTAGE'>Percentage</MenuItem>
+              <MenuItem value='FLAT'>Flat (GHS)</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField
+            size='small'
+            label={tierForm.feeType === 'PERCENTAGE' ? 'Fee Value (%)' : 'Fee Value (GHS)'}
+            type='number'
+            value={tierForm.feeValue}
+            onChange={e => setTierForm(f => ({ ...f, feeValue: e.target.value }))}
+            helperText={tierForm.feeType === 'PERCENTAGE' ? 'e.g. 2 for 2%' : 'Flat GHS amount charged'}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTierDialogOpen(false)} disabled={tierSaving}>Cancel</Button>
+          <Button
+            variant='contained'
+            onClick={handleSaveTier}
+            disabled={tierSaving}
+            startIcon={tierSaving ? <CircularProgress size={14} color='inherit' /> : undefined}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Fee tier delete confirmation ─────────────────────────────────── */}
+      <Dialog open={!!deletingTierId} onClose={() => setDeletingTierId(null)} maxWidth='xs' fullWidth>
+        <DialogTitle>Delete Fee Tier?</DialogTitle>
+        <DialogContent>
+          <Typography variant='body2'>
+            This cannot be undone. Existing Fee Ledger entries are unaffected — this only changes fees on future top-ups.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeletingTierId(null)} disabled={tierDeleting}>Cancel</Button>
+          <Button
+            variant='contained' color='error'
+            onClick={handleDeleteTier}
+            disabled={tierDeleting}
+            startIcon={tierDeleting ? <CircularProgress size={14} color='inherit' /> : undefined}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── 4. Notification Preferences ──────────────────────────────────────── */}
       <Card sx={{ mb: 3 }}>
@@ -764,14 +1131,21 @@ export default function AdminPlatformSettingsView() {
                   onChange={e => setLocal('provider.frog.sender_id', e.target.value)}
                   helperText='Displayed as the SMS from-name'
                 />
+                <TextField
+                  label='Cost per SMS (GHS)'
+                  size='small' fullWidth type='number'
+                  value={localValues['sms.cost_per_message'] ?? ''}
+                  onChange={e => setLocal('sms.cost_per_message', e.target.value)}
+                  helperText='Debited from a landlord&apos;s SMS credit per message sent under their custom sender ID'
+                />
               </Box>
-              {(['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id'] as const).some(k => dirty.has(k)) && (
+              {(['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id', 'sms.cost_per_message'] as const).some(k => dirty.has(k)) && (
                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                   <Button
                     variant='contained'
                     size='small'
-                    onClick={() => saveDirty(['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id'])}
-                    disabled={['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id'].some(k => saving.has(k))}
+                    onClick={() => saveDirty(['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id', 'sms.cost_per_message'])}
+                    disabled={['provider.frog.api_key', 'provider.frog.username', 'provider.frog.sender_id', 'sms.cost_per_message'].some(k => saving.has(k))}
                   >
                     Save FROG Credentials
                   </Button>

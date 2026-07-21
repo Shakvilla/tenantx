@@ -18,7 +18,7 @@ import InputAdornment from '@mui/material/InputAdornment'
 import Snackbar from '@mui/material/Snackbar'
 
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
-import { changeAdminPassword } from '@/lib/api/admin-auth-client'
+import { changeAdminPassword, updateAdminProfile } from '@/lib/api/admin-auth-client'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -36,6 +36,147 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
       </Typography>
       <Box>{children}</Box>
     </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Basic email format check (mirrors backend @Email validation intent)
+// ---------------------------------------------------------------------------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// ---------------------------------------------------------------------------
+// Edit profile (name / email) section
+// ---------------------------------------------------------------------------
+
+function EditProfileSection({
+  fullName,
+  email,
+  onSaved
+}: {
+  fullName: string
+  email: string
+  onSaved: (fullName: string, email: string) => void
+}) {
+  const [editing, setEditing]   = useState(false)
+  const [nameVal, setNameVal]   = useState(fullName)
+  const [emailVal, setEmailVal] = useState(email)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [successOpen, setSuccessOpen] = useState(false)
+
+  const valid = nameVal.trim().length > 0 && EMAIL_RE.test(emailVal.trim())
+  const dirty = nameVal.trim() !== fullName || emailVal.trim() !== email
+
+  function startEdit() {
+    setNameVal(fullName)
+    setEmailVal(email)
+    setError(null)
+    setEditing(true)
+  }
+
+  function cancelEdit() {
+    setNameVal(fullName)
+    setEmailVal(email)
+    setError(null)
+    setEditing(false)
+  }
+
+  async function handleSave() {
+    if (!valid || !dirty) return
+    setSaving(true); setError(null)
+    try {
+      const updated = await updateAdminProfile({ fullName: nameVal.trim(), email: emailVal.trim() })
+      onSaved(updated.fullName, updated.email)
+      setEditing(false)
+      setSuccessOpen(true)
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e?.message ?? 'Failed to update profile')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant='subtitle2' fontWeight={600}>
+            Account Details
+          </Typography>
+          <Button size='small' startIcon={<i className='ri-edit-line' />} onClick={startEdit}>
+            Edit
+          </Button>
+        </Box>
+        <Divider sx={{ mb: 1, mt: 1 }} />
+
+        <InfoRow label='Full Name'>
+          <Typography variant='body2' fontWeight={600}>{fullName}</Typography>
+        </InfoRow>
+        <Divider />
+
+        <InfoRow label='Email'>
+          <Typography variant='body2'>{email}</Typography>
+        </InfoRow>
+
+        <Snackbar
+          open={successOpen}
+          autoHideDuration={4000}
+          onClose={() => setSuccessOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert severity='success' onClose={() => setSuccessOpen(false)} sx={{ width: '100%' }}>
+            Profile updated successfully.
+          </Alert>
+        </Snackbar>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <Typography variant='subtitle2' fontWeight={600} gutterBottom>
+        Account Details
+      </Typography>
+      <Divider sx={{ mb: 2 }} />
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 420 }}>
+        {error && <Alert severity='error'>{error}</Alert>}
+
+        <TextField
+          label='Full Name'
+          size='small'
+          value={nameVal}
+          onChange={e => setNameVal(e.target.value)}
+          disabled={saving}
+        />
+
+        <TextField
+          label='Email'
+          size='small'
+          type='email'
+          value={emailVal}
+          onChange={e => setEmailVal(e.target.value)}
+          disabled={saving}
+          error={emailVal.length > 0 && !EMAIL_RE.test(emailVal.trim())}
+          helperText={emailVal.length > 0 && !EMAIL_RE.test(emailVal.trim()) ? 'Enter a valid email address' : undefined}
+        />
+
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Button
+            variant='contained'
+            onClick={handleSave}
+            disabled={saving || !valid || !dirty}
+            startIcon={saving ? <CircularProgress size={14} color='inherit' /> : undefined}
+          >
+            Save Changes
+          </Button>
+          <Button variant='outlined' color='secondary' onClick={cancelEdit} disabled={saving}>
+            Cancel
+          </Button>
+        </Box>
+      </Box>
+    </>
   )
 }
 
@@ -167,7 +308,7 @@ function ChangePasswordCard() {
 // ---------------------------------------------------------------------------
 
 export default function AdminProfileView() {
-  const { adminUser } = useAdminAuth()
+  const { adminUser, setAdminUser } = useAdminAuth()
 
   if (!adminUser) {
     return (
@@ -193,19 +334,11 @@ export default function AdminProfileView() {
       {/* Profile info card */}
       <Card>
         <CardContent>
-          <Typography variant='subtitle2' fontWeight={600} gutterBottom>
-            Account Details
-          </Typography>
-          <Divider sx={{ mb: 1 }} />
-
-          <InfoRow label='Full Name'>
-            <Typography variant='body2' fontWeight={600}>{adminUser.fullName}</Typography>
-          </InfoRow>
-          <Divider />
-
-          <InfoRow label='Email'>
-            <Typography variant='body2'>{adminUser.email}</Typography>
-          </InfoRow>
+          <EditProfileSection
+            fullName={adminUser.fullName}
+            email={adminUser.email}
+            onSaved={(fullName, email) => setAdminUser({ ...adminUser, fullName, email })}
+          />
           <Divider />
 
           <InfoRow label='Status'>

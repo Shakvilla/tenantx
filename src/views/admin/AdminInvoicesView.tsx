@@ -47,6 +47,8 @@ import {
   getAdminInvoices,
   getAdminFailedInvoices,
   getAdminDelinquentInvoices,
+  getAdminManualPendingInvoices,
+  adminConfirmManualPayment,
   adminRetryInvoice,
   adminVoidInvoice,
   getUpcomingRenewals,
@@ -659,12 +661,14 @@ function DelinquentTab({ canManage }: { canManage: boolean }) {
   }, {})
 
   const uniqueTenants = Object.keys(byTenant).length
+  const totalAtRisk = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0)
 
   return (
     <>
       {uniqueTenants > 0 && (
         <Alert severity='error' sx={{ mb: 2 }}>
-          <strong>{uniqueTenants} tenant{uniqueTenants !== 1 ? 's' : ''}</strong> at risk of auto-downgrade to FREE due to 2+ failed payment attempts.
+          <strong>{uniqueTenants} tenant{uniqueTenants !== 1 ? 's' : ''}</strong> at risk of auto-downgrade to FREE due to 2+ failed payment attempts —{' '}
+          <strong>{formatCurrency(totalAtRisk)}</strong> in projected revenue at risk.
         </Alert>
       )}
       {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
@@ -680,6 +684,154 @@ function DelinquentTab({ canManage }: { canManage: boolean }) {
 
       <RetryDialog invoice={retryTarget} onClose={() => setRetry(null)} onConfirmed={handleRetry} />
       <VoidDialog invoice={voidTarget} onClose={() => setVoid(null)} onVoided={handleVoided} />
+      <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity='info' onClose={() => setToast(null)}>{toast}</Alert>
+      </Snackbar>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Manual (bank-transfer) payment confirmation dialog
+// ---------------------------------------------------------------------------
+
+interface ConfirmManualDialogProps {
+  invoice: AdminInvoiceDto | null
+  onClose: () => void
+  onConfirmed: (id: string) => Promise<void>
+}
+
+function ConfirmManualDialog({ invoice, onClose, onConfirmed }: ConfirmManualDialogProps) {
+  const [loading, setLoading] = useState(false)
+  async function handle() {
+    if (!invoice) return
+    setLoading(true)
+    await onConfirmed(invoice.id)
+    setLoading(false)
+  }
+  return (
+    <Dialog open={!!invoice} onClose={loading ? undefined : onClose} maxWidth='xs' fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <i className='ri-bank-line' />
+        Confirm Bank Transfer
+      </DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          Confirm that <strong>{invoice?.tenantName}</strong>'s bank transfer of{' '}
+          {invoice ? formatCurrency(invoice.totalAmount) : ''} has been received in the platform account.
+          <br /><br />
+          This immediately activates their plan — only confirm once you've verified the lodgment.
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button
+          variant='contained'
+          color='success'
+          onClick={handle}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={14} color='inherit' /> : <i className='ri-check-line' />}
+        >
+          Confirm Payment
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Tab — Manual (Bank Transfer) Payments
+// ---------------------------------------------------------------------------
+
+function ManualPaymentsTab({ canManage }: { canManage: boolean }) {
+  const [invoices, setInvoices]     = useState<AdminInvoiceDto[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [confirmTarget, setConfirm] = useState<AdminInvoiceDto | null>(null)
+  const [toast, setToast]           = useState<string | null>(null)
+  const [error, setError]           = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null)
+    try { setInvoices(await getAdminManualPendingInvoices()) }
+    catch { setError('Failed to load manual payments') }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function handleConfirm(id: string) {
+    try {
+      await adminConfirmManualPayment(id)
+      setToast('Payment confirmed — plan activated')
+      setInvoices(prev => prev.filter(i => i.id !== id))
+    } catch (e: any) {
+      setToast(e?.response?.data?.message ?? 'Failed to confirm payment')
+    }
+    setConfirm(null)
+  }
+
+  return (
+    <>
+      {invoices.length > 0 && (
+        <Alert severity='info' sx={{ mb: 2 }}>
+          <strong>{invoices.length}</strong> bank transfer{invoices.length !== 1 ? 's' : ''} awaiting confirmation.
+        </Alert>
+      )}
+      {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
+
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress /></Box>
+      ) : invoices.length === 0 ? (
+        <Typography variant='body2' color='text.secondary' sx={{ py: 2 }}>
+          No bank transfers awaiting confirmation.
+        </Typography>
+      ) : (
+        <div className='overflow-x-auto'>
+          <table className={tableStyles.table}>
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th>Plan</th>
+                <th>Period</th>
+                <th>Amount</th>
+                <th>Requested</th>
+                {canManage && <th style={{ textAlign: 'right' }}>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map(inv => (
+                <tr key={inv.id}>
+                  <td>
+                    <Typography variant='body2' fontWeight={600}>{inv.tenantName}</Typography>
+                    <Typography variant='caption' color='text.secondary' sx={{ fontFamily: 'monospace' }}>
+                      {inv.tenantId}
+                    </Typography>
+                  </td>
+                  <td><Chip size='small' label={inv.targetPlanName ?? inv.planName} variant='outlined' /></td>
+                  <td>
+                    <Typography variant='caption'>
+                      {formatDate(inv.periodStart)} → {formatDate(inv.periodEnd)}
+                    </Typography>
+                  </td>
+                  <td><Typography variant='body2' fontWeight={600}>{formatCurrency(inv.totalAmount)}</Typography></td>
+                  <td><Typography variant='caption' color='text.secondary'>{formatDateTime(inv.createdAt)}</Typography></td>
+                  {canManage && (
+                    <td style={{ textAlign: 'right' }}>
+                      <Tooltip title='Confirm bank transfer received'>
+                        <IconButton size='small' color='success' onClick={() => setConfirm(inv)}>
+                          <i className='ri-check-line' style={{ fontSize: '1rem' }} />
+                        </IconButton>
+                      </Tooltip>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <ConfirmManualDialog invoice={confirmTarget} onClose={() => setConfirm(null)} onConfirmed={handleConfirm} />
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity='info' onClose={() => setToast(null)}>{toast}</Alert>
       </Snackbar>
@@ -864,6 +1016,7 @@ export default function AdminInvoicesView() {
             <Tab label='All Invoices' icon={<i className='ri-file-list-3-line' style={{ fontSize: '1rem' }} />} iconPosition='start' />
             <Tab label='Failed Queue' icon={<i className='ri-error-warning-line' style={{ fontSize: '1rem' }} />} iconPosition='start' />
             <Tab label='Delinquent Accounts' icon={<i className='ri-alarm-warning-line' style={{ fontSize: '1rem' }} />} iconPosition='start' />
+            <Tab label='Manual Payments' icon={<i className='ri-bank-line' style={{ fontSize: '1rem' }} />} iconPosition='start' />
             <Tab label='Upcoming Renewals' icon={<i className='ri-calendar-event-line' style={{ fontSize: '1rem' }} />} iconPosition='start' />
           </Tabs>
         </Box>
@@ -872,7 +1025,8 @@ export default function AdminInvoicesView() {
           {tab === 0 && <AllInvoicesTab canManage={canManage} />}
           {tab === 1 && <FailedQueueTab canManage={canManage} />}
           {tab === 2 && <DelinquentTab canManage={canManage} />}
-          {tab === 3 && <RenewalsTab />}
+          {tab === 3 && <ManualPaymentsTab canManage={canManage} />}
+          {tab === 4 && <RenewalsTab />}
         </CardContent>
       </Card>
     </Box>

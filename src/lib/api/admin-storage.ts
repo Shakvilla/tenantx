@@ -10,6 +10,11 @@
 
 const ADMIN_TOKEN_KEY = 'admin_token'
 
+/** Returns true only if the value is a structurally valid JWT (3 dot-separated parts) */
+function isValidJwt(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.split('.').length === 3
+}
+
 function setCookie(name: string, value: string, maxAgeSeconds = 86400): void {
   if (typeof document === 'undefined') return
   const isSecure = typeof window !== 'undefined' && window.location.protocol === 'https:'
@@ -33,17 +38,36 @@ export function getStoredAdminToken(): string | null {
 
   if (cookieValue) {
     const decoded = decodeURIComponent(cookieValue)
+
+    if (!isValidJwt(decoded)) {
+      // Stale or corrupted cookie — wipe it
+      deleteCookie(ADMIN_TOKEN_KEY)
+      localStorage.removeItem(ADMIN_TOKEN_KEY)
+      return null
+    }
+
     if (localStorage.getItem(ADMIN_TOKEN_KEY) !== decoded) {
       localStorage.setItem(ADMIN_TOKEN_KEY, decoded)
     }
     return decoded
   }
 
-  return localStorage.getItem(ADMIN_TOKEN_KEY)
+  const stored = localStorage.getItem(ADMIN_TOKEN_KEY)
+
+  if (!isValidJwt(stored)) {
+    localStorage.removeItem(ADMIN_TOKEN_KEY)
+    return null
+  }
+
+  return stored
 }
 
 export function setStoredAdminToken(token: string): void {
   if (typeof window === 'undefined') return
+  if (!isValidJwt(token)) {
+    console.warn('[admin-storage] setStoredAdminToken called with an invalid token — ignoring.')
+    return
+  }
   localStorage.setItem(ADMIN_TOKEN_KEY, token)
   setCookie(ADMIN_TOKEN_KEY, token)
 }

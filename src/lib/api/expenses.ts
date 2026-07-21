@@ -137,10 +137,14 @@ export async function deleteExpenseConfig(id: string): Promise<void> {
 // Expenses API
 // ---------------------------------------------------------------------------
 
-export async function getExpenses(query: { propertyId?: string; status?: string } = {}): Promise<Expense[]> {
+export async function getExpenses(
+  query: { propertyId?: string; status?: string; startDate?: string; endDate?: string } = {}
+): Promise<Expense[]> {
   const params = new URLSearchParams()
   if (query.propertyId) params.set('propertyId', query.propertyId)
   if (query.status) params.set('status', query.status)
+  if (query.startDate) params.set('startDate', query.startDate)
+  if (query.endDate) params.set('endDate', query.endDate)
   const qs = params.toString()
   return apiGet(`${BASE}/expenses${qs ? `?${qs}` : ''}`, {
     headers: tenantHeader()

@@ -23,6 +23,9 @@ import { getInvoiceStats, getInvoices, type InvoiceStats, type Invoice } from '@
 // Type Imports
 import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
 
+// Util Imports
+import { toApiDateParams } from '@/utils/reports/dateUtils'
+
 type Props = {
   dateRange: DateRange
   onDateRangeChange: (dateRange: DateRange) => void
@@ -61,40 +64,28 @@ const EarningsReport = ({ dateRange, onDateRangeChange }: Props) => {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([getInvoiceStats(), getInvoices()])
+    const { startDate, endDate } = toApiDateParams(dateRange, 'date')
+
+    Promise.all([getInvoiceStats(), getInvoices({ startDate, endDate })])
       .then(([s, inv]) => {
         setStats(s)
         setInvoices(inv)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
-
-  // Filter invoices by dateRange
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      if (!inv.issuedDate) return false
-      const d = new Date(inv.issuedDate)
-
-      if (isNaN(d.getTime())) return false
-      if (dateRange.startDate && d < dateRange.startDate) return false
-      if (dateRange.endDate && d > dateRange.endDate) return false
-
-      return true
-    })
-  }, [invoices, dateRange])
+  }, [dateRange])
 
   // Revenue trend: amount per month
   const trends = useMemo(
-    () => groupByMonth(filteredInvoices, inv => inv.issuedDate, inv => inv.amount),
-    [filteredInvoices]
+    () => groupByMonth(invoices, inv => inv.issuedDate, inv => inv.amount),
+    [invoices]
   )
 
   // Revenue by property
   const byProperty = useMemo(() => {
     const map: Record<string, number> = {}
 
-    filteredInvoices.forEach(inv => {
+    invoices.forEach(inv => {
       const name = inv.propertyName || 'Unknown'
 
       map[name] = (map[name] || 0) + inv.amount
@@ -104,7 +95,7 @@ const EarningsReport = ({ dateRange, onDateRangeChange }: Props) => {
       .map(([label, value]) => ({ label, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8)
-  }, [filteredInvoices])
+  }, [invoices])
 
   // Payment status donut — from stats (all-time counts)
   const paymentStatus = useMemo(() => {

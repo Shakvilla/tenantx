@@ -28,6 +28,7 @@ interface AdminAuthContextValue extends AdminAuthState {
   adminLogout: () => void
   hasPermission: (permission: string) => boolean
   hasRole:       (role: string) => boolean
+  setAdminUser:  (profile: AdminUser) => void
 }
 
 const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(undefined)
@@ -103,8 +104,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     return state.adminUser?.roles.includes(role) ?? false
   }, [state.adminUser])
 
+  // ---- Update the cached profile in-place (e.g. after a self-service profile edit) ----
+  const setAdminUser = useCallback((profile: AdminUser) => {
+    setState(prev => ({ ...prev, adminUser: profile }))
+  }, [])
+
   return (
-    <AdminAuthContext.Provider value={{ ...state, adminLogin, adminLogout, hasPermission, hasRole }}>
+    <AdminAuthContext.Provider value={{ ...state, adminLogin, adminLogout, hasPermission, hasRole, setAdminUser }}>
       {children}
     </AdminAuthContext.Provider>
   )

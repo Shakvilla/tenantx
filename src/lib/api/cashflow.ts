@@ -1,7 +1,7 @@
-import { apiGet } from './client'
+import { apiGet, API_BASE } from './client'
 import type { CashFlowResponse } from '@/types/cashflow'
 
-const BASE = '/api/v1/reports'
+const BASE = `${API_BASE}/reports`
 
 /**
  * Fetch a 12-month cash flow projection based on current tenancies

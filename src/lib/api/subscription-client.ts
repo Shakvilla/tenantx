@@ -40,6 +40,7 @@ export interface SubscriptionPlanPublicDto {
   transactionFeePct: number | null
   active: boolean
   features: Record<string, FeatureInfo>
+  annualDiscountPct: number | null   // e.g. 0.15 = 15% off for annual billing; null = no annual option
 }
 
 export interface SubscriptionInvoiceDto {
@@ -58,7 +59,10 @@ export interface SubscriptionInvoiceDto {
 
 export interface UpgradeRequestDto {
   targetPlan: string
-  mobileNumber: string
+  unitCount: number                   // total units the landlord wants to license; backend subtracts free cap to compute billable units
+  mobileNumber?: string               // required when paymentMethod = 'MOMO'
+  billingCycle: 'MONTHLY' | 'ANNUAL'
+  paymentMethod: 'MOMO' | 'CARD' | 'MANUAL' | 'WALLET'
 }
 
 export interface UpgradeInitiatedDto {
@@ -66,6 +70,16 @@ export interface UpgradeInitiatedDto {
   clientTransId: string
   status: string
   message: string
+  redirectUrl: string | null   // set for CARD payments — the Paystack checkout URL to redirect to
+}
+
+/** Platform bank details for the manual (bank-transfer) payment option. Keys match the setting suffix. */
+export interface ManualPaymentDetails {
+  bank_name?: string
+  account_name?: string
+  account_number?: string
+  branch?: string
+  enabled?: string   // 'true' | 'false', as stored
 }
 
 export interface DowngradeRequestDto {
@@ -111,4 +125,18 @@ export async function getMyInvoices(): Promise<SubscriptionInvoiceDto[]> {
 
 export async function retryMyInvoice(invoiceId: string): Promise<void> {
   await apiClient.post(`${BASE}/invoices/${invoiceId}/retry`)
+}
+
+export async function verifySubscriptionPayment(invoiceId: string): Promise<{ confirmed: boolean }> {
+  const res = await apiClient.post<{ confirmed: boolean }>(`${BASE}/invoices/${invoiceId}/verify-payment`)
+  return res.data
+}
+
+export async function payInvoiceFromWallet(invoiceId: string): Promise<void> {
+  await apiClient.post(`${BASE}/invoices/${invoiceId}/pay-from-wallet`)
+}
+
+export async function getManualPaymentDetails(): Promise<ManualPaymentDetails> {
+  const res = await apiClient.get<ManualPaymentDetails>(`${BASE}/manual-payment-details`)
+  return res.data
 }

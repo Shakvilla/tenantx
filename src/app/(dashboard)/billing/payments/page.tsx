@@ -1,5 +1,5 @@
-import OccupantPaymentsView from '@/views/billing/OccupantPaymentsView'
+import PaymentsHistoryView from '@/views/billing/PaymentsHistoryView'
 
-const PaymentsPage = () => <OccupantPaymentsView />
+const PaymentsPage = () => <PaymentsHistoryView />
 
 export default PaymentsPage

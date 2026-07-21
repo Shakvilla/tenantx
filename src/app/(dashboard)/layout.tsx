@@ -20,6 +20,7 @@ import Customizer from '@core/components/customizer'
 import ScrollToTop from '@core/components/scroll-to-top'
 import AnnouncementBanner from '@components/banner/AnnouncementBanner'
 import SubscriptionWarningBanner from '@components/banner/SubscriptionWarningBanner'
+import SmsCreditWarningBanner from '@components/banner/SmsCreditWarningBanner'
 import ImpersonationBanner from '@components/banner/ImpersonationBanner'
 import ResumeOnboardingBanner from '@components/banner/ResumeOnboardingBanner'
 import OnboardingWizard from '@views/onboarding/OnboardingWizard'
@@ -50,6 +51,7 @@ const Layout = async (props: ChildrenType) => {
       <OnboardingWizard />
       <OnboardTenantWizard />
       <SubscriptionWarningBanner />
+      <SmsCreditWarningBanner />
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={

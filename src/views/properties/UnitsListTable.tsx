@@ -38,7 +38,7 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 import type { Unit } from '@/types/property'
 
 // API Imports
-import { getAllUnits, deleteUnit } from '@/lib/api/units'
+import { getAllUnits, deleteUnit, exportUnitsCsv } from '@/lib/api/units'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 
@@ -113,6 +113,7 @@ const UnitsListTable = () => {
   const [editUnitOpen, setEditUnitOpen] = useState(false)
   const [deleteUnitOpen, setDeleteUnitOpen] = useState(false)
   const [selectedUnit, setSelectedUnit] = useState<UnitWithExtras | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   // Cursor-based pagination state
   const [cursor, setCursor] = useState<string | null>(null)
@@ -134,7 +135,10 @@ const UnitsListTable = () => {
           size: pageSize,
           sort: 'id,asc',
           cursor: cursorOverride ?? undefined,
-          propertyId: property || undefined
+          propertyId: property || undefined,
+          status: status || undefined,
+          bedrooms: bedroom ? Number(bedroom) : undefined,
+          bathrooms: bathroom ? Number(bathroom) : undefined
         })
 
         if (!response.success) {
@@ -171,7 +175,7 @@ const UnitsListTable = () => {
         setLoading(false)
       }
     },
-    [pageSize, property]
+    [pageSize, property, status, bedroom, bathroom]
   )
 
   // Fetch properties for filter
@@ -220,6 +224,19 @@ const UnitsListTable = () => {
     }
   }
 
+  // Handle export
+  const handleExport = async () => {
+    setExporting(true)
+
+    try {
+      await exportUnitsCsv()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export units')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   // Calculate stats
   const stats = useMemo(() => {
     return {
@@ -230,24 +247,10 @@ const UnitsListTable = () => {
     }
   }, [data, total])
 
-  // Filter data locally for bedrooms/bathrooms
-  const filteredData = useMemo(() => {
-    let filtered = data
-
-    if (status) {
-      filtered = filtered.filter(u => u.status === status)
-    }
-
-    if (bedroom) {
-      filtered = filtered.filter(u => u.bedrooms === Number(bedroom))
-    }
-
-    if (bathroom) {
-      filtered = filtered.filter(u => u.bathrooms === Number(bathroom))
-    }
-
-    return filtered
-  }, [data, status, bedroom, bathroom])
+  // status/bedrooms/bathrooms filters are now applied server-side (see fetchUnits),
+  // so the fetched page already reflects the selected filters — no client-side
+  // re-filtering needed here (that would only ever see the current page).
+  const filteredData = data
 
   const columns = useMemo<ColumnDef<UnitWithExtras, any>[]>(
     () => [
@@ -498,8 +501,14 @@ const UnitsListTable = () => {
                   <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
                 </TextField>
-                <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
-                  Export
+                <Button
+                  variant='outlined'
+                  size='small'
+                  startIcon={exporting ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+                  onClick={handleExport}
+                  disabled={exporting}
+                >
+                  {exporting ? 'Exporting…' : 'Export'}
                 </Button>
                 <UnitCapGate>
                   <Button

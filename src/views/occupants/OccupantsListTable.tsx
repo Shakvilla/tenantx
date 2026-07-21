@@ -631,7 +631,7 @@ const OccupantsListTable = () => {
       <ConfirmationDialog
         open={deleteOccupantOpen}
         setOpen={setDeleteOccupantOpen}
-        type='delete-unit'
+        type='delete-occupant'
         onConfirm={handleDelete}
       />
     </>

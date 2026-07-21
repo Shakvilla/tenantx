@@ -58,6 +58,8 @@ export interface PaymentResponse {
 
 // ── Gateway config ────────────────────────────────────────────────────────────
 
+export type GatewayPurpose = 'RENT' | 'SUBSCRIPTION'
+
 export interface GatewayConfigRequest {
   gatewayName: string
   apiKey: string
@@ -65,6 +67,8 @@ export interface GatewayConfigRequest {
   nickname: string
   isLive: boolean
   isDefault: boolean
+  purpose: GatewayPurpose
+  baseUrl?: string   // e.g. "https://api.reddeonline.com"; omit to use default
 }
 
 export interface GatewayConfigResponse {
@@ -76,4 +80,6 @@ export interface GatewayConfigResponse {
   isLive: boolean
   isDefault: boolean
   isActive: boolean
+  purpose: GatewayPurpose
+  baseUrl: string
 }

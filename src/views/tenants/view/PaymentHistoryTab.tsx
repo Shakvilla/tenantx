@@ -14,6 +14,8 @@ import TablePagination from '@mui/material/TablePagination'
 import Box from '@mui/material/Box'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Tooltip from '@mui/material/Tooltip'
 
 // Third-party
 import classnames from 'classnames'
@@ -78,6 +80,19 @@ const PaymentHistoryTab = ({ occupantId }: Props) => {
   const [error, setError]           = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [verifying, setVerifying] = useState<Record<string, boolean>>({})
+
+  async function handleVerify(paymentId: string) {
+    setVerifying(v => ({ ...v, [paymentId]: true }))
+    try {
+      const updated = await paymentsApi.checkStatus(paymentId)
+      setPayments(prev => prev.map(p => p.id === paymentId ? updated : p))
+    } catch {
+      // status chip will remain unchanged
+    } finally {
+      setVerifying(v => ({ ...v, [paymentId]: false }))
+    }
+  }
 
   useEffect(() => {
     if (!occupantId) return
@@ -153,9 +168,30 @@ const PaymentHistoryTab = ({ occupantId }: Props) => {
             {row.original.notes || '—'}
           </Typography>
         )
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: '',
+        cell: ({ row }) => {
+          const p = row.original
+          if ((p.status !== 'PENDING' && p.status !== 'PROCESSING') || p.paymentMethod !== 'MOBILE_MONEY') return null
+          return (
+            <Tooltip title='Check payment status with Redde'>
+              <Button
+                size='small'
+                variant='outlined'
+                disabled={!!verifying[p.id]}
+                onClick={() => handleVerify(p.id)}
+                startIcon={verifying[p.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
+              >
+                {verifying[p.id] ? 'Checking…' : 'Verify'}
+              </Button>
+            </Tooltip>
+          )
+        }
       })
     ],
-    []
+    [verifying]
   )
 
   const table = useReactTable({

@@ -85,10 +85,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary
   cancelled:         { label: 'Cancelled',         color: 'error'     },
 }
 
-function getAvailableTransitions(currentStatus: string, hasMaintainer: boolean): Array<{ value: string; label: string }> {
+function getAvailableTransitions(currentStatus: string, hasMaintainer: boolean, isComplaint: boolean): Array<{ value: string; label: string }> {
   switch (currentStatus) {
     case 'pending':
       return [
+        { value: 'awaiting_approval', label: 'Awaiting Approval' },
         ...(hasMaintainer ? [{ value: 'in_progress', label: 'In Progress' }] : []),
         { value: 'cancelled', label: 'Cancelled' },
       ]
@@ -98,10 +99,17 @@ function getAvailableTransitions(currentStatus: string, hasMaintainer: boolean):
         { value: 'cancelled', label: 'Cancelled' },
       ]
     case 'approved':
-      return [
-        { value: 'in_progress', label: 'In Progress' },
-        { value: 'cancelled',   label: 'Cancelled'   },
-      ]
+      // Complaints have no maintainer/repair-work concept, so they resolve
+      // straight to Completed instead of going through In Progress.
+      return isComplaint
+        ? [
+            { value: 'completed', label: 'Completed' },
+            { value: 'cancelled', label: 'Cancelled' },
+          ]
+        : [
+            { value: 'in_progress', label: 'In Progress' },
+            { value: 'cancelled',   label: 'Cancelled'   },
+          ]
     case 'in_progress':
       return [
         { value: 'completed', label: 'Completed' },
@@ -338,7 +346,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
   const totalPartsCost = parts.reduce((sum, p) => sum + (p.totalCost ?? 0), 0)
   // 'completed' is no longer terminal — it awaits tenant confirmation.
   const isTerminal = localStatus === 'closed' || localStatus === 'cancelled'
-  const availableTransitions = getAvailableTransitions(localStatus, !!localMaintainerId)
+  const availableTransitions = getAvailableTransitions(localStatus, !!localMaintainerId, isComplaint)
 
   // The occupant who owns the request may confirm or dispute a completed repair.
   const canDecide =

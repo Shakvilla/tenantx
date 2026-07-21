@@ -16,7 +16,7 @@ import TablePagination from '@mui/material/TablePagination'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
-import { getMyLoginHistory, type MyLoginHistoryItem } from '@/lib/api/auth-client'
+import { getMyLoginHistory, logoutAllUser, type MyLoginHistoryItem } from '@/lib/api/auth-client'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,11 +71,9 @@ export default function SecuritySettingsView() {
   const handleLogoutAll = async () => {
     setLogoutAll(true)
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1'}/auth/logout-all`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      setLogoutMsg('All other sessions have been terminated.')
+      const res = await logoutAllUser()
+
+      setLogoutMsg(res.success ? 'All other sessions have been terminated.' : (res.error?.message ?? 'Failed to terminate sessions. Please try again.'))
     } catch {
       setLogoutMsg('Failed to terminate sessions. Please try again.')
     } finally {

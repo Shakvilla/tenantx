@@ -72,6 +72,14 @@ const allItems: NavItem[] = [
     ]
   },
   {
+    label: 'Members',
+    icon: 'ri-group-2-line',
+    requiredFeature: 'AGENT_MANAGEMENT',
+    children: [
+      { label: 'Agents', href: '/members/agents' },
+    ]
+  },
+  {
     label: 'Billing Center',
     icon: 'ri-bill-line',
     children: [
@@ -176,10 +184,11 @@ const allItems: NavItem[] = [
     allowedUserTypes: ['LANDLORD'],
     children: [
       { label: 'Notification settings', href: '/settings/notification', requiredFeature: 'SMS_REMINDERS' },
+      { label: 'SMS Sender ID',         href: '/settings/sms', requiredFeature: 'SMS_REMINDERS' },
       { label: 'Company Settings',      href: '/settings/company' },
       { label: 'Recurring Invoice Settings', href: '/settings/recurring-invoice' },
-      { label: 'Payment Settings',      href: '/settings/payment', requiredFeature: 'RENT_COLLECTION' },
-      { label: 'Security',              href: '/settings/security' }
+      { label: 'Security',              href: '/settings/security' },
+      { label: 'Team & Roles',          href: '/settings/team' }
     ]
   }
 ]

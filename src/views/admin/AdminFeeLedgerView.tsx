@@ -129,6 +129,7 @@ export default function AdminFeeLedgerView() {
   // ── Filters ───────────────────────────────────────────────────────────────
   const [tenantFilter, setTenantFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [sourceTypeFilter, setSourceTypeFilter] = useState('')
 
   // ── Settling ──────────────────────────────────────────────────────────────
   const [settlingId, setSettlingId]         = useState<string | null>(null)   // row-level spinner
@@ -153,6 +154,7 @@ export default function AdminFeeLedgerView() {
       const res = await getFeeLedgerEntries({
         tenantId: tenantFilter || undefined,
         status:   statusFilter || undefined,
+        sourceType: sourceTypeFilter || undefined,
         page: p,
         size: effectiveSize,
       })
@@ -164,7 +166,7 @@ export default function AdminFeeLedgerView() {
     } finally {
       setLoading(false)
     }
-  }, [tenantFilter, statusFilter, rowsPerPage])
+  }, [tenantFilter, statusFilter, sourceTypeFilter, rowsPerPage])
 
   useEffect(() => { loadEntries(0) }, [loadEntries])
 
@@ -176,7 +178,7 @@ export default function AdminFeeLedgerView() {
       const updated = await settleFeeEntry(id)
       setEntries(prev => prev.map(e => e.id === id ? updated : e))
       setSummary(null) // trigger summary reload
-      getFeeLedgerSummary().then(setSummary).catch(() => {})
+      getFeeLedgerSummary().then(setSummary).catch(() => setToast('Fee entry settled, but the summary card failed to refresh'))
       setToast('Fee entry marked as settled')
     } catch (e: any) {
       setToast(e?.response?.data?.message ?? 'Failed to settle entry')
@@ -193,7 +195,7 @@ export default function AdminFeeLedgerView() {
       const result = await settleBatch(scopedTenant)
       setToast(`Settled ${result.settledCount} entr${result.settledCount === 1 ? 'y' : 'ies'} — GHS ${Number(result.totalAmount).toFixed(2)}`)
       loadEntries(0)
-      getFeeLedgerSummary().then(setSummary).catch(() => {})
+      getFeeLedgerSummary().then(setSummary).catch(() => setToast('Batch settled, but the summary card failed to refresh'))
     } catch (e: any) {
       setToast(e?.response?.data?.message ?? 'Batch settle failed')
     } finally {
@@ -216,6 +218,17 @@ export default function AdminFeeLedgerView() {
     columnHelper.accessor('tenantId', {
       header: 'Tenant',
       cell: info => <Typography sx={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{info.getValue()}</Typography>
+    }),
+    columnHelper.accessor('sourceType', {
+      header: 'Type',
+      cell: info => (
+        <Chip
+          label={info.getValue() === 'SMS_CREDIT_TOPUP' ? 'SMS Top-Up' : 'Subscription'}
+          size='small'
+          color={info.getValue() === 'SMS_CREDIT_TOPUP' ? 'secondary' : 'primary'}
+          sx={{ fontSize: '0.65rem', height: 20 }}
+        />
+      )
     }),
     columnHelper.accessor('sourceId', {
       header: 'Source',
@@ -279,7 +292,7 @@ export default function AdminFeeLedgerView() {
         Transaction Fee Ledger
       </Typography>
       <Typography variant='body2' color='text.secondary' sx={{ mb: 3 }}>
-        Platform fees captured from subscription payments. Fee rate is configurable in Platform Settings.
+        Platform commission captured from subscription payments and SMS credit top-ups. Rates are configurable in Platform Settings.
       </Typography>
 
       {/* ── Summary cards ─────────────────────────────────────────────────── */}
@@ -322,6 +335,18 @@ export default function AdminFeeLedgerView() {
               <MenuItem value='CAPTURED'>Captured</MenuItem>
               <MenuItem value='SETTLED'>Settled</MenuItem>
               <MenuItem value='REVERSED'>Reversed</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size='small' sx={{ minWidth: 160 }}>
+            <InputLabel>Source</InputLabel>
+            <Select
+              label='Source'
+              value={sourceTypeFilter}
+              onChange={e => setSourceTypeFilter(e.target.value)}
+            >
+              <MenuItem value=''>All</MenuItem>
+              <MenuItem value='SUBSCRIPTION_INVOICE'>Subscription</MenuItem>
+              <MenuItem value='SMS_CREDIT_TOPUP'>SMS Top-Up</MenuItem>
             </Select>
           </FormControl>
           <Button

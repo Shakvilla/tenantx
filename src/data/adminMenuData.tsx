@@ -91,6 +91,12 @@ export const adminNavItems: AdminNavItem[] = [
     permissions: ['platform:health:read'],
   },
   {
+    label: 'Payment Gateway',
+    href: '/admin/payment-gateway',
+    icon: 'ri-bank-card-line',
+    permissions: ['platform:gateway:read'],
+  },
+  {
     label: 'Platform Settings',
     href: '/admin/platform-settings',
     icon: 'ri-settings-3-line',
@@ -101,6 +107,18 @@ export const adminNavItems: AdminNavItem[] = [
     href: '/admin/audit-log',
     icon: 'ri-file-shield-2-line',
     permissions: ['platform:audit:read'],
+  },
+  {
+    label: 'Impersonation Log',
+    href: '/admin/impersonation-log',
+    icon: 'ri-spy-line',
+    permissions: ['platform:impersonate'],
+  },
+  {
+    label: 'SMS Sender IDs',
+    href: '/admin/sms-sender-ids',
+    icon: 'ri-message-3-line',
+    permissions: ['platform:sms:read'],
   },
   {
     label: 'My Profile',

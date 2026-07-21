@@ -29,6 +29,8 @@ export interface User {
   companyName?: string | null
   active: boolean
   createdAt: string
+  role?: string
+  userType?: string
 }
 
 export interface CreateUserPayload {

@@ -67,6 +67,8 @@ interface OccupantQuery {
   size?: number
   cursor?: string
   sort?: string
+  startDate?: string
+  endDate?: string
 }
 
 export interface CreateOccupantPayload {
@@ -140,6 +142,8 @@ export async function getOccupants(
   if (query.propertyId) params.set('propertyId', query.propertyId)
   if (query.cursor) params.set('cursor', query.cursor)
   if (query.sort) params.set('sort', query.sort)
+  if (query.startDate) params.set('startDate', query.startDate)
+  if (query.endDate) params.set('endDate', query.endDate)
 
   return apiGet(`${API_BASE}/occupants?${params.toString()}`, {
     headers: { 'X-Tenant-ID': tenantId }
@@ -267,9 +271,12 @@ export async function uploadOccupantAvatar(
   occupantId?: string
 ): Promise<AvatarUploadResult> {
   const { uploadImages } = await import('@/lib/imagekit')
+
   const folder = occupantId
     ? `/tenantx/${tenantId}/occupants/${occupantId}`
     : `/tenantx/${tenantId}/occupants`
+
   const [uploaded] = await uploadImages([file], { folder })
+
   return { url: uploaded.url, fileId: uploaded.fileId }
 }

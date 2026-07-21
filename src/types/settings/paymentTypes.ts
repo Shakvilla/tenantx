@@ -14,9 +14,8 @@ export type CurrencySymbolPosition = 'before' | 'after'
 
 export interface ReddeConfig {
   apiKey: string
-  merchantId: string
-  merchantToken: string
-  webhookUrl: string
+  appId: string       // App ID given by Wigal / Redde portal
+  nickname: string    // displayed on customer MoMo prompt
   enabled: boolean
   mode: GatewayMode
   priority: number

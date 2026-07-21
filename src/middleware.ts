@@ -10,6 +10,27 @@ const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password', '/auth/im
  */
 const PUBLIC_VACANCY_ROUTES = ['/vacancies', '/listings']
 
+/**
+ * Public routes within the /admin/** space — no admin session needed.
+ * All other /admin/** routes require an admin_token cookie.
+ */
+const ADMIN_PUBLIC_ROUTES = ['/admin/login']
+
+/**
+ * Routes that only the tenant LANDLORD (userType=LANDLORD) may access.
+ * STAFF users cannot reach these even with a valid token — this is a UX
+ * guard only; the backend @PreAuthorize annotations are the real security
+ * boundary.
+ */
+const LANDLORD_ONLY_ROUTES = [
+  '/settings/company',
+  '/settings/payment',
+  '/settings/security',
+  '/settings/notification',
+  '/settings/recurring-invoice',
+  '/settings/team',
+]
+
 function isPublicPageRoute(pathname: string): boolean {
   return PUBLIC_PAGE_ROUTES.some(route => pathname.startsWith(route))
 }
@@ -20,6 +41,30 @@ function isPublicVacancyRoute(pathname: string): boolean {
 
 function isAdminRoute(pathname: string): boolean {
   return pathname.startsWith('/admin')
+}
+
+function isAdminPublicRoute(pathname: string): boolean {
+  return ADMIN_PUBLIC_ROUTES.some(route => pathname.startsWith(route))
+}
+
+function isLandlordOnlyRoute(pathname: string): boolean {
+  return LANDLORD_ONLY_ROUTES.some(route => pathname.startsWith(route))
+}
+
+/**
+ * Decodes the JWT payload without verifying the signature — the backend
+ * validates the signature on every API call. The middleware only needs to
+ * read claims (userType) to make a UX-level routing decision.
+ */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const payloadB64 = token.split('.')[1]
+    if (!payloadB64) return null
+    const json = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'))
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
 }
 
 export async function middleware(request: NextRequest) {
@@ -42,12 +87,21 @@ export async function middleware(request: NextRequest) {
   // ADMIN ROUTES  /admin/**
   // ═══════════════════════════════════════════════════════════════════════════
   if (isAdminRoute(pathname)) {
-    if (!isAdminAuthenticated) {
-      // Not logged in as admin → send to /login
-      return NextResponse.redirect(new URL('/login', request.url))
+    // /admin/login is always public — no session needed
+    if (isAdminPublicRoute(pathname)) {
+      // Already logged in as admin → skip the login page, go straight to dashboard
+      if (isAdminAuthenticated) {
+        return NextResponse.redirect(new URL('/admin', request.url))
+      }
+      return NextResponse.next()
     }
 
-    // Inject admin token as Authorization header for any admin Server Components
+    // All other /admin/** routes require an active admin session
+    if (!isAdminAuthenticated) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
+
+    // Inject admin token as Authorization header for admin Server Components
     const requestHeaders = new Headers(request.headers)
     requestHeaders.set('Authorization', `Bearer ${adminToken}`)
 
@@ -89,7 +143,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // 2. Authenticated — inject auth headers for Server Components
+  // 2. LANDLORD-only routes — block STAFF and other non-LANDLORD userTypes
+  if (isLandlordOnlyRoute(pathname)) {
+    const claims = decodeJwtPayload(authToken!)
+    const userType = (claims?.userType as string) ?? ''
+    if (userType !== 'LANDLORD') {
+      return NextResponse.redirect(new URL('/dashboard?error=access_denied', request.url))
+    }
+  }
+
+  // 3. Authenticated — inject auth headers for Server Components
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('Authorization', `Bearer ${authToken}`)
   requestHeaders.set('X-Tenant-ID', tenantId!)

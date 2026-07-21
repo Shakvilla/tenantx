@@ -45,7 +45,14 @@ import tableStyles from '@core/styles/table.module.css'
 
 // API + Types
 import { walletApi } from '@/lib/api/wallet'
-import type { WalletResponse, LedgerEntryResponse, LedgerCategory, MomoNetwork } from '@/types/wallet'
+import type {
+  WalletResponse,
+  LedgerEntryResponse,
+  LedgerCategory,
+  MomoNetwork,
+  WithdrawalResponse,
+  WithdrawalStatus,
+} from '@/types/wallet'
 import { CATEGORY_LABELS, MOMO_NETWORKS } from '@/types/wallet'
 
 // ─────────────────────────────────────────
@@ -63,6 +70,13 @@ const categoryChipColor = (cat: LedgerCategory): 'success' | 'error' | 'warning'
   if (cat === 'PLATFORM_FEE' || cat === 'REFUND_ISSUED' || cat === 'ADMIN_DEBIT') return 'error'
   if (cat === 'WITHDRAWAL_INITIATED') return 'warning'
   return 'default'
+}
+
+const WITHDRAWAL_STATUS_CONFIG: Record<WithdrawalStatus, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
+  PENDING:    { label: 'Pending',    color: 'warning' },
+  PROCESSING: { label: 'Processing', color: 'info'    },
+  COMPLETED:  { label: 'Completed',  color: 'success' },
+  FAILED:     { label: 'Failed',     color: 'error'   },
 }
 
 // ─────────────────────────────────────────
@@ -246,6 +260,21 @@ const WalletSummaryCard = ({
   )
 }
 
+// Auto-detect the MoMo network from a Ghanaian mobile number's prefix.
+// Returns null when the number is incomplete or the prefix is unrecognised.
+const detectNetwork = (value: string): MomoNetwork | null => {
+  const digits = value.replace(/\s+/g, '')
+  if (!/^0\d{9}$/.test(digits)) return null
+  const prefix = digits.slice(0, 3)
+  const mtn = ['024', '025', '053', '054', '055', '059', '026', '056']
+  const telecel = ['020', '050']
+  const airteltigo = ['027', '057']
+  if (mtn.includes(prefix)) return 'MTN'
+  if (telecel.includes(prefix)) return 'TELECEL'
+  if (airteltigo.includes(prefix)) return 'AIRTELTIGO'
+  return null
+}
+
 // ─────────────────────────────────────────
 // Withdraw Dialog
 // ─────────────────────────────────────────
@@ -290,7 +319,12 @@ const WithdrawDialog = ({
       onSuccess()
       onClose()
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Withdrawal failed. Please try again.')
+      const code = e?.response?.data?.code
+      if (code === 'WITHDRAWAL_ALREADY_PENDING') {
+        setError('A withdrawal is already being processed. Please wait for it to complete before starting another.')
+      } else {
+        setError(e?.response?.data?.message ?? 'Withdrawal failed. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -328,7 +362,12 @@ const WithdrawDialog = ({
             fullWidth size='small'
             label='MoMo Number'
             value={number}
-            onChange={e => setNumber(e.target.value)}
+            onChange={e => {
+              const val = e.target.value
+              setNumber(val)
+              const detected = detectNetwork(val)
+              if (detected) setNetwork(detected)
+            }}
             placeholder='0241234567'
           />
           {error && <Alert severity='error' sx={{ py: 0.5 }}>{error}</Alert>}
@@ -366,37 +405,38 @@ const LedgerTable = () => {
 
   // Filters
   const [search, setSearch]               = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [typeFilter, setTypeFilter]       = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [dateFrom, setDateFrom]           = useState('')
   const [dateTo, setDateTo]               = useState('')
 
-  const load = useCallback((p: number, from = dateFrom, to = dateTo, catOverride?: string) => {
+  // Debounce the search input — avoid firing an API call on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const load = useCallback((p: number, from = dateFrom, to = dateTo, catOverride?: string, searchOverride?: string, typeOverride?: string) => {
     setLoading(true)
     const cat = catOverride !== undefined ? catOverride : categoryFilter
-    walletApi.getLedger({ page: p, size: pageSize, from: from || undefined, to: to || undefined, category: cat || undefined })
+    const q = searchOverride !== undefined ? searchOverride : debouncedSearch
+    const type = typeOverride !== undefined ? typeOverride : typeFilter
+    walletApi.getLedger({
+      page: p,
+      size: pageSize,
+      from: from || undefined,
+      to: to || undefined,
+      category: cat || undefined,
+      entryType: (type as 'CREDIT' | 'DEBIT') || undefined,
+      search: q || undefined,
+    })
       .then(res => { setEntries(res.entries); setTotal(res.totalElements) })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [pageSize, dateFrom, dateTo, categoryFilter])
+  }, [pageSize, dateFrom, dateTo, categoryFilter, debouncedSearch, typeFilter])
 
   useEffect(() => { load(0) }, [load])
-
-  // Client-side filter for search / type / category on current page
-  const filtered = useMemo(() => entries.filter(e => {
-    if (typeFilter && e.entryType !== typeFilter) return false
-    if (categoryFilter && e.category !== categoryFilter) return false
-    if (search) {
-      const q = search.toLowerCase()
-      return (
-        (e.description ?? '').toLowerCase().includes(q) ||
-        (e.occupantName ?? '').toLowerCase().includes(q) ||
-        (e.invoiceNumber ?? '').toLowerCase().includes(q) ||
-        (e.propertyName ?? '').toLowerCase().includes(q)
-      )
-    }
-    return true
-  }), [entries, typeFilter, categoryFilter, search])
 
   const columns = useMemo<ColumnDef<LedgerEntryResponse, any>[]>(() => [
     columnHelper.accessor('effectiveDate', {
@@ -466,7 +506,7 @@ const LedgerTable = () => {
   ], [])
 
   const table = useReactTable({
-    data: filtered,
+    data: entries,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -474,10 +514,10 @@ const LedgerTable = () => {
     pageCount: Math.ceil(total / pageSize),
   })
 
-  const handleApply = () => { setPage(0); load(0, dateFrom, dateTo) }
+  const handleApply = () => { setPage(0); load(0, dateFrom, dateTo, undefined, debouncedSearch) }
   const handleClear = () => {
-    setSearch(''); setTypeFilter(''); setCategoryFilter(''); setDateFrom(''); setDateTo('')
-    setPage(0); load(0, '', '')
+    setSearch(''); setDebouncedSearch(''); setTypeFilter(''); setCategoryFilter(''); setDateFrom(''); setDateTo('')
+    setPage(0); load(0, '', '', '', '', '')
   }
 
   return (
@@ -503,7 +543,7 @@ const LedgerTable = () => {
           </Typography>
           {[
             { label: 'All transactions', value: '' },
-            { label: '🧾 Platform fees', value: 'PLATFORM_FEE' },
+            { label: '🧾 Subscription fees', value: 'SUBSCRIPTION_FEE' },
             { label: '💸 Withdrawals', value: 'WITHDRAWAL_INITIATED' },
             { label: '✅ Rent collected', value: 'RENT_COLLECTED' },
           ].map(f => (
@@ -522,9 +562,9 @@ const LedgerTable = () => {
             />
           ))}
         </Box>
-        {categoryFilter === 'PLATFORM_FEE' && (
+        {categoryFilter === 'SUBSCRIPTION_FEE' && (
           <Alert severity='info' icon={<i className='ri-information-line' />} sx={{ py: 0.5 }}>
-            Showing platform transaction fees deducted from your rent collections. These are charged per successful payment.
+            Showing subscription fees charged to your wallet when your plan renews.
           </Alert>
         )}
 
@@ -534,7 +574,12 @@ const LedgerTable = () => {
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-center gap-2'>
             <TextField
               select size='small' label='Transaction Type' value={typeFilter}
-              onChange={e => setTypeFilter(e.target.value)} sx={{ minWidth: 160 }}
+              onChange={e => {
+                const v = e.target.value
+                setTypeFilter(v)
+                setPage(0)
+                load(0, dateFrom, dateTo, undefined, undefined, v)
+              }} sx={{ minWidth: 160 }}
             >
               <MenuItem value=''>All Types</MenuItem>
               <MenuItem value='CREDIT'>Credit (Money In)</MenuItem>
@@ -636,7 +681,7 @@ const LedgerTable = () => {
                   </tr>
                 ))}
               </thead>
-              {filtered.length === 0 ? (
+              {entries.length === 0 ? (
                 <tbody>
                   <tr>
                     <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
@@ -671,6 +716,253 @@ const LedgerTable = () => {
           onPageChange={(_, p) => { setPage(p); load(p) }}
           onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0) }}
         />
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─────────────────────────────────────────
+// Withdrawal History Table
+// ─────────────────────────────────────────
+
+const withdrawalColumnHelper = createColumnHelper<WithdrawalResponse>()
+
+const WithdrawalsTable = () => {
+  const [withdrawals, setWithdrawals] = useState<WithdrawalResponse[]>([])
+  const [total, setTotal]             = useState(0)
+  const [page, setPage]               = useState(0)
+  const [pageSize, setPageSize]       = useState(10)
+  const [loading, setLoading]         = useState(false)
+  const [error, setError]             = useState('')
+
+  const load = useCallback((p: number, size = pageSize) => {
+    setLoading(true)
+    setError('')
+    walletApi.getWithdrawals(p, size)
+      .then(res => { setWithdrawals(res.content); setTotal(res.totalElements) })
+      .catch(err => setError(err?.response?.data?.message ?? 'Failed to load withdrawal history'))
+      .finally(() => setLoading(false))
+  }, [pageSize])
+
+  useEffect(() => { load(page) }, [load]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const columns = useMemo<ColumnDef<WithdrawalResponse, any>[]>(() => [
+    withdrawalColumnHelper.accessor('initiatedAt', {
+      header: 'DATE',
+      cell: ({ row }) => (
+        <Typography variant='body2' color='text.secondary' sx={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>
+          {fmtDate(row.original.initiatedAt)}
+        </Typography>
+      )
+    }),
+    withdrawalColumnHelper.accessor('amount', {
+      header: 'AMOUNT',
+      cell: ({ row }) => (
+        <Typography variant='body2' fontWeight={700} color='error.main' sx={{ whiteSpace: 'nowrap' }}>
+          −&thinsp;{fmt(row.original.amount)}
+        </Typography>
+      )
+    }),
+    withdrawalColumnHelper.accessor('momoNumber', {
+      header: 'MOMO NUMBER',
+      cell: ({ row }) => (
+        <div>
+          <Typography variant='body2'>{row.original.momoNumber ?? '—'}</Typography>
+          {row.original.momoNetwork && (
+            <Typography variant='caption' color='text.disabled'>{row.original.momoNetwork}</Typography>
+          )}
+        </div>
+      )
+    }),
+    withdrawalColumnHelper.accessor('status', {
+      header: 'STATUS',
+      cell: ({ row }) => {
+        const cfg = WITHDRAWAL_STATUS_CONFIG[row.original.status] ?? { label: row.original.status, color: 'default' as const }
+        return (
+          <div>
+            <Chip size='small' label={cfg.label} color={cfg.color} variant='tonal' sx={{ fontSize: '0.7rem' }} />
+            {row.original.status === 'FAILED' && row.original.failureReason && (
+              <Typography variant='caption' color='error.main' sx={{ display: 'block', mt: 0.5 }}>
+                {row.original.failureReason}
+              </Typography>
+            )}
+          </div>
+        )
+      }
+    }),
+    withdrawalColumnHelper.accessor('completedAt', {
+      header: 'COMPLETED',
+      cell: ({ row }) => (
+        <Typography variant='body2' color='text.secondary' sx={{ whiteSpace: 'nowrap' }}>
+          {row.original.completedAt ? fmtDate(row.original.completedAt) : '—'}
+        </Typography>
+      )
+    }),
+  ], [])
+
+  const table = useReactTable({
+    data: withdrawals,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    manualPagination: true,
+    pageCount: Math.ceil(total / pageSize),
+  })
+
+  return (
+    <Card className='mbs-6'>
+      <CardHeader
+        title='Withdrawal History'
+        action={
+          <Button size='small' startIcon={<i className='ri-refresh-line' />} onClick={() => load(page)}>
+            Refresh
+          </Button>
+        }
+      />
+      <CardContent className='flex flex-col gap-4'>
+        {error && <Alert severity='error'>{error}</Alert>}
+
+        <div className='overflow-x-auto'>
+          {loading ? (
+            <Box className='flex justify-center items-center py-10'>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <table className={tableStyles.table}>
+              <thead>
+                {table.getHeaderGroups().map(headerGroup => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map(header => (
+                      <th key={header.id}>
+                        {header.isPlaceholder ? null : (
+                          <div
+                            className={classnames({
+                              'flex items-center': header.column.getIsSorted(),
+                              'cursor-pointer select-none': header.column.getCanSort()
+                            })}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {{
+                              asc: <i className='ri-arrow-up-s-line text-xl' />,
+                              desc: <i className='ri-arrow-down-s-line text-xl' />
+                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                          </div>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              {withdrawals.length === 0 ? (
+                <tbody>
+                  <tr>
+                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
+                      No withdrawals yet
+                    </td>
+                  </tr>
+                </tbody>
+              ) : (
+                <tbody>
+                  {table.getRowModel().rows.map(row => (
+                    <tr key={row.id}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </table>
+          )}
+        </div>
+
+        <TablePagination
+          rowsPerPageOptions={[10, 25, 50]}
+          component='div'
+          className='border-bs'
+          count={total}
+          rowsPerPage={pageSize}
+          page={page}
+          onPageChange={(_, p) => { setPage(p); load(p) }}
+          onRowsPerPageChange={e => { const size = Number(e.target.value); setPageSize(size); setPage(0); load(0, size) }}
+        />
+      </CardContent>
+    </Card>
+  )
+}
+
+// ─────────────────────────────────────────
+// Update Linked MoMo Number Card
+// ─────────────────────────────────────────
+
+const UpdateMomoCard = ({
+  wallet,
+  onSuccess
+}: {
+  wallet: WalletResponse | null
+  onSuccess: (updated: WalletResponse) => void
+}) => {
+  const [network, setNetwork] = useState<MomoNetwork>('MTN')
+  const [number, setNumber]   = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+
+  useEffect(() => {
+    if (wallet?.linkedMomoNumber) setNumber(wallet.linkedMomoNumber)
+    if (wallet?.linkedMomoNetwork) setNetwork(wallet.linkedMomoNetwork)
+  }, [wallet])
+
+  const handleSubmit = async () => {
+    if (!number.match(/^0[2-9]\d{7}$/)) { setError('Enter a valid 10-digit Ghanaian number'); return }
+
+    setLoading(true)
+    setError('')
+    try {
+      const updated = await walletApi.updateLinkedMomo({ momoNumber: number, momoNetwork: network })
+      onSuccess(updated)
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? 'Failed to update MoMo number. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card className='mbs-6'>
+      <CardHeader
+        title='Linked MoMo Number'
+        subheader='This number is used as the default destination for withdrawals'
+      />
+      <Divider />
+      <CardContent>
+        <div className='flex flex-col sm:flex-row gap-4 sm:items-start'>
+          <FormControl size='small' sx={{ minWidth: 180 }}>
+            <InputLabel>Network</InputLabel>
+            <Select value={network} label='Network' onChange={e => setNetwork(e.target.value as MomoNetwork)}>
+              {MOMO_NETWORKS.map(n => (
+                <MenuItem key={n.value} value={n.value}>{n.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            size='small'
+            label='MoMo Number'
+            value={number}
+            onChange={e => setNumber(e.target.value)}
+            placeholder='0241234567'
+            sx={{ minWidth: 200 }}
+          />
+          <Button
+            variant='contained'
+            onClick={handleSubmit}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={14} color='inherit' /> : <i className='ri-save-line' />}
+          >
+            {loading ? 'Saving…' : 'Update MoMo Number'}
+          </Button>
+        </div>
+        {error && <Alert severity='error' sx={{ mt: 2 }}>{error}</Alert>}
       </CardContent>
     </Card>
   )
@@ -723,6 +1015,16 @@ const WalletDashboard = () => {
       )}
 
       <LedgerTable />
+
+      <WithdrawalsTable />
+
+      <UpdateMomoCard
+        wallet={wallet}
+        onSuccess={updated => {
+          setWallet(updated)
+          setSnackbar({ open: true, message: 'MoMo number updated successfully', severity: 'success' })
+        }}
+      />
 
       <WithdrawDialog
         open={withdrawOpen}

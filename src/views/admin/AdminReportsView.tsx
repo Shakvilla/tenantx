@@ -32,7 +32,7 @@ import {
   getFunnelReport,
   getPlanChangesReport,
   getSummaryReport,
-  buildSummaryExportUrl,
+  exportSummaryReportCsv,
   getRevenueByPlan,
   getRentalRevenue,
   getOccupancyStats,
@@ -45,7 +45,6 @@ import {
   type AdminOccupancyDto,
   type AdminTopTenantsDto,
 } from '@/lib/api/admin-auth-client'
-import { getStoredAdminToken } from '@/lib/api/admin-storage'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -537,15 +536,7 @@ function SummaryTab() {
   async function handleExport() {
     setExporting(true)
     try {
-      const url   = buildSummaryExportUrl(start, end)
-      const token = getStoredAdminToken() ?? ''
-      const res   = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) throw new Error()
-      const blob  = await res.blob()
-      const href  = URL.createObjectURL(blob)
-      const a     = document.createElement('a')
-      a.href = href; a.download = `tenant-report-${start}_${end}.csv`; a.click()
-      URL.revokeObjectURL(href)
+      await exportSummaryReportCsv(start, end)
     } catch {
       setError('CSV export failed. Please try again.')
     } finally {

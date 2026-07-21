@@ -16,7 +16,7 @@ import { getPropertyStats } from '@/lib/api/properties'
 import { getOccupantStats } from '@/lib/api/occupants'
 import { getStoredTenantId } from '@/lib/api/storage'
 
-const DashboardStatsCards = () => {
+const DashboardStatsCards = ({ onLoaded }: { onLoaded?: () => void }) => {
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState({
     totalProperties: 0,
@@ -27,7 +27,7 @@ const DashboardStatsCards = () => {
 
   useEffect(() => {
     const tenantId = getStoredTenantId()
-    if (!tenantId) { setLoading(false); return }
+    if (!tenantId) { setLoading(false); onLoaded?.(); return }
 
     Promise.all([
       getPropertyStats(tenantId).catch(() => null),
@@ -39,7 +39,8 @@ const DashboardStatsCards = () => {
         occupiedUnits: propStats?.data?.occupiedUnits ?? 0,
         vacantUnits: (propStats?.data?.totalUnits ?? 0) - (propStats?.data?.occupiedUnits ?? 0)
       })
-    }).finally(() => setLoading(false))
+    }).finally(() => { setLoading(false); onLoaded?.() })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   if (loading) {

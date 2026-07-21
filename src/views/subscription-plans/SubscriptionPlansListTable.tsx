@@ -28,7 +28,11 @@ import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import Skeleton from '@mui/material/Skeleton'
 import InputAdornment from '@mui/material/InputAdornment'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 
+import { walletApi } from '@/lib/api/wallet'
+import { canPayFromWallet } from '@/utils/canPayFromWallet'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import {
   getAvailablePlans,
@@ -37,8 +41,12 @@ import {
   cancelSubscription,
   getMyInvoices,
   retryMyInvoice,
+  payInvoiceFromWallet,
+  verifySubscriptionPayment,
+  getManualPaymentDetails,
   type SubscriptionPlanPublicDto,
   type SubscriptionInvoiceDto,
+  type ManualPaymentDetails,
 } from '@/lib/api/subscription-client'
 
 // ---------------------------------------------------------------------------
@@ -204,18 +212,64 @@ function CurrentPlanCard() {
 
 interface UpgradeDialogProps {
   plan: SubscriptionPlanPublicDto | null
+  plans: SubscriptionPlanPublicDto[]
   open: boolean
   onClose: () => void
   onSuccess: () => void
 }
 
-function UpgradeDialog({ plan, open, onClose, onSuccess }: UpgradeDialogProps) {
+function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogProps) {
   const { subscription } = useSubscription()
+
+  const freePlan      = plans.find(p => p.name === 'FREE')
+  const freeCap       = freePlan?.freeUnitCap ?? 0
+  const existingUnits = subscription?.unitCount ?? 0
+
+  const [totalUnits, setTotalUnits] = useState(Math.max(freeCap + 1, existingUnits))
+  const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY')
+  const [paymentMethod, setPaymentMethod] = useState<'MOMO' | 'CARD' | 'MANUAL' | 'WALLET'>('MOMO')
   const [mobileNumber, setMobileNumber] = useState('')
   const [loading, setLoading] = useState(false)
   const [pending, setPending] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [invoiceId, setInvoiceId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [manualDetails, setManualDetails] = useState<ManualPaymentDetails | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
 
+  // Reset on close
+  useEffect(() => {
+    if (!open) {
+      setTotalUnits(Math.max(freeCap + 1, existingUnits))
+      setBillingCycle('MONTHLY')
+      setPaymentMethod('MOMO')
+      setMobileNumber('')
+      setError(null)
+      setPending(false)
+      setVerifying(false)
+      setInvoiceId(null)
+    }
+  }, [open, freeCap, existingUnits])
+
+  // Load wallet balance when the dialog opens (for the Wallet payment option)
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    walletApi.getWallet()
+      .then(w => { if (!cancelled) setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0) })
+      .catch(() => { if (!cancelled) setWalletBalance(0) })
+    return () => { cancelled = true }
+  }, [open])
+
+  // Lazily fetch bank details the first time MANUAL is selected
+  useEffect(() => {
+    if (paymentMethod === 'MANUAL' && !manualDetails) {
+      getManualPaymentDetails().then(setManualDetails).catch(() => {})
+    }
+  }, [paymentMethod, manualDetails])
+
+  // Poll for confirmation — applies to MOMO (webhook) and MANUAL (admin confirms) alike.
+  // CARD redirects to Paystack checkout instead, so it never reaches this polling state.
   useEffect(() => {
     if (!pending || !plan) return
     const interval = setInterval(async () => {
@@ -233,12 +287,42 @@ function UpgradeDialog({ plan, open, onClose, onSuccess }: UpgradeDialogProps) {
     return () => clearInterval(interval)
   }, [pending, plan, onSuccess, onClose])
 
+  if (!plan) return null
+
+  const discount       = plan.annualDiscountPct ?? 0
+  const hasAnnual      = discount > 0
+  const billableUnits  = Math.max(0, totalUnits - freeCap)
+  const unitCost       = billableUnits * plan.pricePerUnit
+  const annualTotal    = unitCost * 12 * (1 - discount)
+  const annualSavings  = unitCost * 12 - annualTotal
+  const dueToday       = billingCycle === 'ANNUAL' ? annualTotal : unitCost
+
   async function handlePay() {
-    if (!plan || !mobileNumber.trim()) return
+    if (!plan || totalUnits < 1) return
+    if (paymentMethod === 'MOMO' && !mobileNumber.trim()) return
     setLoading(true)
     setError(null)
     try {
-      await initiateUpgrade({ targetPlan: plan.name, mobileNumber: mobileNumber.trim() })
+      const result = await initiateUpgrade({
+        targetPlan: plan.name,
+        unitCount: totalUnits,
+        billingCycle,
+        paymentMethod,
+        ...(paymentMethod === 'MOMO' ? { mobileNumber: mobileNumber.trim() } : {}),
+      })
+      if (paymentMethod === 'CARD' && result.redirectUrl) {
+        // Full-page redirect to Paystack checkout — plan activates via webhook once paid,
+        // and the tenant lands back here per the callback_url the backend configured.
+        window.location.href = result.redirectUrl
+        return
+      }
+      if (paymentMethod === 'WALLET') {
+        // Backend paid + activated synchronously (status PAID) — no polling needed.
+        onSuccess()
+        onClose()
+        return
+      }
+      setInvoiceId(result.invoiceId)
       setPending(true)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -248,59 +332,260 @@ function UpgradeDialog({ plan, open, onClose, onSuccess }: UpgradeDialogProps) {
     }
   }
 
-  if (!plan) return null
-
-  const unitCount = subscription?.unitCount ?? 1
-  const monthlyCost = unitCount * plan.pricePerUnit
+  const walletOk = walletBalance !== null && canPayFromWallet(walletBalance, dueToday)
+  const canPay = totalUnits >= 1
+    && (paymentMethod === 'MOMO' ? !!mobileNumber.trim() : true)
+    && (paymentMethod === 'WALLET' ? walletOk : true)
 
   return (
     <Dialog open={open} onClose={pending ? undefined : onClose} maxWidth='sm' fullWidth>
       <DialogTitle>Upgrade to {plan.displayName}</DialogTitle>
-      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
         {error && <Alert severity='error'>{error}</Alert>}
 
         {pending ? (
           <Box sx={{ textAlign: 'center', py: 3 }}>
-            <CircularProgress sx={{ mb: 2 }} />
-            <Typography variant='body1' fontWeight={600}>Payment prompt sent to your phone</Typography>
-            <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
-              Approve the payment of <strong>{formatGHS(monthlyCost)}</strong> in your mobile money app.
-              This page updates automatically once confirmed.
-            </Typography>
+            {paymentMethod === 'MANUAL' ? (
+              <>
+                <i className='ri-bank-line' style={{ fontSize: '2.5rem', color: 'var(--mui-palette-primary-main)' }} />
+                <Typography variant='body1' fontWeight={600} sx={{ mt: 1 }}>Awaiting your bank transfer</Typography>
+                <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
+                  Transfer <strong>{formatGHS(dueToday)}</strong> using the details below, then wait for an
+                  admin to confirm the payment. This page updates automatically once confirmed.
+                </Typography>
+                {manualDetails && (
+                  <Card variant='outlined' sx={{ textAlign: 'left', maxWidth: 360, mx: 'auto' }}>
+                    <CardContent sx={{ py: '12px !important' }}>
+                      {([
+                        ['Bank', manualDetails.bank_name],
+                        ['Account Name', manualDetails.account_name],
+                        ['Account Number', manualDetails.account_number],
+                        ['Branch', manualDetails.branch],
+                      ] as [string, string | undefined][])
+                        .filter(([, value]) => !!value)
+                        .map(([label, value]) => (
+                          <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant='caption' color='text.secondary'>{label}</Typography>
+                            <Typography variant='caption' fontWeight={600}>{value}</Typography>
+                          </Box>
+                        ))}
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <>
+                <CircularProgress sx={{ mb: 2 }} />
+                <Typography variant='body1' fontWeight={600}>Payment prompt sent to your phone</Typography>
+                <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
+                  Approve the payment of <strong>{formatGHS(dueToday)}</strong> in your mobile money app.
+                  This page updates automatically once confirmed.
+                </Typography>
+                {invoiceId && (
+                  <Button
+                    variant='outlined'
+                    size='small'
+                    sx={{ mt: 2.5 }}
+                    disabled={verifying}
+                    startIcon={verifying ? <CircularProgress size={14} /> : <i className='ri-shield-check-line' />}
+                    onClick={async () => {
+                      setVerifying(true)
+                      setError(null)
+                      try {
+                        const { verifySubscriptionPayment } = await import('@/lib/api/subscription-client')
+                        const res = await verifySubscriptionPayment(invoiceId)
+                        if (res.confirmed) {
+                          setPending(false)
+                          onSuccess()
+                          onClose()
+                        } else {
+                          setPending(false)
+                          setError('Payment not yet confirmed by the gateway. Please approve the MoMo prompt first, then try verifying again.')
+                        }
+                      } catch {
+                        setError('Verification failed. Please try again.')
+                      } finally {
+                        setVerifying(false)
+                      }
+                    }}
+                  >
+                    {verifying ? 'Verifying…' : "I've paid — verify now"}
+                  </Button>
+                )}
+              </>
+            )}
           </Box>
         ) : (
           <>
+            {/* Total units */}
+            <Box>
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
+                How many total units do you want to license?
+              </Typography>
+              <TextField
+                type='number'
+                value={totalUnits}
+                onChange={e => setTotalUnits(Math.max(1, parseInt(e.target.value) || 1))}
+                size='small'
+                fullWidth
+                slotProps={{ input: { inputProps: { min: 1 } } }}
+                helperText={
+                  freeCap > 0
+                    ? `Your first ${freeCap} unit${freeCap !== 1 ? 's' : ''} are free — you're only charged for units above ${freeCap}`
+                    : 'Enter the total number of units you need'
+                }
+              />
+            </Box>
+
+            {/* Billing period — only shown if backend provides a discount */}
+            {hasAnnual && (
+              <Box>
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
+                  Billing period
+                </Typography>
+                <ToggleButtonGroup
+                  value={billingCycle}
+                  exclusive
+                  onChange={(_, val) => { if (val) setBillingCycle(val) }}
+                  size='small'
+                  fullWidth
+                >
+                  <ToggleButton value='MONTHLY' sx={{ flex: 1 }}>Monthly</ToggleButton>
+                  <ToggleButton value='ANNUAL' sx={{ flex: 1, gap: 1 }}>
+                    Annual
+                    <Chip
+                      label={`${Math.round(discount * 100)}% off`}
+                      size='small'
+                      color='success'
+                      sx={{ height: 18, fontSize: '0.65rem', pointerEvents: 'none' }}
+                    />
+                  </ToggleButton>
+                </ToggleButtonGroup>
+                {billingCycle === 'ANNUAL' && (
+                  <Typography variant='caption' color='success.main' sx={{ mt: 0.5, display: 'block' }}>
+                    You save {formatGHS(annualSavings)} vs 12 monthly payments
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            {/* Invoice breakdown */}
             <Card variant='outlined'>
               <CardContent sx={{ py: '12px !important' }}>
                 {[
-                  ['Plan', plan.displayName],
-                  ['Units', String(unitCount)],
-                  ['Rate', formatGHS(plan.pricePerUnit) + ' / unit / mo'],
-                  ...(plan.transactionFeePct ? [['Transaction fee', (Number(plan.transactionFeePct) * 100).toFixed(1) + '% on collected rent']] : []),
+                  ...(freeCap > 0
+                    ? [['Free units (first ' + freeCap + ')', freeCap + ' unit' + (freeCap !== 1 ? 's' : '') + ' — no charge']]
+                    : []),
+                  ['Paid units', billableUnits + (freeCap > 0 ? ' (' + totalUnits + ' total − ' + freeCap + ' free)' : '')],
+                  ['Rate',       formatGHS(plan.pricePerUnit) + ' / unit / mo'],
+                  ...(plan.transactionFeePct
+                    ? [['Transaction fee', (Number(plan.transactionFeePct) * 100).toFixed(1) + '% on collected rent']]
+                    : []),
+                  billingCycle === 'ANNUAL' ? ['Billing period', '12 months'] : ['Billing period', '1 month'],
+                  ...(billingCycle === 'ANNUAL' && hasAnnual
+                    ? [['Annual discount (' + Math.round(discount * 100) + '% off)', '−' + formatGHS(annualSavings)]]
+                    : []),
                 ].map(([label, value]) => (
                   <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                     <Typography variant='body2' color='text.secondary'>{label}</Typography>
-                    <Typography variant='body2'>{value}</Typography>
+                    <Typography
+                      variant='body2'
+                      color={
+                        label.startsWith('Free units')        ? 'success.main' :
+                        label.startsWith('Annual discount')   ? 'success.main' :
+                        'text.primary'
+                      }
+                    >
+                      {value}
+                    </Typography>
                   </Box>
                 ))}
                 <Divider sx={{ my: 1 }} />
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant='body2' fontWeight={700}>Due today</Typography>
-                  <Typography variant='body2' fontWeight={700} color='primary.main'>{formatGHS(monthlyCost)}</Typography>
+                  <Typography variant='body2' fontWeight={700} color='primary.main'>{formatGHS(dueToday)}</Typography>
                 </Box>
+                {billingCycle === 'ANNUAL' && (
+                  <Typography variant='caption' color='text.secondary' sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
+                    ≈ {formatGHS(annualTotal / 12)} effective / mo
+                  </Typography>
+                )}
               </CardContent>
             </Card>
 
-            <TextField
-              label='Mobile Money Number'
-              placeholder='e.g. 0241234567'
-              value={mobileNumber}
-              onChange={e => setMobileNumber(e.target.value)}
-              fullWidth
-              size='small'
-              helperText='A payment prompt will be sent to this number'
-              slotProps={{ input: { startAdornment: <InputAdornment position='start'>+233</InputAdornment> } }}
-            />
+            {/* Payment method */}
+            <Box>
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
+                Payment method
+              </Typography>
+              <ToggleButtonGroup
+                value={paymentMethod}
+                exclusive
+                onChange={(_, val) => { if (val) setPaymentMethod(val) }}
+                size='small'
+                fullWidth
+              >
+                <ToggleButton value='MOMO' sx={{ flex: 1, gap: 0.75 }}>
+                  <i className='ri-phone-line' />
+                  Mobile Money
+                </ToggleButton>
+                <ToggleButton value='CARD' sx={{ flex: 1, gap: 0.75 }}>
+                  <i className='ri-bank-card-line' />
+                  Card
+                </ToggleButton>
+                <ToggleButton value='MANUAL' sx={{ flex: 1, gap: 0.75 }}>
+                  <i className='ri-bank-line' />
+                  Bank Transfer
+                </ToggleButton>
+                <ToggleButton
+                  value='WALLET'
+                  disabled={walletBalance === null || !canPayFromWallet(walletBalance, dueToday)}
+                  sx={{ flex: 1, gap: 0.75 }}
+                >
+                  <i className='ri-wallet-3-line' />
+                  Wallet
+                </ToggleButton>
+              </ToggleButtonGroup>
+              {walletBalance !== null && (
+                <Typography
+                  variant='caption'
+                  sx={{ display: 'block', mt: 0.75 }}
+                  color={canPayFromWallet(walletBalance, dueToday) ? 'text.secondary' : 'error.main'}
+                >
+                  Wallet balance: {formatGHS(walletBalance)}
+                  {!canPayFromWallet(walletBalance, dueToday) && ' — top up to pay from wallet'}
+                </Typography>
+              )}
+            </Box>
+
+            {/* MoMo input */}
+            {paymentMethod === 'MOMO' && (
+              <TextField
+                label='Mobile Money Number'
+                placeholder='e.g. 0241234567'
+                value={mobileNumber}
+                onChange={e => setMobileNumber(e.target.value)}
+                fullWidth
+                size='small'
+                helperText='A payment prompt will be sent to this number'
+                slotProps={{ input: { startAdornment: <InputAdornment position='start'>+233</InputAdornment> } }}
+              />
+            )}
+
+            {/* Card notice */}
+            {paymentMethod === 'CARD' && (
+              <Alert severity='info' icon={<i className='ri-bank-card-line' />}>
+                You'll be redirected to a secure checkout page to enter your card details.
+              </Alert>
+            )}
+
+            {/* Manual bank transfer notice */}
+            {paymentMethod === 'MANUAL' && (
+              <Alert severity='info' icon={<i className='ri-bank-line' />}>
+                Bank details will be shown after you click Pay. Your plan activates once an admin
+                confirms the transfer — this can take longer than instant payment methods.
+              </Alert>
+            )}
           </>
         )}
       </DialogContent>
@@ -310,10 +595,10 @@ function UpgradeDialog({ plan, open, onClose, onSuccess }: UpgradeDialogProps) {
           <Button
             variant='contained'
             onClick={handlePay}
-            disabled={loading || !mobileNumber.trim()}
+            disabled={loading || !canPay}
             startIcon={loading ? <CircularProgress size={14} /> : <i className='ri-secure-payment-line' />}
           >
-            {loading ? 'Initiating…' : 'Pay ' + formatGHS(monthlyCost)}
+            {loading ? 'Initiating…' : 'Pay ' + formatGHS(dueToday)}
           </Button>
         </DialogActions>
       )}
@@ -439,6 +724,9 @@ function InvoiceTable() {
   const [loading, setLoading]       = useState(true)
   const [retrying, setRetrying]     = useState<string | null>(null)
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [verifying, setVerifying]   = useState<Record<string, boolean>>({})
+  const [payingId, setPayingId]     = useState<string | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
 
   const fetchInvoices = useCallback(() => {
     setLoading(true)
@@ -446,6 +734,14 @@ function InvoiceTable() {
   }, [])
 
   useEffect(() => { fetchInvoices() }, [fetchInvoices])
+
+  useEffect(() => {
+    let cancelled = false
+    walletApi.getWallet()
+      .then(w => { if (!cancelled) setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0) })
+      .catch(() => { if (!cancelled) setWalletBalance(0) })
+    return () => { cancelled = true }
+  }, [])
 
   async function handleRetry(invoiceId: string) {
     setRetrying(invoiceId)
@@ -460,7 +756,41 @@ function InvoiceTable() {
     }
   }
 
-  const hasFailedInvoice = invoices.some(inv => inv.status === 'FAILED')
+  async function handleVerify(invoiceId: string) {
+    setVerifying(v => ({ ...v, [invoiceId]: true }))
+    setRetryError(null)
+    try {
+      const { confirmed } = await verifySubscriptionPayment(invoiceId)
+      if (confirmed) {
+        fetchInvoices()
+      } else {
+        setRetryError('Payment not yet confirmed by the gateway. Approve the MoMo prompt first, then try again.')
+      }
+    } catch (err: any) {
+      setRetryError(err?.response?.data?.message ?? 'Verification failed. Please try again.')
+    } finally {
+      setVerifying(v => ({ ...v, [invoiceId]: false }))
+    }
+  }
+
+  async function handlePayFromWallet(invoiceId: string) {
+    setPayingId(invoiceId)
+    setRetryError(null)
+    try {
+      await payInvoiceFromWallet(invoiceId)
+      fetchInvoices()
+      // Refresh the cached balance so any other PENDING row re-gates against the post-debit amount.
+      walletApi.getWallet()
+        .then(w => setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0))
+        .catch(() => {})
+    } catch (err: any) {
+      setRetryError(err?.response?.data?.message ?? 'Wallet payment failed. Please try again.')
+    } finally {
+      setPayingId(null)
+    }
+  }
+
+  const hasAction = invoices.some(inv => inv.status === 'FAILED' || inv.status === 'PENDING')
 
   if (loading) return <Skeleton variant='rectangular' height={120} sx={{ borderRadius: 1 }} />
   if (invoices.length === 0) return (
@@ -481,7 +811,7 @@ function InvoiceTable() {
             <TableCell align='right'>Amount</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Date</TableCell>
-            {hasFailedInvoice && <TableCell />}
+            {hasAction && <TableCell />}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -499,7 +829,7 @@ function InvoiceTable() {
               <TableCell>
                 <Typography variant='caption' color='text.secondary'>{formatDate(inv.paidAt ?? inv.createdAt)}</Typography>
               </TableCell>
-              {hasFailedInvoice && (
+              {hasAction && (
                 <TableCell align='right' sx={{ minWidth: 110 }}>
                   {inv.status === 'FAILED' && (
                     <Button
@@ -512,6 +842,29 @@ function InvoiceTable() {
                     >
                       {retrying === inv.id ? 'Retrying…' : 'Pay Now'}
                     </Button>
+                  )}
+                  {inv.status === 'PENDING' && (
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <Button
+                        size='small'
+                        variant='outlined'
+                        disabled={!!verifying[inv.id]}
+                        onClick={() => handleVerify(inv.id)}
+                        startIcon={verifying[inv.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
+                      >
+                        {verifying[inv.id] ? 'Checking…' : 'Verify'}
+                      </Button>
+                      <Button
+                        size='small'
+                        variant='outlined'
+                        color='primary'
+                        disabled={payingId === inv.id || walletBalance === null || !canPayFromWallet(walletBalance, inv.totalAmount)}
+                        onClick={() => handlePayFromWallet(inv.id)}
+                        startIcon={payingId === inv.id ? <CircularProgress size={12} /> : <i className='ri-wallet-3-line' />}
+                      >
+                        {payingId === inv.id ? 'Paying…' : 'Pay from wallet'}
+                      </Button>
+                    </Box>
                   )}
                 </TableCell>
               )}
@@ -597,6 +950,7 @@ export default function SubscriptionPlansListTable() {
 
       <UpgradeDialog
         plan={upgradeTarget}
+        plans={plans}
         open={upgradeTarget !== null}
         onClose={() => setUpgradeTarget(null)}
         onSuccess={handleUpgradeSuccess}

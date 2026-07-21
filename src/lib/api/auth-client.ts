@@ -4,6 +4,7 @@ import type { RegisterPayload, LoginPayload } from '../validation/schemas/auth.s
 import {
   getStoredToken,
   getStoredTenantId,
+  getStoredRefreshToken,
   setStoredTokens,
   setStoredTenantId,
   clearStoredTokens
@@ -420,12 +421,41 @@ export async function getCurrentUser(tenantId: string): Promise<ApiResponse<User
 }
 
 /**
- * Logout — clears stored tokens
+ * Logout — revokes the refresh token on the server, then clears stored tokens
  */
 export async function logoutUser(): Promise<ApiResponse<null>> {
+  const refreshToken = getStoredRefreshToken()
+
+  if (refreshToken) {
+    try {
+      await apiPost<void>(`${API_BASE}/auth/logout`, { refreshToken })
+    } catch {
+      // Ignore — proceed to clear local session regardless of server-side outcome
+    }
+  }
+
   clearStoredTokens()
 
   return { success: true, data: null }
+}
+
+/**
+ * Logout from all devices — revokes every refresh token for the current user.
+ * Uses apiPost so the axios interceptor attaches the Authorization header
+ * (the backend identifies the user from the JWT, not a request body).
+ */
+export async function logoutAllUser(): Promise<ApiResponse<null>> {
+  try {
+    await apiPost<void>(`${API_BASE}/auth/logout-all`, {})
+
+    return { success: true, data: null }
+  } catch (error: any) {
+    return {
+      success: false,
+      data: null,
+      error: { code: 'LOGOUT_ALL_ERROR', message: error.message || 'Failed to terminate other sessions' }
+    }
+  }
 }
 
 // ── User Security (self-service login history) ───────────────────────────────

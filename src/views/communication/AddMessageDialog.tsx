@@ -20,6 +20,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Autocomplete from '@mui/material/Autocomplete'
 import InputAdornment from '@mui/material/InputAdornment'
 import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // API Imports
 import { createCommunication } from '@/lib/api/communications'
@@ -86,6 +87,7 @@ const AddMessageDialog = ({
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const filteredUnits = useMemo(() => {
     if (!formData.propertyId) return []
@@ -102,6 +104,7 @@ const AddMessageDialog = ({
     if (open) {
       setFormData(initialData)
       setErrors({})
+      setSubmitError(null)
     }
   }, [open])
 
@@ -147,6 +150,7 @@ const AddMessageDialog = ({
   const handleSubmit = async () => {
     if (!validateForm()) return
     setSubmitting(true)
+    setSubmitError(null)
     try {
       const selectedProperty = properties.find(p => p.id.toString() === formData.propertyId)
       const selectedUnit = units.find(u => u.id.toString() === formData.unitId)
@@ -166,8 +170,8 @@ const AddMessageDialog = ({
       })
       onSuccess()
       handleClose()
-    } catch (err) {
-      console.error('Failed to send message:', err)
+    } catch (err: any) {
+      setSubmitError(err?.response?.data?.message ?? err?.message ?? 'Failed to send message')
     } finally {
       setSubmitting(false)
     }
@@ -188,6 +192,7 @@ const AddMessageDialog = ({
         </IconButton>
       </DialogTitle>
       <DialogContent className='flex flex-col gap-4'>
+        {submitError && <Alert severity='error'>{submitError}</Alert>}
         <Grid container spacing={4}>
           <Grid size={{ xs: 12 }}>
             <TextField

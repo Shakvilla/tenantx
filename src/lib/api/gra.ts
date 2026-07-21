@@ -1,7 +1,7 @@
-import { apiGet } from './client'
+import { apiGet, API_BASE } from './client'
 import type { GraTaxSummary } from '@/types/gra'
 
-const BASE = '/api/v1/gra'
+const BASE = `${API_BASE}/gra`
 
 /**
  * Fetch GRA income summary for a given year (and optionally quarter).

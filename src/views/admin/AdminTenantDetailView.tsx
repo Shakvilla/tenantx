@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 import Grid from '@mui/material/Grid'
@@ -183,6 +183,65 @@ function StatCard({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Lazy section: defers rendering (and therefore data-fetching) of a section
+// until it scrolls near the viewport. Fires `onVisible` exactly once, the
+// first time the section becomes visible, so switching sections that were
+// already loaded never re-fetches.
+// ---------------------------------------------------------------------------
+
+interface LazySectionProps {
+  onVisible: () => void
+  children: React.ReactNode
+  minHeight?: number
+}
+
+function LazySection({ onVisible, children, minHeight = 200 }: LazySectionProps) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const firedRef = useRef(false)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+
+    // If IntersectionObserver isn't available (old browser / SSR edge case),
+    // fail open and just load immediately.
+    if (typeof IntersectionObserver === 'undefined') {
+      if (!firedRef.current) {
+        firedRef.current = true
+        setVisible(true)
+        onVisible()
+      }
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && !firedRef.current) {
+            firedRef.current = true
+            setVisible(true)
+            onVisible()
+            observer.disconnect()
+          }
+        }
+      },
+      { rootMargin: '400px 0px' } // start loading a bit before it's on-screen
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div ref={ref} style={visible ? undefined : { minHeight }}>
+      {visible && children}
+    </div>
   )
 }
 
@@ -749,19 +808,19 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
 
   // ── Support notes ─────────────────────────────────────────────────────────
   const [notes, setNotes]                 = useState<TenantNoteDto[]>([])
-  const [notesLoading, setNotesLoading]   = useState(true)
+  const [notesLoading, setNotesLoading]   = useState(false)
   const [newNote, setNewNote]             = useState('')
   const [addingNote, setAddingNote]       = useState(false)
 
   // ── Feature flags ─────────────────────────────────────────────────────────
   const [flags, setFlags]                 = useState<FeatureFlagStatus[]>([])
-  const [flagsLoading, setFlagsLoading]   = useState(true)
+  const [flagsLoading, setFlagsLoading]   = useState(false)
   const [flagsSaving, setFlagsSaving]     = useState<string | null>(null) // featureKey being saved
 
   // ── Dialog state ──────────────────────────────────────────────────────────
   // ── Login history ──────────────────────────────────────────────────────────
   const [loginHistory, setLoginHistory]         = useState<LoginHistoryItem[]>([])
-  const [loginHistoryLoading, setLoginHistoryLoading] = useState(true)
+  const [loginHistoryLoading, setLoginHistoryLoading] = useState(false)
   const [loginHistoryFilter, setLoginHistoryFilter]   = useState<'all' | 'success' | 'failure'>('all')
   const [loginHistoryPage, setLoginHistoryPage] = useState(0)
   const [loginHistoryTotal, setLoginHistoryTotal] = useState(0)
@@ -769,7 +828,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
 
   // ── Invoice history ────────────────────────────────────────────────────────
   const [invoices, setInvoices]                 = useState<AdminInvoiceDto[]>([])
-  const [invoicesLoading, setInvoicesLoading]   = useState(true)
+  const [invoicesLoading, setInvoicesLoading]   = useState(false)
   const [invoicesPage, setInvoicesPage]         = useState(0)
   const [invoicesTotal, setInvoicesTotal]       = useState(0)
   const [invoicesTotalPages, setInvoicesTotalPages] = useState(0)
@@ -781,7 +840,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
 
   // ── API keys ───────────────────────────────────────────────────────────────
   const [apiKeys, setApiKeys]                   = useState<ApiKeyDto[]>([])
-  const [apiKeysLoading, setApiKeysLoading]     = useState(true)
+  const [apiKeysLoading, setApiKeysLoading]     = useState(false)
   const [newKeyName, setNewKeyName]             = useState('')
   const [generatedKey, setGeneratedKey]         = useState<ApiKeyCreatedDto | null>(null)
   const [generatingKey, setGeneratingKey]       = useState(false)
@@ -896,24 +955,13 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
       try {
         const data = await getAdminTenant(tenantId)
         setTenant(data)
-        // Kick off secondary loads in parallel once we have tenant_id
+        // Eagerly load only what's needed for the immediately-visible header /
+        // snapshot / tenant-info / subscription cards. Everything else lives
+        // in a section further down the page and is fetched lazily the first
+        // time it scrolls into view (see LazySection below).
         loadSub(data.tenant_id)
         loadSnap(tenantId)
-        loadNotes(data.tenant_id)
-        loadFlags(data.tenant_id)
-        loadLoginHistory(data.tenant_id)
-        loadApiKeys(data.tenant_id)
-        loadInvoices(data.tenant_id)
-        loadSessions(data.tenant_id)
-        loadProperties(tenantId)
-        loadUnits(tenantId)
-        loadOccupants(tenantId)
-        loadTeam(tenantId)
         loadWallet(tenantId)
-        loadAgreements(tenantId)
-        loadPayments(tenantId)
-        loadInspections(tenantId)
-        loadMaintenance(tenantId)
       } catch (e: any) {
         setError(e?.response?.data?.message ?? e?.message ?? 'Failed to load tenant')
       } finally {
@@ -1962,6 +2010,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
       </Grid>
 
       {/* ── Feature Flag Overrides ──────────────────────────────────────────── */}
+      <LazySection onVisible={() => tenant && loadFlags(tenant.tenant_id)}>
       <Card variant='outlined' sx={{ mt: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2057,8 +2106,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Support Notes ───────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => tenant && loadNotes(tenant.tenant_id)}>
       <Card variant='outlined' sx={{ mt: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2141,8 +2192,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Login History ────────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => tenant && loadLoginHistory(tenant.tenant_id)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -2202,8 +2255,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── API Keys ─────────────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => tenant && loadApiKeys(tenant.tenant_id)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Typography variant='h6' sx={{ mb: 2 }}>API Keys</Typography>
@@ -2259,8 +2314,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Invoice History ───────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => tenant && loadInvoices(tenant.tenant_id)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -2316,8 +2373,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Active Sessions ───────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => tenant && loadSessions(tenant.tenant_id)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2389,8 +2448,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           </Typography>
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Properties ───────────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadProperties(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2436,8 +2497,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Units ────────────────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadUnits(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2483,8 +2546,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Occupants ────────────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadOccupants(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2530,8 +2595,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Team ─────────────────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadTeam(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2577,6 +2644,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Team member action menu ──────────────────────────────────────────── */}
       <Menu
@@ -2790,6 +2858,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
       </Dialog>
 
       {/* ── Agreements / Leases ──────────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadAgreements(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2835,8 +2904,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Payments / Transactions ───────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadPayments(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2882,8 +2953,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Inspections ───────────────────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadInspections(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2929,8 +3002,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Maintenance Requests ──────────────────────────────────────────────── */}
+      <LazySection onVisible={() => loadMaintenance(tenantId)}>
       <Card sx={{ mt: 4 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -2976,6 +3051,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
 
       {/* ── Data Export (GDPR) ────────────────────────────────────────────────── */}
       <Card sx={{ mt: 4, mb: 4 }}>
