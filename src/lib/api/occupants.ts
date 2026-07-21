@@ -221,6 +221,19 @@ export async function getMyOccupantProfile(tenantId: string): Promise<OccupantRe
   })
 }
 
+/**
+ * Look up an occupant by email within the current tenant. Returns null if none exists.
+ */
+export async function getOccupantByEmail(tenantId: string, email: string): Promise<OccupantRecord | null> {
+  try {
+    return await apiGet(`${API_BASE}/occupants/by-email?email=${encodeURIComponent(email)}`, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+  } catch {
+    return null
+  }
+}
+
 export interface AvatarUploadResult {
   url: string
   fileId: string

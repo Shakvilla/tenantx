@@ -14,7 +14,8 @@ import CircularProgress from '@mui/material/CircularProgress'
 
 import { getProperties } from '@/lib/api/properties'
 import { getAllUnits } from '@/lib/api/units'
-import { createOccupant } from '@/lib/api/occupants'
+import { createOccupant, getOccupantByEmail } from '@/lib/api/occupants'
+import type { OccupantRecord } from '@/lib/api/occupants'
 import type { OnboardingEntityIds } from '../onboardingTypes'
 
 export interface TenantHomeResult {
@@ -50,6 +51,7 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
 
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [existingOccupant, setExistingOccupant] = useState<OccupantRecord | null>(null)
 
   useEffect(() => {
     setLoadingProperties(true)
@@ -93,6 +95,14 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
     setSubmitting(true)
 
     try {
+      const existing = await getOccupantByEmail(tenantId, form.email)
+
+      if (existing) {
+        setExistingOccupant(existing)
+
+        return
+      }
+
       const record = await createOccupant(tenantId, {
         firstName: form.firstName,
         lastName: form.lastName,
@@ -122,6 +132,27 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleAssignExisting = () => {
+    if (!existingOccupant) return
+
+    onComplete({
+      ids: {
+        occupantId: existingOccupant.id,
+        propertyId: form.propertyId,
+        unitId: form.unitId,
+        unitNo: selectedUnit?.unitNo
+      },
+      rent: selectedUnit?.rent ?? 0,
+      moveInDate: form.moveInDate,
+      occupantName: `${existingOccupant.firstName} ${existingOccupant.lastName}`.trim()
+    })
+  }
+
+  const handleUseDifferentEmail = () => {
+    setExistingOccupant(null)
+    setForm({ ...form, email: '' })
   }
 
   return (
@@ -159,6 +190,19 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
         >
           <AlertTitle>No available units in this property</AlertTitle>
           Add a vacant unit to this property (or pick another property) before onboarding a tenant.
+        </Alert>
+      )}
+
+      {existingOccupant && (
+        <Alert severity='info' sx={{ mb: 4 }}>
+          <AlertTitle>This person is already an occupant</AlertTitle>
+          {existingOccupant.firstName} {existingOccupant.lastName} · {existingOccupant.email} ·{' '}
+          {existingOccupant.phone}
+          <br />
+          Currently in {existingOccupant.unitNo ? `Unit ${existingOccupant.unitNo}` : '—'}
+          {existingOccupant.propertyName ? ` · ${existingOccupant.propertyName}` : ''}
+          <br />
+          You can assign them to the unit you selected.
         </Alert>
       )}
 
@@ -230,7 +274,10 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
             label='Email'
             disabled={blocked}
             value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
+            onChange={e => {
+              setExistingOccupant(null)
+              setForm({ ...form, email: e.target.value })
+            }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -255,15 +302,27 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
             onChange={e => setForm({ ...form, moveInDate: e.target.value })}
           />
         </Grid>
-        <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button
-            variant='contained'
-            disabled={!valid || submitting || blocked}
-            onClick={handleSubmit}
-            endIcon={submitting ? <CircularProgress size={18} color='inherit' /> : undefined}
-          >
-            Continue
-          </Button>
+        <Grid
+          size={{ xs: 12 }}
+          sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, alignItems: 'center' }}
+        >
+          {existingOccupant ? (
+            <>
+              <Button onClick={handleUseDifferentEmail}>Use a different email</Button>
+              <Button variant='contained' disabled={!form.unitId} onClick={handleAssignExisting}>
+                Assign to Unit {selectedUnit?.unitNo}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant='contained'
+              disabled={!valid || submitting || blocked}
+              onClick={handleSubmit}
+              endIcon={submitting ? <CircularProgress size={18} color='inherit' /> : undefined}
+            >
+              Continue
+            </Button>
+          )}
         </Grid>
       </Grid>
     </Box>
