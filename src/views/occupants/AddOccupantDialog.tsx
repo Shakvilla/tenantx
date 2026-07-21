@@ -58,6 +58,7 @@ type FormDataType = {
   familyMembers: string
   ghanaCardId: string
   idType: string
+
   // Emergency contact
   ecName: string
   ecPhone: string
@@ -105,7 +106,7 @@ type Props = {
 
 const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'add' }: Props) => {
   const [formData, setFormData] = useState<FormDataType>(initialData)
-  const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+  const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, string>>>({})
   const [expanded, setExpanded] = useState<string | false>('occupant-info')
   const [isSaving, setIsSaving] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
@@ -275,7 +276,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
 
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
   }
 
   const handleAddressChange = (type: 'previousAddress' | 'permanentAddress', field: string, value: string) => {
@@ -303,19 +304,29 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
   }
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormDataType, boolean>> = {}
-
-    if (!formData.firstName.trim()) newErrors.firstName = true
-    if (!formData.lastName.trim()) newErrors.lastName = true
-    if (!formData.email.trim()) newErrors.email = true
-    if (!formData.phone.trim()) newErrors.phone = true
-    if (!formData.propertyId) newErrors.propertyId = true
-    if (!formData.unitId) newErrors.unitId = true
-    if (!formData.moveInDate) newErrors.moveInDate = true
-
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-    if (formData.email && !emailRegex.test(formData.email)) newErrors.email = true
+    // Ghana mobile numbers: local 0XXXXXXXXX (10 digits) or international +233XXXXXXXXX.
+    const phoneRegex = /^(?:\+233|0)\d{9}$/
+
+    const newErrors: Partial<Record<keyof FormDataType, string>> = {}
+
+    if (!formData.firstName.trim()) newErrors.firstName = 'First name is required.'
+    else if (/\d/.test(formData.firstName)) newErrors.firstName = 'Name cannot contain numbers.'
+
+    if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required.'
+    else if (/\d/.test(formData.lastName)) newErrors.lastName = 'Name cannot contain numbers.'
+
+    if (!formData.email.trim()) newErrors.email = 'Email is required.'
+    else if (!emailRegex.test(formData.email.trim())) newErrors.email = 'Enter a valid email address.'
+
+    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required.'
+    else if (!phoneRegex.test(formData.phone.replace(/\s/g, '')))
+      newErrors.phone = 'Enter a valid Ghana phone number, e.g. 0244123456.'
+
+    if (!formData.propertyId) newErrors.propertyId = 'Property is required.'
+    if (!formData.unitId) newErrors.unitId = 'Unit is required.'
+    if (!formData.moveInDate) newErrors.moveInDate = 'Move-in date is required.'
 
     setErrors(newErrors)
 
@@ -362,22 +373,27 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
 
       // Upload ID card images if selected
       const { uploadImages } = await import('@/lib/imagekit')
+
       const occupantFolder = mode === 'edit' && editData?.id
         ? `/tenantx/${tenantId}/occupants/${editData.id}/id`
         : `/tenantx/${tenantId}/occupants/id`
 
       let frontUrl: string | undefined = existingFrontUrl || undefined
       let frontFileId: string | undefined = existingFrontFileId || undefined
+
       if (newFrontFile) {
         const [uploaded] = await uploadImages([newFrontFile], { folder: occupantFolder })
+
         frontUrl = uploaded.url
         frontFileId = uploaded.fileId
       }
 
       let backUrl: string | undefined = existingBackUrl || undefined
       let backFileId: string | undefined = existingBackFileId || undefined
+
       if (newBackFile) {
         const [uploaded] = await uploadImages([newBackFile], { folder: occupantFolder })
+
         backUrl = uploaded.url
         backFileId = uploaded.fileId
       }
@@ -493,7 +509,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                     value={formData.firstName}
                     onChange={e => handleInputChange('firstName', e.target.value)}
                     error={Boolean(errors.firstName)}
-                    helperText={errors.firstName ? 'This field is required.' : ''}
+                    helperText={errors.firstName || ''}
                     required
                   />
                 </Grid>
@@ -506,7 +522,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                     value={formData.lastName}
                     onChange={e => handleInputChange('lastName', e.target.value)}
                     error={Boolean(errors.lastName)}
-                    helperText={errors.lastName ? 'This field is required.' : ''}
+                    helperText={errors.lastName || ''}
                     required
                   />
                 </Grid>
@@ -519,7 +535,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                     value={formData.phone}
                     onChange={e => handleInputChange('phone', e.target.value)}
                     error={Boolean(errors.phone)}
-                    helperText={errors.phone ? 'This field is required.' : ''}
+                    helperText={errors.phone || ''}
                     required
                   />
                 </Grid>
@@ -533,7 +549,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                     value={formData.email}
                     onChange={e => handleInputChange('email', e.target.value)}
                     error={Boolean(errors.email)}
-                    helperText={errors.email ? 'Please enter a valid email address.' : ''}
+                    helperText={errors.email || ''}
                     required
                   />
                 </Grid>
@@ -720,13 +736,17 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                 {/* hidden file inputs */}
                 <input ref={frontInputRef} type='file' accept='image/*,application/pdf' style={{ display: 'none' }}
                   onChange={e => {
-                    const f = e.target.files?.[0]; if (!f) return
+                    const f = e.target.files?.[0];
+
+ if (!f) return
                     if (newFrontPreview) URL.revokeObjectURL(newFrontPreview)
                     setNewFrontFile(f); setNewFrontPreview(URL.createObjectURL(f)); e.target.value = ''
                   }} />
                 <input ref={backInputRef} type='file' accept='image/*,application/pdf' style={{ display: 'none' }}
                   onChange={e => {
-                    const f = e.target.files?.[0]; if (!f) return
+                    const f = e.target.files?.[0];
+
+ if (!f) return
                     if (newBackPreview) URL.revokeObjectURL(newBackPreview)
                     setNewBackFile(f); setNewBackPreview(URL.createObjectURL(f)); e.target.value = ''
                   }} />
