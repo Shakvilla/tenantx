@@ -164,9 +164,24 @@ const InvoicesListTable = () => {
   const [addInvoiceOpen, setAddInvoiceOpen] = useState(false)
   const [editInvoice, setEditInvoice] = useState<Invoice | null>(null)
 
-  // Auto-open the Add Invoice dialog when arriving via the topbar "+ Create" menu (?create=1)
+  // Prefill carried over from the onboarding wizard's "Create first invoice" action
+  const [invoicePrefill, setInvoicePrefill] = useState<
+    { propertyId?: string; unitId?: string; occupantId?: string; amount?: string } | undefined
+  >(undefined)
+
+  // Auto-open the Add Invoice dialog when arriving via the topbar "+ Create" menu (?create=1),
+  // optionally carrying tenant/property/unit/rent context from the onboarding wizard.
   useEffect(() => {
     if (searchParams.get('create') === '1') {
+      const occupantId = searchParams.get('occupantId') ?? undefined
+      const propertyId = searchParams.get('propertyId') ?? undefined
+      const unitId = searchParams.get('unitId') ?? undefined
+      const amount = searchParams.get('amount') ?? undefined
+
+      if (occupantId || propertyId || unitId || amount) {
+        setInvoicePrefill({ propertyId, unitId, occupantId, amount })
+      }
+
       setAddInvoiceOpen(true)
       router.replace('/billing/invoices')
     }
@@ -595,9 +610,14 @@ const InvoicesListTable = () => {
       {/* Add/Edit Invoice Dialog */}
       <AddInvoiceDialog
         open={addInvoiceOpen}
-        handleClose={() => { setAddInvoiceOpen(false); setEditInvoice(null) }}
+        handleClose={() => {
+          setAddInvoiceOpen(false)
+          setEditInvoice(null)
+          setInvoicePrefill(undefined)
+        }}
         editInvoice={editInvoice}
         onSaved={handleSaved}
+        prefill={invoicePrefill}
       />
     </>
   )
