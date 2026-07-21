@@ -36,15 +36,23 @@ import type { OccupantRecord } from '@/lib/api/occupants'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 
+type InvoicePrefill = {
+  propertyId?: string
+  unitId?: string
+  occupantId?: string
+  amount?: string
+}
+
 type Props = {
   open: boolean
   handleClose: () => void
   editInvoice?: Invoice | null
   onSaved: (invoice: Invoice) => void
+  prefill?: InvoicePrefill
 }
 
 type LocalItem = {
-  id: number   // temp local id for list key
+  id: number // temp local id for list key
   description: string
   quantity: number
   price: number
@@ -54,8 +62,8 @@ type FormData = {
   propertyId: string
   unitId: string
   occupantId: string
-  invoiceMonth: string   // MM/YYYY
-  dueDate: string        // YYYY-MM-DD
+  invoiceMonth: string // MM/YYYY
+  dueDate: string // YYYY-MM-DD
   amount: string
   invoiceType: string
   status: string
@@ -76,7 +84,7 @@ const initialData: FormData = {
   invoiceItems: []
 }
 
-const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) => {
+const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved, prefill }: Props) => {
   const [formData, setFormData] = useState<FormData>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -105,6 +113,7 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
         setProperties(Array.isArray(propsRes.data) ? propsRes.data : [])
         setUnits(Array.isArray(unitsRes.data) ? unitsRes.data : [])
         const occ = occupantsRes.data
+
         setOccupants(Array.isArray(occ) ? occ : [])
       })
       .catch(() => {})
@@ -138,13 +147,20 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
       const today = new Date()
       const mm = String(today.getMonth() + 1).padStart(2, '0')
       const yyyy = today.getFullYear()
+
       setFormData({
         ...initialData,
+        propertyId: prefill?.propertyId ?? '',
+        unitId: prefill?.unitId ?? '',
+        occupantId: prefill?.occupantId ?? '',
+        amount: prefill?.amount ?? '',
+        invoiceType: prefill ? 'Rent' : '',
         invoiceMonth: `${mm}/${yyyy}`,
         dueDate: today.toISOString().split('T')[0]
       })
     }
-  }, [open, editInvoice, isEdit])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editInvoice, isEdit, prefill?.propertyId, prefill?.unitId, prefill?.occupantId, prefill?.amount])
 
   // Derived: filter units by selected property
   const filteredUnits = useMemo(
@@ -155,6 +171,7 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
   // Derived: filter occupants by selected unit
   const filteredOccupants = useMemo(() => {
     if (!formData.unitId) return occupants
+
     return occupants.filter(o => o.unitId === formData.unitId)
   }, [occupants, formData.unitId])
 
@@ -166,16 +183,24 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
   const handleChange = (field: keyof FormData, value: string) => {
     setFormData(prev => {
       const next: FormData = { ...prev, [field]: value }
-      if (field === 'propertyId') { next.unitId = ''; next.occupantId = '' }
+
+      if (field === 'propertyId') {
+        next.unitId = ''
+        next.occupantId = ''
+      }
+
       if (field === 'unitId') {
         next.occupantId = ''
+
         // Prefill the amount from the selected unit's current (possibly rent-reviewed) rent, but only
         // when the amount hasn't been typed and no line items drive it — never overwrite a manual entry.
         const selectedUnit = units.find(u => u.id === value)
+
         if (selectedUnit && !prev.amount && prev.invoiceItems.length === 0 && selectedUnit.rent != null) {
           next.amount = String(selectedUnit.rent)
         }
       }
+
       return next
     })
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
@@ -185,6 +210,7 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
   const handleMonthChange = (value: string) => {
     const digits = value.replace(/\D/g, '')
     let formatted = digits
+
     if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 6)}`
     if (formatted.length <= 7) handleChange('invoiceMonth', formatted)
   }
@@ -207,6 +233,7 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
 
   const validate = (): boolean => {
     const e: Partial<Record<keyof FormData, boolean>> = {}
+
     if (!formData.propertyId) e.propertyId = true
     if (!formData.unitId) e.unitId = true
     if (!formData.invoiceMonth) e.invoiceMonth = true
@@ -214,8 +241,10 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
     if (!formData.invoiceType.trim()) e.invoiceType = true
     if (!formData.description.trim()) e.description = true
     const amt = formData.invoiceItems.length > 0 ? calculateTotal : parseFloat(formData.amount) || 0
+
     if (amt <= 0) e.amount = true
     setErrors(e)
+
     return Object.keys(e).length === 0
   }
 
@@ -227,22 +256,18 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
     // Resolve display names
     const selectedProperty = properties.find(p => p.id === formData.propertyId)
     const selectedUnit = units.find(u => u.id === formData.unitId)
-    const selectedOccupant = formData.occupantId
-      ? occupants.find(o => o.id === formData.occupantId)
-      : null
+
+    const selectedOccupant = formData.occupantId ? occupants.find(o => o.id === formData.occupantId) : null
 
     // Build issuedDate from invoiceMonth (MM/YYYY → YYYY-MM-01)
     const [month, year] = formData.invoiceMonth.split('/')
     const issuedDate = `${year}-${month}-01`
 
-    const amountValue =
-      formData.invoiceItems.length > 0 ? calculateTotal : parseFloat(formData.amount) || 0
+    const amountValue = formData.invoiceItems.length > 0 ? calculateTotal : parseFloat(formData.amount) || 0
 
     const payload = {
       occupantId: selectedOccupant?.id,
-      occupantName: selectedOccupant
-        ? `${selectedOccupant.firstName} ${selectedOccupant.lastName}`
-        : undefined,
+      occupantName: selectedOccupant ? `${selectedOccupant.firstName} ${selectedOccupant.lastName}` : undefined,
       occupantEmail: selectedOccupant?.email,
       propertyId: formData.propertyId,
       propertyName: selectedProperty?.name,
@@ -267,11 +292,13 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
 
     try {
       let saved: Invoice
+
       if (isEdit && editInvoice) {
         saved = await updateInvoice(editInvoice.id, payload)
       } else {
         saved = await createInvoice(payload as any)
       }
+
       onSaved(saved)
       handleClose()
     } catch (err: any) {
@@ -288,9 +315,7 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
     handleClose()
   }
 
-  const selectedOccupantObj = formData.occupantId
-    ? occupants.find(o => o.id === formData.occupantId) ?? null
-    : null
+  const selectedOccupantObj = formData.occupantId ? (occupants.find(o => o.id === formData.occupantId) ?? null) : null
 
   return (
     <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
@@ -318,17 +343,26 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                 >
                   <MenuItem value=''>Select property</MenuItem>
                   {properties.map(p => (
-                    <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                    <MenuItem key={p.id} value={p.id}>
+                      {p.name}
+                    </MenuItem>
                   ))}
                 </Select>
                 {errors.propertyId && (
-                  <Typography variant='caption' color='error' className='mts-1'>This field is required.</Typography>
+                  <Typography variant='caption' color='error' className='mts-1'>
+                    This field is required.
+                  </Typography>
                 )}
               </FormControl>
             </Grid>
 
             <Grid size={{ xs: 12, sm: 4 }}>
-              <FormControl fullWidth size='small' error={Boolean(errors.unitId)} disabled={!formData.propertyId || loadingRefs}>
+              <FormControl
+                fullWidth
+                size='small'
+                error={Boolean(errors.unitId)}
+                disabled={!formData.propertyId || loadingRefs}
+              >
                 <InputLabel id='unit-label'>Select Unit *</InputLabel>
                 <Select
                   labelId='unit-label'
@@ -338,11 +372,15 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                 >
                   <MenuItem value=''>Select Unit</MenuItem>
                   {filteredUnits.map(u => (
-                    <MenuItem key={u.id} value={u.id}>{u.unitNo}</MenuItem>
+                    <MenuItem key={u.id} value={u.id}>
+                      {u.unitNo}
+                    </MenuItem>
                   ))}
                 </Select>
                 {errors.unitId && (
-                  <Typography variant='caption' color='error' className='mts-1'>This field is required.</Typography>
+                  <Typography variant='caption' color='error' className='mts-1'>
+                    This field is required.
+                  </Typography>
                 )}
               </FormControl>
             </Grid>
@@ -383,7 +421,9 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                         {`${option.firstName[0]}${option.lastName[0]}`.toUpperCase()}
                       </CustomAvatar>
                       <div className='flex flex-col'>
-                        <span className='text-sm font-medium'>{option.firstName} {option.lastName}</span>
+                        <span className='text-sm font-medium'>
+                          {option.firstName} {option.lastName}
+                        </span>
                         <span className='text-xs text-textSecondary'>{option.email}</span>
                       </div>
                     </div>
@@ -455,7 +495,9 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                 value={formData.invoiceItems.length > 0 ? calculateTotal.toFixed(2) : formData.amount}
                 onChange={e => handleChange('amount', e.target.value.replace(/[^0-9.]/g, ''))}
                 error={Boolean(errors.amount)}
-                helperText={errors.amount ? 'Must be greater than 0.' : formData.invoiceItems.length > 0 ? 'From line items' : ''}
+                helperText={
+                  errors.amount ? 'Must be greater than 0.' : formData.invoiceItems.length > 0 ? 'From line items' : ''
+                }
                 InputProps={{ readOnly: formData.invoiceItems.length > 0 }}
               />
             </Grid>
@@ -494,7 +536,9 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                   <MenuItem value='CANCELLED'>Cancelled</MenuItem>
                 </Select>
                 {formData.status !== 'PAID' && formData.status !== 'PARTIAL' && (
-                  <FormHelperText>Use &quot;Record Payment&quot; on the invoice to mark it Paid or Partial.</FormHelperText>
+                  <FormHelperText>
+                    Use &quot;Record Payment&quot; on the invoice to mark it Paid or Partial.
+                  </FormHelperText>
                 )}
               </FormControl>
             </Grid>
@@ -531,10 +575,26 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
             {formData.invoiceItems.length > 0 && (
               <div className='flex flex-col gap-4'>
                 <Grid container spacing={2} className='items-center'>
-                  <Grid size={{ xs: 12, md: 5 }}><Typography variant='body2' className='font-medium'>Description</Typography></Grid>
-                  <Grid size={{ xs: 12, md: 2 }}><Typography variant='body2' className='font-medium'>Qty</Typography></Grid>
-                  <Grid size={{ xs: 12, md: 2 }}><Typography variant='body2' className='font-medium'>Price</Typography></Grid>
-                  <Grid size={{ xs: 12, md: 2 }}><Typography variant='body2' className='font-medium'>Total</Typography></Grid>
+                  <Grid size={{ xs: 12, md: 5 }}>
+                    <Typography variant='body2' className='font-medium'>
+                      Description
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <Typography variant='body2' className='font-medium'>
+                      Qty
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <Typography variant='body2' className='font-medium'>
+                      Price
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <Typography variant='body2' className='font-medium'>
+                      Total
+                    </Typography>
+                  </Grid>
                   <Grid size={{ xs: 12, md: 1 }} />
                 </Grid>
 
@@ -570,7 +630,12 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                       />
                     </Grid>
                     <Grid size={{ xs: 12, md: 2 }}>
-                      <Typography variant='body2' color='text.primary' className='flex items-center' style={{ height: 40 }}>
+                      <Typography
+                        variant='body2'
+                        color='text.primary'
+                        className='flex items-center'
+                        style={{ height: 40 }}
+                      >
                         ₵{(item.quantity * item.price).toFixed(2)}
                       </Typography>
                     </Grid>
@@ -586,8 +651,12 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved }: Props) =>
                 <div className='flex justify-end'>
                   <div className='flex flex-col gap-1' style={{ minWidth: 180 }}>
                     <div className='flex justify-between'>
-                      <Typography variant='body2' color='text.secondary'>Total:</Typography>
-                      <Typography variant='body2' className='font-medium'>₵{calculateTotal.toFixed(2)}</Typography>
+                      <Typography variant='body2' color='text.secondary'>
+                        Total:
+                      </Typography>
+                      <Typography variant='body2' className='font-medium'>
+                        ₵{calculateTotal.toFixed(2)}
+                      </Typography>
                     </div>
                   </div>
                 </div>

@@ -234,6 +234,25 @@ export async function getOccupantByEmail(tenantId: string, email: string): Promi
   }
 }
 
+/** Find occupants in this tenant matching the given email and/or phone (either may be blank). */
+export async function lookupOccupants(tenantId: string, email: string, phone: string): Promise<OccupantRecord[]> {
+  const params = new URLSearchParams()
+
+  if (email) params.set('email', email)
+  if (phone) params.set('phone', phone)
+  if (![...params].length) return []
+
+  try {
+    const res = await apiGet<OccupantRecord[]>(`${API_BASE}/occupants/lookup?${params.toString()}`, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return Array.isArray(res) ? res : []
+  } catch {
+    return []
+  }
+}
+
 export interface AvatarUploadResult {
   url: string
   fileId: string

@@ -12,7 +12,7 @@ import { getOccupantById } from '@/lib/api/occupants'
 import type { OccupantRecord } from '@/lib/api/occupants'
 import { advanceRentsApi } from '@/lib/api/advanceRents'
 import { cautionFeesApi } from '@/lib/api/cautionFees'
-import { getUnitById } from '@/lib/api/units'
+import { getUnitById, getUnitsByOccupant } from '@/lib/api/units'
 import type { AdvanceRentResponse } from '@/types/advanceRent'
 import type { CautionFeeResponse } from '@/types/cautionFee'
 import type { Unit } from '@/types/property'
@@ -27,7 +27,8 @@ export function transformOccupantData(
   record: OccupantRecord,
   advanceRents: AdvanceRentResponse[],
   cautionFees: CautionFeeResponse[],
-  unit: Unit | null
+  unit: Unit | null,
+  occupiedUnits: Unit[] = []
 ) {
   const fullName = `${record.firstName} ${record.lastName}`
 
@@ -73,7 +74,7 @@ export function transformOccupantData(
     phone: record.phone,
     roomNo: record.unitNo || '-',
     propertyName: record.propertyName || record.property?.name || '-',
-    numberOfUnits: 1,
+    numberOfUnits: occupiedUnits.length > 0 ? occupiedUnits.length : record.unitNo ? 1 : 0,
     costPerMonth,
     leasePeriod: calculateLeasePeriod(record.moveInDate, record.moveOutDate),
     totalAmount: '-',
@@ -84,7 +85,7 @@ export function transformOccupantData(
     job: record.occupation || undefined,
     previousAddress: (record.previousAddress as any) || undefined,
     permanentAddress: (record.permanentAddress as any) || undefined,
-    propertyImage: undefined,
+    propertyImage: unit?.images?.[0] ?? undefined,
     propertyAddress: undefined,
     unitName: record.unitNo || '-',
     // Critical: pass through so AdvanceRentSection / CautionFeeSection receive their props
@@ -115,6 +116,7 @@ type Props = {
  */
 export default function OccupantViewClient({ occupantId }: Props) {
   const [occupant, setOccupant] = useState<ReturnType<typeof transformOccupantData> | null>(null)
+  const [occupiedUnits, setOccupiedUnits] = useState<Unit[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
 
@@ -131,9 +133,10 @@ export default function OccupantViewClient({ occupantId }: Props) {
       getOccupantById(tenantId, occupantId),
       advanceRentsApi.getByOccupant(occupantId),
       cautionFeesApi.getByOccupant(occupantId),
-      // Unit fetch deferred until we know the unitId — handled below after occupant resolves
+      getUnitsByOccupant(tenantId, occupantId)
+      // Single-unit fetch deferred until we know the unitId — handled below after occupant resolves
     ] as const)
-      .then(async ([occupantResult, arResult, cfResult]) => {
+      .then(async ([occupantResult, arResult, cfResult, unitsResult]) => {
         if (occupantResult.status === 'rejected') {
           setError(occupantResult.reason?.message ?? 'Failed to load occupant')
           return
@@ -142,9 +145,13 @@ export default function OccupantViewClient({ occupantId }: Props) {
         const record      = occupantResult.value
         const advanceRents = arResult.status === 'fulfilled' ? arResult.value : []
         const cautionFees  = cfResult.status === 'fulfilled'  ? cfResult.value  : []
+        const units        = unitsResult.status === 'fulfilled' ? unitsResult.value : []
+
+        setOccupiedUnits(units)
 
         // Fetch unit now that we have the unitId from the occupant record
         let unit: Unit | null = null
+
         if (record.unitId) {
           try {
             const unitRes = await getUnitById(tenantId, record.unitId)
@@ -154,7 +161,7 @@ export default function OccupantViewClient({ occupantId }: Props) {
           }
         }
 
-        setOccupant(transformOccupantData(record, advanceRents, cautionFees, unit))
+        setOccupant(transformOccupantData(record, advanceRents, cautionFees, unit, units))
       })
       .finally(() => setLoading(false))
   }, [occupantId])
@@ -184,5 +191,5 @@ export default function OccupantViewClient({ occupantId }: Props) {
     )
   }
 
-  return <OccupantDetails tenantData={occupant} tenantId={occupantId} />
+  return <OccupantDetails tenantData={occupant} tenantId={occupantId} occupiedUnits={occupiedUnits} />
 }

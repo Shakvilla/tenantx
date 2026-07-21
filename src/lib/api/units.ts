@@ -166,6 +166,23 @@ export async function getAvailableUnits(tenantId: string, query: UnitQuery = {})
 }
 
 /**
+ * All units this occupant currently occupies within the tenant.
+ * API: GET /units/by-occupant/{occupantId}
+ * Backend returns a bare JSON array (no envelope).
+ */
+export async function getUnitsByOccupant(tenantId: string, occupantId: string): Promise<Unit[]> {
+  try {
+    const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`, {
+      headers: { 'X-Tenant-ID': tenantId }
+    })
+
+    return Array.isArray(res) ? res : []
+  } catch {
+    return []
+  }
+}
+
+/**
  * Get a single unit by ID
  */
 export async function getUnitById(tenantId: string, id: string): Promise<ApiResponse<Unit>> {

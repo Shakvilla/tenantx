@@ -105,7 +105,13 @@ export default function OnboardTenantWizard() {
               unitNo={entityIds.unitNo}
               onCreateInvoice={() => {
                 setOpen(false)
-                router.push('/billing/invoices?create=1')
+                const q = new URLSearchParams({ create: '1' })
+
+                if (entityIds.occupantId) q.set('occupantId', entityIds.occupantId)
+                if (entityIds.propertyId) q.set('propertyId', entityIds.propertyId)
+                if (entityIds.unitId) q.set('unitId', entityIds.unitId)
+                if (ctx.rent) q.set('amount', String(ctx.rent))
+                router.push(`/billing/invoices?${q.toString()}`)
               }}
               onViewTenant={() => {
                 setOpen(false)
