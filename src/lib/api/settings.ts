@@ -10,6 +10,8 @@
  *   payment           — TaxSettings + CurrencySettings
  *   notification      — EmailTemplatesSettings + EmailPreferencesSettings
  *   recurring_invoice — all four recurring-invoice sub-components
+ *
+ * `contact` is NOT one of them — see `contactSettingsApi` below.
  */
 
 import { apiGet, apiPost, apiPut, API_BASE } from './client'
@@ -23,7 +25,9 @@ async function getSettings<T>(category: string): Promise<T> {
   const data = await apiGet<{ category: string; settings: T }>(
     `${API_BASE}/settings/${category}`
   )
-  return data.settings
+
+  
+return data.settings
 }
 
 async function saveSettings<T>(category: string, payload: Partial<T>): Promise<T> {
@@ -31,7 +35,9 @@ async function saveSettings<T>(category: string, payload: Partial<T>): Promise<T
     `${API_BASE}/settings/${category}`,
     payload
   )
-  return data.settings
+
+  
+return data.settings
 }
 
 // ---- Company ---------------------------------------------------------------
@@ -39,6 +45,36 @@ async function saveSettings<T>(category: string, payload: Partial<T>): Promise<T
 export const companySettingsApi = {
   get:    ()                                   => getSettings<CompanySettings>('company'),
   update: (data: Partial<CompanySettings>)     => saveSettings<CompanySettings>('company', data),
+}
+
+// ---- Contact phone ---------------------------------------------------------
+
+/**
+ * The landlord's published contact number. Typed, unlike everything above it:
+ * it writes the `tenants.contact_phone` column rather than a JSON blob, so it
+ * does not go through `getSettings`/`saveSettings` and its response is the bare
+ * object rather than `{ category, settings }`.
+ *
+ * This is the number occupants see and dial in the mobile app's "Contact
+ * landlord" sheet. Until it is set, that sheet's call and WhatsApp rows stay
+ * inert, so this endpoint is the only thing that turns them on.
+ *
+ * `/settings/contact` resolves to this typed controller rather than
+ * `/settings/{category}`, because Spring ranks a literal path segment above a
+ * path variable. `contact` is therefore a reserved category name.
+ */
+export interface TenantContact {
+
+  /** Normalised to E.164 by the backend on write; null when none is set. */
+  contactPhone: string | null
+}
+
+/** Matches the backend's `@Pattern` exactly. Blank is legal — it clears. */
+export const CONTACT_PHONE_PATTERN = /^\s*$|^\+?[0-9()\s-]{7,16}$/
+
+export const contactSettingsApi = {
+  get:    ()                        => apiGet<TenantContact>(`${API_BASE}/settings/contact`),
+  update: (contactPhone: string)    => apiPut<TenantContact>(`${API_BASE}/settings/contact`, { contactPhone }),
 }
 
 // ---- Payment (Tax + Currency only — gateway settings are admin-only) --------
@@ -53,6 +89,7 @@ export const paymentSettingsApi = {
 // ---- Notification (Email Templates + Email Preferences only) ---------------
 
 export type LandlordNotificationSettings = Pick<NotificationSettings, 'emailTemplates' | 'emailPreferences'> & {
+
   /** Master toggle for in-app (bell) notifications. Defaults to true when unset. */
   inAppEnabled?: boolean
 }
