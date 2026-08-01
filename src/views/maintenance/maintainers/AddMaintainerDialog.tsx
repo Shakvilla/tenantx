@@ -9,6 +9,9 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import IconButton from '@mui/material/IconButton'
 import Button from '@mui/material/Button'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
+import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Grid from '@mui/material/Grid2'
 import FormControl from '@mui/material/FormControl'
@@ -49,6 +52,7 @@ type FormData = {
   status: string
   insuranceExpiryDate: string
   taxId: string
+  listedInMarketplace: boolean
 }
 
 const BLANK: FormData = {
@@ -57,9 +61,10 @@ const BLANK: FormData = {
   phone: '',
   companyName: '',
   specializations: [],
-  status: 'ACTIVE',
+  status: 'active',
   insuranceExpiryDate: '',
-  taxId: ''
+  taxId: '',
+  listedInMarketplace: false
 }
 
 const SPECIALIZATION_OPTIONS = [
@@ -98,11 +103,12 @@ const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'a
         phone: editData.phone ?? '',
         companyName: editData.companyName ?? '',
         specializations: editData.specializations ?? [],
-        status: editData.status ?? 'ACTIVE',
+        status: editData.status ?? 'active',
         insuranceExpiryDate: editData.insuranceExpiryDate
           ? editData.insuranceExpiryDate.substring(0, 10) // ISO date → yyyy-MM-dd
           : '',
-        taxId: editData.taxId ?? ''
+        taxId: editData.taxId ?? '',
+        listedInMarketplace: editData.listedInMarketplace ?? false
       })
     } else {
       setFormData(BLANK)
@@ -140,7 +146,8 @@ const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'a
           specializations: formData.specializations.length ? formData.specializations : undefined,
           status: formData.status,
           insuranceExpiryDate: formData.insuranceExpiryDate || undefined,
-          taxId: formData.taxId || undefined
+          taxId: formData.taxId || undefined,
+          listedInMarketplace: formData.listedInMarketplace
         }
         await updateMaintainer(editData.id, payload)
       } else {
@@ -151,7 +158,8 @@ const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'a
           companyName: formData.companyName || undefined,
           specializations: formData.specializations.length ? formData.specializations : undefined,
           insuranceExpiryDate: formData.insuranceExpiryDate || undefined,
-          taxId: formData.taxId || undefined
+          taxId: formData.taxId || undefined,
+          listedInMarketplace: formData.listedInMarketplace
         }
         await createMaintainer(payload)
       }
@@ -245,9 +253,9 @@ const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'a
                   labelId='status-label' label='Status'
                   value={formData.status} onChange={e => set('status', e.target.value)}
                 >
-                  <MenuItem value='ACTIVE'>Active</MenuItem>
-                  <MenuItem value='INACTIVE'>Inactive</MenuItem>
-                  <MenuItem value='SUSPENDED'>Suspended</MenuItem>
+                  <MenuItem value='active'>Active</MenuItem>
+                  <MenuItem value='inactive'>Inactive</MenuItem>
+                  <MenuItem value='suspended'>Suspended</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -259,6 +267,27 @@ const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'a
               fullWidth size='small' label='Tax ID' placeholder='Tax identification number'
               value={formData.taxId} onChange={e => set('taxId', e.target.value)}
             />
+          </Grid>
+
+          {/* Marketplace listing — the only way a maintainer becomes visible to
+              occupants outside this landlord. Off by default, and the copy says
+              plainly what publishing exposes, because it is a third party's
+              name and phone going to every landlord's tenants. */}
+          <Grid size={{ xs: 12 }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.listedInMarketplace}
+                  onChange={e => set('listedInMarketplace', e.target.checked)}
+                />
+              }
+              label='List in the maintainer marketplace'
+            />
+            <Typography variant='caption' color='text.secondary' className='block'>
+              {formData.listedInMarketplace
+                ? 'Their name, trade and phone number will be visible to tenants of every landlord on TenantX, who can call them directly.'
+                : 'They stay private to your account. Turn this on to let tenants of any landlord find and call them.'}
+            </Typography>
           </Grid>
 
           {/* Insurance Expiry */}

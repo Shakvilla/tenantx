@@ -76,6 +76,7 @@ export interface Maintainer {
   isCompliant?: boolean
   createdAt: string
   updatedAt: string
+  listedInMarketplace?: boolean
 }
 
 export interface MaintainerStats {
@@ -92,6 +93,9 @@ export interface CreateMaintainerPayload {
   specializations?: string[]
   insuranceExpiryDate?: string
   taxId?: string
+
+  /** Publish to the cross-tenant marketplace at creation time. Defaults to false. */
+  listedInMarketplace?: boolean
 }
 
 export interface UpdateMaintainerPayload {
@@ -101,11 +105,22 @@ export interface UpdateMaintainerPayload {
   companyName?: string
   specializations?: string[]
   status?: string
-  rating?: number
   insuranceExpiryDate?: string
   taxId?: string
   isCompliant?: boolean
+
+  /**
+   * Publish this maintainer to the cross-tenant marketplace, where occupants
+   * of every landlord on the platform can see their name and phone and call
+   * them. Defaults to false server-side; listing is always explicit.
+   */
+  listedInMarketplace?: boolean
 }
+
+// `rating` used to live on this payload. The backend removed it deliberately:
+// ratings now come from occupant reviews only, because a landlord who could
+// type their own contractors to 5.0 would float them above everyone else's in
+// a shared directory.
 
 // ---------------------------------------------------------------------------
 // Maintenance request types
