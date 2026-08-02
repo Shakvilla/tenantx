@@ -126,9 +126,19 @@ describe('JobLinkPage', () => {
     // The description's name/address IS part of the API response and should render.
     expect(screen.getByText('Ask for Ama at 12 Nii Bonne Street')).toBeInTheDocument()
 
-    // But the token itself — which is not part of DirectJobDto.PublicView — must
-    // never appear anywhere in the rendered page or in the document title.
-    expect(document.body.textContent).not.toContain(TOKEN)
+    // The token must not reach the document title. Titles are the one place a
+    // URL secret genuinely escapes the URL: they show in tab strips, browser
+    // history, window switchers and screenshots, all of which get shared.
     expect(document.title).not.toContain(TOKEN)
+
+    // Deliberately NOT asserting `document.body.textContent` lacks the token.
+    // That assertion passes here and is FALSE in a real browser — verified by
+    // loading the page in Chrome against the live API: Next serialises the
+    // dynamic route segment into its flight payload, so the token IS in
+    // body.textContent even though nothing renders it. This renderer produces
+    // no flight payload, so the check would have given false assurance forever.
+    // It is also not worth restoring: whoever loads this page already has the
+    // token, because it is in the URL they followed.
+    expect(screen.queryByText(new RegExp(TOKEN))).toBeNull()
   })
 })
