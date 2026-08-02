@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 /**
  * Public page routes that don't require authentication
  */
-const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password', '/auth/impersonate', '/maintenance']
+const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password', '/auth/impersonate', '/maintenance', '/jobs']
 
 /**
  * Public vacancy listing routes — no auth required
@@ -112,8 +112,13 @@ export async function middleware(request: NextRequest) {
   // AUTH PAGES  /login, /register, etc.
   // ═══════════════════════════════════════════════════════════════════════════
   if (isPublicPageRoute(pathname)) {
-    // Maintenance page and impersonation — always allow through regardless of session state.
-    if (pathname.startsWith('/auth/impersonate') || pathname.startsWith('/maintenance')) {
+    // Maintenance page, impersonation, and maintainer job links — always allow
+    // through regardless of session state. A job link must render the same
+    // for signed-in and signed-out visitors alike, because whoever holds the
+    // link (e.g. a maintainer with no TenantX account) is the intended
+    // audience — a signed-in landlord tapping it must not be bounced to
+    // /dashboard.
+    if (pathname.startsWith('/auth/impersonate') || pathname.startsWith('/maintenance') || pathname.startsWith('/jobs')) {
       return NextResponse.next()
     }
 
