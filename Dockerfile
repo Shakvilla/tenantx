@@ -15,17 +15,45 @@ RUN apk add --no-cache libc6-compat
 
 COPY package.json package-lock.json ./
 
+# The cache mount is what makes a retry cheap: /root/.npm survives across builds,
+# so a run that dies partway resumes from what it already fetched instead of
+# starting over. Without it every attempt re-downloads everything, which on a
+# slow link means each failure costs the full download again.
+#
 # Retry/timeout tuning, not decoration. The default idle timeout is 5 minutes,
 # which a slow or contended link exceeds mid-tarball — npm then aborts the whole
 # install with EIDLETIMEOUT and the layer is lost. This has already happened once
 # here, 30 minutes in, on a single package. Generous retries cost nothing on a
 # fast network and are the difference between a build and a wasted half hour on a
 # slow one.
-RUN npm config set fetch-retries 5 \
+RUN --mount=type=cache,target=/root/.npm \
+    npm config set fetch-retries 5 \
  && npm config set fetch-retry-mintimeout 20000 \
  && npm config set fetch-retry-maxtimeout 120000 \
  && npm config set fetch-timeout 600000 \
- && npm ci
+ && npm ci --ignore-scripts \
+ && npm install --no-save --ignore-scripts \
+      "@esbuild/linux-x64@$(node -p "require('./node_modules/esbuild/package.json').version")"
+
+# The extra install is a workaround for a lockfile that cannot produce a working
+# Linux install. package-lock.json resolves only @esbuild/darwin-x64 — npm records
+# resolved entries for optional platform packages only for the platform it ran on,
+# and this lockfile was generated on macOS. `npm ci` installs exactly what is
+# listed, so the Linux binary is simply absent and `tsx` dies with
+# "The package @esbuild/linux-x64 could not be found".
+#
+# The version is read from the installed esbuild rather than hardcoded, so it
+# cannot drift out of step with the lockfile. esbuild is the only
+# platform-specific package in this tree today; if others appear, the real fix is
+# to generate the lockfile so it carries every platform, not to keep adding lines
+# here.
+#
+# --ignore-scripts is required, not an optimisation. This project's postinstall
+# runs `build:icons`, which executes src/assets/iconify-icons/bundle-icons-css.ts
+# — and src/ does not exist in this stage, because the whole point of the stage
+# is to install dependencies before the source is copied. Without the flag the
+# install fails with a bare "command failed" that says nothing about the cause.
+# The icon bundle is generated in the build stage instead, where src/ is present.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — build
@@ -51,6 +79,10 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# The postinstall skipped in the deps stage, run here now that src/ exists. Next
+# imports the CSS this generates, so a missing bundle fails the build.
+RUN npm run build:icons
 
 # The build type-checks. next.config.ts sets eslint.ignoreDuringBuilds but
 # deliberately does NOT set typescript.ignoreBuildErrors, so a type error fails
