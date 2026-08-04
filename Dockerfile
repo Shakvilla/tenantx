@@ -14,7 +14,18 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
 COPY package.json package-lock.json ./
-RUN npm ci
+
+# Retry/timeout tuning, not decoration. The default idle timeout is 5 minutes,
+# which a slow or contended link exceeds mid-tarball — npm then aborts the whole
+# install with EIDLETIMEOUT and the layer is lost. This has already happened once
+# here, 30 minutes in, on a single package. Generous retries cost nothing on a
+# fast network and are the difference between a build and a wasted half hour on a
+# slow one.
+RUN npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm config set fetch-timeout 600000 \
+ && npm ci
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 2 — build
