@@ -24,6 +24,7 @@ import {
   getGlobalImpersonationLog,
   type ImpersonationLogDto,
 } from '@/lib/api/admin-auth-client'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,6 +81,7 @@ export default function AdminImpersonationLogView() {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: rows,
     columns,
     manualPagination: true,

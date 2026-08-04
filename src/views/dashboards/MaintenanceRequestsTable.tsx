@@ -36,6 +36,7 @@ import { getMaintenanceRequests, type MaintenanceRequest } from '@/lib/api/maint
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 const STATUS_COLOR: Record<string, 'success' | 'warning' | 'info' | 'error' | 'secondary'> = {
   pending: 'warning',
@@ -158,6 +159,7 @@ const MaintenanceRequestsTable = () => {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: filteredData,
     columns,
     state: { globalFilter },

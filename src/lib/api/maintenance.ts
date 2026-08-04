@@ -309,7 +309,7 @@ export async function updateMaintenanceCategory(id: string, data: UpdateCategory
 }
 
 export async function deleteMaintenanceCategory(id: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/categories/${id}`)
+  return apiDelete(`${BASE}/categories/${id}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +339,7 @@ export async function updateMaintainer(id: string, data: UpdateMaintainerPayload
 }
 
 export async function deleteMaintainer(id: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/maintainers/${id}`)
+  return apiDelete(`${BASE}/maintainers/${id}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -405,7 +405,7 @@ export async function disputeMaintenanceRequest(id: string, reason?: string): Pr
 }
 
 export async function deleteMaintenanceRequest(id: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/requests/${id}`)
+  return apiDelete(`${BASE}/requests/${id}`)
 }
 
 export async function assignMaintainerToRequest(requestId: string, maintainerId: string): Promise<MaintenanceRequest> {
@@ -430,7 +430,7 @@ export async function addComment(requestId: string, data: CreateCommentPayload):
 }
 
 export async function deleteComment(commentId: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/requests/comments/${commentId}`)
+  return apiDelete(`${BASE}/requests/comments/${commentId}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -446,7 +446,7 @@ export async function addPart(requestId: string, data: CreatePartPayload): Promi
 }
 
 export async function deletePart(partId: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/requests/parts/${partId}`)
+  return apiDelete(`${BASE}/requests/parts/${partId}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -533,7 +533,7 @@ export async function updatePreventativeSchedule(
 }
 
 export async function deletePreventativeSchedule(id: string): Promise<void> {
-  return apiDelete<void>(`${BASE}/preventative-schedules/${id}`)
+  return apiDelete(`${BASE}/preventative-schedules/${id}`)
 }
 
 // ---------------------------------------------------------------------------

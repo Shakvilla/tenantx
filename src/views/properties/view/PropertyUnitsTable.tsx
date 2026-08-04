@@ -89,7 +89,7 @@ function transformUnits(units: PropertyUnit[], nameMap: Record<string, string> =
       bedrooms: unit.bedrooms || '-',
       bathrooms: unit.bathrooms || '-',
       rent: unit.rent,
-      formattedRent: formatCurrency(unit.rent, unit.currency),
+      formattedRent: formatCurrency(unit.rent, unit.currency ?? undefined),
       size: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-',
       tenantName: oId ? (nameMap[oId] ?? 'Loading…') : null,
       images: unit.images || null,

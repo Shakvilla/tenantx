@@ -90,7 +90,7 @@ type UnitEditData = {
   bedrooms?: number | string
   bathrooms?: number | string
   size?: string
-  floor?: string | number
+  floor?: string | number | null
   type?: string
   tenantName?: string | null
   images?: string[]

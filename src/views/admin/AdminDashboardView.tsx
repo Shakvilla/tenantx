@@ -490,7 +490,6 @@ function NewVsChurnChart({ data, loading }: NewVsChurnChartProps) {
         columnWidth: '55%',
         borderRadius: 3,
         borderRadiusApplication: 'end',
-        grouped: true,
       },
     },
     dataLabels: { enabled: false },
@@ -518,7 +517,6 @@ function NewVsChurnChart({ data, loading }: NewVsChurnChartProps) {
       },
     },
     yaxis: {
-      allowDecimals: false,
       labels: {
         formatter: (val: number) => String(Math.round(val)),
         style: {
@@ -534,7 +532,7 @@ function NewVsChurnChart({ data, loading }: NewVsChurnChartProps) {
       horizontalAlign: 'right',
       fontSize: '13px',
       fontFamily: 'inherit',
-      markers: { size: 8, shape: 'circle' as 'circle' },
+      markers: { width: 8, height: 8 },
       labels: { colors: 'var(--mui-palette-text-primary)' },
     },
     tooltip: {

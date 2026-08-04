@@ -9,8 +9,9 @@ vi.mock('@/lib/api/inspections', () => ({
 
 import ViewInspectionDialog from '@/views/properties/view/ViewInspectionDialog'
 import { inspectionsApi } from '@/lib/api/inspections'
+import type { InspectionResponse } from '@/types/inspection'
 
-const baseResponse = {
+const baseResponse: InspectionResponse = {
   id: 'insp-1', unitId: 'unit-1', propertyId: 'prop-1', unitNo: 'A1', propertyName: 'Sunset',
   type: 'MOVE_IN', status: 'COMPLETED', inspectionDate: '2026-07-12', inspectorName: 'Kwame',
   inspectorNotes: null, tenantAcknowledgement: null, signedOffDate: null, pdfUrl: null,

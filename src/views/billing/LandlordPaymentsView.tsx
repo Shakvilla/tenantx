@@ -29,6 +29,7 @@ import { getInvoices, type Invoice } from '@/lib/api/invoices'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 const columnHelper = createColumnHelper<Invoice>()
 
@@ -130,6 +131,7 @@ const LandlordPaymentsView = () => {
   )
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data,
     columns,
     state: {},

@@ -42,6 +42,7 @@ import {
   type UpdateTenantPayload,
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Create Tenant Dialog
@@ -490,6 +491,7 @@ export default function AdminTenantsView() {
   ]
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: filtered,
     columns,
     manualFiltering: true,

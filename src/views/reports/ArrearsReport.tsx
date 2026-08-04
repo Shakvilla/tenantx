@@ -30,6 +30,7 @@ import ExportButtons from '@/components/reports/ExportButtons'
 import { arrearsApi } from '@/lib/api/arrears'
 import { formatCurrency } from '@/utils/currency'
 import type { ArrearsReport as ArrearsReportType, OccupantArrearsRow } from '@/types/arrears'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,7 @@ const ArrearsReport = () => {
   const rows = data?.rows ?? []
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: rows,
     columns,
     state: { sorting },

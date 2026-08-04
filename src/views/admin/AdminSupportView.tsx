@@ -47,6 +47,7 @@ import {
   type FeedbackDto, type FeedbackSummaryDto,
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -394,6 +395,7 @@ function TicketsTab() {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: page?.content ?? [],
     columns,
     manualFiltering: true,
@@ -594,6 +596,7 @@ function FeedbackTab() {
   ], [])
 
   const feedTable = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: page?.content ?? [],
     columns: feedCols,
     manualFiltering: true,

@@ -53,6 +53,7 @@ import {
   type RoleRecord,
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Create Admin Dialog
@@ -383,6 +384,7 @@ export default function AdminSystemAdminsView() {
   ]
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: admins,
     columns,
     state: { globalFilter, pagination: { pageIndex: page, pageSize } },

@@ -13,7 +13,7 @@ import type { AxiosInstance } from 'axios'
 
 import { getStoredAdminToken, setStoredAdminToken, clearStoredAdminToken } from './admin-storage'
 
-const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1')
+const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:1201/api/v1')
   .replace(/\/api\/v1$/, '') + '/api/v1/admin'
 
 // SystemNotificationController lives at /api/v1/system/notifications — not under /admin
@@ -35,7 +35,7 @@ adminClient.interceptors.request.use(config => {
     config.headers.Authorization = `Bearer ${token}`
   }
 
-  
+
 return config
 })
 
@@ -152,28 +152,28 @@ export interface PaginatedResponse<T> {
 async function adminGet<T>(path: string): Promise<T> {
   const res = await adminClient.get<T>(path)
 
-  
+
 return res.data
 }
 
 async function adminPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await adminClient.post<T>(path, body)
 
-  
+
 return res.data
 }
 
 async function adminPut<T>(path: string, body: unknown): Promise<T> {
   const res = await adminClient.put<T>(path, body)
 
-  
+
 return res.data
 }
 
 async function adminDelete<T = void>(path: string): Promise<T> {
   const res = await adminClient.delete<T>(path)
 
-  
+
 return res.data
 }
 
@@ -186,7 +186,7 @@ export async function adminLogin(email: string, password: string): Promise<Admin
   const res = await axios.post<AdminLoginResponse>(`${ADMIN_API_BASE}/auth/login`, { email, password })
 
   setStoredAdminToken(res.data.accessToken)
-  
+
 return res.data
 }
 
@@ -220,7 +220,7 @@ export async function getAdminTenants(cursor?: string, size = 50): Promise<Pagin
   const params = new URLSearchParams({ size: String(size) })
 
   if (cursor) params.set('cursor', cursor)
-  
+
 return adminGet<PaginatedResponse<TenantRecord[]>>(`/tenants?${params}`)
 }
 
@@ -294,7 +294,7 @@ export async function getSystemAdmins(cursor?: string, size = 50): Promise<Pagin
   const params = new URLSearchParams({ size: String(size) })
 
   if (cursor) params.set('cursor', cursor)
-  
+
 return adminGet<PaginatedResponse<AdminRecord[]>>(`/system-admins?${params}`)
 }
 
@@ -741,7 +741,7 @@ export async function getAdminInvoices(
   const params = new URLSearchParams({ page: String(page), size: String(size) })
 
   if (status) params.set('status', status)
-  
+
 return adminGet<PagedInvoiceResponse>(`/invoices?${params}`)
 }
 
@@ -752,7 +752,7 @@ export async function getTenantInvoices(
 ): Promise<PagedInvoiceResponse> {
   const params = new URLSearchParams({ page: String(page), size: String(size) })
 
-  
+
 return adminGet<PagedInvoiceResponse>(`/invoices/by-tenant/${tenantId}?${params}`)
 }
 
@@ -924,7 +924,7 @@ export async function getSystemNotifications(params?: {
     { baseURL: API_V1_BASE }
   )
 
-  
+
 return res.data
 }
 
@@ -1132,7 +1132,7 @@ export async function getAdminTickets(params: {
   if (params.search)   q.set('search',   params.search)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
-  
+
 return adminGet<TicketPageDto>(`/support/tickets?${q}`)
 }
 
@@ -1159,7 +1159,7 @@ export async function getAdminFeedback(params: {
   if (params.tenantId) q.set('tenantId', params.tenantId)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
-  
+
 return adminGet<FeedbackPageDto>(`/support/feedback?${q}`)
 }
 
@@ -1201,7 +1201,7 @@ export async function getTenantLoginHistory(
   if (params.to)   q.set('to',   params.to)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
-  
+
 return adminGet<LoginHistoryPage>(`/tenants/${tenantId}/login-history?${q}`)
 }
 
@@ -1263,7 +1263,7 @@ export async function getPlatformSettings(): Promise<Record<string, PlatformSett
 export async function updatePlatformSetting(key: string, value: string): Promise<PlatformSettingDto> {
   const encodedKey = key.replace(/\./g, '__')
 
-  
+
 return adminPut<PlatformSettingDto>(`/platform-settings/${encodedKey}`, { value })
 }
 
@@ -1310,7 +1310,7 @@ export async function getAuditLog(params: {
   if (params.to)         q.set('to',         params.to)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 50))
-  
+
 return adminGet<AuditLogPage>(`/audit-log?${q}`)
 }
 
@@ -1362,7 +1362,7 @@ export async function getFeeLedgerEntries(params: {
   if (params.sourceType) q.set('sourceType', params.sourceType)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 50))
-  
+
 return adminGet<PagedLedgerResponse>(`/fee-ledger?${q}`)
 }
 
@@ -1382,7 +1382,7 @@ export interface BatchSettleResponse {
 export async function settleBatch(tenantId?: string): Promise<BatchSettleResponse> {
   const q = tenantId ? `?tenantId=${encodeURIComponent(tenantId)}` : ''
 
-  
+
 return adminPost<BatchSettleResponse>(`/fee-ledger/settle-batch${q}`)
 }
 
@@ -1824,7 +1824,7 @@ export async function getAdminUsers(params: GetAdminUsersParams = {}): Promise<P
   if (params.search   !== undefined && params.search !== '') q.set('search', params.search)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 50))
-  
+
 return adminGet<PagedAdminUsers>(`/users?${q}`)
 }
 
@@ -1837,7 +1837,7 @@ export async function getAdminUser(id: string): Promise<AdminUserRecord> {
 export async function deactivateAdminUser(id: string): Promise<AdminUserRecord> {
   const res = await adminClient.patch<AdminUserRecord>(`/users/${id}/deactivate`)
 
-  
+
 return res.data
 }
 
@@ -1845,7 +1845,7 @@ return res.data
 export async function reactivateAdminUser(id: string): Promise<AdminUserRecord> {
   const res = await adminClient.patch<AdminUserRecord>(`/users/${id}/reactivate`)
 
-  
+
 return res.data
 }
 
@@ -1928,7 +1928,7 @@ export async function getSenderIdRequests(params: {
   if (params.search) query.set('search', params.search)
   if (params.from) query.set('from', params.from)
   if (params.to) query.set('to', params.to)
-  
+
 return adminGet<PagedSenderIdRequestResponse>(`/sms/sender-id-requests?${query}`)
 }
 

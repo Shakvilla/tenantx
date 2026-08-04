@@ -65,6 +65,7 @@ type PropertyEditData = {
   rooms?: number | string
   amenities?: Record<string, boolean>
   images?: string[] // URLs for existing images
+  imageFileIds?: string[] // File IDs paired with `images`, same order
   thumbnailIndex?: number | null
   price?: string
   address?: string
@@ -78,7 +79,10 @@ type PropertyEditData = {
   purchasePrice?: number
   currentValue?: number
   currency?: string
-  ownership?: 'own' | 'lease'
+  // Callers pass this through from broader API/view-local types where it's a plain
+  // string; the value is re-cast to the 'own' | 'lease' union at the one call site
+  // that consumes it (see mode === 'edit' below).
+  ownership?: string
   // Raw lowercase API values — used when coming from the property detail page
   // (which title-cases the display values for rendering)
   rawType?: string

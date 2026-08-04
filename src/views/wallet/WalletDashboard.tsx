@@ -54,6 +54,7 @@ import type {
   WithdrawalStatus,
 } from '@/types/wallet'
 import { CATEGORY_LABELS, MOMO_NETWORKS } from '@/types/wallet'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ─────────────────────────────────────────
 // Helpers
@@ -506,6 +507,7 @@ const LedgerTable = () => {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: entries,
     columns,
     getCoreRowModel: getCoreRowModel(),
@@ -801,6 +803,7 @@ const WithdrawalsTable = () => {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: withdrawals,
     columns,
     getCoreRowModel: getCoreRowModel(),

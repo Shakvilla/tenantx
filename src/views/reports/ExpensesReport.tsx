@@ -84,8 +84,11 @@ const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
     [expenses]
   )
 
-  // Monthly comparison bar chart (same data as trends — bar view)
-  const monthlyComparison = trends
+  // Monthly comparison bar chart (same data as trends — bar view). BarChart expects
+  // { label, value }, while groupByMonth (shared with the line chart) returns
+  // { date, value }; map the field across rather than renaming groupByMonth's output,
+  // since LineChart's own prop type is `{ date, value }[]` and already matches it.
+  const monthlyComparison = useMemo(() => trends.map(t => ({ label: t.date, value: t.value })), [trends])
 
   // By category: group by the expense item's configured category (Administrative /
   // Occupancy / Maintenance / Utilities / Other), not the item name.

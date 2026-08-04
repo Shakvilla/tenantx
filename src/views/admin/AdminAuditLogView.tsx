@@ -34,6 +34,7 @@ import {
   type AuditLogEntry,
   type AuditLogPage,
 } from '@/lib/api/admin-auth-client'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -231,6 +232,7 @@ export default function AdminAuditLogView() {
   ], [])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: rows,
     columns,
     manualFiltering: true,

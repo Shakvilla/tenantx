@@ -40,6 +40,7 @@ import type { InspectionSummary, InspectionType, InspectionStatus } from '@/type
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 const columnHelper = createColumnHelper<InspectionSummary>()
 
@@ -206,6 +207,7 @@ const OccupantInspectionsView = () => {
   )
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data,
     columns,
     state: {},

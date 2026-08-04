@@ -47,6 +47,7 @@ import {
   type CreateAnnouncementPayload,
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -343,6 +344,7 @@ export default function AdminAnnouncementsView() {
   // Pagination is server-driven — `announcements` already holds only the current page,
   // so the table renders it directly without a client-side pagination row model.
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: announcements,
     columns,
     getCoreRowModel: getCoreRowModel(),

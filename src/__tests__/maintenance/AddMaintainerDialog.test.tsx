@@ -17,7 +17,7 @@ const submit = () => fireEvent.click(screen.getByRole('button', { name: /^(add|s
 
 function renderDialog(props: Partial<Parameters<typeof AddMaintainerDialog>[0]> = {}) {
   render(
-    <AddMaintainerDialog open handleClose={vi.fn()} onSuccess={vi.fn()} mode='add' {...(props as never)} />
+    <AddMaintainerDialog open handleClose={vi.fn()} onSuccess={vi.fn()} mode='add' {...props} />
   )
 }
 

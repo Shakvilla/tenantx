@@ -1,0 +1,34 @@
+# Keeping the build context small matters here: everything not excluded is sent
+# to the daemon on every build, and node_modules alone is ~1GB.
+
+node_modules
+.next
+out
+build
+dist
+
+# Never ship secrets into an image layer. .env.local holds real API keys.
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+.github
+
+# Editor / OS noise
+.vscode
+.idea
+.DS_Store
+*.swp
+
+# Test and tooling output — not needed to build or run
+coverage
+.superpowers
+.claude
+*.log
+npm-debug.log*
+
+# Docs
+README.md
+docs

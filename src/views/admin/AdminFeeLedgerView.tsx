@@ -47,6 +47,7 @@ import {
   type FeeLedgerEntryDto,
   type FeeLedgerSummary,
 } from '@/lib/api/admin-auth-client'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -274,6 +275,7 @@ export default function AdminFeeLedgerView() {
   ]
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: entries,
     columns,
     manualFiltering: true,

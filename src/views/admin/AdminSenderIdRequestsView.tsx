@@ -38,6 +38,7 @@ import {
   reactivateSenderId,
   type AdminSenderIdRequestDto,
 } from '@/lib/api/admin-auth-client'
+import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -396,6 +397,7 @@ return <Typography variant='caption' color='text.secondary'>{fmtDate(at)}</Typog
   ], [busyKey])
 
   const table = useReactTable({
+    filterFns: { fuzzy: fuzzyFilter },
     data: rows,
     columns,
     manualFiltering: true,
