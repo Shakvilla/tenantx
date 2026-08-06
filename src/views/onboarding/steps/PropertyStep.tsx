@@ -8,6 +8,8 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import FormHelperText from '@mui/material/FormHelperText'
+import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
@@ -28,31 +30,54 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
   const districts = form.region ? getDistricts(form.region) : []
   const [cities, setCities] = useState<string[]>([])
 
+  // 'idle': no district picked yet. 'loading': fetch in flight. 'loaded': fetch
+  // resolved (cities may legitimately be empty). 'error': fetch failed. Kept
+  // separate from `cities` itself because an empty array alone can't
+  // distinguish "still loading" from "the request failed" from "this district
+  // genuinely has no localities" — see `valid` below.
+  const [citiesStatus, setCitiesStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
+  const [citiesRetryTick, setCitiesRetryTick] = useState(0)
+
   // Localities are no longer in the bulk reference payload — 7,000 of them would
   // be ten times the size of everything else the dashboard loads up front.
   useEffect(() => {
     if (!form.district) {
       setCities([])
+      setCitiesStatus('idle')
 
       return
     }
 
     let cancelled = false
 
+    setCitiesStatus('loading')
+
     fetchCities(form.district)
       .then(list => {
-        if (!cancelled) setCities(list)
+        if (!cancelled) {
+          setCities(list)
+          setCitiesStatus('loaded')
+        }
       })
       .catch(() => {
-        if (!cancelled) setCities([])
+        if (!cancelled) {
+          setCities([])
+          setCitiesStatus('error')
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [form.district])
+  }, [form.district, citiesRetryTick])
 
-  const valid = form.name && form.type && form.region && form.district && (form.city || cities.length === 0)
+  const retryCitiesFetch = () => setCitiesRetryTick(t => t + 1)
+
+  // An empty `cities` array alone can't tell "still loading", "fetch failed" and
+  // "this district genuinely has no localities" apart — only a completed
+  // ('loaded') fetch that came back empty may waive the City requirement.
+  const valid =
+    form.name && form.type && form.region && form.district && (form.city || (citiesStatus === 'loaded' && cities.length === 0))
 
   // Cascade resets so a stale district/city can't survive a region change.
   const update = (field: keyof typeof form, value: string) => {
@@ -125,8 +150,13 @@ return
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth required>
-            <InputLabel>Property type</InputLabel>
-            <Select label='Property type' value={form.type} onChange={e => update('type', e.target.value)}>
+            <InputLabel id='property-step-type-label'>Property type</InputLabel>
+            <Select
+              labelId='property-step-type-label'
+              label='Property type'
+              value={form.type}
+              onChange={e => update('type', e.target.value)}
+            >
               {ref.propertyTypes.map(t => (
                 <MenuItem key={t.value} value={t.value}>
                   {t.label}
@@ -170,7 +200,7 @@ return
           </FormControl>
         </Grid>
         <Grid size={{ xs: 12 }}>
-          <FormControl fullWidth required disabled={!form.district}>
+          <FormControl fullWidth required disabled={!form.district || citiesStatus === 'loading'}>
             <InputLabel id='property-step-city-label'>City / area</InputLabel>
             <Select
               labelId='property-step-city-label'
@@ -184,7 +214,18 @@ return
                 </MenuItem>
               ))}
             </Select>
+            {citiesStatus === 'loading' && <FormHelperText>Loading areas…</FormHelperText>}
           </FormControl>
+          {citiesStatus === 'error' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+              <Typography variant='caption' color='error'>
+                Couldn&apos;t load areas for this district.
+              </Typography>
+              <Button size='small' onClick={retryCitiesFetch}>
+                Retry
+              </Button>
+            </Box>
+          )}
         </Grid>
         <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Button variant='text' color='inherit' onClick={onSkip} disabled={submitting}>

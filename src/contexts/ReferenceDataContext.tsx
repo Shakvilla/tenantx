@@ -64,8 +64,6 @@ interface ReferenceDataContextValue {
   refresh: () => void
   /** Convenience: find region districts */
   getDistricts: (regionValue: string) => AllReferenceData['regions'][0]['districts']
-  /** Convenience: find district cities */
-  getCities: (regionValue: string, districtValue: string) => string[]
   /** Convenience: get label for a value from any list */
   getLabel: (list: ReferenceItem[], value: string) => string
   /** Convenience: get amenity by id */
@@ -132,13 +130,6 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
     return ref.regions.find(r => r.value === regionValue)?.districts ?? []
   }
 
-  const getCities = (regionValue: string, districtValue: string) => {
-    const region = ref.regions.find(r => r.value === regionValue)
-    const district = region?.districts.find(d => d.value === districtValue)
-
-    return district?.cities ?? []
-  }
-
   const getLabel = (list: ReferenceItem[], value: string): string => {
     return list.find(item => item.value === value)?.label ?? value
   }
@@ -149,7 +140,7 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
 
   return (
     <ReferenceDataContext.Provider
-      value={{ ref, isLoading, error, refresh, getDistricts, getCities, getLabel, getAmenity }}
+      value={{ ref, isLoading, error, refresh, getDistricts, getLabel, getAmenity }}
     >
       {children}
     </ReferenceDataContext.Provider>

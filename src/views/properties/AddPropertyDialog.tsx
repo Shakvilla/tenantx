@@ -291,29 +291,48 @@ const AddPropertyDialog = ({
   const districtsForRegion = ref.regions.find(r => r.value === formData.region)?.districts ?? []
   const [citiesForDistrict, setCitiesForDistrict] = useState<string[]>([])
 
+  // 'idle': no district picked yet. 'loading': fetch in flight. 'loaded': fetch
+  // resolved (citiesForDistrict may legitimately be empty). 'error': fetch failed.
+  // Kept separate from citiesForDistrict itself because an empty array alone
+  // can't distinguish "still loading" from "the request failed" from "this
+  // district genuinely has no localities" — see validateStep below.
+  const [citiesStatus, setCitiesStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
+  const [citiesRetryTick, setCitiesRetryTick] = useState(0)
+
   // Localities are no longer in the bulk reference payload — 7,000 of them would
   // be ten times the size of everything else the dashboard loads up front.
   useEffect(() => {
     if (!formData.district) {
       setCitiesForDistrict([])
+      setCitiesStatus('idle')
 
       return
     }
 
     let cancelled = false
 
+    setCitiesStatus('loading')
+
     fetchCities(formData.district)
       .then(list => {
-        if (!cancelled) setCitiesForDistrict(list)
+        if (!cancelled) {
+          setCitiesForDistrict(list)
+          setCitiesStatus('loaded')
+        }
       })
       .catch(() => {
-        if (!cancelled) setCitiesForDistrict([])
+        if (!cancelled) {
+          setCitiesForDistrict([])
+          setCitiesStatus('error')
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [formData.district])
+  }, [formData.district, citiesRetryTick])
+
+  const retryCitiesFetch = () => setCitiesRetryTick(t => t + 1)
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
@@ -435,7 +454,16 @@ const AddPropertyDialog = ({
       if (!formData.condition) newErrors.condition = true
       if (!formData.region) newErrors.region = true
       if (!formData.district) newErrors.district = true
-      if (!formData.city && citiesForDistrict.length > 0) newErrors.city = true
+
+      // An empty citiesForDistrict alone can't tell "still loading", "fetch
+      // failed" and "this district genuinely has no localities" apart — only a
+      // completed ('loaded') fetch that came back empty may waive City. While
+      // 'loading' or 'error', City stays required (and the field has no options
+      // to pick from yet), which blocks Next rather than silently accepting a
+      // blank city that the network just hasn't had a chance to fill in.
+      if (formData.district && !formData.city && !(citiesStatus === 'loaded' && citiesForDistrict.length === 0)) {
+        newErrors.city = true
+      }
     } else if (step === 1) {
       // Validate Step 2: Property Features
       if (!formData.bedrooms) newErrors.bedrooms = true
@@ -856,7 +884,7 @@ const AddPropertyDialog = ({
                 </FormControl>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={Boolean(errors.city)} size='small'>
+                <FormControl fullWidth error={Boolean(errors.city)} size='small' disabled={citiesStatus === 'loading'}>
                   <InputLabel id='city-label'>City</InputLabel>
                   <Select
                     labelId='city-label'
@@ -869,7 +897,22 @@ const AddPropertyDialog = ({
                       <MenuItem key={city} value={city}>{city}</MenuItem>
                     ))}
                   </Select>
-                  {errors.city && (
+                  {citiesStatus === 'loading' && (
+                    <Typography variant='caption' color='text.secondary' className='mts-1'>
+                      Loading areas…
+                    </Typography>
+                  )}
+                  {citiesStatus === 'error' && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+                      <Typography variant='caption' color='error'>
+                        Couldn&apos;t load areas for this district.
+                      </Typography>
+                      <Button size='small' onClick={retryCitiesFetch}>
+                        Retry
+                      </Button>
+                    </Box>
+                  )}
+                  {errors.city && citiesStatus === 'loaded' && (
                     <Typography variant='caption' color='error' className='mts-1'>
                       This field is required.
                     </Typography>
