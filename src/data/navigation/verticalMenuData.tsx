@@ -52,11 +52,8 @@ const allItems: NavItem[] = [
     href: '/dashboard',
     icon: 'ri-dashboard-line'
   },
-  {
-    label: 'Notifications',
-    href: '/notifications',
-    icon: 'ri-notification-2-line'
-  },
+  // Notifications is deliberately absent: the topbar bell owns it, and its
+  // "View All" button is the way through to /notifications.
   {
     label: 'Properties',
     icon: 'ri-building-line',
