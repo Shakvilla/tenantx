@@ -20,7 +20,7 @@ export interface District {
   value: string
   label: string
   region: string
-  cities: string[]
+  cities?: string[]
 }
 
 export interface Region {

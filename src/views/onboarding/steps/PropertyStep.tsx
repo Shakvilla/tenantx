@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import Grid from '@mui/material/Grid2'
 import TextField from '@mui/material/TextField'
@@ -14,20 +14,45 @@ import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 
 import { createProperty } from '@/lib/api/properties'
+import { getCities as fetchCities } from '@/lib/api/reference'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import type { Property } from '@/types/property'
 import type { OnboardingStepProps } from '../onboardingTypes'
 
 export default function PropertyStep({ tenantId, onComplete, onSkip }: OnboardingStepProps) {
-  const { ref, getDistricts, getCities } = useReferenceData()
+  const { ref, getDistricts } = useReferenceData()
   const [form, setForm] = useState({ name: '', type: '', region: '', district: '', city: '' })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const districts = form.region ? getDistricts(form.region) : []
-  const cities = form.region && form.district ? getCities(form.region, form.district) : []
+  const [cities, setCities] = useState<string[]>([])
 
-  const valid = form.name && form.type && form.region && form.district && form.city
+  // Localities are no longer in the bulk reference payload — 7,000 of them would
+  // be ten times the size of everything else the dashboard loads up front.
+  useEffect(() => {
+    if (!form.district) {
+      setCities([])
+
+      return
+    }
+
+    let cancelled = false
+
+    fetchCities(form.district)
+      .then(list => {
+        if (!cancelled) setCities(list)
+      })
+      .catch(() => {
+        if (!cancelled) setCities([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [form.district])
+
+  const valid = form.name && form.type && form.region && form.district && (form.city || cities.length === 0)
 
   // Cascade resets so a stale district/city can't survive a region change.
   const update = (field: keyof typeof form, value: string) => {
@@ -112,8 +137,13 @@ return
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth required>
-            <InputLabel>Region</InputLabel>
-            <Select label='Region' value={form.region} onChange={e => update('region', e.target.value)}>
+            <InputLabel id='property-step-region-label'>Region</InputLabel>
+            <Select
+              labelId='property-step-region-label'
+              label='Region'
+              value={form.region}
+              onChange={e => update('region', e.target.value)}
+            >
               {ref.regions.map(r => (
                 <MenuItem key={r.value} value={r.value}>
                   {r.label}
@@ -124,8 +154,13 @@ return
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FormControl fullWidth required disabled={!form.region}>
-            <InputLabel>District</InputLabel>
-            <Select label='District' value={form.district} onChange={e => update('district', e.target.value)}>
+            <InputLabel id='property-step-district-label'>District</InputLabel>
+            <Select
+              labelId='property-step-district-label'
+              label='District'
+              value={form.district}
+              onChange={e => update('district', e.target.value)}
+            >
               {districts.map(d => (
                 <MenuItem key={d.value} value={d.value}>
                   {d.label}
@@ -136,8 +171,13 @@ return
         </Grid>
         <Grid size={{ xs: 12 }}>
           <FormControl fullWidth required disabled={!form.district}>
-            <InputLabel>City / area</InputLabel>
-            <Select label='City / area' value={form.city} onChange={e => update('city', e.target.value)}>
+            <InputLabel id='property-step-city-label'>City / area</InputLabel>
+            <Select
+              labelId='property-step-city-label'
+              label='City / area'
+              value={form.city}
+              onChange={e => update('city', e.target.value)}
+            >
               {cities.map(c => (
                 <MenuItem key={c} value={c}>
                   {c}

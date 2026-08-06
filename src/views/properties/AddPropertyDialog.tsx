@@ -48,6 +48,7 @@ import {
   uploadPropertyImages
 } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { getCities as fetchCities } from '@/lib/api/reference'
 import { BATHROOM_OPTIONS, BEDROOM_OPTIONS, ROOM_OPTIONS, toCountOption } from '@/lib/property-options'
 
 // Context Imports
@@ -288,7 +289,31 @@ const AddPropertyDialog = ({
 
   // Derived location data — computed from current formData (must come after useState)
   const districtsForRegion = ref.regions.find(r => r.value === formData.region)?.districts ?? []
-  const citiesForDistrict = districtsForRegion.find(d => d.value === formData.district)?.cities ?? []
+  const [citiesForDistrict, setCitiesForDistrict] = useState<string[]>([])
+
+  // Localities are no longer in the bulk reference payload — 7,000 of them would
+  // be ten times the size of everything else the dashboard loads up front.
+  useEffect(() => {
+    if (!formData.district) {
+      setCitiesForDistrict([])
+
+      return
+    }
+
+    let cancelled = false
+
+    fetchCities(formData.district)
+      .then(list => {
+        if (!cancelled) setCitiesForDistrict(list)
+      })
+      .catch(() => {
+        if (!cancelled) setCitiesForDistrict([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [formData.district])
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
@@ -410,7 +435,7 @@ const AddPropertyDialog = ({
       if (!formData.condition) newErrors.condition = true
       if (!formData.region) newErrors.region = true
       if (!formData.district) newErrors.district = true
-      if (!formData.city) newErrors.city = true
+      if (!formData.city && citiesForDistrict.length > 0) newErrors.city = true
     } else if (step === 1) {
       // Validate Step 2: Property Features
       if (!formData.bedrooms) newErrors.bedrooms = true
