@@ -38,7 +38,9 @@ type PropertyData = {
   rooms?: string
   amenities?: Record<string, boolean>
   images?: string[]
+  imageFileIds?: string[]
   thumbnailIndex?: number | null
+  status?: string
   price?: string
   ownership?: string
   totalUnits?: number
@@ -70,6 +72,7 @@ const PropertyDetailHeader = ({ propertyData, propertyId }: { propertyData?: Pro
     ? {
         id: propertyData.id,
         name: propertyData.name,
+        status: propertyData.status,
         type: propertyData.type,
         condition: propertyData.condition,
         region: propertyData.region,
@@ -82,6 +85,10 @@ const PropertyDetailHeader = ({ propertyData, propertyId }: { propertyData?: Pro
         rooms: propertyData.rooms,
         amenities: propertyData.amenities,
         images: propertyData.images,
+
+        // Paired positionally with `images`; dropping it orphans the files on
+        // ImageKit when the property is later edited or deleted.
+        imageFileIds: propertyData.imageFileIds,
         thumbnailIndex: propertyData.thumbnailIndex,
         price: propertyData.price,
         address: propertyData.address,

@@ -3,6 +3,12 @@ import { cookies } from 'next/headers'
 
 // API Imports
 import { serverGetPropertyById } from '@/lib/api/properties.server'
+import {
+  BATHROOM_OPTIONS,
+  BEDROOM_OPTIONS,
+  ROOM_OPTIONS,
+  toCountOption
+} from '@/lib/property-options'
 
 // Component Imports
 import PropertyDetails from '@/views/properties/view/PropertyDetails'
@@ -21,16 +27,6 @@ function toTitleCase(str: string | undefined | null) {
     .split(/[\s_-]+/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ')
-}
-
-/**
- * Maps numbers to UI select strings (e.g., 6 -> "6+").
- */
-function mapToSelectValue(val: number | undefined | null, max: number) {
-  if (val === undefined || val === null) return ''
-  if (val >= max) return `${max}+`
-
-  return val.toString()
 }
 
 /**
@@ -65,9 +61,9 @@ function toPropertyViewData(property: Record<string, any>) {
     stock: property.status === 'active',
     address: property.gpsCode || property.address?.street || '',
     price: property.currentValue ? `${property.currency ?? '₵'}${property.currentValue.toLocaleString()}` : 'N/A',
-    bedrooms: mapToSelectValue(property.bedrooms, 6),
-    bathrooms: mapToSelectValue(property.bathrooms, 5),
-    rooms: mapToSelectValue(property.rooms, 6),
+    bedrooms: toCountOption(property.bedrooms, BEDROOM_OPTIONS),
+    bathrooms: toCountOption(property.bathrooms, BATHROOM_OPTIONS),
+    rooms: toCountOption(property.rooms, ROOM_OPTIONS),
     facilities: property.amenities || [],
     condition: toTitleCase(property.condition) || 'New',
     region: toTitleCase(property.region) || '',
@@ -76,10 +72,12 @@ function toPropertyViewData(property: Record<string, any>) {
     gpsCode: property.gpsCode || '',
     description: property.description || '',
     images: property.images || [],
+    imageFileIds: property.imageFileIds || [],
     thumbnailIndex: property.thumbnailIndex ?? 0,
     amenities: amenitiesRecord,
 
     // Raw backend fields preserved for the edit dialog payload
+    status: property.status,
     ownership: property.ownership || 'own',
     totalUnits: property.totalUnits ?? 0,
     occupiedUnits: property.occupiedUnits ?? 0,

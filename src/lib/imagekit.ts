@@ -77,6 +77,17 @@ export async function uploadImage(
   file: File,
   options: UploadOptions = {}
 ): Promise<UploadedFile> {
+  // Fail here rather than sending publicKey='' and letting ImageKit answer
+  // "Your request is missing publicKey parameter." — that message reads as a
+  // bug in the upload code when the real cause is a build-time config gap.
+  // NEXT_PUBLIC_* values are inlined at build time, so a container built
+  // without this set cannot be fixed by restarting it: it needs a rebuild.
+  if (!PUBLIC_KEY) {
+    throw new Error(
+      'Image upload is not configured: NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY was empty when this app was built. Rebuild with the key set.'
+    )
+  }
+
   const auth = await getAuthParams()
 
   const {

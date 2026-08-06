@@ -28,8 +28,10 @@ type PropertyData = {
   gpsCode: string
   description: string
   images: string[]
+  imageFileIds?: string[]
   thumbnailIndex: number
   amenities: Record<string, boolean>
+  status?: string
 }
 
 const PropertyDetails = ({

@@ -727,6 +727,7 @@ const PropertiesListTable = () => {
             ? {
                 id: selectedProperty.id,
                 name: selectedProperty.name,
+                status: selectedProperty.status,
                 type: selectedProperty.type,
                 region: selectedProperty.region || '',
                 district: selectedProperty.district || '',
@@ -751,6 +752,11 @@ const PropertiesListTable = () => {
                   return acc
                 }, {} as Record<string, boolean>),
                 images: selectedProperty.images || [],
+
+                // Paired positionally with `images`. Without it the dialog
+                // re-submits the URLs while dropping their file ids, which both
+                // breaks the pairing and orphans the files on ImageKit.
+                imageFileIds: selectedProperty.imageFileIds || [],
                 thumbnailIndex: selectedProperty.thumbnailIndex
               }
             : null

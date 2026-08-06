@@ -13,7 +13,14 @@ import { cookies } from 'next/headers'
 // ---------------------------------------------------------------------------
 // Base URL (mirrors client.ts)
 // ---------------------------------------------------------------------------
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1'
+// NEXT_PUBLIC_API_BASE_URL is the BROWSER's route to the API. This module runs
+// on the Node server, which may not share that route — in Docker the browser
+// reaches the API on localhost:<published port> while the server must use the
+// compose service name. API_BASE_URL_INTERNAL overrides it for server-side
+// fetches; without it every Server Component page ECONNREFUSEs in a container.
+// It is read at runtime (not NEXT_PUBLIC_, so not inlined at build time).
+const API_BASE =
+  process.env.API_BASE_URL_INTERNAL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1'
 
 // ---------------------------------------------------------------------------
 // Helpers

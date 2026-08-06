@@ -48,6 +48,7 @@ import {
   uploadPropertyImages
 } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { BATHROOM_OPTIONS, BEDROOM_OPTIONS, ROOM_OPTIONS, toCountOption } from '@/lib/property-options'
 
 // Context Imports
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
@@ -55,6 +56,9 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 type PropertyEditData = {
   id?: string
   name?: string
+  /** Backend status. Only a 'draft' record can be saved through the draft
+   *  endpoints — the backend rejects the rest with 409. */
+  status?: string
   type?: string
   condition?: string
   city?: string
@@ -260,9 +264,11 @@ const AddPropertyDialog = ({
         city: editData.city || '',
         gpsCode: editData.gpsCode || '',
         description: editData.description || '',
-        bedrooms: editData.bedrooms?.toString() || '',
-        bathrooms: editData.bathrooms?.toString() || '',
-        rooms: editData.rooms?.toString() || '',
+        // Stored counts are plain integers; map them back onto the option
+        // values so an open-ended count ("6+" → 6) prefills instead of blanking.
+        bedrooms: toCountOption(editData.bedrooms, BEDROOM_OPTIONS),
+        bathrooms: toCountOption(editData.bathrooms, BATHROOM_OPTIONS),
+        rooms: toCountOption(editData.rooms, ROOM_OPTIONS),
         amenities: editData.amenities || buildEmptyAmenities(),
         images: [],
         thumbnailIndex: editData.thumbnailIndex ?? null
@@ -301,6 +307,11 @@ const AddPropertyDialog = ({
 
   // Vars
   const isLastStep = activeStep === steps.length - 1
+
+  // A draft can only be saved while the record still IS a draft. Offering the
+  // button on a published property produced a 409 ("Property is no longer a
+  // draft") on every click, which the dialog swallowed — it read as a dead button.
+  const canSaveDraft = mode === 'add' || editData?.status === 'draft'
 
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => {
@@ -415,6 +426,9 @@ const AddPropertyDialog = ({
   const handleNext = () => {
     if (activeStep < steps.length - 1) {
       if (validateStep(activeStep)) {
+        // The banner describes the step you were on; carrying it forward makes
+        // it describe a problem that is no longer in front of the user.
+        setSubmitError(null)
         setActiveStep(prevActiveStep => prevActiveStep + 1)
       }
     } else {
@@ -425,6 +439,7 @@ const AddPropertyDialog = ({
 
   const handlePrev = () => {
     if (activeStep > 0) {
+      setSubmitError(null)
       setActiveStep(prevActiveStep => prevActiveStep - 1)
     }
   }
@@ -584,9 +599,15 @@ const AddPropertyDialog = ({
   }
 
   const handleSaveDraft = async () => {
-    // Validate at least the property name exists
+    setSubmitError(null)
+
+    // Validate at least the property name exists. The name lives on step 1, so
+    // from any later step the highlight alone is invisible — say why, and go
+    // back to the field that needs filling.
     if (!formData.propertyName.trim()) {
       setErrors({ propertyName: true })
+      setSubmitError('A property name is required before the draft can be saved.')
+      setActiveStep(0)
 
       return
     }
@@ -594,7 +615,7 @@ const AddPropertyDialog = ({
     const tenantId = getStoredTenantId()
 
     if (!tenantId) {
-      console.error('No tenant ID found')
+      setSubmitError('No workspace selected. Sign in again and retry.')
 
       return
     }
@@ -675,13 +696,11 @@ const AddPropertyDialog = ({
         setDraftId(response.data.id)
       }
 
-      // Show success (you could add a toast notification here)
-      console.log('Draft saved successfully')
       handleClose()
-    } catch (error) {
-      console.error('Failed to save draft:', error)
-
-      // Show error (you could add a toast notification here)
+    } catch (error: any) {
+      // Previously this was console.error only: a failed save left the dialog
+      // sitting there with no indication anything had gone wrong.
+      setSubmitError(error?.message || 'Could not save the draft. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -875,12 +894,11 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('bedrooms', e.target.value)}
                   >
                     <MenuItem value=''>Select Bedrooms</MenuItem>
-                    <MenuItem value='1'>1</MenuItem>
-                    <MenuItem value='2'>2</MenuItem>
-                    <MenuItem value='3'>3</MenuItem>
-                    <MenuItem value='4'>4</MenuItem>
-                    <MenuItem value='5'>5</MenuItem>
-                    <MenuItem value='6+'>6+</MenuItem>
+                    {BEDROOM_OPTIONS.map(o => (
+                      <MenuItem key={o} value={o}>
+                        {o}
+                      </MenuItem>
+                    ))}
                   </Select>
                   {errors.bedrooms && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -900,11 +918,11 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('bathrooms', e.target.value)}
                   >
                     <MenuItem value=''>Select Bathrooms</MenuItem>
-                    <MenuItem value='1'>1</MenuItem>
-                    <MenuItem value='2'>2</MenuItem>
-                    <MenuItem value='3'>3</MenuItem>
-                    <MenuItem value='4'>4</MenuItem>
-                    <MenuItem value='5+'>5+</MenuItem>
+                    {BATHROOM_OPTIONS.map(o => (
+                      <MenuItem key={o} value={o}>
+                        {o}
+                      </MenuItem>
+                    ))}
                   </Select>
                   {errors.bathrooms && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -924,12 +942,11 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('rooms', e.target.value)}
                   >
                     <MenuItem value=''>Select Rooms</MenuItem>
-                    <MenuItem value='1'>1</MenuItem>
-                    <MenuItem value='2'>2</MenuItem>
-                    <MenuItem value='3'>3</MenuItem>
-                    <MenuItem value='4'>4</MenuItem>
-                    <MenuItem value='5'>5</MenuItem>
-                    <MenuItem value='6+'>6+</MenuItem>
+                    {ROOM_OPTIONS.map(o => (
+                      <MenuItem key={o} value={o}>
+                        {o}
+                      </MenuItem>
+                    ))}
                   </Select>
                   {errors.rooms && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -1611,7 +1628,7 @@ const AddPropertyDialog = ({
                   fontSize: '0.875rem'
                 }}
               >
-                <strong>Upload error:</strong> {submitError}
+                <strong>Error:</strong> {submitError}
               </Box>
             )}
             <div className='flex items-center justify-between gap-4 mts-4 pt-4 border-t'>
@@ -1624,15 +1641,19 @@ const AddPropertyDialog = ({
                 Previous
               </Button>
               <div className='flex items-center gap-2'>
-                <Button
-                  variant='outlined'
-                  color='primary'
-                  onClick={handleSaveDraft}
-                  disabled={isSaving}
-                  startIcon={isSaving ? <CircularProgress size={16} color='inherit' /> : <i className='ri-save-line' />}
-                >
-                  {isSaving ? 'Saving...' : 'SAVE DRAFT 🗐'}
-                </Button>
+                {canSaveDraft && (
+                  <Button
+                    variant='outlined'
+                    color='primary'
+                    onClick={handleSaveDraft}
+                    disabled={isSaving}
+                    startIcon={
+                      isSaving ? <CircularProgress size={16} color='inherit' /> : <i className='ri-save-line' />
+                    }
+                  >
+                    {isSaving ? 'Saving...' : 'SAVE DRAFT 🗐'}
+                  </Button>
+                )}
                 <Button
                   variant='contained'
                   color='primary'
