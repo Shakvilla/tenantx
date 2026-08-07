@@ -97,4 +97,33 @@ describe('AddressSearchField', () => {
     // Hammering a free community service that just failed is how you get blocked.
     expect(searchPlaces).toHaveBeenCalledTimes(1)
   })
+
+  it('discards a stale response for a query the user has already cleared', async () => {
+    let resolveSearch: (result: { status: 'ok'; suggestions: typeof suggestion[] }) => void = () => {}
+
+    vi.mocked(searchPlaces).mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveSearch = resolve
+        })
+    )
+
+    render(<AddressSearchField onSelect={vi.fn()} />)
+    type('east legon')
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(searchPlaces).toHaveBeenCalledTimes(1)
+
+    // The user erases the query before the slow response ever lands.
+    type('')
+
+    // The stale response for "east legon" now resolves.
+    await act(async () => {
+      resolveSearch({ status: 'ok', suggestions: [suggestion] })
+    })
+
+    // It must not repopulate the dropdown with results for a query that is gone.
+    expect(screen.queryByText('23 Lagos Avenue, East Legon, Accra')).not.toBeInTheDocument()
+  })
 })

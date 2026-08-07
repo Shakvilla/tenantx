@@ -30,25 +30,41 @@ const AddressSearchField = ({ onSelect, disabled }: Props) => {
   const requestId = useRef(0)
 
   useEffect(() => {
+    // Bump on every effect run — not only when a request is actually
+    // dispatched. A query change, the field clearing, or a disabled/unavailable
+    // flip must all invalidate anything already in flight, otherwise a slow
+    // response for a query the user has since erased (or a field that has
+    // since been disabled) can land late and repopulate stale suggestions.
+    // Do NOT "optimise" this back down into the dispatch branch below — that
+    // reintroduces exactly that bug.
+    const id = ++requestId.current
+
     // Once the geocoder has told us it is down, stop asking. It is a free
     // community service and retrying on every keystroke is how you get blocked.
-    if (unavailable || disabled) return
+    if (unavailable || disabled) {
+      setLoading(false)
+
+      return
+    }
 
     const trimmed = query.trim()
 
     if (trimmed.length < MIN_QUERY_LENGTH) {
       setOptions([])
+      setLoading(false)
 
       return
     }
 
-    const id = ++requestId.current
     const timer = setTimeout(async () => {
       setLoading(true)
 
       const result = await searchPlaces(trimmed)
 
-      // A slower earlier request must not overwrite a faster later one.
+      // A slower earlier request must not overwrite a faster later one — nor
+      // one that's since been superseded by the field clearing or disabling.
+      // Whichever run bumped requestId.current last already put loading/options
+      // into the right state, so a stale run has nothing left to clean up.
       if (id !== requestId.current) return
 
       setLoading(false)
