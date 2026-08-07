@@ -48,16 +48,13 @@ import {
   uploadPropertyImages
 } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
-import { getCities as fetchCities } from '@/lib/api/reference'
 import { BATHROOM_OPTIONS, BEDROOM_OPTIONS, ROOM_OPTIONS, toCountOption } from '@/lib/property-options'
 
 // Context Imports
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // Address Autocomplete Imports
-import AddressSearchField from '@/components/address/AddressSearchField'
-import type { PlaceSuggestion } from '@/lib/api/places'
-import { applyPlaceToForm, describeAutofill } from './addressAutofill'
+import PropertyAddressFields from '@/components/address/PropertyAddressFields'
 
 type PropertyEditData = {
   id?: string
@@ -291,68 +288,12 @@ const AddPropertyDialog = ({
   const [isSaving, setIsSaving] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
-  const [autofillNote, setAutofillNote] = useState<string | null>(null)
-
-  // True only right after a suggestion filled city from its region-wide
-  // locality fallback (district: null, city set) — the exact case
-  // describeAutofill tells the user to "choose the district below". The
-  // region/district/city cascade below must not then wipe the very city it
-  // just told them was filled; see handleInputChange. One-shot: cleared the
-  // moment any field edit consumes or bypasses it.
-  const [cityFromAutofill, setCityFromAutofill] = useState(false)
 
   const [coordinates, setCoordinates] = useState<{
     latitude: number
     longitude: number
     placeId: string
   } | null>(null)
-
-  // Derived location data — computed from current formData (must come after useState)
-  const districtsForRegion = ref.regions.find(r => r.value === formData.region)?.districts ?? []
-  const [citiesForDistrict, setCitiesForDistrict] = useState<string[]>([])
-
-  // 'idle': no district picked yet. 'loading': fetch in flight. 'loaded': fetch
-  // resolved (citiesForDistrict may legitimately be empty). 'error': fetch failed.
-  // Kept separate from citiesForDistrict itself because an empty array alone
-  // can't distinguish "still loading" from "the request failed" from "this
-  // district genuinely has no localities" — see validateStep below.
-  const [citiesStatus, setCitiesStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle')
-  const [citiesRetryTick, setCitiesRetryTick] = useState(0)
-
-  // Localities are no longer in the bulk reference payload — 7,000 of them would
-  // be ten times the size of everything else the dashboard loads up front.
-  useEffect(() => {
-    if (!formData.district) {
-      setCitiesForDistrict([])
-      setCitiesStatus('idle')
-
-      return
-    }
-
-    let cancelled = false
-
-    setCitiesStatus('loading')
-
-    fetchCities(formData.district)
-      .then(list => {
-        if (!cancelled) {
-          setCitiesForDistrict(list)
-          setCitiesStatus('loaded')
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCitiesForDistrict([])
-          setCitiesStatus('error')
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [formData.district, citiesRetryTick])
-
-  const retryCitiesFetch = () => setCitiesRetryTick(t => t + 1)
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
@@ -365,9 +306,7 @@ const AddPropertyDialog = ({
       setActiveStep(0)
       setErrors({})
       setSubmitError(null)
-      setAutofillNote(null)
       setCoordinates(null)
-      setCityFromAutofill(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
@@ -381,22 +320,8 @@ const AddPropertyDialog = ({
   const canSaveDraft = mode === 'add' || editData?.status === 'draft'
 
   const handleInputChange = (field: keyof FormDataType, value: string) => {
-    // A suggestion with district: null fills city from its region-wide
-    // locality fallback and tells the user (via autofillNote) to pick the
-    // district below. Consumed once, here — the normal cascade a couple of
-    // lines down must not then clear that same city.
-    const preserveCityOnDistrictChange = field === 'district' && cityFromAutofill
-
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
-
-      // Cascade location resets
-      if (field === 'region') {
-        updated.district = ''
-        updated.city = ''
-      } else if (field === 'district' && !preserveCityOnDistrictChange) {
-        updated.city = ''
-      }
 
       // Ensure amenities is always defined
       if (!updated.amenities) {
@@ -409,44 +334,11 @@ const AddPropertyDialog = ({
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
-
-    // Coordinates and the autofill note describe one specific picked place —
-    // not the address fields in general. The moment the user hand-edits any
-    // part of the address (region, district or city), those two no longer
-    // describe what the form holds: submitting the old lat/lng/placeId next
-    // to a hand-picked district would be wrong in a way that looks deliberate,
-    // exactly the failure the geocoder-match rules elsewhere guard against.
-    // Unrelated fields (name, description, ...) leave both untouched.
-    if (field === 'region' || field === 'district' || field === 'city') {
-      setCoordinates(null)
-      setAutofillNote(null)
-
-      // preserveCityOnDistrictChange (above) already captured whatever
-      // cityFromAutofill was before this edit, so the cascade above still
-      // saw the correct value. Clearing it here — only for address-field
-      // edits — means a second district change won't preserve a city that
-      // was already consumed or was never autofilled to begin with.
-      if (cityFromAutofill) {
-        setCityFromAutofill(false)
-      }
-    }
   }
 
-  const handlePlaceSelected = (place: PlaceSuggestion) => {
-    setFormData(prev => ({
-      ...applyPlaceToForm(prev, place)
-
-      // gpsCode is Ghana Post's digital address. No geocoder has it, so it is
-      // never touched here even though it sits among the address fields.
-    }))
-    setCoordinates({
-      latitude: place.latitude,
-      longitude: place.longitude,
-      placeId: place.placeId
-    })
-    setAutofillNote(describeAutofill(place))
-    setCityFromAutofill(!place.district && Boolean(place.city))
-    setErrors(prev => ({ ...prev, region: false, district: false, city: false }))
+  const handleAddressChange = (patch: Partial<{ region: string; district: string; city: string }>) => {
+    setFormData(prev => ({ ...prev, ...patch }))
+    setErrors(prev => ({ ...prev, ...Object.fromEntries(Object.keys(patch).map(k => [k, false])) }))
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -522,15 +414,7 @@ const AddPropertyDialog = ({
       if (!formData.region) newErrors.region = true
       if (!formData.district) newErrors.district = true
 
-      // An empty citiesForDistrict alone can't tell "still loading", "fetch
-      // failed" and "this district genuinely has no localities" apart — only a
-      // completed ('loaded') fetch that came back empty may waive City. While
-      // 'loading' or 'error', City stays required (and the field has no options
-      // to pick from yet), which blocks Next rather than silently accepting a
-      // blank city that the network just hasn't had a chance to fill in.
-      if (formData.district && !formData.city && !(citiesStatus === 'loaded' && citiesForDistrict.length === 0)) {
-        newErrors.city = true
-      }
+      if (formData.district && !formData.city) newErrors.city = true
     } else if (step === 1) {
       // Validate Step 2: Property Features
       if (!formData.bedrooms) newErrors.bedrooms = true
@@ -852,23 +736,13 @@ const AddPropertyDialog = ({
         return (
           <div className='flex flex-col gap-4'>
             <Grid container spacing={6}>
-              {/* Edit mode only: UpdatePropertyRequest carries neither
-                  latitude/longitude/placeId nor a way to save a hand-picked
-                  region/district (the edit payload below sources those from
-                  editData, not formData), so anything this field fills here
-                  cannot be saved. A control that looks like it worked and
-                  silently changed almost nothing is worse than no control —
-                  see IMPORTANT 1 of the whole-branch review. */}
-              {mode !== 'edit' && (
-                <Grid size={{ xs: 12 }}>
-                  <AddressSearchField onSelect={handlePlaceSelected} />
-                  {autofillNote && (
-                    <Typography variant='caption' color='success.main' className='mts-1 block'>
-                      {autofillNote}
-                    </Typography>
-                  )}
-                </Grid>
-              )}
+              <PropertyAddressFields
+                value={{ region: formData.region, district: formData.district, city: formData.city }}
+                onChange={handleAddressChange}
+                onCoordinates={setCoordinates}
+                searchable={mode !== 'edit'}
+                errors={{ region: errors.region, district: errors.district, city: errors.city }}
+              />
               <Grid size={{ xs: 12 }}>
                 <TextField
                   size='small'
@@ -919,95 +793,6 @@ const AddPropertyDialog = ({
                     ))}
                   </Select>
                   {errors.condition && (
-                    <Typography variant='caption' color='error' className='mts-1'>
-                      This field is required.
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={Boolean(errors.region)} size='small'>
-                  <InputLabel id='region-label'>Region</InputLabel>
-                  <Select
-                    size='small'
-                    labelId='region-label'
-                    label='Region'
-                    value={formData.region}
-                    onChange={e => handleInputChange('region', e.target.value)}
-                  >
-                    <MenuItem value=''>Select Region</MenuItem>
-                    {ref.regions.map(r => (
-                      <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>
-                    ))}
-                  </Select>
-                  {errors.region && (
-                    <Typography variant='caption' color='error' className='mts-1'>
-                      This field is required.
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={Boolean(errors.district)} size='small'>
-                  <InputLabel id='district-label'>District</InputLabel>
-                  <Select
-                    size='small'
-                    labelId='district-label'
-                    label='District'
-                    value={formData.district}
-                    onChange={e => handleInputChange('district', e.target.value)}
-                  >
-                    <MenuItem value=''>Select District</MenuItem>
-                    {districtsForRegion.map(d => (
-                      <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>
-                    ))}
-                  </Select>
-                  {errors.district && (
-                    <Typography variant='caption' color='error' className='mts-1'>
-                      This field is required.
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={Boolean(errors.city)} size='small' disabled={citiesStatus === 'loading'}>
-                  <InputLabel id='city-label'>City</InputLabel>
-                  <Select
-                    labelId='city-label'
-                    label='City'
-                    value={formData.city}
-                    onChange={e => handleInputChange('city', e.target.value)}
-                  >
-                    <MenuItem value=''>Select City</MenuItem>
-                    {/* A city assigned outside the fetched list (autofilled from an
-                        address search whose locality fetch then failed, or any other
-                        case where the value predates/outlives citiesForDistrict) has
-                        nowhere else to render — MUI falls back to a blank Select when
-                        the current value matches no MenuItem, which reads as if the
-                        pick was lost even though formData.city is still correct. */}
-                    {formData.city && !citiesForDistrict.includes(formData.city) && (
-                      <MenuItem value={formData.city}>{formData.city}</MenuItem>
-                    )}
-                    {citiesForDistrict.map(city => (
-                      <MenuItem key={city} value={city}>{city}</MenuItem>
-                    ))}
-                  </Select>
-                  {citiesStatus === 'loading' && (
-                    <Typography variant='caption' color='text.secondary' className='mts-1'>
-                      Loading areas…
-                    </Typography>
-                  )}
-                  {citiesStatus === 'error' && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-                      <Typography variant='caption' color='error'>
-                        Couldn&apos;t load areas for this district.
-                      </Typography>
-                      <Button size='small' onClick={retryCitiesFetch}>
-                        Retry
-                      </Button>
-                    </Box>
-                  )}
-                  {errors.city && citiesStatus === 'loaded' && (
                     <Typography variant='caption' color='error' className='mts-1'>
                       This field is required.
                     </Typography>
