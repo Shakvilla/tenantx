@@ -155,7 +155,7 @@ const PropertyAddressFields = ({
         </Grid>
       )}
       <Grid size={{ xs: 12, sm: 6 }}>
-        <FormControl fullWidth error={Boolean(errors.region)} size={size}>
+        <FormControl fullWidth required error={Boolean(errors.region)} size={size}>
           <InputLabel id='address-region-label'>Region</InputLabel>
           <Select
             size={size}
@@ -179,7 +179,7 @@ const PropertyAddressFields = ({
         </FormControl>
       </Grid>
       <Grid size={{ xs: 12, sm: 6 }}>
-        <FormControl fullWidth error={Boolean(errors.district)} size={size}>
+        <FormControl fullWidth required error={Boolean(errors.district)} size={size} disabled={!value.region}>
           <InputLabel id='address-district-label'>District</InputLabel>
           <Select
             size={size}
@@ -203,7 +203,13 @@ const PropertyAddressFields = ({
         </FormControl>
       </Grid>
       <Grid size={{ xs: 12, sm: 6 }}>
-        <FormControl fullWidth error={Boolean(errors.city)} size={size} disabled={citiesStatus === 'loading'}>
+        <FormControl
+          fullWidth
+          required
+          error={Boolean(errors.city)}
+          size={size}
+          disabled={!value.district || citiesStatus === 'loading'}
+        >
           <InputLabel id='address-city-label'>{cityLabel}</InputLabel>
           <Select
             size={size}

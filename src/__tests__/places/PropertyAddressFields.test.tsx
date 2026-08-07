@@ -112,4 +112,42 @@ describe('PropertyAddressFields', () => {
     // blank Select, which reads as if the pick was lost.
     expect(await screen.findByText('East Legon')).toBeTruthy()
   })
+
+  it('disables District until a Region is chosen, then enables it', async () => {
+    render(<Harness />)
+
+    // No region yet — District has nothing to offer, so it must not open.
+    expect(screen.getByLabelText(/district/i)).toHaveAttribute('aria-disabled', 'true')
+
+    fireEvent.mouseDown(screen.getByLabelText(/region/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))
+
+    await waitFor(() => expect(screen.getByLabelText(/district/i)).not.toHaveAttribute('aria-disabled'))
+  })
+
+  it('disables City until a District is chosen', async () => {
+    render(<Harness />)
+
+    // Neither region nor district set — City has nothing to offer.
+    expect(screen.getByLabelText(/city/i)).toHaveAttribute('aria-disabled', 'true')
+
+    fireEvent.mouseDown(screen.getByLabelText(/region/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))
+
+    // Region alone still isn't enough — no district chosen yet.
+    expect(screen.getByLabelText(/city/i)).toHaveAttribute('aria-disabled', 'true')
+
+    fireEvent.mouseDown(screen.getByLabelText(/district/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Ayawaso West Municipal' }))
+
+    await waitFor(() => expect(screen.getByLabelText(/city/i)).not.toHaveAttribute('aria-disabled'))
+  })
+
+  it('marks Region, District and City as required', () => {
+    render(<Harness />)
+
+    expect(document.getElementById('address-region-label')?.textContent).toContain('*')
+    expect(document.getElementById('address-district-label')?.textContent).toContain('*')
+    expect(document.getElementById('address-city-label')?.textContent).toContain('*')
+  })
 })
