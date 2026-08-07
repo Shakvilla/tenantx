@@ -111,6 +111,51 @@ describe('AddPropertyDialog address autofill', () => {
     expect(payload.placeId).toBeUndefined()
   })
 
+  it('preserves the autofilled city when the user picks the district afterwards', async () => {
+    // GhanaLocationMatcher's region-wide locality fallback: district null,
+    // city present. describeAutofill tells the user "Please choose the
+    // district below" — the district cascade must not then wipe the city it
+    // just said was filled (IMPORTANT 2 of the whole-branch review).
+    const fallbackPlace = {
+      label: 'Community 25, Tema',
+      street: '',
+      region: 'greater-accra',
+      district: null,
+      city: 'Community 25',
+      latitude: 5.63,
+      longitude: -0.17,
+      placeId: 'osm:N999'
+    }
+
+    vi.mocked(searchPlaces).mockResolvedValue({ status: 'ok', suggestions: [fallbackPlace] })
+    vi.mocked(getCities).mockResolvedValue(['Cantonments', 'Osu'])
+
+    render(<AddPropertyDialog open handleClose={vi.fn()} setData={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Test Property' } })
+
+    typeAddress('community 25')
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    fireEvent.click(await screen.findByText(fallbackPlace.label))
+
+    expect(await screen.findByText(/please choose the district below/i)).toBeInTheDocument()
+
+    fireEvent.mouseDown(screen.getByLabelText(/district/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Accra Metropolitan' }))
+    await waitFor(() => expect(getCities).toHaveBeenCalledWith('accra-metro'))
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
+
+    await waitFor(() => expect(saveDraft).toHaveBeenCalled())
+
+    const payload = vi.mocked(saveDraft).mock.calls[0][1]
+
+    expect(payload.district).toBe('accra-metro')
+    expect(payload.address?.city).toBe('Community 25')
+  })
+
   it('still shows the autofilled city once the locality fetch for its district fails', async () => {
     vi.mocked(getCities).mockRejectedValue(new Error('network error'))
 

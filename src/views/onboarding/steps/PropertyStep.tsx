@@ -36,6 +36,14 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
     placeId: string
   } | null>(null)
 
+  // True only right after a suggestion filled city from its region-wide
+  // locality fallback (district: null, city set) — the exact case
+  // describeAutofill tells the user to "choose the district below". The
+  // region/district/city cascade in update() must not then wipe the very
+  // city it just told them was filled. One-shot: cleared the moment any
+  // field edit consumes or bypasses it.
+  const [cityFromAutofill, setCityFromAutofill] = useState(false)
+
   const districts = form.region ? getDistricts(form.region) : []
   const [cities, setCities] = useState<string[]>([])
 
@@ -90,13 +98,19 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
 
   // Cascade resets so a stale district/city can't survive a region change.
   const update = (field: keyof typeof form, value: string) => {
+    // A suggestion with district: null fills city from its region-wide
+    // locality fallback and tells the user (via autofillNote) to pick the
+    // district below. Consumed once, here — the cascade below must not then
+    // clear that same city.
+    const preserveCityOnDistrictChange = field === 'district' && cityFromAutofill
+
     setForm(prev => {
       const next = { ...prev, [field]: value }
 
       if (field === 'region') {
         next.district = ''
         next.city = ''
-      } else if (field === 'district') {
+      } else if (field === 'district' && !preserveCityOnDistrictChange) {
         next.city = ''
       }
 
@@ -114,6 +128,10 @@ return next
       setCoordinates(null)
       setAutofillNote(null)
     }
+
+    if (cityFromAutofill) {
+      setCityFromAutofill(false)
+    }
   }
 
   const handlePlaceSelected = (place: PlaceSuggestion) => {
@@ -124,6 +142,7 @@ return next
       placeId: place.placeId
     })
     setAutofillNote(describeAutofill(place))
+    setCityFromAutofill(!place.district && Boolean(place.city))
   }
 
   const handleSubmit = async () => {

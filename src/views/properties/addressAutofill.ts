@@ -43,9 +43,14 @@ export function describeAutofill(place: PlaceSuggestion): string {
     ] as const
   ).forEach(([name, value]) => (value ? filled.push(name) : missing.push(name)))
 
-  const filledPart = filled.length
-    ? `Filled ${list(filled)} from the address.`
-    : 'Filled the street from the address.'
+  // applyPlaceToForm never assigns street — it is not one of LocationFields —
+  // so a message claiming to have filled it would be false whenever nothing
+  // else matched either. Say only what actually happened.
+  if (!filled.length) {
+    return missing.length ? `Please choose the ${list(missing)} below.` : ''
+  }
+
+  const filledPart = `Filled ${list(filled)} from the address.`
 
   return missing.length ? `${filledPart} Please choose the ${list(missing)} below.` : filledPart
 }

@@ -44,6 +44,18 @@ describe('applyPlaceToForm', () => {
     expect(next.district).toBe('')
     expect(next.city).toBe('')
   })
+
+  it('assigns city from a region-wide fallback even though district is unmatched', () => {
+    // GhanaLocationMatcher's region-wide locality fallback: district null,
+    // city present. applyPlaceToForm itself has no opinion on preserving
+    // this city through a later district pick — that cascade lives in the
+    // callers (AddPropertyDialog, PropertyStep) — but it must assign what it
+    // was given.
+    const regionWideFallback = { ...full, district: null, city: 'Community 25' }
+    const next = applyPlaceToForm({ region: 'ashanti', district: 'kumasi-metro', city: 'Adum' }, regionWideFallback)
+
+    expect(next).toMatchObject({ region: 'greater-accra', district: '', city: 'Community 25' })
+  })
 })
 
 describe('describeAutofill', () => {
@@ -58,8 +70,23 @@ describe('describeAutofill', () => {
   })
 
   it('says so when nothing matched', () => {
+    // Must not claim to have filled the street: applyPlaceToForm never
+    // assigns it (street is not one of LocationFields), so that claim was
+    // false whenever region/district/city all missed too (IMPORTANT 4 of
+    // the whole-branch review).
     expect(describeAutofill({ ...full, region: null, district: null, city: null })).toBe(
-      'Filled the street from the address. Please choose the region, district and city below.'
+      'Please choose the region, district and city below.'
+    )
+  })
+
+  it('describes a region-wide fallback match (district null, city present)', () => {
+    // GhanaLocationMatcher can legitimately return a city with no district —
+    // its region-wide locality fallback. No test covered this exact shape
+    // before (IMPORTANT 2 of the whole-branch review).
+    const regionWideFallback = { ...full, district: null, city: 'Community 25' }
+
+    expect(describeAutofill(regionWideFallback)).toBe(
+      'Filled region and city from the address. Please choose the district below.'
     )
   })
 })

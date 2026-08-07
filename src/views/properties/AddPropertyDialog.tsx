@@ -293,6 +293,14 @@ const AddPropertyDialog = ({
   const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
   const [autofillNote, setAutofillNote] = useState<string | null>(null)
 
+  // True only right after a suggestion filled city from its region-wide
+  // locality fallback (district: null, city set) — the exact case
+  // describeAutofill tells the user to "choose the district below". The
+  // region/district/city cascade below must not then wipe the very city it
+  // just told them was filled; see handleInputChange. One-shot: cleared the
+  // moment any field edit consumes or bypasses it.
+  const [cityFromAutofill, setCityFromAutofill] = useState(false)
+
   const [coordinates, setCoordinates] = useState<{
     latitude: number
     longitude: number
@@ -359,6 +367,7 @@ const AddPropertyDialog = ({
       setSubmitError(null)
       setAutofillNote(null)
       setCoordinates(null)
+      setCityFromAutofill(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
@@ -372,6 +381,12 @@ const AddPropertyDialog = ({
   const canSaveDraft = mode === 'add' || editData?.status === 'draft'
 
   const handleInputChange = (field: keyof FormDataType, value: string) => {
+    // A suggestion with district: null fills city from its region-wide
+    // locality fallback and tells the user (via autofillNote) to pick the
+    // district below. Consumed once, here — the normal cascade a couple of
+    // lines down must not then clear that same city.
+    const preserveCityOnDistrictChange = field === 'district' && cityFromAutofill
+
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
 
@@ -379,7 +394,7 @@ const AddPropertyDialog = ({
       if (field === 'region') {
         updated.district = ''
         updated.city = ''
-      } else if (field === 'district') {
+      } else if (field === 'district' && !preserveCityOnDistrictChange) {
         updated.city = ''
       }
 
@@ -406,6 +421,10 @@ const AddPropertyDialog = ({
       setCoordinates(null)
       setAutofillNote(null)
     }
+
+    if (cityFromAutofill) {
+      setCityFromAutofill(false)
+    }
   }
 
   const handlePlaceSelected = (place: PlaceSuggestion) => {
@@ -421,6 +440,7 @@ const AddPropertyDialog = ({
       placeId: place.placeId
     })
     setAutofillNote(describeAutofill(place))
+    setCityFromAutofill(!place.district && Boolean(place.city))
     setErrors(prev => ({ ...prev, region: false, district: false, city: false }))
   }
 
@@ -827,14 +847,23 @@ const AddPropertyDialog = ({
         return (
           <div className='flex flex-col gap-4'>
             <Grid container spacing={6}>
-              <Grid size={{ xs: 12 }}>
-                <AddressSearchField onSelect={handlePlaceSelected} />
-                {autofillNote && (
-                  <Typography variant='caption' color='success.main' className='mts-1 block'>
-                    {autofillNote}
-                  </Typography>
-                )}
-              </Grid>
+              {/* Edit mode only: UpdatePropertyRequest carries neither
+                  latitude/longitude/placeId nor a way to save a hand-picked
+                  region/district (the edit payload below sources those from
+                  editData, not formData), so anything this field fills here
+                  cannot be saved. A control that looks like it worked and
+                  silently changed almost nothing is worse than no control —
+                  see IMPORTANT 1 of the whole-branch review. */}
+              {mode !== 'edit' && (
+                <Grid size={{ xs: 12 }}>
+                  <AddressSearchField onSelect={handlePlaceSelected} />
+                  {autofillNote && (
+                    <Typography variant='caption' color='success.main' className='mts-1 block'>
+                      {autofillNote}
+                    </Typography>
+                  )}
+                </Grid>
+              )}
               <Grid size={{ xs: 12 }}>
                 <TextField
                   size='small'
