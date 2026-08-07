@@ -148,6 +148,11 @@ describe('PropertyStep address autofill', () => {
     // describeAutofill tells the user "Please choose the district below" for
     // this shape — the district cascade must not then wipe the city it just
     // said was filled (IMPORTANT 2 of the whole-branch review).
+    //
+    // Tema Metropolitan is the district Community 25 actually belongs to —
+    // asserting the preserved city under an unrelated district (e.g. Accra
+    // Metropolitan) would pass even if the preservation logic paired the
+    // city with the wrong district.
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
     fireEvent.click(screen.getByText('pick fallback address'))
 
@@ -155,7 +160,7 @@ describe('PropertyStep address autofill', () => {
     expect(screen.getByLabelText(/city/i).textContent).toContain('Community 25')
 
     fireEvent.mouseDown(screen.getByLabelText(/district/i))
-    fireEvent.click(await screen.findByRole('option', { name: 'Accra Metropolitan' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Tema Metropolitan' }))
 
     expect(screen.getByLabelText(/city/i).textContent).toContain('Community 25')
 
@@ -170,7 +175,7 @@ describe('PropertyStep address autofill', () => {
 
     const payload = vi.mocked(createProperty).mock.calls[0][1] as any
 
-    expect(payload.district).toBe('accra-metro')
+    expect(payload.district).toBe('tema-metro')
     expect(payload.address.city).toBe('Community 25')
   })
 
