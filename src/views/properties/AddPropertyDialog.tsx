@@ -394,6 +394,18 @@ const AddPropertyDialog = ({
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
+
+    // Coordinates and the autofill note describe one specific picked place —
+    // not the address fields in general. The moment the user hand-edits any
+    // part of the address (region, district or city), those two no longer
+    // describe what the form holds: submitting the old lat/lng/placeId next
+    // to a hand-picked district would be wrong in a way that looks deliberate,
+    // exactly the failure the geocoder-match rules elsewhere guard against.
+    // Unrelated fields (name, description, ...) leave both untouched.
+    if (field === 'region' || field === 'district' || field === 'city') {
+      setCoordinates(null)
+      setAutofillNote(null)
+    }
   }
 
   const handlePlaceSelected = (place: PlaceSuggestion) => {
@@ -933,6 +945,15 @@ const AddPropertyDialog = ({
                     onChange={e => handleInputChange('city', e.target.value)}
                   >
                     <MenuItem value=''>Select City</MenuItem>
+                    {/* A city assigned outside the fetched list (autofilled from an
+                        address search whose locality fetch then failed, or any other
+                        case where the value predates/outlives citiesForDistrict) has
+                        nowhere else to render — MUI falls back to a blank Select when
+                        the current value matches no MenuItem, which reads as if the
+                        pick was lost even though formData.city is still correct. */}
+                    {formData.city && !citiesForDistrict.includes(formData.city) && (
+                      <MenuItem value={formData.city}>{formData.city}</MenuItem>
+                    )}
                     {citiesForDistrict.map(city => (
                       <MenuItem key={city} value={city}>{city}</MenuItem>
                     ))}
