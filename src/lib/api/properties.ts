@@ -254,6 +254,9 @@ interface DraftPayload {
   images?: string[]
   imageFileIds?: string[]
   thumbnailIndex?: number
+  latitude?: number
+  longitude?: number
+  placeId?: string
 }
 
 /**

@@ -54,6 +54,11 @@ import { BATHROOM_OPTIONS, BEDROOM_OPTIONS, ROOM_OPTIONS, toCountOption } from '
 // Context Imports
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
+// Address Autocomplete Imports
+import AddressSearchField from '@/components/address/AddressSearchField'
+import type { PlaceSuggestion } from '@/lib/api/places'
+import { applyPlaceToForm, describeAutofill } from './addressAutofill'
+
 type PropertyEditData = {
   id?: string
   name?: string
@@ -286,6 +291,13 @@ const AddPropertyDialog = ({
   const [isSaving, setIsSaving] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
+  const [autofillNote, setAutofillNote] = useState<string | null>(null)
+
+  const [coordinates, setCoordinates] = useState<{
+    latitude: number
+    longitude: number
+    placeId: string
+  } | null>(null)
 
   // Derived location data — computed from current formData (must come after useState)
   const districtsForRegion = ref.regions.find(r => r.value === formData.region)?.districts ?? []
@@ -345,6 +357,8 @@ const AddPropertyDialog = ({
       setActiveStep(0)
       setErrors({})
       setSubmitError(null)
+      setAutofillNote(null)
+      setCoordinates(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
@@ -380,6 +394,22 @@ const AddPropertyDialog = ({
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
+  }
+
+  const handlePlaceSelected = (place: PlaceSuggestion) => {
+    setFormData(prev => ({
+      ...applyPlaceToForm(prev, place)
+
+      // gpsCode is Ghana Post's digital address. No geocoder has it, so it is
+      // never touched here even though it sits among the address fields.
+    }))
+    setCoordinates({
+      latitude: place.latitude,
+      longitude: place.longitude,
+      placeId: place.placeId
+    })
+    setAutofillNote(describeAutofill(place))
+    setErrors(prev => ({ ...prev, region: false, district: false, city: false }))
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -573,6 +603,7 @@ const AddPropertyDialog = ({
         images: imageUrls,
         imageFileIds: imageFileIds,
         thumbnailIndex: formData.thumbnailIndex ?? undefined,
+        ...(coordinates ?? {}),
 
         // Financial data
         purchasePrice: (mode === 'edit' && editData?.purchasePrice) ? Number(editData.purchasePrice) : undefined,
@@ -721,7 +752,8 @@ const AddPropertyDialog = ({
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
         imageFileIds: imageFileIds.length > 0 ? imageFileIds : undefined,
-        thumbnailIndex: formData.thumbnailIndex ?? undefined
+        thumbnailIndex: formData.thumbnailIndex ?? undefined,
+        ...(coordinates ?? {})
       }
 
       // Call API - if editing draft, update; otherwise save new
@@ -783,6 +815,14 @@ const AddPropertyDialog = ({
         return (
           <div className='flex flex-col gap-4'>
             <Grid container spacing={6}>
+              <Grid size={{ xs: 12 }}>
+                <AddressSearchField onSelect={handlePlaceSelected} />
+                {autofillNote && (
+                  <Typography variant='caption' color='success.main' className='mts-1 block'>
+                    {autofillNote}
+                  </Typography>
+                )}
+              </Grid>
               <Grid size={{ xs: 12 }}>
                 <TextField
                   size='small'
