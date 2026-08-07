@@ -20,12 +20,21 @@ import { getCities as fetchCities } from '@/lib/api/reference'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import type { Property } from '@/types/property'
 import type { OnboardingStepProps } from '../onboardingTypes'
+import AddressSearchField from '@/components/address/AddressSearchField'
+import type { PlaceSuggestion } from '@/lib/api/places'
+import { applyPlaceToForm, describeAutofill } from '@/views/properties/addressAutofill'
 
 export default function PropertyStep({ tenantId, onComplete, onSkip }: OnboardingStepProps) {
   const { ref, getDistricts } = useReferenceData()
   const [form, setForm] = useState({ name: '', type: '', region: '', district: '', city: '' })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [autofillNote, setAutofillNote] = useState<string | null>(null)
+  const [coordinates, setCoordinates] = useState<{
+    latitude: number
+    longitude: number
+    placeId: string
+  } | null>(null)
 
   const districts = form.region ? getDistricts(form.region) : []
   const [cities, setCities] = useState<string[]>([])
@@ -91,9 +100,30 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
         next.city = ''
       }
 
-      
+
 return next
     })
+
+    // Coordinates and the autofill note describe one specific picked place —
+    // not the address fields in general. The moment the user hand-edits any
+    // part of the address (region, district or city), those two no longer
+    // describe what the form holds: submitting the old lat/lng/placeId next
+    // to a hand-picked district would be wrong in a way that looks deliberate.
+    // Unrelated fields (name, type) leave both untouched.
+    if (field === 'region' || field === 'district' || field === 'city') {
+      setCoordinates(null)
+      setAutofillNote(null)
+    }
+  }
+
+  const handlePlaceSelected = (place: PlaceSuggestion) => {
+    setForm(prev => applyPlaceToForm(prev, place))
+    setCoordinates({
+      latitude: place.latitude,
+      longitude: place.longitude,
+      placeId: place.placeId
+    })
+    setAutofillNote(describeAutofill(place))
   }
 
   const handleSubmit = async () => {
@@ -109,6 +139,7 @@ return next
         region: form.region,
         district: form.district,
         currency: 'GHS',
+        ...(coordinates ?? {}),
         address: {
           street: form.city,
           city: form.city,
@@ -139,6 +170,12 @@ return
         </Alert>
       )}
       <Grid container spacing={4}>
+        <Grid size={{ xs: 12 }}>
+          <AddressSearchField onSelect={handlePlaceSelected} />
+          {autofillNote && (
+            <Box sx={{ mt: 1, fontSize: '0.75rem', color: 'success.main' }}>{autofillNote}</Box>
+          )}
+        </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
@@ -208,6 +245,15 @@ return
               value={form.city}
               onChange={e => update('city', e.target.value)}
             >
+              {/* A city assigned outside the fetched list (autofilled from an address
+                  search whose locality fetch then failed, or any other case where the
+                  value predates/outlives `cities`) has nowhere else to render — MUI
+                  falls back to a blank Select when the current value matches no
+                  MenuItem, which reads as if the pick was lost even though form.city
+                  is still correct. */}
+              {form.city && !cities.includes(form.city) && (
+                <MenuItem value={form.city}>{form.city}</MenuItem>
+              )}
               {cities.map(c => (
                 <MenuItem key={c} value={c}>
                   {c}
