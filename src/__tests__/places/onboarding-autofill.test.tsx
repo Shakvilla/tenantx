@@ -64,14 +64,16 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
           label: 'Greater Accra',
           districts: [
             { value: 'ayawaso-west', label: 'Ayawaso West Municipal', region: 'greater-accra' },
-            { value: 'accra-metro', label: 'Accra Metropolitan', region: 'greater-accra' }
+            { value: 'accra-metro', label: 'Accra Metropolitan', region: 'greater-accra' },
+            { value: 'tema-metro', label: 'Tema Metropolitan', region: 'greater-accra' }
           ]
         }
       ]
     },
     getDistricts: () => [
       { value: 'ayawaso-west', label: 'Ayawaso West Municipal', region: 'greater-accra' },
-      { value: 'accra-metro', label: 'Accra Metropolitan', region: 'greater-accra' }
+      { value: 'accra-metro', label: 'Accra Metropolitan', region: 'greater-accra' },
+      { value: 'tema-metro', label: 'Tema Metropolitan', region: 'greater-accra' }
     ]
   })
 }))
@@ -169,6 +171,45 @@ describe('PropertyStep address autofill', () => {
     const payload = vi.mocked(createProperty).mock.calls[0][1] as any
 
     expect(payload.district).toBe('accra-metro')
+    expect(payload.address.city).toBe('Community 25')
+  })
+
+  it('preserves the autofilled city when the property name is edited before the district is chosen', async () => {
+    // The finding this guards against: cityFromAutofill was reset on EVERY
+    // field edit, not just address-field edits. This form lays Property Name
+    // directly below the address search, so the natural top-down flow is
+    // suggestion -> name -> ... -> district, and the name edit was silently
+    // clearing the flag before the district pick got a chance to consume it.
+    //
+    // Tema Metropolitan is the district Community 25 actually belongs to —
+    // asserting the preserved city under an unrelated district would pass
+    // even if the preservation logic paired it with the wrong one.
+    render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
+    fireEvent.click(screen.getByText('pick fallback address'))
+
+    await screen.findByText(/please choose the district below/i)
+    expect(screen.getByLabelText(/city/i).textContent).toContain('Community 25')
+
+    // Non-address field, edited AFTER the suggestion pick and BEFORE the
+    // district pick — the natural top-down order given the form layout.
+    fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Villa' } })
+
+    fireEvent.mouseDown(screen.getByLabelText(/district/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Tema Metropolitan' }))
+
+    expect(screen.getByLabelText(/city/i).textContent).toContain('Community 25')
+
+    fireEvent.mouseDown(screen.getByLabelText(/property type/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'House' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /save|continue/i })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /save|continue/i }))
+
+    await waitFor(() => expect(createProperty).toHaveBeenCalled())
+
+    const payload = vi.mocked(createProperty).mock.calls[0][1] as any
+
+    expect(payload.district).toBe('tema-metro')
     expect(payload.address.city).toBe('Community 25')
   })
 

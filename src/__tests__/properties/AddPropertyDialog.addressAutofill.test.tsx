@@ -31,7 +31,8 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
           label: 'Greater Accra',
           districts: [
             { value: 'ayawaso-west', label: 'Ayawaso West Municipal', region: 'greater-accra' },
-            { value: 'accra-metro', label: 'Accra Metropolitan', region: 'greater-accra' }
+            { value: 'accra-metro', label: 'Accra Metropolitan', region: 'greater-accra' },
+            { value: 'tema-metro', label: 'Tema Metropolitan', region: 'greater-accra' }
           ]
         }
       ]
@@ -116,6 +117,11 @@ describe('AddPropertyDialog address autofill', () => {
     // city present. describeAutofill tells the user "Please choose the
     // district below" — the district cascade must not then wipe the city it
     // just said was filled (IMPORTANT 2 of the whole-branch review).
+    //
+    // The district chosen here (Tema Metropolitan) is the district Community
+    // 25 actually belongs to — asserting the preserved city under a district
+    // it has no relationship to (e.g. Accra Metropolitan) would pass even if
+    // the preservation logic paired the city with the wrong district.
     const fallbackPlace = {
       label: 'Community 25, Tema',
       street: '',
@@ -128,7 +134,7 @@ describe('AddPropertyDialog address autofill', () => {
     }
 
     vi.mocked(searchPlaces).mockResolvedValue({ status: 'ok', suggestions: [fallbackPlace] })
-    vi.mocked(getCities).mockResolvedValue(['Cantonments', 'Osu'])
+    vi.mocked(getCities).mockResolvedValue(['Community 25', 'Community 1'])
 
     render(<AddPropertyDialog open handleClose={vi.fn()} setData={vi.fn()} />)
 
@@ -143,8 +149,8 @@ describe('AddPropertyDialog address autofill', () => {
     expect(await screen.findByText(/please choose the district below/i)).toBeInTheDocument()
 
     fireEvent.mouseDown(screen.getByLabelText(/district/i))
-    fireEvent.click(await screen.findByRole('option', { name: 'Accra Metropolitan' }))
-    await waitFor(() => expect(getCities).toHaveBeenCalledWith('accra-metro'))
+    fireEvent.click(await screen.findByRole('option', { name: 'Tema Metropolitan' }))
+    await waitFor(() => expect(getCities).toHaveBeenCalledWith('tema-metro'))
 
     fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
 
@@ -152,7 +158,56 @@ describe('AddPropertyDialog address autofill', () => {
 
     const payload = vi.mocked(saveDraft).mock.calls[0][1]
 
-    expect(payload.district).toBe('accra-metro')
+    expect(payload.district).toBe('tema-metro')
+    expect(payload.address?.city).toBe('Community 25')
+  })
+
+  it('preserves the autofilled city when a non-address field is edited before the district is chosen', async () => {
+    // The finding this guards against: cityFromAutofill was reset on EVERY
+    // field edit, not just address-field edits. Both forms lay the address
+    // search above Property Name, so the natural top-down flow is
+    // suggestion -> name -> ... -> district, and the name edit was silently
+    // clearing the flag before the district pick ever got to consume it —
+    // wiping the city the autofill note had just told the user was filled.
+    const fallbackPlace = {
+      label: 'Community 25, Tema',
+      street: '',
+      region: 'greater-accra',
+      district: null,
+      city: 'Community 25',
+      latitude: 5.63,
+      longitude: -0.17,
+      placeId: 'osm:N999'
+    }
+
+    vi.mocked(searchPlaces).mockResolvedValue({ status: 'ok', suggestions: [fallbackPlace] })
+    vi.mocked(getCities).mockResolvedValue(['Community 25', 'Community 1'])
+
+    render(<AddPropertyDialog open handleClose={vi.fn()} setData={vi.fn()} />)
+
+    typeAddress('community 25')
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    fireEvent.click(await screen.findByText(fallbackPlace.label))
+
+    expect(await screen.findByText(/please choose the district below/i)).toBeInTheDocument()
+
+    // Non-address field, edited AFTER the suggestion pick and BEFORE the
+    // district pick — the natural top-down order given the form layout.
+    fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Test Property' } })
+
+    fireEvent.mouseDown(screen.getByLabelText(/district/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Tema Metropolitan' }))
+    await waitFor(() => expect(getCities).toHaveBeenCalledWith('tema-metro'))
+
+    fireEvent.click(screen.getByRole('button', { name: /save draft/i }))
+
+    await waitFor(() => expect(saveDraft).toHaveBeenCalled())
+
+    const payload = vi.mocked(saveDraft).mock.calls[0][1]
+
+    expect(payload.district).toBe('tema-metro')
     expect(payload.address?.city).toBe('Community 25')
   })
 

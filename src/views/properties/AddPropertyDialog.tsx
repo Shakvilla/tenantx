@@ -420,10 +420,15 @@ const AddPropertyDialog = ({
     if (field === 'region' || field === 'district' || field === 'city') {
       setCoordinates(null)
       setAutofillNote(null)
-    }
 
-    if (cityFromAutofill) {
-      setCityFromAutofill(false)
+      // preserveCityOnDistrictChange (above) already captured whatever
+      // cityFromAutofill was before this edit, so the cascade above still
+      // saw the correct value. Clearing it here — only for address-field
+      // edits — means a second district change won't preserve a city that
+      // was already consumed or was never autofilled to begin with.
+      if (cityFromAutofill) {
+        setCityFromAutofill(false)
+      }
     }
   }
 
