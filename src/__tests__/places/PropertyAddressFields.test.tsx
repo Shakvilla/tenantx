@@ -28,22 +28,56 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
 
 vi.mock('@/components/address/AddressSearchField', () => ({
   default: ({ onSelect }: { onSelect: (p: any) => void }) => (
-    <button
-      onClick={() =>
-        onSelect({
-          label: '23 Lagos Avenue, East Legon',
-          street: '23 Lagos Avenue',
-          region: 'greater-accra',
-          district: 'ayawaso-west',
-          city: 'East Legon',
-          latitude: 5.6339009,
-          longitude: -0.1727902,
-          placeId: 'osm:N4951010023'
-        })
-      }
-    >
-      pick address
-    </button>
+    <>
+      <button
+        onClick={() =>
+          onSelect({
+            label: '23 Lagos Avenue, East Legon',
+            street: '23 Lagos Avenue',
+            region: 'greater-accra',
+            district: 'ayawaso-west',
+            city: 'East Legon',
+            latitude: 5.6339009,
+            longitude: -0.1727902,
+            placeId: 'osm:N4951010023'
+          })
+        }
+      >
+        pick address
+      </button>
+      <button
+        onClick={() =>
+          onSelect({
+            label: 'MTN Service Centre, Aflao Road, Tema',
+            street: 'Aflao Road',
+            region: 'greater-accra',
+            district: 'tema-metro',
+            city: null,
+            latitude: 5.68,
+            longitude: 0.02,
+            placeId: 'osm:N2'
+          })
+        }
+      >
+        pick address without city
+      </button>
+      <button
+        onClick={() =>
+          onSelect({
+            label: 'Dzorwulu Junction, Accra',
+            street: 'Dzorwulu Junction',
+            region: 'greater-accra',
+            district: null,
+            city: 'Dzorwulu',
+            latitude: 5.6,
+            longitude: -0.19,
+            placeId: 'osm:N3'
+          })
+        }
+      >
+        pick address without district
+      </button>
+    </>
   )
 }))
 
@@ -53,11 +87,13 @@ import { getCities } from '@/lib/api/reference'
 function Harness({
   onCoords,
   onStatus,
-  initialValue
+  initialValue,
+  errors
 }: {
   onCoords?: (c: any) => void
   onStatus?: (s: any) => void
   initialValue?: AddressValue
+  errors?: Partial<Record<keyof AddressValue, boolean>>
 }) {
   const [value, setValue] = useState<AddressValue>(initialValue ?? { region: '', district: '', city: '' })
 
@@ -67,6 +103,7 @@ function Harness({
       onChange={patch => setValue(v => ({ ...v, ...patch }))}
       onCoordinates={c => onCoords?.(c)}
       onStatusChange={onStatus}
+      errors={errors}
     />
   )
 }
@@ -265,5 +302,49 @@ describe('PropertyAddressFields display modes', () => {
     // A district whose locality list comes back genuinely empty must not
     // block submission on a field with nothing to choose from.
     await waitFor(() => expect(onStatus).toHaveBeenLastCalledWith({ canWaiveCity: true }))
+  })
+})
+
+describe('PropertyAddressFields partial matches', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('reveals only the unresolved field, keeping the rest as resolved text', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByText('pick address without city'))
+
+    // Region and district resolved — asking the user to re-confirm them would
+    // make a near-miss feel like a total failure.
+    expect(await screen.findByText(/Greater Accra/)).toBeTruthy()
+    expect(screen.getByText(/Tema Metropolitan/)).toBeTruthy()
+    expect(screen.queryByLabelText(/region/i)).toBeNull()
+    expect(screen.queryByLabelText(/district/i)).toBeNull()
+    expect(screen.getByLabelText(/city/i)).toBeTruthy()
+  })
+
+  it('still opens all three on Change after a partial match', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByText('pick address without city'))
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+
+    expect(await screen.findByLabelText(/region/i)).toBeTruthy()
+    expect(screen.getByLabelText(/district/i)).toBeTruthy()
+  })
+
+  // Task 3 left the validation-error UI (the error FormControl state and the
+  // "This field is required." caption) living only inside the `manual`
+  // branch. In `resolved` mode that branch never mounts, so a geocoder pick
+  // that leaves district unresolved plus a click on Next (which sets
+  // errors.district = true) produced a button that silently did nothing —
+  // nowhere on screen named the missing field. Rendering the unresolved
+  // field inline removes the cause: an error can only be set on a field
+  // that is empty, and an empty field is now always on screen to carry it.
+  it('shows the required-field error on an unresolved field surfaced in resolved mode', async () => {
+    render(<Harness errors={{ district: true }} />)
+    fireEvent.click(screen.getByText('pick address without district'))
+
+    const districtField = await screen.findByLabelText(/district/i)
+
+    expect(districtField).toBeTruthy()
+    expect(screen.getByText(/this field is required\./i)).toBeTruthy()
   })
 })
