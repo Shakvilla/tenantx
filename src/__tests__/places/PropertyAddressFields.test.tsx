@@ -50,8 +50,16 @@ vi.mock('@/components/address/AddressSearchField', () => ({
 import { getCities } from '@/lib/api/reference'
 
 /** Drives the component the way a form does: owns the value, applies patches. */
-function Harness({ onCoords, onStatus }: { onCoords?: (c: any) => void; onStatus?: (s: any) => void }) {
-  const [value, setValue] = useState<AddressValue>({ region: '', district: '', city: '' })
+function Harness({
+  onCoords,
+  onStatus,
+  initialValue
+}: {
+  onCoords?: (c: any) => void
+  onStatus?: (s: any) => void
+  initialValue?: AddressValue
+}) {
+  const [value, setValue] = useState<AddressValue>(initialValue ?? { region: '', district: '', city: '' })
 
   return (
     <PropertyAddressFields
@@ -113,9 +121,15 @@ describe('PropertyAddressFields', () => {
     render(<Harness />)
     fireEvent.click(screen.getByText('pick address'))
 
-    // The value is correct underneath; the resolved display joins region,
-    // district and city into one line, so the city no longer stands alone.
-    expect(await screen.findByText(/East Legon/)).toBeTruthy()
+    // The resolved view shows the city as plain text regardless of the
+    // locality fetch outcome. Change is what a real user clicks to open the
+    // selects and check the underlying City field.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+    await screen.findByText(/couldn.t load areas/i)
+
+    // The value is correct underneath; without a fallback option MUI renders a
+    // blank Select, which reads as if the pick was lost.
+    expect(screen.getByLabelText(/city/i).textContent).toContain('East Legon')
   })
 
   it('disables District until a Region is chosen, then enables it', async () => {
@@ -179,6 +193,27 @@ describe('PropertyAddressFields display modes', () => {
     expect(screen.getByRole('button', { name: /enter the address manually/i })).toBeTruthy()
     expect(screen.queryByLabelText(/region/i)).toBeNull()
     expect(screen.queryByLabelText(/district/i)).toBeNull()
+  })
+
+  it('opens straight into resolved mode when mounted with an already-filled value', async () => {
+    // AddPropertyDialog renders its steps through a switch, so this component
+    // unmounts on every step change, not only on dialog open/close. A remount
+    // with a value the user already filled in (Previous, or the stepper)
+    // must not come back showing an empty search box — that hides an address
+    // that is still there in `formData`, un-editable until the user notices
+    // and clicks the manual link.
+    render(
+      <Harness initialValue={{ region: 'greater-accra', district: 'ayawaso-west', city: 'East Legon' }} />
+    )
+
+    expect(await screen.findByText(/Greater Accra/)).toBeTruthy()
+    expect(screen.getByText(/Ayawaso West Municipal/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /change/i })).toBeTruthy()
+    expect(screen.queryByLabelText(/region/i)).toBeNull()
+
+    // Flush the locality fetch this value's district also triggers, so it
+    // doesn't resolve after the test has already moved on.
+    await waitFor(() => expect(getCities).toHaveBeenCalledWith('ayawaso-west'))
   })
 
   it('shows the resolved address as labels, not slugs, with no selects', async () => {

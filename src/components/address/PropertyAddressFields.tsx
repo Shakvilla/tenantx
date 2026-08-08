@@ -59,9 +59,18 @@ const PropertyAddressFields = ({
   //
   // Manual is terminal within a session. There is deliberately no path back
   // to searching — a user who has started correcting by hand should not have
-  // the search silently reclaim their fields. Remounting resets it, which is
-  // what the dialog's own open/close reset already does.
-  const [mode, setMode] = useState<'searching' | 'resolved' | 'manual'>(searchable ? 'searching' : 'manual')
+  // the search silently reclaim their fields.
+  //
+  // Seeded from `value`, not just `searchable`: AddPropertyDialog renders its
+  // steps through a switch, so this component unmounts on every step change,
+  // not only on dialog open/close. A remount with an already-filled value
+  // (Previous, or the stepper) must come back showing the resolved text, not
+  // an empty search box hiding an address the user already entered.
+  const [mode, setMode] = useState<'searching' | 'resolved' | 'manual'>(() => {
+    if (!searchable) return 'manual'
+
+    return value.region || value.district || value.city ? 'resolved' : 'searching'
+  })
 
   // True only right after a suggestion filled city from its region-wide
   // locality fallback (district: null, city set) — the exact case
