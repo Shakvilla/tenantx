@@ -27,7 +27,7 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
 }))
 
 vi.mock('@/components/address/AddressSearchField', () => ({
-  default: ({ onSelect }: { onSelect: (p: any) => void }) => (
+  default: ({ onSelect, onUnavailable }: { onSelect: (p: any) => void; onUnavailable?: () => void }) => (
     <>
       <button
         onClick={() =>
@@ -77,6 +77,7 @@ vi.mock('@/components/address/AddressSearchField', () => ({
       >
         pick address without district
       </button>
+      <button onClick={() => onUnavailable?.()}>trigger unavailable</button>
     </>
   )
 }))
@@ -302,6 +303,39 @@ describe('PropertyAddressFields display modes', () => {
     // A district whose locality list comes back genuinely empty must not
     // block submission on a field with nothing to choose from.
     await waitFor(() => expect(onStatus).toHaveBeenLastCalledWith({ canWaiveCity: true }))
+  })
+
+  // IMPORTANT 1 of the whole-branch review: `errors` was consumed only inside
+  // `regionField` / `districtField` / `cityField`, which in `searching` mode
+  // never mount. A user who ignores the address search and clicks Next got a
+  // button that silently did nothing — validateStep set errors.region and
+  // errors.district, but nothing on screen said so, and no field existed to
+  // carry the highlight. The fix renders the same errored-field fallback
+  // `searching` already renders for `resolved`.
+  it('shows the required-field error on a field surfaced while still searching', () => {
+    render(<Harness errors={{ region: true, district: true }} />)
+
+    // The search box and manual link stay put — an error must not silently
+    // force the user into manual entry.
+    expect(screen.getByText('pick address')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /enter the address manually/i })).toBeTruthy()
+
+    expect(screen.getByLabelText(/region/i)).toBeTruthy()
+    expect(screen.getByLabelText(/district/i)).toBeTruthy()
+    expect(screen.getAllByText(/this field is required\./i).length).toBe(2)
+  })
+
+  // IMPORTANT 2 of the whole-branch review: onUnavailable set mode to
+  // 'manual' in the same batch AddressSearchField set its own `unavailable`
+  // state, so `manual` unmounted the search before its "search is
+  // unavailable" helper text ever painted. The block must carry its own note
+  // forward into manual mode.
+  it('shows a note that search is unavailable when the geocoder reports down', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByText('trigger unavailable'))
+
+    expect(await screen.findByLabelText(/region/i)).toBeTruthy()
+    expect(screen.getByText(/address search is unavailable/i)).toBeTruthy()
   })
 })
 

@@ -25,7 +25,12 @@ type Props = {
   value: AddressValue
   onChange: (patch: Partial<AddressValue>) => void
   onCoordinates: (coords: AddressCoordinates | null) => void
-  /** false in edit mode — the update endpoint cannot save what the search fills. */
+  /**
+   * false in edit mode — the update endpoint cannot save what the search
+   * fills: `UpdatePropertyRequest` carries neither the coordinates nor a
+   * hand-picked region/district, because the edit payload sources those from
+   * `editData` rather than `formData`.
+   */
   searchable?: boolean
   errors?: Partial<Record<keyof AddressValue, boolean>>
   size?: 'small' | 'medium'
@@ -53,6 +58,12 @@ const PropertyAddressFields = ({
   const { ref } = useReferenceData()
 
   const [autofillNote, setAutofillNote] = useState<string | null>(null)
+
+  // Set only by onUnavailable, alongside the setMode('manual') call it makes
+  // in the same batch. AddressSearchField's own "search is unavailable"
+  // helper text unmounts with it — this is what lets manual mode carry that
+  // reason forward instead of silently swallowing it.
+  const [searchUnavailable, setSearchUnavailable] = useState(false)
 
   // 'searching': nothing picked yet, search only. 'resolved': a place was
   // picked, shown as text. 'manual': the selects are open.
@@ -173,8 +184,15 @@ const PropertyAddressFields = ({
   const regionLabel = ref.regions.find(r => r.value === value.region)?.label ?? ''
   const districtLabel = districtsForRegion.find(d => d.value === value.district)?.label ?? ''
 
-  // Slugs are how these are stored; they are not something to show a landlord.
-  const resolvedParts = [regionLabel, districtLabel, value.city].filter(Boolean)
+  // Slugs are how these are stored; they are not something to show a
+  // landlord — but a failed label lookup (reference data still in flight, or
+  // its fetch failed) must fall back to the stored value rather than an
+  // empty string. Losing the label is a cosmetic slug; losing the value
+  // entirely renders a blank line with a lone Change button and no select to
+  // recover through, because all three values are non-empty.
+  const regionDisplay = value.region ? regionLabel || value.region : ''
+  const districtDisplay = value.district ? districtLabel || value.district : ''
+  const resolvedParts = [regionDisplay, districtDisplay, value.city].filter(Boolean)
 
   // Extracted so each select can be rendered from either the `resolved`
   // branch (only the fields the geocoder could not fill) or the `manual`
@@ -290,7 +308,13 @@ const PropertyAddressFields = ({
     <>
       {searchable && mode !== 'manual' && (
         <Grid size={{ xs: 12 }}>
-          <AddressSearchField onSelect={handlePlaceSelected} onUnavailable={() => setMode('manual')} />
+          <AddressSearchField
+            onSelect={handlePlaceSelected}
+            onUnavailable={() => {
+              setSearchUnavailable(true)
+              setMode('manual')
+            }}
+          />
           {autofillNote && (
             <Typography variant='caption' color='success.main' className='mts-1 block'>
               {autofillNote}
@@ -302,6 +326,20 @@ const PropertyAddressFields = ({
             </Button>
           )}
         </Grid>
+      )}
+
+      {mode === 'searching' && (
+        <>
+          {/* `errors` is otherwise consumed only inside the field variables,
+              which mount just above in `resolved` and `manual` — never here.
+              A user who ignores the search and clicks Next got a button that
+              validateStep failed silently: nothing on screen named the
+              missing field. Mirrors the `resolved` branch's own fallback
+              rendering, just keyed on error instead of on absence. */}
+          {errors.region && regionField}
+          {errors.district && districtField}
+          {errors.city && cityField}
+        </>
       )}
 
       {mode === 'resolved' && (
@@ -324,6 +362,13 @@ const PropertyAddressFields = ({
 
       {mode === 'manual' && (
         <>
+          {searchUnavailable && (
+            <Grid size={{ xs: 12 }}>
+              <Typography variant='caption' color='text.secondary' className='block'>
+                Address search is unavailable — enter the address below.
+              </Typography>
+            </Grid>
+          )}
           {regionField}
           {districtField}
           {cityField}
