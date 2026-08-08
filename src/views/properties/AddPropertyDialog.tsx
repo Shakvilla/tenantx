@@ -295,6 +295,8 @@ const AddPropertyDialog = ({
     placeId: string
   } | null>(null)
 
+  const [canWaiveCity, setCanWaiveCity] = useState(false)
+
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
@@ -338,7 +340,15 @@ const AddPropertyDialog = ({
 
   const handleAddressChange = (patch: Partial<{ region: string; district: string; city: string }>) => {
     setFormData(prev => ({ ...prev, ...patch }))
-    setErrors(prev => ({ ...prev, ...Object.fromEntries(Object.keys(patch).map(k => [k, false])) }))
+
+    // A Region change sends a patch that also cascade-clears district and
+    // city to ''. Clearing the error for every key in the patch would wipe
+    // District's "required" highlight before the user has picked a district.
+    // Only a key whose new value is actually non-empty has been resolved.
+    setErrors(prev => ({
+      ...prev,
+      ...Object.fromEntries(Object.entries(patch).filter(([, v]) => Boolean(v)).map(([k]) => [k, false]))
+    }))
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -414,7 +424,7 @@ const AddPropertyDialog = ({
       if (!formData.region) newErrors.region = true
       if (!formData.district) newErrors.district = true
 
-      if (formData.district && !formData.city) newErrors.city = true
+      if (formData.district && !formData.city && !canWaiveCity) newErrors.city = true
     } else if (step === 1) {
       // Validate Step 2: Property Features
       if (!formData.bedrooms) newErrors.bedrooms = true
@@ -742,6 +752,7 @@ const AddPropertyDialog = ({
                 onCoordinates={setCoordinates}
                 searchable={mode !== 'edit'}
                 errors={{ region: errors.region, district: errors.district, city: errors.city }}
+                onStatusChange={({ canWaiveCity: waive }) => setCanWaiveCity(waive)}
               />
               <Grid size={{ xs: 12 }}>
                 <TextField

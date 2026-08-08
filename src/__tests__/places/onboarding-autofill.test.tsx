@@ -88,6 +88,10 @@ describe('PropertyStep address autofill', () => {
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
     fireEvent.click(screen.getByText('pick address'))
 
+    // A pick lands in the resolved (text) display, not the selects. Change
+    // is what a real user clicks to open them and see what got filled.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+
     await waitFor(() => expect(screen.getByLabelText(/region/i).textContent).toContain('Greater Accra'))
     expect(screen.getByLabelText(/district/i).textContent).toContain('Ayawaso West Municipal')
   })
@@ -114,6 +118,10 @@ describe('PropertyStep address autofill', () => {
   it("drops the picked place's coordinates once the user hand-edits the district", async () => {
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
     fireEvent.click(screen.getByText('pick address'))
+
+    // A pick lands in the resolved (text) display. Reaching District to
+    // hand-edit it goes through Change, same as a real user correcting it.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
 
     await waitFor(() => expect(screen.getByLabelText(/district/i).textContent).toContain('Ayawaso West Municipal'))
 
@@ -157,6 +165,12 @@ describe('PropertyStep address autofill', () => {
     fireEvent.click(screen.getByText('pick fallback address'))
 
     await screen.findByText(/please choose the district below/i)
+
+    // The city is on screen as resolved text before the selects are open at all.
+    expect(screen.getByText(/Community 25/)).toBeTruthy()
+
+    // Change is what a real user clicks to pick the still-missing district.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
     expect(screen.getByLabelText(/city/i).textContent).toContain('Community 25')
 
     fireEvent.mouseDown(screen.getByLabelText(/district/i))
@@ -193,6 +207,11 @@ describe('PropertyStep address autofill', () => {
     fireEvent.click(screen.getByText('pick fallback address'))
 
     await screen.findByText(/please choose the district below/i)
+    expect(screen.getByText(/Community 25/)).toBeTruthy()
+
+    // Change is what a real user clicks to see/edit the selects; it isn't
+    // itself an address-field edit, so it doesn't disturb cityFromAutofill.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
     expect(screen.getByLabelText(/city/i).textContent).toContain('Community 25')
 
     // Non-address field, edited AFTER the suggestion pick and BEFORE the
@@ -225,6 +244,11 @@ describe('PropertyStep address autofill', () => {
     fireEvent.click(screen.getByText('pick address'))
 
     await waitFor(() => expect(getCities).toHaveBeenCalledWith('ayawaso-west'))
+
+    // The resolved view shows the city as plain text regardless of the
+    // locality fetch outcome. Change is what a real user clicks to open the
+    // selects and see the error/retry state underneath.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
     await screen.findByText(/couldn.t load areas/i)
 
     // The fetch that would have offered "East Legon" as a City option failed,

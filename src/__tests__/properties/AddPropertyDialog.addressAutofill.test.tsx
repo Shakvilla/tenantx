@@ -94,6 +94,10 @@ describe('AddPropertyDialog address autofill', () => {
     await pickPlace()
     await waitFor(() => expect(getCities).toHaveBeenCalledWith('ayawaso-west'))
 
+    // A pick lands in the resolved (text) display. Reaching District to
+    // hand-edit it goes through Change, same as a real user correcting it.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+
     // The user disagrees with the geocoder's district and picks a different
     // one by hand. The coordinates describe the ORIGINAL place, not this edit.
     fireEvent.mouseDown(screen.getByLabelText(/district/i))
@@ -148,6 +152,9 @@ describe('AddPropertyDialog address autofill', () => {
 
     expect(await screen.findByText(/please choose the district below/i)).toBeInTheDocument()
 
+    // Change is what a real user clicks to pick the still-missing district.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+
     fireEvent.mouseDown(screen.getByLabelText(/district/i))
     fireEvent.click(await screen.findByRole('option', { name: 'Tema Metropolitan' }))
     await waitFor(() => expect(getCities).toHaveBeenCalledWith('tema-metro'))
@@ -197,6 +204,11 @@ describe('AddPropertyDialog address autofill', () => {
     // district pick — the natural top-down order given the form layout.
     fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Test Property' } })
 
+    // Change is what a real user clicks to pick the still-missing district;
+    // it isn't itself an address-field edit, so it doesn't disturb
+    // cityFromAutofill.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+
     fireEvent.mouseDown(screen.getByLabelText(/district/i))
     fireEvent.click(await screen.findByRole('option', { name: 'Tema Metropolitan' }))
     await waitFor(() => expect(getCities).toHaveBeenCalledWith('tema-metro'))
@@ -218,11 +230,46 @@ describe('AddPropertyDialog address autofill', () => {
 
     await pickPlace()
     await waitFor(() => expect(getCities).toHaveBeenCalledWith('ayawaso-west'))
+
+    // The resolved view shows the city as plain text regardless of the
+    // locality fetch outcome. Change is what a real user clicks to open the
+    // selects and see the error/retry state underneath.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
     await screen.findByText(/couldn.t load areas/i)
 
     // The fetch that would have offered "East Legon" as a City option failed,
     // but the value the place assigned is still there and must still render —
     // not fall back to a blank Select next to a note claiming it was filled.
     expect(screen.getByText('East Legon')).toBeInTheDocument()
+  })
+
+  it('keeps the District required-highlight after a Region pick clears only the Region error', async () => {
+    // handleAddressChange used to clear the error for every key in the
+    // incoming patch. A Region pick's patch also cascade-clears district and
+    // city to '', so it was wiping District's "required" highlight before
+    // the user had picked a district at all.
+    render(<AddPropertyDialog open handleClose={vi.fn()} setData={vi.fn()} />)
+
+    // No address was searched, so the selects only exist once the user asks
+    // to enter the address by hand.
+    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+
+    // Trigger step-1 validation without filling anything in — Region and
+    // District (among others) come back required.
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await waitFor(() => expect(screen.getByLabelText(/region/i)).toHaveAttribute('aria-invalid', 'true'))
+    expect(screen.getByLabelText(/district/i)).toHaveAttribute('aria-invalid', 'true')
+
+    // Pick a Region. Its patch is { region: 'greater-accra', district: '', city: '' } —
+    // only region actually got a value.
+    fireEvent.mouseDown(screen.getByLabelText(/region/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))
+
+    // Region resolved, so its error clears.
+    await waitFor(() => expect(screen.getByLabelText(/region/i)).not.toHaveAttribute('aria-invalid', 'true'))
+
+    // District is still empty — the cascade must not have cleared its
+    // still-unmet "required" highlight.
+    expect(screen.getByLabelText(/district/i)).toHaveAttribute('aria-invalid', 'true')
   })
 })

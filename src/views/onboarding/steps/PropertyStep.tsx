@@ -30,7 +30,9 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
     placeId: string
   } | null>(null)
 
-  const valid = form.name && form.type && form.region && form.district && form.city
+  const [canWaiveCity, setCanWaiveCity] = useState(false)
+
+  const valid = form.name && form.type && form.region && form.district && (form.city || canWaiveCity)
 
   const update = (field: keyof typeof form, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -89,6 +91,7 @@ return
           onCoordinates={setCoordinates}
           size='medium'
           cityLabel='City / area'
+          onStatusChange={({ canWaiveCity: waive }) => setCanWaiveCity(waive)}
         />
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField

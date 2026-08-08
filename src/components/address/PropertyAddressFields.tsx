@@ -30,6 +30,7 @@ type Props = {
   errors?: Partial<Record<keyof AddressValue, boolean>>
   size?: 'small' | 'medium'
   cityLabel?: string
+  onStatusChange?: (status: { canWaiveCity: boolean }) => void
 }
 
 /**
@@ -46,11 +47,21 @@ const PropertyAddressFields = ({
   searchable = true,
   errors = {},
   size = 'small',
-  cityLabel = 'City'
+  cityLabel = 'City',
+  onStatusChange
 }: Props) => {
   const { ref } = useReferenceData()
 
   const [autofillNote, setAutofillNote] = useState<string | null>(null)
+
+  // 'searching': nothing picked yet, search only. 'resolved': a place was
+  // picked, shown as text. 'manual': the selects are open.
+  //
+  // Manual is terminal within a session. There is deliberately no path back
+  // to searching — a user who has started correcting by hand should not have
+  // the search silently reclaim their fields. Remounting resets it, which is
+  // what the dialog's own open/close reset already does.
+  const [mode, setMode] = useState<'searching' | 'resolved' | 'manual'>(searchable ? 'searching' : 'manual')
 
   // True only right after a suggestion filled city from its region-wide
   // locality fallback (district: null, city set) — the exact case
@@ -102,6 +113,13 @@ const PropertyAddressFields = ({
     }
   }, [value.district, citiesRetryTick])
 
+  useEffect(() => {
+    onStatusChange?.({ canWaiveCity: citiesStatus === 'loaded' && cities.length === 0 })
+
+    // onStatusChange is a callback prop; callers pass a stable handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [citiesStatus, cities.length])
+
   const handleFieldChange = (field: keyof AddressValue, next: string) => {
     // A suggestion with district: null fills city from the region-wide
     // locality fallback and tells the user to pick the district. Consumed
@@ -140,118 +158,146 @@ const PropertyAddressFields = ({
     onCoordinates({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId })
     setAutofillNote(describeAutofill(place))
     setCityFromAutofill(!place.district && Boolean(place.city))
+    setMode('resolved')
   }
+
+  const regionLabel = ref.regions.find(r => r.value === value.region)?.label ?? ''
+  const districtLabel = districtsForRegion.find(d => d.value === value.district)?.label ?? ''
+
+  // Slugs are how these are stored; they are not something to show a landlord.
+  const resolvedParts = [regionLabel, districtLabel, value.city].filter(Boolean)
 
   return (
     <>
-      {searchable && (
+      {searchable && mode !== 'manual' && (
         <Grid size={{ xs: 12 }}>
-          <AddressSearchField onSelect={handlePlaceSelected} />
+          <AddressSearchField onSelect={handlePlaceSelected} onUnavailable={() => setMode('manual')} />
           {autofillNote && (
             <Typography variant='caption' color='success.main' className='mts-1 block'>
               {autofillNote}
             </Typography>
           )}
+          {mode === 'searching' && (
+            <Button size='small' onClick={() => setMode('manual')} sx={{ mt: 1 }}>
+              Can&apos;t find it? Enter the address manually
+            </Button>
+          )}
         </Grid>
       )}
-      <Grid size={{ xs: 12, sm: 6 }}>
-        <FormControl fullWidth required error={Boolean(errors.region)} size={size}>
-          <InputLabel id='address-region-label'>Region</InputLabel>
-          <Select
-            size={size}
-            labelId='address-region-label'
-            label='Region'
-            value={value.region}
-            onChange={e => handleFieldChange('region', e.target.value)}
-          >
-            <MenuItem value=''>Select Region</MenuItem>
-            {ref.regions.map(r => (
-              <MenuItem key={r.value} value={r.value}>
-                {r.label}
-              </MenuItem>
-            ))}
-          </Select>
-          {errors.region && (
-            <Typography variant='caption' color='error' className='mts-1'>
-              This field is required.
-            </Typography>
-          )}
-        </FormControl>
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6 }}>
-        <FormControl fullWidth required error={Boolean(errors.district)} size={size} disabled={!value.region}>
-          <InputLabel id='address-district-label'>District</InputLabel>
-          <Select
-            size={size}
-            labelId='address-district-label'
-            label='District'
-            value={value.district}
-            onChange={e => handleFieldChange('district', e.target.value)}
-          >
-            <MenuItem value=''>Select District</MenuItem>
-            {districtsForRegion.map(d => (
-              <MenuItem key={d.value} value={d.value}>
-                {d.label}
-              </MenuItem>
-            ))}
-          </Select>
-          {errors.district && (
-            <Typography variant='caption' color='error' className='mts-1'>
-              This field is required.
-            </Typography>
-          )}
-        </FormControl>
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6 }}>
-        <FormControl
-          fullWidth
-          required
-          error={Boolean(errors.city)}
-          size={size}
-          disabled={!value.district || citiesStatus === 'loading'}
-        >
-          <InputLabel id='address-city-label'>{cityLabel}</InputLabel>
-          <Select
-            size={size}
-            labelId='address-city-label'
-            label={cityLabel}
-            value={value.city}
-            onChange={e => handleFieldChange('city', e.target.value)}
-          >
-            <MenuItem value=''>Select {cityLabel}</MenuItem>
-            {/* A city assigned outside the fetched list (autofilled from a search
+
+      {mode === 'resolved' && (
+        <Grid size={{ xs: 12 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant='body2'>{resolvedParts.join(' › ')}</Typography>
+            <Button size='small' onClick={() => setMode('manual')}>
+              Change
+            </Button>
+          </Box>
+        </Grid>
+      )}
+
+      {mode === 'manual' && (
+        <>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth required error={Boolean(errors.region)} size={size}>
+              <InputLabel id='address-region-label'>Region</InputLabel>
+              <Select
+                size={size}
+                labelId='address-region-label'
+                label='Region'
+                value={value.region}
+                onChange={e => handleFieldChange('region', e.target.value)}
+              >
+                <MenuItem value=''>Select Region</MenuItem>
+                {ref.regions.map(r => (
+                  <MenuItem key={r.value} value={r.value}>
+                    {r.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.region && (
+                <Typography variant='caption' color='error' className='mts-1'>
+                  This field is required.
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth required error={Boolean(errors.district)} size={size} disabled={!value.region}>
+              <InputLabel id='address-district-label'>District</InputLabel>
+              <Select
+                size={size}
+                labelId='address-district-label'
+                label='District'
+                value={value.district}
+                onChange={e => handleFieldChange('district', e.target.value)}
+              >
+                <MenuItem value=''>Select District</MenuItem>
+                {districtsForRegion.map(d => (
+                  <MenuItem key={d.value} value={d.value}>
+                    {d.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.district && (
+                <Typography variant='caption' color='error' className='mts-1'>
+                  This field is required.
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl
+              fullWidth
+              required
+              error={Boolean(errors.city)}
+              size={size}
+              disabled={!value.district || citiesStatus === 'loading'}
+            >
+              <InputLabel id='address-city-label'>{cityLabel}</InputLabel>
+              <Select
+                size={size}
+                labelId='address-city-label'
+                label={cityLabel}
+                value={value.city}
+                onChange={e => handleFieldChange('city', e.target.value)}
+              >
+                <MenuItem value=''>Select {cityLabel}</MenuItem>
+                {/* A city assigned outside the fetched list (autofilled from a search
                 whose locality fetch then failed) has nowhere else to render — MUI
                 falls back to a blank Select when the value matches no MenuItem,
                 which reads as if the pick was lost. */}
-            {value.city && !cities.includes(value.city) && <MenuItem value={value.city}>{value.city}</MenuItem>}
-            {cities.map(c => (
-              <MenuItem key={c} value={c}>
-                {c}
-              </MenuItem>
-            ))}
-          </Select>
-          {citiesStatus === 'loading' && (
-            <Typography variant='caption' color='text.secondary' className='mts-1'>
-              Loading areas…
-            </Typography>
-          )}
-          {citiesStatus === 'error' && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-              <Typography variant='caption' color='error'>
-                Couldn&apos;t load areas for this district.
-              </Typography>
-              <Button size='small' onClick={() => setCitiesRetryTick(t => t + 1)}>
-                Retry
-              </Button>
-            </Box>
-          )}
-          {errors.city && citiesStatus === 'loaded' && (
-            <Typography variant='caption' color='error' className='mts-1'>
-              This field is required.
-            </Typography>
-          )}
-        </FormControl>
-      </Grid>
+                {value.city && !cities.includes(value.city) && <MenuItem value={value.city}>{value.city}</MenuItem>}
+                {cities.map(c => (
+                  <MenuItem key={c} value={c}>
+                    {c}
+                  </MenuItem>
+                ))}
+              </Select>
+              {citiesStatus === 'loading' && (
+                <Typography variant='caption' color='text.secondary' className='mts-1'>
+                  Loading areas…
+                </Typography>
+              )}
+              {citiesStatus === 'error' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+                  <Typography variant='caption' color='error'>
+                    Couldn&apos;t load areas for this district.
+                  </Typography>
+                  <Button size='small' onClick={() => setCitiesRetryTick(t => t + 1)}>
+                    Retry
+                  </Button>
+                </Box>
+              )}
+              {errors.city && citiesStatus === 'loaded' && (
+                <Typography variant='caption' color='error' className='mts-1'>
+                  This field is required.
+                </Typography>
+              )}
+            </FormControl>
+          </Grid>
+        </>
+      )}
     </>
   )
 }

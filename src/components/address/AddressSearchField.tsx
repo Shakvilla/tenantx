@@ -15,6 +15,7 @@ const DEBOUNCE_MS = 400
 type Props = {
   onSelect: (place: PlaceSuggestion) => void
   disabled?: boolean
+  onUnavailable?: () => void
 }
 
 /**
@@ -22,7 +23,7 @@ type Props = {
  * is the whole contract, so the same field serves any form that needs an
  * address.
  */
-const AddressSearchField = ({ onSelect, disabled }: Props) => {
+const AddressSearchField = ({ onSelect, disabled, onUnavailable }: Props) => {
   const [query, setQuery] = useState('')
   const [options, setOptions] = useState<PlaceSuggestion[]>([])
   const [loading, setLoading] = useState(false)
@@ -72,6 +73,7 @@ const AddressSearchField = ({ onSelect, disabled }: Props) => {
       if (result.status === 'unavailable') {
         setUnavailable(true)
         setOptions([])
+        onUnavailable?.()
 
         return
       }
@@ -80,6 +82,9 @@ const AddressSearchField = ({ onSelect, disabled }: Props) => {
     }, DEBOUNCE_MS)
 
     return () => clearTimeout(timer)
+
+    // onUnavailable is a callback prop; callers pass a stable handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, unavailable, disabled])
 
   const helperText = useMemo(() => {
