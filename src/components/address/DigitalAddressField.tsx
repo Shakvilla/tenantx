@@ -38,8 +38,14 @@ function loadTable(): Promise<PostcodeDistrict[]> {
 type Props = {
   value: string
   onChange: (code: string) => void
-  /** Fires only when a prefix maps to exactly one of our districts. */
-  onDecoded: (decoded: DecodedAddress) => void
+  /**
+   * Fires with the decoded district, or null when the code's prefix maps to
+   * nothing — unknown, or a district since split. Null matters as much as a
+   * hit: a landlord correcting GA-184-7915 to GZ-100-0001 must not be left
+   * with Accra Metropolitan standing under a warning that says we don't know
+   * the district.
+   */
+  onDecoded: (decoded: DecodedAddress | null) => void
   size?: 'small' | 'medium'
 }
 
@@ -102,6 +108,7 @@ const DigitalAddressField = ({ value, onChange, onDecoded, size = 'small' }: Pro
         text: "We don't recognise that code's district — please choose the region and district below.",
         tone: 'warning'
       })
+      onDecoded(null)
 
       return
     }

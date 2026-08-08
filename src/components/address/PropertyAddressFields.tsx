@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -128,6 +128,10 @@ const PropertyAddressFields = ({
     return 'searching'
   })
 
+  // What the digital-address decode last filled, so an unrecognised code can
+  // retract exactly that and nothing else.
+  const lastDecoded = useRef<DecodedAddress | null>(null)
+
   // True only right after a suggestion filled city from its region-wide
   // locality fallback (district: null, city set) — the exact case
   // describeAutofill tells the user to "choose the district below". The
@@ -248,9 +252,34 @@ const PropertyAddressFields = ({
    * code just supplied, is wrong in a way that looks deliberate — the same
    * rule applyPlaceToForm already follows.
    */
-  const handleDecoded = (decoded: DecodedAddress) => {
-    onChange({ region: decoded.regionValue, district: decoded.districtValue, city: '' })
-    setMode('resolved')
+  const handleDecoded = (decoded: DecodedAddress | null) => {
+    if (decoded) {
+      lastDecoded.current = decoded
+      onChange({ region: decoded.regionValue, district: decoded.districtValue, city: '' })
+      setMode('resolved')
+
+      return
+    }
+
+    // The code no longer maps to a district. Anything a PREVIOUS code filled
+    // has to go with it: leaving Accra Metropolitan on screen beneath "we
+    // don't recognise that code's district" both contradicts the message and
+    // would save the wrong district for a Ledzokuku property.
+    //
+    // Only what a decode put there, though — a district the landlord picked
+    // by hand is theirs, and typing an unrecognised code is no reason to
+    // throw it away.
+    const previous = lastDecoded.current
+
+    if (
+      previous &&
+      value.region === previous.regionValue &&
+      value.district === previous.districtValue
+    ) {
+      lastDecoded.current = null
+      onChange({ region: '', district: '', city: '' })
+      setMode('manual')
+    }
   }
 
   const handlePlaceSelected = (place: PlaceSuggestion) => {
