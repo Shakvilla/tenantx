@@ -18,10 +18,11 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import type { Property } from '@/types/property'
 import type { OnboardingStepProps } from '../onboardingTypes'
 import PropertyAddressFields from '@/components/address/PropertyAddressFields'
+import type { AddressValue } from '@/components/address/PropertyAddressFields'
 
 export default function PropertyStep({ tenantId, onComplete, onSkip }: OnboardingStepProps) {
   const { ref } = useReferenceData()
-  const [form, setForm] = useState({ name: '', type: '', region: '', district: '', city: '' })
+  const [form, setForm] = useState({ name: '', type: '', street: '', region: '', district: '', city: '' })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [coordinates, setCoordinates] = useState<{
@@ -38,8 +39,7 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  const handleAddressChange = (patch: Partial<{ region: string; district: string; city: string }>) =>
-    setForm(prev => ({ ...prev, ...patch }))
+  const handleAddressChange = (patch: Partial<AddressValue>) => setForm(prev => ({ ...prev, ...patch }))
 
   const handleSubmit = async () => {
     setError(null)
@@ -56,7 +56,9 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
         currency: 'GHS',
         ...(coordinates ?? {}),
         address: {
-          street: form.city,
+          // Optional, and never the city: writing the city into
+          // address_line_1 is what made every property's street a duplicate.
+          street: form.street || undefined,
           city: form.city,
           state: form.region,
           country: 'Ghana'
@@ -86,7 +88,7 @@ return
       )}
       <Grid container spacing={4}>
         <PropertyAddressFields
-          value={{ region: form.region, district: form.district, city: form.city }}
+          value={{ street: form.street, region: form.region, district: form.district, city: form.city }}
           onChange={handleAddressChange}
           onCoordinates={setCoordinates}
           size='medium'

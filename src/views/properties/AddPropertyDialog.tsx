@@ -55,6 +55,7 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // Address Autocomplete Imports
 import PropertyAddressFields from '@/components/address/PropertyAddressFields'
+import type { AddressValue } from '@/components/address/PropertyAddressFields'
 
 type PropertyEditData = {
   id?: string
@@ -140,6 +141,7 @@ type FormDataType = {
   propertyName: string
   propertyType: string
   condition: string
+  street: string
   region: string
   district: string
   city: string
@@ -157,6 +159,7 @@ const initialData: FormDataType = {
   propertyName: '',
   propertyType: '',
   condition: '',
+  street: '',
   region: '',
   district: '',
   city: '',
@@ -262,6 +265,13 @@ const AddPropertyDialog = ({
         propertyName: editData.name || '',
         propertyType: editData.rawType || editData.type || '',
         condition: editData.rawCondition || editData.condition || '',
+        // Properties saved before the street field existed had the city
+        // written into address_line_1. Prefilling that would show the city
+        // under "Street / House Address" and re-save the duplicate on the
+        // next edit, so drop it when it is exactly the city — the signature
+        // of the old bug. A street that genuinely equals the city name is
+        // indistinguishable, and losing it costs the user one retype.
+        street: editData.street && editData.street !== editData.city ? editData.street : '',
         region: editData.rawRegion || editData.region || '',
         district: editData.rawDistrict || editData.district || '',
         city: editData.city || '',
@@ -338,7 +348,7 @@ const AddPropertyDialog = ({
     }
   }
 
-  const handleAddressChange = (patch: Partial<{ region: string; district: string; city: string }>) => {
+  const handleAddressChange = (patch: Partial<AddressValue>) => {
     setFormData(prev => ({ ...prev, ...patch }))
 
     // A Region change sends a patch that also cascade-clears district and
@@ -514,7 +524,11 @@ const AddPropertyDialog = ({
       const propertyPayload: any = {
         name: formData.propertyName,
         address: {
-          street: (mode === 'edit' && editData?.street) || formData.city,
+          // The form now collects a real street line. It is optional, so an
+          // empty one goes as undefined rather than falling back to the city
+          // — writing the city into address_line_1 is what made every
+          // property's street a duplicate of its city.
+          street: formData.street || undefined,
           city: formData.city || 'Accra',
           state: (mode === 'edit' && editData?.region) || formData.region,
           zip: (mode === 'edit' && editData?.zip) || '00233',
@@ -666,7 +680,7 @@ const AddPropertyDialog = ({
       const draftPayload = {
         name: formData.propertyName,
         address: {
-          street: formData.city, // Using city as street for now
+          street: formData.street || undefined,
           city: formData.city,
           country: 'Ghana'
         },
@@ -747,7 +761,12 @@ const AddPropertyDialog = ({
           <div className='flex flex-col gap-4'>
             <Grid container spacing={6}>
               <PropertyAddressFields
-                value={{ region: formData.region, district: formData.district, city: formData.city }}
+                value={{
+                  street: formData.street,
+                  region: formData.region,
+                  district: formData.district,
+                  city: formData.city
+                }}
                 onChange={handleAddressChange}
                 onCoordinates={setCoordinates}
                 searchable={mode !== 'edit'}

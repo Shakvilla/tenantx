@@ -6,7 +6,9 @@
  * Property address structure
  */
 export interface PropertyAddress {
-  street: string
+  /** Optional both ways: the backend puts no validation on it, and many
+   *  Ghanaian properties are identified by locality and GPS code alone. */
+  street?: string
   city: string
   state?: string
   zip?: string

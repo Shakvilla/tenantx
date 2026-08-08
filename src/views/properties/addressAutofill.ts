@@ -7,7 +7,7 @@
  */
 import type { PlaceSuggestion } from '@/lib/api/places'
 
-type LocationFields = { region: string; district: string; city: string }
+type LocationFields = { street: string; region: string; district: string; city: string }
 
 /**
  * Assign a place onto the location fields.
@@ -19,6 +19,7 @@ type LocationFields = { region: string; district: string; city: string }
 export function applyPlaceToForm<T extends LocationFields>(form: T, place: PlaceSuggestion): T {
   return {
     ...form,
+    street: place.street ?? '',
     region: place.region ?? '',
     district: place.district ?? '',
     city: place.city ?? ''
@@ -35,6 +36,12 @@ export function describeAutofill(place: PlaceSuggestion): string {
 
   const missing: string[] = []
 
+  // Street is announced when present but never asked for when absent: it is
+  // the one optional address field, and most Ghanaian localities have no
+  // street name for the geocoder to return. Listing it under "please choose"
+  // would demand something the user often cannot supply.
+  if (place.street) filled.push('street')
+
   ;(
     [
       ['region', place.region],
@@ -43,9 +50,6 @@ export function describeAutofill(place: PlaceSuggestion): string {
     ] as const
   ).forEach(([name, value]) => (value ? filled.push(name) : missing.push(name)))
 
-  // applyPlaceToForm never assigns street — it is not one of LocationFields —
-  // so a message claiming to have filled it would be false whenever nothing
-  // else matched either. Say only what actually happened.
   if (!filled.length) {
     return missing.length ? `Please choose the ${list(missing)} below.` : ''
   }

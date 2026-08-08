@@ -10,7 +10,9 @@ import { apiGet, API_BASE } from './client'
 
 export type PlaceSuggestion = {
   label: string
-  street: string
+  /** null when the geocoder had no street — it never falls back to the
+   *  place name, which for a locality query would just echo the city. */
+  street: string | null
   region: string | null
   district: string | null
   city: string | null

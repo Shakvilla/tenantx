@@ -361,7 +361,10 @@ const PropertiesListTable = () => {
       }),
       columnHelper.accessor('address', {
         header: 'ADDRESS',
-        cell: ({ row }) => <Typography>{row.original.gpsCode || row.original.address?.street || '-'}</Typography>
+        // Street first: it is the actual address now that the form collects
+        // one. The GPS code stays as the fallback because plenty of Ghanaian
+        // properties are identified by it alone and have no street name.
+        cell: ({ row }) => <Typography>{row.original.address?.street || row.original.gpsCode || '-'}</Typography>
       }),
       columnHelper.accessor('totalUnits', {
         header: 'UNITS',

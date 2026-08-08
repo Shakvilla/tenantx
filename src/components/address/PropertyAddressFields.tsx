@@ -9,6 +9,7 @@ import Grid from '@mui/material/Grid2'
 import InputLabel from '@mui/material/InputLabel'
 import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
 import AddressSearchField from '@/components/address/AddressSearchField'
@@ -17,7 +18,7 @@ import { getCities as fetchCities } from '@/lib/api/reference'
 import type { PlaceSuggestion } from '@/lib/api/places'
 import { applyPlaceToForm, describeAutofill } from '@/views/properties/addressAutofill'
 
-export type AddressValue = { region: string; district: string; city: string }
+export type AddressValue = { street: string; region: string; district: string; city: string }
 
 export type AddressCoordinates = { latitude: number; longitude: number; placeId: string }
 
@@ -115,8 +116,15 @@ const PropertyAddressFields = ({
   // an empty search box hiding an address the user already entered.
   const [mode, setMode] = useState<'searching' | 'resolved' | 'manual'>(() => {
     if (!searchable) return 'manual'
+    if (value.region || value.district || value.city) return 'resolved'
 
-    return value.region || value.district || value.city ? 'resolved' : 'searching'
+    // Street alone means the user took the manual path and typed only the
+    // street line before navigating away. Seeding `resolved` here would
+    // render an empty locality line beside a lone Change button; seeding
+    // `searching` would hide the street they already typed.
+    if (value.street) return 'manual'
+
+    return 'searching'
   })
 
   // True only right after a suggestion filled city from its region-wide
@@ -176,7 +184,10 @@ const PropertyAddressFields = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [citiesStatus, cities.length])
 
-  const handleFieldChange = (field: keyof AddressValue, next: string) => {
+  // `street` is deliberately not assignable here: every path through this
+  // function clears the coordinates, which is wrong for the street line.
+  // See handleStreetChange.
+  const handleFieldChange = (field: Exclude<keyof AddressValue, 'street'>, next: string) => {
     // A suggestion with district: null fills city from the region-wide
     // locality fallback and tells the user to pick the district. Consumed
     // once, here — the cascade below must not clear that same city.
@@ -205,12 +216,28 @@ const PropertyAddressFields = ({
     }
   }
 
+  /**
+   * Unlike the other three, editing the street does NOT clear the
+   * coordinates.
+   *
+   * The geocoder rarely returns a street for a Ghanaian locality, so the
+   * expected flow after picking "East Legon" is to type the house number and
+   * street it never knew. Treating that as "the address no longer describes
+   * the picked place" would drop the coordinates from very nearly every
+   * property saved. Region, district and city still clear them: changing one
+   * of those genuinely contradicts the place that was picked, whereas adding
+   * detail beneath it does not.
+   */
+  const handleStreetChange = (next: string) => {
+    onChange({ street: next })
+  }
+
   const handlePlaceSelected = (place: PlaceSuggestion) => {
     const next = applyPlaceToForm(value, place)
 
     // gpsCode is Ghana Post's digital address. No geocoder has it, so it is
     // never touched here even though it sits among the address fields.
-    onChange({ region: next.region, district: next.district, city: next.city })
+    onChange({ street: next.street, region: next.region, district: next.district, city: next.city })
     onCoordinates({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId })
     setAutofillNote(describeAutofill(place))
     setCityFromAutofill(!place.district && Boolean(place.city))
@@ -340,6 +367,25 @@ const PropertyAddressFields = ({
     </Grid>
   )
 
+  // Always an input, never collapsed into the resolved text: it is the one
+  // part of an address the geocoder usually cannot supply, so the user has to
+  // be able to type it whatever mode they arrived in. Optional — plenty of
+  // Ghanaian properties are identified by locality and GPS code alone, with
+  // no street name to give.
+  const streetField = (
+    <Grid key='street' size={{ xs: 12 }}>
+      <TextField
+        fullWidth
+        size={size}
+        label='Street / House Address'
+        placeholder='e.g. 23 Lagos Avenue, House No. 12 Block C'
+        value={value.street}
+        onChange={e => handleStreetChange(e.target.value)}
+        helperText='Optional — the building number and street, if it has one.'
+      />
+    </Grid>
+  )
+
   return (
     <>
       {searchable && mode !== 'manual' && (
@@ -396,6 +442,7 @@ const PropertyAddressFields = ({
           {!value.region && regionField}
           {!value.district && districtField}
           {!value.city && cityField}
+          {streetField}
         </>
       )}
 
@@ -411,6 +458,7 @@ const PropertyAddressFields = ({
           {regionField}
           {districtField}
           {cityField}
+          {streetField}
         </>
       )}
     </>

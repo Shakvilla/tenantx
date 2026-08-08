@@ -77,6 +77,26 @@ vi.mock('@/components/address/AddressSearchField', () => ({
       >
         pick address without district
       </button>
+      <button
+        onClick={() =>
+          onSelect({
+            label: 'East Legon, Accra',
+            // The common Ghanaian case: the geocoder resolved the locality
+            // but has no street name to give. GhanaLocationMatcher returns
+            // null here rather than falling back to the place name, which
+            // would just echo the city.
+            street: null,
+            region: 'greater-accra',
+            district: 'ayawaso-west',
+            city: 'East Legon',
+            latitude: 5.63,
+            longitude: -0.17,
+            placeId: 'osm:N4'
+          })
+        }
+      >
+        pick address without street
+      </button>
       <button onClick={() => onUnavailable?.()}>trigger unavailable</button>
     </>
   )
@@ -96,7 +116,7 @@ function Harness({
   initialValue?: AddressValue
   errors?: Partial<Record<keyof AddressValue, boolean>>
 }) {
-  const [value, setValue] = useState<AddressValue>(initialValue ?? { region: '', district: '', city: '' })
+  const [value, setValue] = useState<AddressValue>(initialValue ?? { street: '', region: '', district: '', city: '' })
 
   return (
     <PropertyAddressFields
@@ -241,7 +261,9 @@ describe('PropertyAddressFields display modes', () => {
     // that is still there in `formData`, un-editable until the user notices
     // and clicks the manual link.
     render(
-      <Harness initialValue={{ region: 'greater-accra', district: 'ayawaso-west', city: 'East Legon' }} />
+      <Harness
+        initialValue={{ street: '', region: 'greater-accra', district: 'ayawaso-west', city: 'East Legon' }}
+      />
     )
 
     expect(await screen.findByText(/Greater Accra/)).toBeTruthy()
@@ -398,7 +420,7 @@ describe('PropertyAddressFields partial matches', () => {
  * on input — this harness is that interaction, not just the passive form.
  */
 function ValidatingHarness() {
-  const [value, setValue] = useState<AddressValue>({ region: '', district: '', city: '' })
+  const [value, setValue] = useState<AddressValue>({ street: '', region: '', district: '', city: '' })
   const [errors, setErrors] = useState<Partial<Record<keyof AddressValue, boolean>>>({})
 
   const onChange = (patch: Partial<AddressValue>) => {
@@ -507,5 +529,96 @@ describe('PropertyAddressFields sticky error surfacing (fix round 2)', () => {
     // have un-surfaced them.
     expect(screen.getByRole('combobox', { name: /region/i }).textContent).toContain('Greater Accra')
     expect(screen.getByRole('combobox', { name: /district/i }).textContent).toContain('Ayawaso West Municipal')
+  })
+})
+
+describe('PropertyAddressFields street line', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const street = () => screen.getByLabelText(/street \/ house address/i)
+
+  it('does not show the street input while the user is still searching', () => {
+    render(<Harness />)
+
+    // Searching mode is the search box alone. The street input appears once
+    // there is an address for it to belong to.
+    expect(screen.queryByLabelText(/street \/ house address/i)).toBeNull()
+  })
+
+  it('shows the street input alongside a resolved address', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByText('pick address'))
+
+    expect(await screen.findByLabelText(/street \/ house address/i)).toBeTruthy()
+  })
+
+  it('shows the street input in manual mode', () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+
+    expect(street()).toBeTruthy()
+  })
+
+  it('fills the street from a place that has one', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByText('pick address'))
+
+    await waitFor(() => expect((street() as HTMLInputElement).value).toBe('23 Lagos Avenue'))
+  })
+
+  it('leaves the street empty when the geocoder had none, rather than echoing the city', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByText('pick address without street'))
+
+    // The whole point of the street field: the city must not end up in it.
+    // This is the shape that produced address_line_1 === city for every
+    // property before the field existed.
+    await waitFor(() => expect((street() as HTMLInputElement).value).toBe(''))
+    expect(screen.getByText(/East Legon/)).toBeTruthy()
+  })
+
+  it('keeps the coordinates when only the street is edited', async () => {
+    const onCoords = vi.fn()
+
+    render(<Harness onCoords={onCoords} />)
+    fireEvent.click(screen.getByText('pick address without street'))
+    await waitFor(() => expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'osm:N4' })))
+
+    // The expected flow after picking a locality is to type the house number
+    // the geocoder never knew. Treating that as "the address no longer
+    // describes the picked place" would drop the coordinates from very
+    // nearly every property saved — the geocoder rarely returns a Ghanaian
+    // street.
+    fireEvent.change(street(), { target: { value: 'House No. 12, Block C' } })
+
+    await waitFor(() => expect((street() as HTMLInputElement).value).toBe('House No. 12, Block C'))
+    expect(onCoords).not.toHaveBeenCalledWith(null)
+  })
+
+  it('still drops the coordinates when a locality field is edited', async () => {
+    const onCoords = vi.fn()
+
+    render(<Harness onCoords={onCoords} />)
+    fireEvent.click(screen.getByText('pick address'))
+    await waitFor(() => expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'osm:N4951010023' })))
+
+    // The street exemption must not have widened into the other three:
+    // changing the district genuinely contradicts the picked place.
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+    fireEvent.mouseDown(await screen.findByRole('combobox', { name: /district/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Tema Metropolitan' }))
+
+    await waitFor(() => expect(onCoords).toHaveBeenLastCalledWith(null))
+  })
+
+  it('comes back in manual mode when only a street survived a remount', async () => {
+    // A user who took the manual path, typed just the street, then moved to
+    // the next wizard step and back. Seeding `searching` would hide the
+    // street they already typed; seeding `resolved` would render an empty
+    // locality line beside a lone Change button.
+    render(<Harness initialValue={{ street: '9 Old Road', region: '', district: '', city: '' }} />)
+
+    expect((street() as HTMLInputElement).value).toBe('9 Old Road')
+    expect(await screen.findByRole('combobox', { name: /region/i })).toBeTruthy()
   })
 })

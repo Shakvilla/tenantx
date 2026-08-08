@@ -17,7 +17,7 @@ const partial = { ...full, district: null, city: null }
 
 describe('applyPlaceToForm', () => {
   it('assigns every matched field', () => {
-    const next = applyPlaceToForm({ region: '', district: '', city: '' }, full)
+    const next = applyPlaceToForm({ street: '', region: '', district: '', city: '' }, full)
 
     expect(next).toMatchObject({
       region: 'greater-accra',
@@ -29,13 +29,13 @@ describe('applyPlaceToForm', () => {
   it('does not wipe a field the geocoder could not match', () => {
     // Assigning region normally cascades district and city to empty. Doing
     // that here would erase the values assigned in the same selection.
-    const next = applyPlaceToForm({ region: '', district: '', city: '' }, full)
+    const next = applyPlaceToForm({ street: '', region: '', district: '', city: '' }, full)
 
     expect(next.district).toBe('ayawaso-west')
   })
 
   it('clears stale values when the new place has no match for them', () => {
-    const previous = { region: 'ashanti', district: 'kumasi-metro', city: 'Adum' }
+    const previous = { street: '9 Old Road', region: 'ashanti', district: 'kumasi-metro', city: 'Adum' }
     const next = applyPlaceToForm(previous, partial)
 
     // Keeping Kumasi's district under a Greater Accra address would be worse
@@ -52,7 +52,7 @@ describe('applyPlaceToForm', () => {
     // callers (AddPropertyDialog, PropertyStep) — but it must assign what it
     // was given.
     const regionWideFallback = { ...full, district: null, city: 'Community 25' }
-    const next = applyPlaceToForm({ region: 'ashanti', district: 'kumasi-metro', city: 'Adum' }, regionWideFallback)
+    const next = applyPlaceToForm({ street: '', region: 'ashanti', district: 'kumasi-metro', city: 'Adum' }, regionWideFallback)
 
     expect(next).toMatchObject({ region: 'greater-accra', district: '', city: 'Community 25' })
   })
@@ -60,23 +60,35 @@ describe('applyPlaceToForm', () => {
 
 describe('describeAutofill', () => {
   it('lists what it filled', () => {
-    expect(describeAutofill(full)).toBe('Filled region, district and city from the address.')
+    expect(describeAutofill(full)).toBe('Filled street, region, district and city from the address.')
   })
 
   it('names what it could not match so the user knows to pick it', () => {
     expect(describeAutofill(partial)).toBe(
-      'Filled region from the address. Please choose the district and city below.'
+      'Filled street and region from the address. Please choose the district and city below.'
     )
   })
 
-  it('says so when nothing matched', () => {
-    // Must not claim to have filled the street: applyPlaceToForm never
-    // assigns it (street is not one of LocationFields), so that claim was
-    // false whenever region/district/city all missed too (IMPORTANT 4 of
-    // the whole-branch review).
+  it('says so when no locality matched', () => {
     expect(describeAutofill({ ...full, region: null, district: null, city: null })).toBe(
+      'Filled street from the address. Please choose the region, district and city below.'
+    )
+  })
+
+  it('says nothing was filled when the place has neither a street nor a locality match', () => {
+    expect(describeAutofill({ ...full, street: null, region: null, district: null, city: null })).toBe(
       'Please choose the region, district and city below.'
     )
+  })
+
+  it('never asks the user to choose a street', () => {
+    // Street is the one optional address field, and most Ghanaian localities
+    // have no street name for the geocoder to return. Listing it under
+    // "please choose" would demand something the user often cannot give.
+    const noStreet = { ...full, street: null }
+
+    expect(describeAutofill(noStreet)).toBe('Filled region, district and city from the address.')
+    expect(describeAutofill(noStreet)).not.toContain('street')
   })
 
   it('describes a region-wide fallback match (district null, city present)', () => {
@@ -86,7 +98,7 @@ describe('describeAutofill', () => {
     const regionWideFallback = { ...full, district: null, city: 'Community 25' }
 
     expect(describeAutofill(regionWideFallback)).toBe(
-      'Filled region and city from the address. Please choose the district below.'
+      'Filled street, region and city from the address. Please choose the district below.'
     )
   })
 })

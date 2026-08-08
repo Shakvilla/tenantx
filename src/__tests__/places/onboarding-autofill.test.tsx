@@ -257,3 +257,51 @@ describe('PropertyStep address autofill', () => {
     expect(screen.getByLabelText(/city/i).textContent).toContain('East Legon')
   })
 })
+
+describe('PropertyStep street line', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const fillNameAndType = async () => {
+    fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Villa' } })
+    fireEvent.mouseDown(screen.getByLabelText(/property type/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'House' }))
+  }
+
+  const save = async () => {
+    await waitFor(() => expect(screen.getByRole('button', { name: /save|continue/i })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /save|continue/i }))
+  }
+
+  it('sends the street the user has, never the city', async () => {
+    render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
+    fireEvent.click(screen.getByText('pick address'))
+    await fillNameAndType()
+    await save()
+
+    await waitFor(() =>
+      expect(vi.mocked(createProperty).mock.calls[0][1].address).toMatchObject({
+        street: '23 Lagos Avenue',
+        city: 'East Legon'
+      })
+    )
+  })
+
+  it('sends no street at all rather than falling back to the city', async () => {
+    render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
+    fireEvent.click(screen.getByText('pick address'))
+
+    // Clear the autofilled street: the property genuinely has no street name,
+    // which is common in Ghana. Before the street field existed this path
+    // wrote the city into address_line_1, so every property's street was a
+    // duplicate of its city.
+    fireEvent.change(await screen.findByLabelText(/street \/ house address/i), { target: { value: '' } })
+    await fillNameAndType()
+    await save()
+
+    await waitFor(() => expect(vi.mocked(createProperty)).toHaveBeenCalled())
+    const address = vi.mocked(createProperty).mock.calls[0][1].address
+
+    expect(address?.street).toBeUndefined()
+    expect(address?.city).toBe('East Legon')
+  })
+})
