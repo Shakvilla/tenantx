@@ -13,12 +13,13 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
 import AddressSearchField from '@/components/address/AddressSearchField'
+import DigitalAddressField, { type DecodedAddress } from '@/components/address/DigitalAddressField'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import { getCities as fetchCities } from '@/lib/api/reference'
 import type { PlaceSuggestion } from '@/lib/api/places'
 import { applyPlaceToForm, describeAutofill } from '@/views/properties/addressAutofill'
 
-export type AddressValue = { street: string; region: string; district: string; city: string }
+export type AddressValue = { gpsCode: string; street: string; region: string; district: string; city: string }
 
 export type AddressCoordinates = { latitude: number; longitude: number; placeId: string }
 
@@ -187,7 +188,7 @@ const PropertyAddressFields = ({
   // `street` is deliberately not assignable here: every path through this
   // function clears the coordinates, which is wrong for the street line.
   // See handleStreetChange.
-  const handleFieldChange = (field: Exclude<keyof AddressValue, 'street'>, next: string) => {
+  const handleFieldChange = (field: Exclude<keyof AddressValue, 'street' | 'gpsCode'>, next: string) => {
     // A suggestion with district: null fills city from the region-wide
     // locality fallback and tells the user to pick the district. Consumed
     // once, here — the cascade below must not clear that same city.
@@ -230,6 +231,26 @@ const PropertyAddressFields = ({
    */
   const handleStreetChange = (next: string) => {
     onChange({ street: next })
+  }
+
+  /**
+   * The code is a label the landlord types; editing it changes nothing about
+   * where the property is, so it leaves the coordinates alone — same reasoning
+   * as handleStreetChange.
+   */
+  const handleGpsCodeChange = (next: string) => {
+    onChange({ gpsCode: next })
+  }
+
+  /**
+   * A recognised prefix fills region and district. City is cleared with them:
+   * a city from a previously-chosen district, sitting under a district the
+   * code just supplied, is wrong in a way that looks deliberate — the same
+   * rule applyPlaceToForm already follows.
+   */
+  const handleDecoded = (decoded: DecodedAddress) => {
+    onChange({ region: decoded.regionValue, district: decoded.districtValue, city: '' })
+    setMode('resolved')
   }
 
   const handlePlaceSelected = (place: PlaceSuggestion) => {
@@ -388,6 +409,13 @@ const PropertyAddressFields = ({
 
   return (
     <>
+      <DigitalAddressField
+        value={value.gpsCode}
+        onChange={handleGpsCodeChange}
+        onDecoded={handleDecoded}
+        size={size}
+      />
+
       {searchable && mode !== 'manual' && (
         <Grid size={{ xs: 12 }}>
           <AddressSearchField

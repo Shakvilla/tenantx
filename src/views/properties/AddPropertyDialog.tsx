@@ -762,6 +762,7 @@ const AddPropertyDialog = ({
             <Grid container spacing={6}>
               <PropertyAddressFields
                 value={{
+                  gpsCode: formData.gpsCode,
                   street: formData.street,
                   region: formData.region,
                   district: formData.district,
@@ -828,19 +829,6 @@ const AddPropertyDialog = ({
                     </Typography>
                   )}
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  size='small'
-                  fullWidth
-                  label='GPS CODE'
-                  placeholder='Enter GPS code'
-                  value={formData.gpsCode}
-                  onChange={e => handleInputChange('gpsCode', e.target.value)}
-                  InputProps={{
-                    endAdornment: <i className='ri-map-pin-line text-xl' />
-                  }}
-                />
               </Grid>
               <Grid size={{ xs: 12 }}>
                 <TextField

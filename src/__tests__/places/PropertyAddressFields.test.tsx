@@ -6,6 +6,7 @@ import PropertyAddressFields, { type AddressValue } from '@/components/address/P
 
 vi.mock('@/lib/api/reference', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api/reference')>()),
+  getPostcodeDistricts: vi.fn(async () => []),
   getCities: vi.fn(async () => ['East Legon', 'Dzorwulu'])
 }))
 
@@ -116,7 +117,7 @@ function Harness({
   initialValue?: AddressValue
   errors?: Partial<Record<keyof AddressValue, boolean>>
 }) {
-  const [value, setValue] = useState<AddressValue>(initialValue ?? { street: '', region: '', district: '', city: '' })
+  const [value, setValue] = useState<AddressValue>(initialValue ?? { gpsCode: '', street: '', region: '', district: '', city: '' })
 
   return (
     <PropertyAddressFields
@@ -262,7 +263,7 @@ describe('PropertyAddressFields display modes', () => {
     // and clicks the manual link.
     render(
       <Harness
-        initialValue={{ street: '', region: 'greater-accra', district: 'ayawaso-west', city: 'East Legon' }}
+        initialValue={{ gpsCode: '', street: '', region: 'greater-accra', district: 'ayawaso-west', city: 'East Legon' }}
       />
     )
 
@@ -420,7 +421,7 @@ describe('PropertyAddressFields partial matches', () => {
  * on input — this harness is that interaction, not just the passive form.
  */
 function ValidatingHarness() {
-  const [value, setValue] = useState<AddressValue>({ street: '', region: '', district: '', city: '' })
+  const [value, setValue] = useState<AddressValue>({ gpsCode: '', street: '', region: '', district: '', city: '' })
   const [errors, setErrors] = useState<Partial<Record<keyof AddressValue, boolean>>>({})
 
   const onChange = (patch: Partial<AddressValue>) => {
@@ -616,7 +617,7 @@ describe('PropertyAddressFields street line', () => {
     // the next wizard step and back. Seeding `searching` would hide the
     // street they already typed; seeding `resolved` would render an empty
     // locality line beside a lone Change button.
-    render(<Harness initialValue={{ street: '9 Old Road', region: '', district: '', city: '' }} />)
+    render(<Harness initialValue={{ gpsCode: '', street: '9 Old Road', region: '', district: '', city: '' }} />)
 
     expect((street() as HTMLInputElement).value).toBe('9 Old Road')
     expect(await screen.findByRole('combobox', { name: /region/i })).toBeTruthy()

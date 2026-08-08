@@ -35,6 +35,23 @@ async function fetchList<T>(path: string): Promise<T[]> {
   return res.json()
 }
 
+/**
+ * The Ghana Post postcode prefix table, ~216 rows. Fetched once and held in
+ * context: decoding a code as the landlord types it has to feel instant, and a
+ * round-trip per keystroke for a table this small would be silly.
+ *
+ * `regionValue` and `districtValue` are null where the published district has
+ * since been split, so the prefix is known but does not identify one of ours.
+ */
+export type PostcodeDistrict = {
+  prefix: string
+  regionValue: string | null
+  districtValue: string | null
+  sourceLabel: string
+}
+
+export const getPostcodeDistricts      = () => fetchList<PostcodeDistrict>('/postcode-districts')
+
 export const getPropertyTypes          = () => fetchList<ReferenceItem>('/property-types')
 export const getPropertyConditions     = () => fetchList<ReferenceItem>('/property-conditions')
 export const getPropertyStatuses       = () => fetchList<ReferenceItem>('/property-statuses')

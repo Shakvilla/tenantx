@@ -22,7 +22,7 @@ import type { AddressValue } from '@/components/address/PropertyAddressFields'
 
 export default function PropertyStep({ tenantId, onComplete, onSkip }: OnboardingStepProps) {
   const { ref } = useReferenceData()
-  const [form, setForm] = useState({ name: '', type: '', street: '', region: '', district: '', city: '' })
+  const [form, setForm] = useState({ name: '', type: '', gpsCode: '', street: '', region: '', district: '', city: '' })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [coordinates, setCoordinates] = useState<{
@@ -53,6 +53,7 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
         condition: 'good',
         region: form.region,
         district: form.district,
+        gpsCode: form.gpsCode || undefined,
         currency: 'GHS',
         ...(coordinates ?? {}),
         address: {
@@ -88,7 +89,13 @@ return
       )}
       <Grid container spacing={4}>
         <PropertyAddressFields
-          value={{ street: form.street, region: form.region, district: form.district, city: form.city }}
+          value={{
+            gpsCode: form.gpsCode,
+            street: form.street,
+            region: form.region,
+            district: form.district,
+            city: form.city
+          }}
           onChange={handleAddressChange}
           onCoordinates={setCoordinates}
           size='medium'

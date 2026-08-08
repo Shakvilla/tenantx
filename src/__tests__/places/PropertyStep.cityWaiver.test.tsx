@@ -14,6 +14,7 @@ import PropertyStep from '@/views/onboarding/steps/PropertyStep'
 
 vi.mock('@/lib/api/reference', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api/reference')>()),
+  getPostcodeDistricts: vi.fn(async () => []),
   getCities: vi.fn(async () => [])
 }))
 

@@ -7,7 +7,8 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: 
 
 vi.mock('@/lib/api/places', () => ({ searchPlaces: vi.fn() }))
 
-vi.mock('@/lib/api/reference', () => ({ getCities: vi.fn() }))
+vi.mock('@/lib/api/reference', () => ({ getPostcodeDistricts: vi.fn(async () => []),
+  getCities: vi.fn() }))
 
 vi.mock('@/lib/api/storage', () => ({ getStoredTenantId: () => 'tenant-1' }))
 
