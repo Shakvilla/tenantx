@@ -382,3 +382,130 @@ describe('PropertyAddressFields partial matches', () => {
     expect(screen.getByText(/this field is required\./i)).toBeTruthy()
   })
 })
+
+/**
+ * Drives the component the way AddPropertyDialog and PropertyStep actually
+ * do, not the way the plain Harness above does: `errors` is caller-owned
+ * state that (a) clears a field's error the instant its patch carries a
+ * non-empty value — see AddPropertyDialog's handleAddressChange — and (b) is
+ * recomputed wholesale by a `validate()` a Next click runs, mirroring
+ * AddPropertyDialog.validateStep's step-0 rules for the address fields.
+ *
+ * The plain Harness can't reproduce the fix-round-2 regression at all: its
+ * `errors` prop is a static value fixed for the render, so a field surfaced
+ * by an error never had anything to make it un-surface. The bug lived in the
+ * interaction between PropertyAddressFields and a caller that clears errors
+ * on input — this harness is that interaction, not just the passive form.
+ */
+function ValidatingHarness() {
+  const [value, setValue] = useState<AddressValue>({ region: '', district: '', city: '' })
+  const [errors, setErrors] = useState<Partial<Record<keyof AddressValue, boolean>>>({})
+
+  const onChange = (patch: Partial<AddressValue>) => {
+    setValue(v => ({ ...v, ...patch }))
+
+    // Same rule as AddPropertyDialog.handleAddressChange: only a key whose
+    // new value is actually non-empty has its error cleared, so a Region
+    // pick's patch (which cascade-clears district/city to '') does not also
+    // clear District's still-unmet "required" highlight.
+    setErrors(prev => ({
+      ...prev,
+      ...Object.fromEntries(Object.entries(patch).filter(([, v]) => Boolean(v)).map(([k]) => [k, false]))
+    }))
+  }
+
+  const validate = () => {
+    setErrors({
+      region: !value.region,
+      district: !value.district,
+      // Same rule as AddPropertyDialog.validateStep: City is only required
+      // once a District is chosen.
+      city: Boolean(value.district) && !value.city
+    })
+  }
+
+  return (
+    <>
+      <PropertyAddressFields value={value} onChange={onChange} onCoordinates={() => {}} errors={errors} />
+      <button onClick={validate}>Next</button>
+    </>
+  )
+}
+
+describe('PropertyAddressFields sticky error surfacing (fix round 2)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  // The regression: IMPORTANT 1 gated the searching-mode fallback on the
+  // live `errors` value. A real caller clears a field's error the instant
+  // its own patch fills it, so the field IMPORTANT 1 exists to surface
+  // vanished the instant the user did what it asked — Region disappearing
+  // the moment Region is picked reads as "my selection was rejected."
+  it('keeps the Region select on screen after it is answered, still showing the pick', async () => {
+    render(<ValidatingHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+
+    const region = await screen.findByLabelText(/region/i)
+
+    expect(region).toBeTruthy()
+
+    fireEvent.mouseDown(region)
+    fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))
+
+    // The old behaviour: the Region FormControl unmounted the instant
+    // errors.region cleared, and nothing else in `searching` mode took its
+    // place — the screen would show no select and no "Greater Accra" text
+    // anywhere, indistinguishable from never having picked at all.
+    // getByRole('combobox'), not getByLabelText: MUI points the open menu's
+    // listbox at the same label id as the select itself, so a label query run
+    // while the menu is still mounted matches both. The passing tests above
+    // only ever query after the menu has gone.
+    const regionAfterPick = screen.getByRole('combobox', { name: /region/i })
+
+    expect(regionAfterPick).toBeTruthy()
+    expect(regionAfterPick.textContent).toContain('Greater Accra')
+  })
+
+  it('keeps Region and District on screen after both are answered, and surfaces City on the next validation', async () => {
+    render(<ValidatingHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await screen.findByLabelText(/region/i)
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /region/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))
+
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /district/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Ayawaso West Municipal' }))
+
+    // Both selects remain, each showing what was picked — not the blank
+    // untouched-looking screen the regression produced.
+    expect(screen.getByRole('combobox', { name: /region/i }).textContent).toContain('Greater Accra')
+    expect(screen.getByRole('combobox', { name: /district/i }).textContent).toContain('Ayawaso West Municipal')
+
+    // City was never errored by the first Next (District was still empty
+    // then, so AddPropertyDialog's own rule — City is required only once a
+    // District is chosen — never fired), so it does not appear on its own.
+    expect(screen.queryByLabelText(/^city/i)).toBeNull()
+
+    // A second Next re-validates: District is now filled and City is not,
+    // so City becomes newly errored and — per the fix — gets added to
+    // surfacedFields for the first time. This is "real behaviour" here
+    // rather than "the step advances" because ValidatingHarness has no
+    // step to advance; it mirrors only the address-field slice of
+    // AddPropertyDialog.validateStep, and by that rule Next legitimately
+    // fails again (City is still required and still empty) — the same way
+    // AddPropertyDialog itself would not advance past Step 1 in this state.
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+
+    const city = await screen.findByLabelText(/^city/i)
+
+    expect(city).toBeTruthy()
+    expect(screen.getByText(/this field is required\./i)).toBeTruthy()
+
+    // Region and District are still there too — a second validation must not
+    // have un-surfaced them.
+    expect(screen.getByRole('combobox', { name: /region/i }).textContent).toContain('Greater Accra')
+    expect(screen.getByRole('combobox', { name: /district/i }).textContent).toContain('Ayawaso West Municipal')
+  })
+})

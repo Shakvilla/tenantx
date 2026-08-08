@@ -65,6 +65,42 @@ const PropertyAddressFields = ({
   // reason forward instead of silently swallowing it.
   const [searchUnavailable, setSearchUnavailable] = useState(false)
 
+  // Fields the caller has errored at least once while still in `searching`
+  // mode. Add-only for the life of the mount — never removed, including when
+  // the live `errors` prop later clears.
+  //
+  // Regression from IMPORTANT 1's own fix: a caller (both forms do this)
+  // clears a field's error the moment its patch carries a non-empty value.
+  // Gating the searching-mode fallback on the live `errors` value directly
+  // meant a field surfaced by an error vanished the instant the user
+  // answered it — Region disappears on picking Region, District disappears
+  // on picking District, leaving a screen that looks untouched right after
+  // the user did the thing that was asked of them. Tracking surfaced fields
+  // separately, and only ever adding to the set, keeps a field on screen
+  // once shown so the user can see what they just picked.
+  const [surfacedFields, setSurfacedFields] = useState<Set<keyof AddressValue>>(() => new Set())
+
+  useEffect(() => {
+    const newlyErrored = (['region', 'district', 'city'] as const).filter(
+      field => errors[field] && !surfacedFields.has(field)
+    )
+
+    if (newlyErrored.length === 0) return
+
+    setSurfacedFields(prev => {
+      const next = new Set(prev)
+
+      newlyErrored.forEach(field => next.add(field))
+
+      return next
+    })
+
+    // errors is a plain object literal from the caller on every render;
+    // comparing its three keys, not its identity, is what makes this only
+    // fire when an error actually newly appears.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [errors.region, errors.district, errors.city])
+
   // 'searching': nothing picked yet, search only. 'resolved': a place was
   // picked, shown as text. 'manual': the selects are open.
   //
@@ -335,10 +371,13 @@ const PropertyAddressFields = ({
               A user who ignores the search and clicks Next got a button that
               validateStep failed silently: nothing on screen named the
               missing field. Mirrors the `resolved` branch's own fallback
-              rendering, just keyed on error instead of on absence. */}
-          {errors.region && regionField}
-          {errors.district && districtField}
-          {errors.city && cityField}
+              rendering, just keyed on `surfacedFields` (sticky) instead of
+              on absence — keying on the live `errors` value directly made a
+              field vanish the instant its error cleared, i.e. the instant
+              the user answered it. */}
+          {surfacedFields.has('region') && regionField}
+          {surfacedFields.has('district') && districtField}
+          {surfacedFields.has('city') && cityField}
         </>
       )}
 
