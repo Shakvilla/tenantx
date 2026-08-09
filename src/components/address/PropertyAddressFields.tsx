@@ -332,6 +332,26 @@ const PropertyAddressFields = ({
     setMode('resolved')
   }
 
+  /**
+   * The code and the position are two independent claims about the same
+   * property, so a disagreement means something real is wrong — a mistyped
+   * code, or a capture taken at home rather than at the property. Both are
+   * worth catching and neither is automatically right, so this is a question
+   * rather than a correction.
+   *
+   * Only raised against a CONFIDENT position. A guess tens of kilometres from
+   * the nearest locality node disagreeing with the code proves nothing, and
+   * treating that as a conflict would cry wolf on every rural property.
+   */
+  const conflict =
+    proposal !== null &&
+    proposal.confident &&
+    Boolean(lastDecoded.current) &&
+    value.district === lastDecoded.current?.districtValue &&
+    proposal.district !== lastDecoded.current?.districtValue
+
+  const keepTheCode = () => setProposal(null)
+
   const handlePlaceSelected = (place: PlaceSuggestion) => {
     const next = applyPlaceToForm(value, place)
 
@@ -355,6 +375,15 @@ const PropertyAddressFields = ({
     setCityFromAutofill(!place.district && Boolean(place.city))
     setMode('resolved')
   }
+
+  // The label for whatever the digital address decoded to, so the conflict
+  // question can name both districts rather than one slug and one label.
+  const decodedDistrictLabel =
+    ref.regions
+      .flatMap(r => r.districts ?? [])
+      .find(d => d.value === lastDecoded.current?.districtValue)?.label ??
+    lastDecoded.current?.districtValue ??
+    ''
 
   const regionLabel = ref.regions.find(r => r.value === value.region)?.label ?? ''
   const districtLabel = districtsForRegion.find(d => d.value === value.district)?.label ?? ''
@@ -532,7 +561,27 @@ const PropertyAddressFields = ({
       <Grid size={{ xs: 12 }}>
         <UseMyLocationButton onCaptured={handlePositionCaptured} />
 
-        {proposal && (
+        {conflict && proposal && (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant='body2'>
+              Your digital address is in <strong>{decodedDistrictLabel}</strong>, but your location looks like{' '}
+              <strong>{proposal.districtLabel}</strong>. Which is right?
+            </Typography>
+            <Typography variant='caption' color='text.secondary' className='block'>
+              A mistyped code and a location captured somewhere other than the property both look like this.
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+              <Button size='small' onClick={keepTheCode}>
+                Keep the code
+              </Button>
+              <Button size='small' onClick={acceptProposal}>
+                Use my location
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {proposal && !conflict && (
           <Box sx={{ mt: 1 }}>
             <Typography variant='body2'>
               Looks like{' '}
