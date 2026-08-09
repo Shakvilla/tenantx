@@ -44,3 +44,40 @@ export async function searchPlaces(query: string): Promise<PlaceSearchResult> {
     return { status: 'unavailable', suggestions: [] }
   }
 }
+
+export type ReverseResolved = {
+  region: string
+  regionLabel: string
+  district: string
+  districtLabel: string
+  city: string
+  distanceMetres: number
+  /**
+   * Whether the nearest locality is close enough to lead with. False does not
+   * mean wrong — it means "this is the nearest place we know, and it is far
+   * enough away that you should check".
+   */
+  confident: boolean
+}
+
+/**
+ * The address a captured position appears to be in, or null when no locality
+ * is near enough to name.
+ *
+ * Never applied automatically by the caller: an OSM place node is a point, not
+ * a boundary, so a property near a district edge can resolve to its neighbour.
+ */
+export async function reverseResolve(latitude: number, longitude: number): Promise<ReverseResolved | null> {
+  try {
+    const data = await apiGet<ReverseResolved | ''>(
+      `${API_BASE}/places/reverse?lat=${latitude}&lon=${longitude}`
+    )
+
+    // 204 arrives as an empty body: a real coordinate with nothing near it.
+    return data ? (data as ReverseResolved) : null
+  } catch {
+    // The capture still succeeded and the coordinates are still saved. Losing
+    // the suggested address is a degraded lookup, not a failed capture.
+    return null
+  }
+}

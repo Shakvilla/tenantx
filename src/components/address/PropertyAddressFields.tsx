@@ -17,7 +17,7 @@ import DigitalAddressField, { type DecodedAddress } from '@/components/address/D
 import UseMyLocationButton, { type CapturedPosition } from '@/components/address/UseMyLocationButton'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import { getCities as fetchCities } from '@/lib/api/reference'
-import type { PlaceSuggestion } from '@/lib/api/places'
+import { reverseResolve, type PlaceSuggestion, type ReverseResolved } from '@/lib/api/places'
 import { applyPlaceToForm, describeAutofill } from '@/views/properties/addressAutofill'
 
 export type AddressValue = { gpsCode: string; street: string; region: string; district: string; city: string }
@@ -150,6 +150,10 @@ const PropertyAddressFields = ({
   // cascade below must not then wipe the very city it just announced.
   // One-shot: cleared the moment an address-field edit consumes it.
   const [cityFromAutofill, setCityFromAutofill] = useState(false)
+
+  // A resolved address waiting for the landlord to accept it. Never applied
+  // on arrival — see handlePositionCaptured.
+  const [proposal, setProposal] = useState<ReverseResolved | null>(null)
 
   const [cities, setCities] = useState<string[]>([])
 
@@ -311,6 +315,21 @@ const PropertyAddressFields = ({
       placeId: null,
       accuracyMetres: position.accuracyMetres
     })
+
+    // Offered, never applied. An OSM place node is a point rather than a
+    // boundary, so a property near a district edge can resolve to its
+    // neighbour — filling the form silently would file it in the wrong
+    // district with nothing on screen to reveal it. A null answer changes
+    // nothing: the capture succeeded and the coordinates stand regardless.
+    reverseResolve(position.latitude, position.longitude).then(setProposal)
+  }
+
+  const acceptProposal = () => {
+    if (!proposal) return
+
+    onChange({ region: proposal.region, district: proposal.district, city: proposal.city })
+    setProposal(null)
+    setMode('resolved')
   }
 
   const handlePlaceSelected = (place: PlaceSuggestion) => {
@@ -512,6 +531,31 @@ const PropertyAddressFields = ({
 
       <Grid size={{ xs: 12 }}>
         <UseMyLocationButton onCaptured={handlePositionCaptured} />
+
+        {proposal && (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant='body2'>
+              Looks like{' '}
+              <strong>
+                {proposal.regionLabel} › {proposal.districtLabel} › {proposal.city}
+              </strong>
+            </Typography>
+
+            {/* "Nearest we know" is a different claim from "where you are".
+                Saying which one this is, and how far, is what lets the
+                landlord tell them apart. */}
+            {!proposal.confident && (
+              <Typography variant='caption' color='warning.main' className='block'>
+                That is the nearest place we know, about {formatDistance(proposal.distanceMetres)} away — worth
+                checking before you use it.
+              </Typography>
+            )}
+
+            <Button size='small' onClick={acceptProposal} sx={{ mt: 0.5 }}>
+              Use this address
+            </Button>
+          </Box>
+        )}
       </Grid>
 
       {mode === 'searching' && (
@@ -567,6 +611,11 @@ const PropertyAddressFields = ({
       )}
     </>
   )
+}
+
+/** "120 m" / "42 km" — a five-digit metre count reads as false precision. */
+function formatDistance(metres: number): string {
+  return metres >= 1000 ? `${Math.round(metres / 1000)} km` : `${Math.round(metres)} m`
 }
 
 export default PropertyAddressFields
