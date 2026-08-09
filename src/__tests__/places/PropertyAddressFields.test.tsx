@@ -98,6 +98,25 @@ vi.mock('@/components/address/AddressSearchField', () => ({
       >
         pick address without street
       </button>
+      <button
+        onClick={() =>
+          onSelect({
+            label: 'East Legon, Ayawaso West Municipal',
+            street: null,
+            region: 'greater-accra',
+            district: 'ayawaso-west',
+            city: 'East Legon',
+            // The locality centroid, and a null placeId — the signature of a
+            // suggestion from our own catalogue rather than the geocoder.
+            latitude: 5.6339,
+            longitude: -0.1728,
+            placeId: null,
+            source: 'local'
+          })
+        }
+      >
+        pick local locality
+      </button>
       <button onClick={() => onUnavailable?.()}>trigger unavailable</button>
     </>
   )
@@ -621,5 +640,31 @@ describe('PropertyAddressFields street line', () => {
 
     expect((street() as HTMLInputElement).value).toBe('9 Old Road')
     expect(await screen.findByRole('combobox', { name: /region/i })).toBeTruthy()
+  })
+})
+
+describe('PropertyAddressFields local suggestions', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('does not claim coordinates for a locality picked from our own catalogue', async () => {
+    // Our catalogue's coordinates are the locality's centre — the middle of a
+    // neighbourhood. Saving that where a building-level fix goes would be
+    // indistinguishable from real precision, and every distance feature built
+    // on it would inherit the lie.
+    const onCoords = vi.fn()
+
+    render(<Harness onCoords={onCoords} />)
+    fireEvent.click(screen.getByText('pick local locality'))
+
+    await waitFor(() => expect(screen.getByText(/Greater Accra/)).toBeTruthy())
+    expect(onCoords).toHaveBeenCalledWith(null)
+    expect(onCoords).not.toHaveBeenCalledWith(expect.objectContaining({ latitude: expect.anything() }))
+  })
+
+  it('still fills the address fields from that locality', async () => {
+    render(<Harness />)
+    fireEvent.click(screen.getByText('pick local locality'))
+
+    expect(await screen.findByText(/Ayawaso West Municipal/)).toBeTruthy()
   })
 })

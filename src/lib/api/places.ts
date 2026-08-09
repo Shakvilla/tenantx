@@ -18,7 +18,14 @@ export type PlaceSuggestion = {
   city: string | null
   latitude: number
   longitude: number
-  placeId: string
+  /** null for our own localities — the catalogue holds places, not buildings. */
+  placeId: string | null
+  /**
+   * "local" (our own catalogue) or "geocoder". Null on a suggestion cached
+   * before the field existed: the places cache has a 24-hour TTL, so entries
+   * outlive a deploy.
+   */
+  source?: 'local' | 'geocoder' | null
 }
 
 export type PlaceSearchResult = {

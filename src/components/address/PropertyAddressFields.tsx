@@ -288,7 +288,19 @@ const PropertyAddressFields = ({
     // gpsCode is Ghana Post's digital address. No geocoder has it, so it is
     // never touched here even though it sits among the address fields.
     onChange({ street: next.street, region: next.region, district: next.district, city: next.city })
-    onCoordinates({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId })
+
+    // Coordinates only from a geocoded place, which is exactly what having a
+    // placeId means. Our own catalogue's coordinates are the LOCALITY's
+    // centre — the middle of a neighbourhood, potentially kilometres from the
+    // property — and saving that in the same latitude/longitude columns a
+    // building-level fix uses would be indistinguishable from real precision.
+    // A property with no coordinates is honest; one pinned to the middle of
+    // Adenta is not.
+    if (place.placeId) {
+      onCoordinates({ latitude: place.latitude, longitude: place.longitude, placeId: place.placeId })
+    } else {
+      onCoordinates(null)
+    }
     setAutofillNote(describeAutofill(place))
     setCityFromAutofill(!place.district && Boolean(place.city))
     setMode('resolved')

@@ -127,3 +127,100 @@ describe('AddressSearchField', () => {
     expect(screen.queryByText('23 Lagos Avenue, East Legon, Accra')).not.toBeInTheDocument()
   })
 })
+
+/**
+ * The backend deliberately returns every district an ambiguous locality
+ * belongs to rather than guessing between them — Aboabo exists in both
+ * Tamale Metropolitan and Amansie Central. That is only useful if the list
+ * makes them tellable apart, so the secondary line is load-bearing here, not
+ * decoration.
+ */
+vi.mock('@/contexts/ReferenceDataContext', () => ({
+  useReferenceData: () => ({
+    ref: {
+      regions: [
+        {
+          value: 'northern',
+          label: 'Northern',
+          districts: [{ value: 'tamale-metro', label: 'Tamale Metropolitan', region: 'northern' }]
+        },
+        {
+          value: 'ashanti',
+          label: 'Ashanti',
+          districts: [{ value: 'amansie-central', label: 'Amansie Central District', region: 'ashanti' }]
+        }
+      ]
+    }
+  })
+}))
+
+const aboabo = (district: string, region: string) => ({
+  label: 'Aboabo',
+  street: null,
+  region,
+  district,
+  city: 'Aboabo',
+  latitude: 9.4,
+  longitude: -0.84,
+  // Local suggestions carry no placeId — our catalogue holds localities, not
+  // buildings. Two of them must still be distinct options.
+  placeId: null,
+  source: 'local' as const
+})
+
+describe('AddressSearchField ambiguous localities', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.mocked(searchPlaces).mockResolvedValue({
+      status: 'ok',
+      suggestions: [aboabo('tamale-metro', 'northern'), aboabo('amansie-central', 'ashanti')]
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.clearAllMocks()
+  })
+
+  it('distinguishes two same-named localities by their district and region', async () => {
+    render(<AddressSearchField onSelect={vi.fn()} />)
+    type('Aboabo')
+
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
+
+    expect(await screen.findByText(/Tamale Metropolitan/)).toBeTruthy()
+    expect(screen.getByText(/Amansie Central/)).toBeTruthy()
+  })
+
+  it('keeps both on screen as separate options despite sharing a null placeId', async () => {
+    // isOptionEqualToValue compared placeId alone, which is null for every
+    // local suggestion — so MUI treated every local row as the same option.
+    render(<AddressSearchField onSelect={vi.fn()} />)
+    type('Aboabo')
+
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
+
+    expect(await screen.findAllByRole('option')).toHaveLength(2)
+  })
+
+  it('reports the district the landlord actually clicked', async () => {
+    const onSelect = vi.fn()
+
+    render(<AddressSearchField onSelect={onSelect} />)
+    type('Aboabo')
+
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
+
+    const options = await screen.findAllByRole('option')
+
+    fireEvent.click(options[1])
+
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ district: 'amansie-central' }))
+  })
+})
