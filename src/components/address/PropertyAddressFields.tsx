@@ -14,6 +14,7 @@ import Typography from '@mui/material/Typography'
 
 import AddressSearchField from '@/components/address/AddressSearchField'
 import DigitalAddressField, { type DecodedAddress } from '@/components/address/DigitalAddressField'
+import UseMyLocationButton, { type CapturedPosition } from '@/components/address/UseMyLocationButton'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import { getCities as fetchCities } from '@/lib/api/reference'
 import type { PlaceSuggestion } from '@/lib/api/places'
@@ -21,7 +22,18 @@ import { applyPlaceToForm, describeAutofill } from '@/views/properties/addressAu
 
 export type AddressValue = { gpsCode: string; street: string; region: string; district: string; city: string }
 
-export type AddressCoordinates = { latitude: number; longitude: number; placeId: string }
+export type AddressCoordinates = {
+  latitude: number
+  longitude: number
+  /** Null for a device capture — there is no geocoder place behind it. */
+  placeId: string | null
+  /**
+   * The device's reported radius of uncertainty. Undefined for a geocoded
+   * address, which states no uncertainty of its own — that is "unknown", not
+   * "perfect".
+   */
+  accuracyMetres?: number
+}
 
 type Props = {
   value: AddressValue
@@ -282,6 +294,25 @@ const PropertyAddressFields = ({
     }
   }
 
+  /**
+   * A device fix is the most accurate position available for a Ghanaian
+   * property, and the only one that works for a building no geocoder knows.
+   * It carries no placeId — there is no geocoder place behind it — and the
+   * reported accuracy travels with it so the record says how far to trust it.
+   *
+   * The address fields are deliberately left alone here. Turning a coordinate
+   * back into a region and district is Task 11's reverse lookup, and it has
+   * to be offered for confirmation rather than applied.
+   */
+  const handlePositionCaptured = (position: CapturedPosition) => {
+    onCoordinates({
+      latitude: position.latitude,
+      longitude: position.longitude,
+      placeId: null,
+      accuracyMetres: position.accuracyMetres
+    })
+  }
+
   const handlePlaceSelected = (place: PlaceSuggestion) => {
     const next = applyPlaceToForm(value, place)
 
@@ -478,6 +509,10 @@ const PropertyAddressFields = ({
           )}
         </Grid>
       )}
+
+      <Grid size={{ xs: 12 }}>
+        <UseMyLocationButton onCaptured={handlePositionCaptured} />
+      </Grid>
 
       {mode === 'searching' && (
         <>

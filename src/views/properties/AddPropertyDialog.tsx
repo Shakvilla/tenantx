@@ -55,7 +55,7 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // Address Autocomplete Imports
 import PropertyAddressFields from '@/components/address/PropertyAddressFields'
-import type { AddressValue } from '@/components/address/PropertyAddressFields'
+import type { AddressValue, AddressCoordinates } from '@/components/address/PropertyAddressFields'
 
 type PropertyEditData = {
   id?: string
@@ -299,11 +299,7 @@ const AddPropertyDialog = ({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
 
-  const [coordinates, setCoordinates] = useState<{
-    latitude: number
-    longitude: number
-    placeId: string
-  } | null>(null)
+  const [coordinates, setCoordinates] = useState<AddressCoordinates | null>(null)
 
   const [canWaiveCity, setCanWaiveCity] = useState(false)
 

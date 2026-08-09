@@ -306,3 +306,52 @@ describe('PropertyStep street line', () => {
     expect(address?.city).toBe('East Legon')
   })
 })
+
+describe('PropertyStep device location', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      writable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback) =>
+          ok({
+            coords: { latitude: 5.7101234, longitude: -0.1662345, accuracy: 7 } as GeolocationCoordinates,
+            timestamp: Date.now()
+          } as GeolocationPosition)
+      }
+    })
+  })
+
+  it('sends the captured position and its accuracy when the property is created', async () => {
+    // The whole point of accuracy_metres: a 7m device fix and a geocoded
+    // address land in the same columns, so the number is what tells them
+    // apart later.
+    render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
+
+    // Address first, then the device fix — the real order: find the area,
+    // then pin the exact spot you are standing on. Coordinates follow the
+    // last action, so capturing afterwards is what makes the device fix the
+    // one that gets saved. (Picking an address after a capture replaces it,
+    // which is the same rule read the other way round.)
+    fireEvent.click(screen.getByText('pick address'))
+
+    fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+    await screen.findByText(/within 7 m/i)
+
+    fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Villa' } })
+    fireEvent.mouseDown(screen.getByLabelText(/property type/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'House' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /save|continue/i })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: /save|continue/i }))
+
+    await waitFor(() => expect(createProperty).toHaveBeenCalled())
+
+    const payload = vi.mocked(createProperty).mock.calls[0][1] as any
+
+    expect(payload.accuracyMetres).toBe(7)
+    expect(payload.latitude).toBe(5.7101234)
+    expect(payload.placeId).toBeNull()
+  })
+})

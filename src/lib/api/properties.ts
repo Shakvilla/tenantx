@@ -256,7 +256,13 @@ interface DraftPayload {
   thumbnailIndex?: number
   latitude?: number
   longitude?: number
-  placeId?: string
+  /** Null for a device capture: there is no geocoder place behind it. */
+  placeId?: string | null
+  /**
+   * The device's reported radius of uncertainty in metres. Absent for a
+   * geocoded address — that means unknown, not perfect.
+   */
+  accuracyMetres?: number
 }
 
 /**

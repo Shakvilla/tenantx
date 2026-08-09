@@ -18,18 +18,14 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import type { Property } from '@/types/property'
 import type { OnboardingStepProps } from '../onboardingTypes'
 import PropertyAddressFields from '@/components/address/PropertyAddressFields'
-import type { AddressValue } from '@/components/address/PropertyAddressFields'
+import type { AddressValue, AddressCoordinates } from '@/components/address/PropertyAddressFields'
 
 export default function PropertyStep({ tenantId, onComplete, onSkip }: OnboardingStepProps) {
   const { ref } = useReferenceData()
   const [form, setForm] = useState({ name: '', type: '', gpsCode: '', street: '', region: '', district: '', city: '' })
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [coordinates, setCoordinates] = useState<{
-    latitude: number
-    longitude: number
-    placeId: string
-  } | null>(null)
+  const [coordinates, setCoordinates] = useState<AddressCoordinates | null>(null)
 
   const [canWaiveCity, setCanWaiveCity] = useState(false)
 
