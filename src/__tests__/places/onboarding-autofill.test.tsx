@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 import PropertyStep from '@/views/onboarding/steps/PropertyStep'
 
@@ -11,46 +11,13 @@ vi.mock('@/lib/api/reference', async importOriginal => ({
 
 vi.mock('@/lib/api/properties', () => ({ createProperty: vi.fn(async () => ({ success: true, data: { id: 'p1' } })) }))
 
-vi.mock('@/components/address/AddressSearchField', () => ({
-  default: ({ onSelect }: { onSelect: (p: any) => void }) => (
-    <>
-      <button
-        onClick={() =>
-          onSelect({
-            label: '23 Lagos Avenue, East Legon',
-            street: '23 Lagos Avenue',
-            region: 'greater-accra',
-            district: 'ayawaso-west',
-            city: 'East Legon',
-            latitude: 5.6339009,
-            longitude: -0.1727902,
-            placeId: 'osm:N4951010023'
-          })
-        }
-      >
-        pick address
-      </button>
-      {/* GhanaLocationMatcher's region-wide locality fallback: district
-          null, city present. Only reachable via a separate control here
-          because the fixed suggestion above always resolves a district. */}
-      <button
-        onClick={() =>
-          onSelect({
-            label: 'Community 25, Tema',
-            street: '',
-            region: 'greater-accra',
-            district: null,
-            city: 'Community 25',
-            latitude: 5.63,
-            longitude: -0.17,
-            placeId: 'osm:N999'
-          })
-        }
-      >
-        pick fallback address
-      </button>
-    </>
-  )
+vi.mock('@/lib/api/places', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/api/places')>()),
+  searchPlaces: vi.fn(),
+
+  // Nothing near enough to name: these tests are about what the capture
+  // itself is worth, not about the reverse lookup.
+  reverseResolve: vi.fn(async () => null)
 }))
 
 // Ayawaso West is the district the mocked place resolves to; Accra Metro is a
@@ -81,13 +48,76 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
 
 import { createProperty } from '@/lib/api/properties'
 import { getCities } from '@/lib/api/reference'
+import { searchPlaces } from '@/lib/api/places'
+
+const suggestions = [
+  {
+    label: '23 Lagos Avenue, East Legon',
+    street: '23 Lagos Avenue',
+    region: 'greater-accra',
+    district: 'ayawaso-west',
+    city: 'East Legon',
+    latitude: 5.6339009,
+    longitude: -0.1727902,
+    placeId: 'osm:N4951010023'
+  },
+
+  // GhanaLocationMatcher's region-wide locality fallback: district null, city
+  // present. Offered alongside the one above because the first always
+  // resolves a district.
+  {
+    label: 'Community 25, Tema',
+    street: '',
+    region: 'greater-accra',
+    district: null,
+    city: 'Community 25',
+    latitude: 5.63,
+    longitude: -0.17,
+    placeId: 'osm:N999'
+  }
+]
+
+const field = () => screen.getByRole('combobox', { name: /^address$/i })
+
+/**
+ * MUI's Autocomplete resets the input back to '' on the render right after a
+ * programmatic value change unless the field is already focused. A real user
+ * always focuses before typing; `fireEvent.change` alone does not.
+ */
+const pick = async (label: string) => {
+  const input = field()
+
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: 'east legon' } })
+
+  // The search is debounced by 400ms. Advanced on the clock rather than
+  // waited out, so a loaded parallel suite cannot race it.
+  await act(async () => {
+    vi.advanceTimersByTime(500)
+  })
+
+  fireEvent.click(await screen.findByText(label))
+}
+
+const offerSuggestions = () => vi.mocked(searchPlaces).mockResolvedValue({ status: 'ok', suggestions })
+
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('PropertyStep address autofill', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    offerSuggestions()
+  })
 
   it('fills the location selects from the picked address', async () => {
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     // A pick lands in the resolved (text) display, not the selects. Change
     // is what a real user clicks to open them and see what got filled.
@@ -99,7 +129,7 @@ describe('PropertyStep address autofill', () => {
 
   it('sends the coordinates when the property is created', async () => {
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
     fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Villa' } })
     fireEvent.mouseDown(screen.getByLabelText(/property type/i))
     fireEvent.click(await screen.findByRole('option', { name: 'House' }))
@@ -118,7 +148,7 @@ describe('PropertyStep address autofill', () => {
 
   it("drops the picked place's coordinates once the user hand-edits the district", async () => {
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     // A pick lands in the resolved (text) display. Reaching District to
     // hand-edit it goes through Change, same as a real user correcting it.
@@ -163,7 +193,7 @@ describe('PropertyStep address autofill', () => {
     // Metropolitan) would pass even if the preservation logic paired the
     // city with the wrong district.
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick fallback address'))
+    await pick('Community 25, Tema')
 
     await screen.findByText(/please choose the district below/i)
 
@@ -205,7 +235,7 @@ describe('PropertyStep address autofill', () => {
     // asserting the preserved city under an unrelated district would pass
     // even if the preservation logic paired it with the wrong one.
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick fallback address'))
+    await pick('Community 25, Tema')
 
     await screen.findByText(/please choose the district below/i)
     expect(screen.getByText(/Community 25/)).toBeTruthy()
@@ -242,7 +272,7 @@ describe('PropertyStep address autofill', () => {
     vi.mocked(getCities).mockRejectedValueOnce(new Error('network error'))
 
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     await waitFor(() => expect(getCities).toHaveBeenCalledWith('ayawaso-west'))
 
@@ -260,7 +290,10 @@ describe('PropertyStep address autofill', () => {
 })
 
 describe('PropertyStep street line', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    offerSuggestions()
+  })
 
   const fillNameAndType = async () => {
     fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Villa' } })
@@ -275,7 +308,7 @@ describe('PropertyStep street line', () => {
 
   it('sends the street the user has, never the city', async () => {
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
     await fillNameAndType()
     await save()
 
@@ -289,7 +322,7 @@ describe('PropertyStep street line', () => {
 
   it('sends no street at all rather than falling back to the city', async () => {
     render(<PropertyStep tenantId='t1' entityIds={{}} onComplete={vi.fn()} onSkip={vi.fn()} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     // Clear the autofilled street: the property genuinely has no street name,
     // which is common in Ghana. Before the street field existed this path
@@ -310,6 +343,7 @@ describe('PropertyStep street line', () => {
 describe('PropertyStep device location', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    offerSuggestions()
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
       writable: true,
@@ -334,10 +368,15 @@ describe('PropertyStep device location', () => {
     // last action, so capturing afterwards is what makes the device fix the
     // one that gets saved. (Picking an address after a capture replaces it,
     // which is the same rule read the other way round.)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
-    await screen.findByText(/within 7 m/i)
+
+    // The fix arrives as a dropdown row that states its own accuracy. Nothing
+    // here is near enough to name, so it is the bare capture — the
+    // coordinates were kept the moment it landed, whatever happens next.
+    // Choosing it applies no address and closes the dropdown.
+    fireEvent.click(await screen.findByText(/location captured · ±7 m/i))
 
     fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Villa' } })
     fireEvent.mouseDown(screen.getByLabelText(/property type/i))

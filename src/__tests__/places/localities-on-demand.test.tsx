@@ -34,7 +34,8 @@ async function fillEverythingButCity() {
   // None of these tests use the address search, so the address selects only
   // appear once the user asks to enter the address by hand — the same click
   // a real user who skips the search would make.
-  fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+  fireEvent.mouseDown(screen.getByRole('combobox', { name: /^address$/i }))
+  fireEvent.click(await screen.findByText(/enter the address manually/i))
 
   fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Test House' } })
   fireEvent.mouseDown(screen.getByLabelText(/property type/i))
@@ -65,7 +66,8 @@ describe('PropertyStep localities', () => {
 
     // No address search is used here — the selects only render once the user
     // asks to enter the address by hand.
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^address$/i }))
+    fireEvent.click(await screen.findByText(/enter the address manually/i))
 
     fireEvent.mouseDown(screen.getByLabelText(/region/i))
     fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))

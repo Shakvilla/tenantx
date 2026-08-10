@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 import PropertyAddressFields, { type AddressValue } from '@/components/address/PropertyAddressFields'
 
@@ -27,102 +27,114 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
   })
 }))
 
-vi.mock('@/components/address/AddressSearchField', () => ({
-  default: ({ onSelect, onUnavailable }: { onSelect: (p: any) => void; onUnavailable?: () => void }) => (
-    <>
-      <button
-        onClick={() =>
-          onSelect({
-            label: '23 Lagos Avenue, East Legon',
-            street: '23 Lagos Avenue',
-            region: 'greater-accra',
-            district: 'ayawaso-west',
-            city: 'East Legon',
-            latitude: 5.6339009,
-            longitude: -0.1727902,
-            placeId: 'osm:N4951010023'
-          })
-        }
-      >
-        pick address
-      </button>
-      <button
-        onClick={() =>
-          onSelect({
-            label: 'MTN Service Centre, Aflao Road, Tema',
-            street: 'Aflao Road',
-            region: 'greater-accra',
-            district: 'tema-metro',
-            city: null,
-            latitude: 5.68,
-            longitude: 0.02,
-            placeId: 'osm:N2'
-          })
-        }
-      >
-        pick address without city
-      </button>
-      <button
-        onClick={() =>
-          onSelect({
-            label: 'Dzorwulu Junction, Accra',
-            street: 'Dzorwulu Junction',
-            region: 'greater-accra',
-            district: null,
-            city: 'Dzorwulu',
-            latitude: 5.6,
-            longitude: -0.19,
-            placeId: 'osm:N3'
-          })
-        }
-      >
-        pick address without district
-      </button>
-      <button
-        onClick={() =>
-          onSelect({
-            label: 'East Legon, Accra',
-            // The common Ghanaian case: the geocoder resolved the locality
-            // but has no street name to give. GhanaLocationMatcher returns
-            // null here rather than falling back to the place name, which
-            // would just echo the city.
-            street: null,
-            region: 'greater-accra',
-            district: 'ayawaso-west',
-            city: 'East Legon',
-            latitude: 5.63,
-            longitude: -0.17,
-            placeId: 'osm:N4'
-          })
-        }
-      >
-        pick address without street
-      </button>
-      <button
-        onClick={() =>
-          onSelect({
-            label: 'East Legon, Ayawaso West Municipal',
-            street: null,
-            region: 'greater-accra',
-            district: 'ayawaso-west',
-            city: 'East Legon',
-            // The locality centroid, and a null placeId — the signature of a
-            // suggestion from our own catalogue rather than the geocoder.
-            latitude: 5.6339,
-            longitude: -0.1728,
-            placeId: null,
-            source: 'local'
-          })
-        }
-      >
-        pick local locality
-      </button>
-      <button onClick={() => onUnavailable?.()}>trigger unavailable</button>
-    </>
-  )
+vi.mock('@/lib/api/places', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/api/places')>()),
+  searchPlaces: vi.fn(),
+  reverseResolve: vi.fn(async () => null)
 }))
 
 import { getCities } from '@/lib/api/reference'
+import { searchPlaces } from '@/lib/api/places'
+
+/**
+ * The five shapes the geocoder actually returns, offered together so a test
+ * can pick the one it needs by its label. This replaced a stubbed search
+ * field with five buttons: the address field is one control now, so the only
+ * way in is the search it really performs.
+ */
+const suggestions = [
+  {
+    label: '23 Lagos Avenue, East Legon',
+    street: '23 Lagos Avenue',
+    region: 'greater-accra',
+    district: 'ayawaso-west',
+    city: 'East Legon',
+    latitude: 5.6339009,
+    longitude: -0.1727902,
+    placeId: 'osm:N4951010023'
+  },
+  {
+    label: 'MTN Service Centre, Aflao Road, Tema',
+    street: 'Aflao Road',
+    region: 'greater-accra',
+    district: 'tema-metro',
+    city: null,
+    latitude: 5.68,
+    longitude: 0.02,
+    placeId: 'osm:N2'
+  },
+  {
+    label: 'Dzorwulu Junction, Accra',
+    street: 'Dzorwulu Junction',
+    region: 'greater-accra',
+    district: null,
+    city: 'Dzorwulu',
+    latitude: 5.6,
+    longitude: -0.19,
+    placeId: 'osm:N3'
+  },
+  {
+    // The common Ghanaian case: the geocoder resolved the locality but has no
+    // street name to give. GhanaLocationMatcher returns null here rather than
+    // falling back to the place name, which would just echo the city.
+    label: 'East Legon, Accra',
+    street: null,
+    region: 'greater-accra',
+    district: 'ayawaso-west',
+    city: 'East Legon',
+    latitude: 5.63,
+    longitude: -0.17,
+    placeId: 'osm:N4'
+  },
+  {
+    label: 'East Legon, Ayawaso West Municipal',
+    street: null,
+    region: 'greater-accra',
+    district: 'ayawaso-west',
+    city: 'East Legon',
+    // The locality centroid, and a null placeId — the signature of a
+    // suggestion from our own catalogue rather than the geocoder.
+    latitude: 5.6339,
+    longitude: -0.1728,
+    placeId: null,
+    source: 'local' as const
+  }
+]
+
+const field = () => screen.getByRole('combobox', { name: /address/i })
+
+/**
+ * MUI's Autocomplete resets the input back to '' on the render right after a
+ * programmatic value change unless the field is already focused (it guards
+ * that reset with `if (focused && !valueChange) return`). A real user always
+ * focuses before typing; `fireEvent.change` alone does not.
+ */
+const type = (text: string) => {
+  const input = field()
+
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: text } })
+}
+
+/** Type, wait out the search debounce, then click the row by its label. */
+const pick = async (label: string) => {
+  type('east legon')
+  await settle()
+  fireEvent.click(await screen.findByText(label))
+}
+
+/** The search is debounced; nothing is requested until the typing pauses. */
+async function settle() {
+  await act(async () => {
+    vi.advanceTimersByTime(500)
+  })
+}
+
+/** Manual entry is a row in the same dropdown, not a button beside it. */
+const enterManually = async () => {
+  fireEvent.mouseDown(field())
+  fireEvent.click(await screen.findByText(/enter the address manually/i))
+}
 
 /** Drives the component the way a form does: owns the value, applies patches. */
 function Harness({
@@ -149,14 +161,29 @@ function Harness({
   )
 }
 
-describe('PropertyAddressFields', () => {
-  beforeEach(() => vi.clearAllMocks())
+/**
+ * Fake timers, advanced explicitly: the field debounces both the search and
+ * the code commit by 400ms, and waiting that out for real made every one of
+ * these tests a race against @testing-library's 1s default under a loaded
+ * parallel suite.
+ */
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.clearAllMocks()
+  vi.mocked(getCities).mockResolvedValue(['East Legon', 'Dzorwulu'])
+  vi.mocked(searchPlaces).mockResolvedValue({ status: 'ok', suggestions })
+})
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('PropertyAddressFields', () => {
   it('reports the picked place to its caller', async () => {
     const onCoords = vi.fn()
 
     render(<Harness onCoords={onCoords} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     await waitFor(() =>
       expect(onCoords).toHaveBeenCalledWith({
@@ -171,7 +198,7 @@ describe('PropertyAddressFields', () => {
     render(<Harness />)
     expect(getCities).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
     await waitFor(() => expect(getCities).toHaveBeenCalledWith('ayawaso-west'))
   })
 
@@ -179,7 +206,7 @@ describe('PropertyAddressFields', () => {
     const onCoords = vi.fn()
 
     render(<Harness onCoords={onCoords} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
     await waitFor(() => expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'osm:N4951010023' })))
 
     // A pick lands in 'resolved' mode, which shows the address as text, not
@@ -197,7 +224,7 @@ describe('PropertyAddressFields', () => {
   it('keeps showing an autofilled city when its locality fetch fails', async () => {
     vi.mocked(getCities).mockRejectedValueOnce(new Error('boom'))
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     // The resolved view shows the city as plain text regardless of the
     // locality fetch outcome. Change is what a real user clicks to open the
@@ -214,8 +241,8 @@ describe('PropertyAddressFields', () => {
     render(<Harness />)
 
     // Nothing has been picked or typed yet, so the selects are not on screen
-    // at all — a real user gets to them via the manual-entry link.
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    // at all — a real user gets to them through the manual-entry row.
+    await enterManually()
 
     // No region yet — District has nothing to offer, so it must not open.
     expect(screen.getByLabelText(/district/i)).toHaveAttribute('aria-disabled', 'true')
@@ -231,7 +258,7 @@ describe('PropertyAddressFields', () => {
 
     // Same as above: the selects only exist once the user has asked to enter
     // the address by hand.
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    await enterManually()
 
     // Neither region nor district set — City has nothing to offer.
     expect(screen.getByLabelText(/city/i)).toHaveAttribute('aria-disabled', 'true')
@@ -248,12 +275,12 @@ describe('PropertyAddressFields', () => {
     await waitFor(() => expect(screen.getByLabelText(/city/i)).not.toHaveAttribute('aria-disabled'))
   })
 
-  it('marks Region, District and City as required', () => {
+  it('marks Region, District and City as required', async () => {
     render(<Harness />)
 
     // The required asterisk lives on the selects, which only render once the
     // user has chosen to enter the address by hand.
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    await enterManually()
 
     expect(document.getElementById('address-region-label')?.textContent).toContain('*')
     expect(document.getElementById('address-district-label')?.textContent).toContain('*')
@@ -262,13 +289,13 @@ describe('PropertyAddressFields', () => {
 })
 
 describe('PropertyAddressFields display modes', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('shows only the search and a manual link before anything is picked', () => {
+  it('shows only the address field and a manual row before anything is picked', async () => {
     render(<Harness />)
 
-    expect(screen.getByText('pick address')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /enter the address manually/i })).toBeTruthy()
+    expect(field()).toBeTruthy()
+    fireEvent.mouseDown(field())
+    expect(await screen.findByText(/enter the address manually/i)).toBeTruthy()
+
     expect(screen.queryByLabelText(/region/i)).toBeNull()
     expect(screen.queryByLabelText(/district/i)).toBeNull()
   })
@@ -279,7 +306,7 @@ describe('PropertyAddressFields display modes', () => {
     // with a value the user already filled in (Previous, or the stepper)
     // must not come back showing an empty search box — that hides an address
     // that is still there in `formData`, un-editable until the user notices
-    // and clicks the manual link.
+    // and opens the manual row.
     render(
       <Harness
         initialValue={{ gpsCode: '', street: '', region: 'greater-accra', district: 'ayawaso-west', city: 'East Legon' }}
@@ -298,7 +325,7 @@ describe('PropertyAddressFields display modes', () => {
 
   it('shows the resolved address as labels, not slugs, with no selects', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     // Slugs are storage, not something to show a landlord.
     expect(await screen.findByText(/Greater Accra/)).toBeTruthy()
@@ -309,7 +336,7 @@ describe('PropertyAddressFields display modes', () => {
 
   it('reveals the selects prefilled when Change is clicked', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
     fireEvent.click(await screen.findByRole('button', { name: /change/i }))
 
     // Prefilled, not cleared — the user is correcting one field, not redoing all three.
@@ -317,22 +344,26 @@ describe('PropertyAddressFields display modes', () => {
     expect(screen.getByLabelText(/district/i).textContent).toContain('Ayawaso West Municipal')
   })
 
-  it('reveals the selects when the manual link is used', async () => {
+  it('reveals the selects when the manual row is used', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    await enterManually()
 
     expect(await screen.findByLabelText(/region/i)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /enter the address manually/i })).toBeNull()
   })
 
   it('does not return to searching once the user is entering by hand', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    await enterManually()
     await screen.findByLabelText(/region/i)
 
-    // No path back: the search silently reclaiming hand-entered fields would
-    // be worse than the clutter.
-    expect(screen.queryByText('pick address')).toBeNull()
+    // No path back on its own: the field is still there (it is now the only
+    // address input there is), but nothing it does reclaims the hand-entered
+    // selects — only a deliberate pick can, and typing alone is not one.
+    type('east legon')
+    await screen.findByText('23 Lagos Avenue, East Legon')
+
+    expect(screen.getByLabelText(/region/i)).toBeTruthy()
+    expect(screen.getByLabelText(/district/i)).toBeTruthy()
   })
 
   it('tells its caller when the city requirement can be waived', async () => {
@@ -340,7 +371,7 @@ describe('PropertyAddressFields display modes', () => {
     const onStatus = vi.fn()
 
     render(<Harness onStatus={onStatus} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     // A district whose locality list comes back genuinely empty must not
     // block submission on a field with nothing to choose from.
@@ -357,10 +388,9 @@ describe('PropertyAddressFields display modes', () => {
   it('shows the required-field error on a field surfaced while still searching', () => {
     render(<Harness errors={{ region: true, district: true }} />)
 
-    // The search box and manual link stay put — an error must not silently
-    // force the user into manual entry.
-    expect(screen.getByText('pick address')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /enter the address manually/i })).toBeTruthy()
+    // The address field stays put — an error must not silently force the user
+    // into manual entry.
+    expect(field()).toBeTruthy()
 
     expect(screen.getByLabelText(/region/i)).toBeTruthy()
     expect(screen.getByLabelText(/district/i)).toBeTruthy()
@@ -368,13 +398,15 @@ describe('PropertyAddressFields display modes', () => {
   })
 
   // IMPORTANT 2 of the whole-branch review: onUnavailable set mode to
-  // 'manual' in the same batch AddressSearchField set its own `unavailable`
+  // 'manual' in the same batch the address field set its own `unavailable`
   // state, so `manual` unmounted the search before its "search is
   // unavailable" helper text ever painted. The block must carry its own note
   // forward into manual mode.
   it('shows a note that search is unavailable when the geocoder reports down', async () => {
+    vi.mocked(searchPlaces).mockResolvedValue({ status: 'unavailable', suggestions: [] })
+
     render(<Harness />)
-    fireEvent.click(screen.getByText('trigger unavailable'))
+    type('east legon')
 
     expect(await screen.findByLabelText(/region/i)).toBeTruthy()
     expect(screen.getByText(/address search is unavailable/i)).toBeTruthy()
@@ -382,11 +414,9 @@ describe('PropertyAddressFields display modes', () => {
 })
 
 describe('PropertyAddressFields partial matches', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('reveals only the unresolved field, keeping the rest as resolved text', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address without city'))
+    await pick('MTN Service Centre, Aflao Road, Tema')
 
     // Region and district resolved — asking the user to re-confirm them would
     // make a near-miss feel like a total failure.
@@ -399,7 +429,7 @@ describe('PropertyAddressFields partial matches', () => {
 
   it('still opens all three on Change after a partial match', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address without city'))
+    await pick('MTN Service Centre, Aflao Road, Tema')
     fireEvent.click(await screen.findByRole('button', { name: /change/i }))
 
     expect(await screen.findByLabelText(/region/i)).toBeTruthy()
@@ -416,7 +446,7 @@ describe('PropertyAddressFields partial matches', () => {
   // that is empty, and an empty field is now always on screen to carry it.
   it('shows the required-field error on an unresolved field surfaced in resolved mode', async () => {
     render(<Harness errors={{ district: true }} />)
-    fireEvent.click(screen.getByText('pick address without district'))
+    await pick('Dzorwulu Junction, Accra')
 
     const districtField = await screen.findByLabelText(/district/i)
 
@@ -475,8 +505,6 @@ function ValidatingHarness() {
 }
 
 describe('PropertyAddressFields sticky error surfacing (fix round 2)', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   // The regression: IMPORTANT 1 gated the searching-mode fallback on the
   // live `errors` value. A real caller clears a field's error the instant
   // its own patch fills it, so the field IMPORTANT 1 exists to surface
@@ -553,42 +581,40 @@ describe('PropertyAddressFields sticky error surfacing (fix round 2)', () => {
 })
 
 describe('PropertyAddressFields street line', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   const street = () => screen.getByLabelText(/street \/ house address/i)
 
   it('does not show the street input while the user is still searching', () => {
     render(<Harness />)
 
-    // Searching mode is the search box alone. The street input appears once
-    // there is an address for it to belong to.
+    // Searching mode is the address field alone. The street input appears
+    // once there is an address for it to belong to.
     expect(screen.queryByLabelText(/street \/ house address/i)).toBeNull()
   })
 
   it('shows the street input alongside a resolved address', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     expect(await screen.findByLabelText(/street \/ house address/i)).toBeTruthy()
   })
 
-  it('shows the street input in manual mode', () => {
+  it('shows the street input in manual mode', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    await enterManually()
 
     expect(street()).toBeTruthy()
   })
 
   it('fills the street from a place that has one', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
 
     await waitFor(() => expect((street() as HTMLInputElement).value).toBe('23 Lagos Avenue'))
   })
 
   it('leaves the street empty when the geocoder had none, rather than echoing the city', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick address without street'))
+    await pick('East Legon, Accra')
 
     // The whole point of the street field: the city must not end up in it.
     // This is the shape that produced address_line_1 === city for every
@@ -601,7 +627,7 @@ describe('PropertyAddressFields street line', () => {
     const onCoords = vi.fn()
 
     render(<Harness onCoords={onCoords} />)
-    fireEvent.click(screen.getByText('pick address without street'))
+    await pick('East Legon, Accra')
     await waitFor(() => expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'osm:N4' })))
 
     // The expected flow after picking a locality is to type the house number
@@ -619,7 +645,7 @@ describe('PropertyAddressFields street line', () => {
     const onCoords = vi.fn()
 
     render(<Harness onCoords={onCoords} />)
-    fireEvent.click(screen.getByText('pick address'))
+    await pick('23 Lagos Avenue, East Legon')
     await waitFor(() => expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ placeId: 'osm:N4951010023' })))
 
     // The street exemption must not have widened into the other three:
@@ -644,8 +670,6 @@ describe('PropertyAddressFields street line', () => {
 })
 
 describe('PropertyAddressFields local suggestions', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('does not claim coordinates for a locality picked from our own catalogue', async () => {
     // Our catalogue's coordinates are the locality's centre — the middle of a
     // neighbourhood. Saving that where a building-level fix goes would be
@@ -654,7 +678,7 @@ describe('PropertyAddressFields local suggestions', () => {
     const onCoords = vi.fn()
 
     render(<Harness onCoords={onCoords} />)
-    fireEvent.click(screen.getByText('pick local locality'))
+    await pick('East Legon, Ayawaso West Municipal')
 
     await waitFor(() => expect(screen.getByText(/Greater Accra/)).toBeTruthy())
     expect(onCoords).toHaveBeenCalledWith(null)
@@ -663,7 +687,7 @@ describe('PropertyAddressFields local suggestions', () => {
 
   it('still fills the address fields from that locality', async () => {
     render(<Harness />)
-    fireEvent.click(screen.getByText('pick local locality'))
+    await pick('East Legon, Ayawaso West Municipal')
 
     expect(await screen.findByText(/Ayawaso West Municipal/)).toBeTruthy()
   })

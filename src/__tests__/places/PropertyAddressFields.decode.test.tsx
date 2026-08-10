@@ -1,9 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 import PropertyAddressFields, { type AddressValue } from '@/components/address/PropertyAddressFields'
 
+/**
+ * What PropertyAddressFields does with a decoded digital address — filling,
+ * and above all RETRACTING. Migrated from the standalone digital-address
+ * suite when the three controls became one: the field that emits the decode
+ * changed, but this is the block's own logic and it did not.
+ */
 vi.mock('@/lib/api/reference', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api/reference')>()),
   getCities: vi.fn(async () => ['Accra Central']),
@@ -16,7 +22,11 @@ vi.mock('@/lib/api/reference', async importOriginal => ({
   ])
 }))
 
-vi.mock('@/components/address/AddressSearchField', () => ({ default: () => <div /> }))
+vi.mock('@/lib/api/places', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/api/places')>()),
+  searchPlaces: vi.fn(async () => ({ status: 'ok', suggestions: [] })),
+  reverseResolve: vi.fn(async () => null)
+}))
 
 vi.mock('@/contexts/ReferenceDataContext', () => ({
   useReferenceData: () => ({
@@ -57,25 +67,53 @@ function Harness() {
 }
 
 const state = () => JSON.parse(screen.getByTestId('state').textContent!)
-const codeField = () => screen.getByLabelText(/digital address/i)
+const field = () => screen.getByRole('combobox', { name: /address/i })
 
-describe('DigitalAddressField', () => {
-  beforeEach(() => vi.clearAllMocks())
+/**
+ * MUI's Autocomplete resets the input back to '' on the render right after a
+ * programmatic value change unless the field is already focused. A real user
+ * always focuses before typing; `fireEvent.change` alone does not.
+ */
+const typeCode = async (code: string) => {
+  const input = field()
+
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: code } })
+
+  // The commit is debounced by 400ms. Advanced on the clock rather than
+  // waited out, so a loaded parallel suite cannot race it.
+  await act(async () => {
+    vi.advanceTimersByTime(500)
+  })
+}
+
+describe('PropertyAddressFields digital-address decoding', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
   it('fills region and district from a recognised prefix', async () => {
     render(<Harness />)
-    fireEvent.change(codeField(), { target: { value: 'GA-184-7915' } })
+    await typeCode('GA-184-7915')
 
     await waitFor(() => expect(state().district).toBe('accra-metro'))
     expect(state().region).toBe('greater-accra')
-    expect(await screen.findByText(/filled region and district/i)).toBeTruthy()
+    expect(state().gpsCode).toBe('GA-184-7915')
+
+    // The decode lands in resolved mode, showing what it filled.
+    expect(await screen.findByText(/Accra Metropolitan District/)).toBeTruthy()
   })
 
   it('keeps an unmappable code but fills nothing', async () => {
     render(<Harness />)
-    fireEvent.change(codeField(), { target: { value: 'GZ-100-0001' } })
+    await typeCode('GZ-100-0001')
 
-    await waitFor(() => expect(screen.getByText(/don.t recognise that code/i)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/don.t recognise/i)).toBeTruthy())
     expect(state().gpsCode).toBe('GZ-100-0001')
     expect(state().district).toBe('')
   })
@@ -87,10 +125,10 @@ describe('DigitalAddressField', () => {
     // Accra Metropolitan for a Ledzokuku property. Exactly the confident
     // wrong district this feature exists to avoid.
     render(<Harness />)
-    fireEvent.change(codeField(), { target: { value: 'GA-184-7915' } })
+    await typeCode('GA-184-7915')
     await waitFor(() => expect(state().district).toBe('accra-metro'))
 
-    fireEvent.change(codeField(), { target: { value: 'GZ-100-0001' } })
+    await typeCode('GZ-100-0001')
 
     await waitFor(() => expect(state().district).toBe(''))
     expect(state().region).toBe('')
@@ -101,7 +139,7 @@ describe('DigitalAddressField', () => {
     // Only what a decode filled may be retracted. A hand-picked district is
     // theirs, and typing a code we cannot read is no reason to discard it.
     render(<Harness />)
-    fireEvent.change(codeField(), { target: { value: 'GA-184-7915' } })
+    await typeCode('GA-184-7915')
     await waitFor(() => expect(state().district).toBe('accra-metro'))
 
     fireEvent.click(await screen.findByRole('button', { name: /change/i }))
@@ -109,18 +147,18 @@ describe('DigitalAddressField', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'Ga East Municipal' }))
     await waitFor(() => expect(state().district).toBe('ga-east'))
 
-    fireEvent.change(codeField(), { target: { value: 'GZ-100-0001' } })
+    await typeCode('GZ-100-0001')
 
-    await waitFor(() => expect(screen.getByText(/don.t recognise that code/i)).toBeTruthy())
+    await waitFor(() => expect(screen.getByText(/don.t recognise/i)).toBeTruthy())
     expect(state().district).toBe('ga-east')
   })
 
   it('says nothing at all while the code is still incomplete', async () => {
     render(<Harness />)
-    fireEvent.change(codeField(), { target: { value: 'GA-18' } })
+    await typeCode('GA-18')
 
-    await waitFor(() => expect(screen.queryByText(/filled region/i)).toBeNull())
-    expect(screen.queryByText(/don.t recognise/i)).toBeNull()
+    await waitFor(() => expect(screen.queryByText(/don.t recognise/i)).toBeNull())
+    expect(state().gpsCode).toBe('')
     expect(state().district).toBe('')
   })
 })

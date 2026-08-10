@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 
 import PropertyAddressFields, { type AddressValue } from '@/components/address/PropertyAddressFields'
 
@@ -15,10 +15,9 @@ vi.mock('@/lib/api/reference', async importOriginal => ({
 
 vi.mock('@/lib/api/places', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api/places')>()),
+  searchPlaces: vi.fn(async () => ({ status: 'ok', suggestions: [] })),
   reverseResolve: vi.fn()
 }))
-
-vi.mock('@/components/address/AddressSearchField', () => ({ default: () => <div /> }))
 
 vi.mock('@/contexts/ReferenceDataContext', () => ({
   useReferenceData: () => ({
@@ -86,9 +85,32 @@ function Harness() {
 }
 
 const state = () => JSON.parse(screen.getByTestId('state').textContent!)
-const typeCode = (code: string) =>
-  fireEvent.change(screen.getByLabelText(/digital address/i), { target: { value: code } })
+
+const field = () => screen.getByRole('combobox', { name: /address/i })
+
+/**
+ * MUI's Autocomplete resets the input back to '' on the render right after a
+ * programmatic value change unless the field is already focused (it guards
+ * that reset with `if (focused && !valueChange) return`). A real user always
+ * focuses before typing; `fireEvent.change` alone does not.
+ */
+const typeCode = async (code: string) => {
+  const input = field()
+
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: code } })
+
+  // The commit is debounced by 400ms. Advanced on the clock rather than
+  // waited out, so a loaded parallel suite cannot race it.
+  await act(async () => {
+    vi.advanceTimersByTime(500)
+  })
+}
+
 const capture = () => fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+
+/** The capture arrives as a dropdown row; choosing it is what applies it. */
+const pickTheLocation = async () => fireEvent.click(await screen.findByText('Adenta'))
 
 /**
  * A landlord's digital address and their captured position are two
@@ -99,18 +121,43 @@ const capture = () => fireEvent.click(screen.getByRole('button', { name: /use my
  */
 describe('digital address versus captured position', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.clearAllMocks()
     grantPosition()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not ask which is right until the location is actually picked', async () => {
+    // Nothing is contested until something conflicting is being applied.
+    // Raising it on capture cried wolf at a landlord who was only checking.
+    resolvedTo('adenta', 'Adentan Municipal')
+
+    render(<Harness />)
+    await typeCode('GE-100-0001')
+    await waitFor(() => expect(state().district).toBe('ga-east'))
+
+    capture()
+    await screen.findByText('Adenta')
+
+    expect(screen.queryByText(/which is right/i)).toBeNull()
+
+    await pickTheLocation()
+
+    expect(await screen.findByText(/which is right/i)).toBeTruthy()
   })
 
   it('asks which is right when the code and the position disagree', async () => {
     resolvedTo('adenta', 'Adentan Municipal')
 
     render(<Harness />)
-    typeCode('GE-100-0001')
+    await typeCode('GE-100-0001')
     await waitFor(() => expect(state().district).toBe('ga-east'))
 
     capture()
+    await pickTheLocation()
 
     // Scoped to the question itself: both district names also appear in the
     // selects, so a bare getByText matches more than one node.
@@ -127,10 +174,11 @@ describe('digital address versus captured position', () => {
     resolvedTo('adenta', 'Adentan Municipal')
 
     render(<Harness />)
-    typeCode('GE-100-0001')
+    await typeCode('GE-100-0001')
     await waitFor(() => expect(state().district).toBe('ga-east'))
 
     capture()
+    await pickTheLocation()
     await screen.findByText(/which is right/i)
 
     expect(screen.getByRole('button', { name: /keep the code/i })).toBeTruthy()
@@ -144,10 +192,11 @@ describe('digital address versus captured position', () => {
     resolvedTo('adenta', 'Adentan Municipal')
 
     render(<Harness />)
-    typeCode('GE-100-0001')
+    await typeCode('GE-100-0001')
     await waitFor(() => expect(state().district).toBe('ga-east'))
 
     capture()
+    await pickTheLocation()
     fireEvent.click(await screen.findByRole('button', { name: /use my location/i }))
 
     await waitFor(() => expect(state().district).toBe('adenta'))
@@ -157,10 +206,11 @@ describe('digital address versus captured position', () => {
     resolvedTo('adenta', 'Adentan Municipal')
 
     render(<Harness />)
-    typeCode('GE-100-0001')
+    await typeCode('GE-100-0001')
     await waitFor(() => expect(state().district).toBe('ga-east'))
 
     capture()
+    await pickTheLocation()
     fireEvent.click(await screen.findByRole('button', { name: /keep the code/i }))
 
     await waitFor(() => expect(screen.queryByText(/which is right/i)).toBeNull())
@@ -171,12 +221,14 @@ describe('digital address versus captured position', () => {
     resolvedTo('adenta', 'Adentan Municipal')
 
     render(<Harness />)
-    typeCode('GD-184-7915')
+    await typeCode('GD-184-7915')
     await waitFor(() => expect(state().district).toBe('adenta'))
 
     capture()
+    await pickTheLocation()
 
-    await waitFor(() => expect(screen.queryByRole('button', { name: /use this address/i })).toBeNull())
+    // Applied without a question, because there is nothing to contest.
+    await waitFor(() => expect(state().city).toBe('Adenta'))
     expect(screen.queryByText(/which is right/i)).toBeNull()
   })
 
@@ -187,12 +239,17 @@ describe('digital address versus captured position', () => {
     resolvedTo('adenta', 'Adentan Municipal', false)
 
     render(<Harness />)
-    typeCode('GE-100-0001')
+    await typeCode('GE-100-0001')
     await waitFor(() => expect(state().district).toBe('ga-east'))
 
     capture()
 
-    expect(await screen.findByRole('button', { name: /use this address/i })).toBeTruthy()
+    // Still offered — a coarse starting point beats an empty form.
+    expect(await screen.findByText(/nearest we know/i)).toBeTruthy()
+
+    await pickTheLocation()
+
+    await waitFor(() => expect(state().district).toBe('adenta'))
     expect(screen.queryByText(/which is right/i)).toBeNull()
   })
 
@@ -202,7 +259,11 @@ describe('digital address versus captured position', () => {
     render(<Harness />)
     capture()
 
-    expect(await screen.findByRole('button', { name: /use this address/i })).toBeTruthy()
+    expect(await screen.findByText('Adenta')).toBeTruthy()
+
+    await pickTheLocation()
+
+    await waitFor(() => expect(state().district).toBe('adenta'))
     expect(screen.queryByText(/which is right/i)).toBeNull()
   })
 })

@@ -219,6 +219,37 @@ describe('capturing a position from the one field', () => {
     expect(await screen.findByText(/being outdoors usually helps/i)).toBeTruthy()
   })
 
+  // Migrated from the standalone location button's suite, which this one absorbed.
+  it('leaves the pin usable after a failure, so the landlord can try again', async () => {
+    // POSITION_UNAVAILABLE: neither denied nor timed out, and often
+    // transient. A dead end here means the only remedy is reloading the form.
+    refusePosition(2)
+
+    renderField()
+    fireEvent.click(pin())
+
+    expect(await screen.findByText(/try again in a moment/i)).toBeTruthy()
+    expect(pin()).not.toBeDisabled()
+  })
+
+  it('asks for a fresh reading rather than accepting a cached one', () => {
+    // maximumAge: 0. A cached fix from another part of town, presented as
+    // "your current location", is wrong in a way nothing on screen would
+    // reveal.
+    const getCurrentPosition = vi.fn()
+
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, writable: true, value: { getCurrentPosition } })
+
+    renderField()
+    fireEvent.click(pin())
+
+    expect(getCurrentPosition).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.any(Function),
+      expect.objectContaining({ enableHighAccuracy: true, maximumAge: 0 })
+    )
+  })
+
   it('hides the pin where the browser has no geolocation at all', () => {
     Object.defineProperty(navigator, 'geolocation', { configurable: true, writable: true, value: undefined })
 

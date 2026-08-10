@@ -19,7 +19,7 @@ import AddPropertyDialog from '@/views/properties/AddPropertyDialog'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 
-vi.mock('@/lib/api/places', () => ({ searchPlaces: vi.fn() }))
+vi.mock('@/lib/api/places', () => ({ searchPlaces: vi.fn(), reverseResolve: vi.fn(async () => null) }))
 
 vi.mock('@/lib/api/reference', () => ({ getCities: vi.fn(), getPostcodeDistricts: vi.fn(async () => []) }))
 
@@ -64,7 +64,8 @@ describe('AddPropertyDialog city waiver — coverage', () => {
 
     // No address search is used — the selects only render once the user
     // asks to enter the address by hand.
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: /^address$/i }))
+    fireEvent.click(await screen.findByText(/enter the address manually/i))
 
     fireEvent.change(screen.getByLabelText(/property name/i), { target: { value: 'Test Property' } })
 

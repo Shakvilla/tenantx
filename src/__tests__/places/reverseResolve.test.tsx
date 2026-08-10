@@ -12,10 +12,9 @@ vi.mock('@/lib/api/reference', async importOriginal => ({
 
 vi.mock('@/lib/api/places', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api/places')>()),
+  searchPlaces: vi.fn(async () => ({ status: 'ok', suggestions: [] })),
   reverseResolve: vi.fn()
 }))
-
-vi.mock('@/components/address/AddressSearchField', () => ({ default: () => <div /> }))
 
 vi.mock('@/contexts/ReferenceDataContext', () => ({
   useReferenceData: () => ({
@@ -72,7 +71,17 @@ function Harness({ onCoords }: { onCoords?: (c: any) => void }) {
 }
 
 const state = () => JSON.parse(screen.getByTestId('state').textContent!)
+const field = () => screen.getByRole('combobox', { name: /address/i })
 const capture = () => fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+
+/** The resolved place arrives as a dropdown row; choosing it is what applies it. */
+const pickTheLocation = async () => fireEvent.click(await screen.findByText('Adenta'))
+
+/** Manual entry is a row in the same dropdown, not a button beside it. */
+const enterManually = async () => {
+  fireEvent.mouseDown(field())
+  fireEvent.click(await screen.findByText(/enter the address manually/i))
+}
 
 const confident = {
   region: 'greater-accra',
@@ -100,10 +109,11 @@ describe('reverse resolving a captured position', () => {
     render(<Harness />)
     capture()
 
-    expect(await screen.findByText(/Adenta Municipal/)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /use this address/i })).toBeTruthy()
+    // The row names the district, and states the fix's own accuracy beside it.
+    expect(await screen.findByText(/Adenta Municipal · ±8 m/)).toBeTruthy()
+    expect(screen.getByText('Adenta')).toBeTruthy()
 
-    // Nothing filled until accepted.
+    // Nothing filled until picked.
     expect(state().district).toBe('')
   })
 
@@ -113,7 +123,7 @@ describe('reverse resolving a captured position', () => {
     render(<Harness />)
     capture()
 
-    fireEvent.click(await screen.findByRole('button', { name: /use this address/i }))
+    await pickTheLocation()
 
     await waitFor(() => expect(state().district).toBe('adenta'))
     expect(state().region).toBe('greater-accra')
@@ -128,7 +138,7 @@ describe('reverse resolving a captured position', () => {
     render(<Harness />)
     capture()
 
-    expect(await screen.findByText(/42 km|nearest/i)).toBeTruthy()
+    expect(await screen.findByText(/42.0 km|nearest/i)).toBeTruthy()
   })
 
   it('still offers an unconfident guess rather than discarding it', async () => {
@@ -139,7 +149,11 @@ describe('reverse resolving a captured position', () => {
     render(<Harness />)
     capture()
 
-    expect(await screen.findByRole('button', { name: /use this address/i })).toBeTruthy()
+    expect(await screen.findByText('Adenta')).toBeTruthy()
+
+    await pickTheLocation()
+
+    await waitFor(() => expect(state().district).toBe('adenta'))
   })
 
   it('keeps the coordinates when no locality is near enough to name', async () => {
@@ -155,23 +169,30 @@ describe('reverse resolving a captured position', () => {
     await waitFor(() =>
       expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ accuracyMetres: 8 }))
     )
-    expect(screen.queryByRole('button', { name: /use this address/i })).toBeNull()
+
+    // The row is still offered — the capture is real — but it carries no
+    // address, so picking it applies nothing.
+    fireEvent.click(await screen.findByText(/location captured · ±8 m/i))
+
+    await waitFor(() => expect(screen.queryByText(/location captured/i)).toBeNull())
+    expect(state().district).toBe('')
+    expect(state().region).toBe('')
   })
 
   it('does not overwrite an address the landlord already chose', async () => {
-    // Accepting is what applies it, so a form already filled stays filled
+    // Picking is what applies it, so a form already filled stays filled
     // until they say otherwise.
     vi.mocked(reverseResolve).mockResolvedValue(confident)
 
     render(<Harness />)
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    await enterManually()
     fireEvent.mouseDown(screen.getByRole('combobox', { name: /region/i }))
     fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))
     fireEvent.mouseDown(screen.getByRole('combobox', { name: /district/i }))
     fireEvent.click(await screen.findByRole('option', { name: 'Ga East Municipal' }))
 
     capture()
-    await screen.findByRole('button', { name: /use this address/i })
+    await screen.findByText('Adenta')
 
     expect(state().district).toBe('ga-east')
   })

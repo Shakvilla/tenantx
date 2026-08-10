@@ -5,7 +5,7 @@ import AddPropertyDialog from '@/views/properties/AddPropertyDialog'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }))
 
-vi.mock('@/lib/api/places', () => ({ searchPlaces: vi.fn() }))
+vi.mock('@/lib/api/places', () => ({ searchPlaces: vi.fn(), reverseResolve: vi.fn(async () => null) }))
 
 vi.mock('@/lib/api/reference', () => ({ getPostcodeDistricts: vi.fn(async () => []),
   getCities: vi.fn() }))
@@ -58,13 +58,21 @@ const place = {
   placeId: 'osm:N4951010023'
 }
 
+const field = () => screen.getByRole('combobox', { name: /^address$/i })
+
 const typeAddress = (value: string) => {
-  // See AddressSearchField.test.tsx: MUI's Autocomplete needs the field
-  // focused before a programmatic value change sticks.
-  const input = screen.getByRole('combobox', { name: /search for an address/i })
+  // MUI's Autocomplete needs the field focused before a programmatic value
+  // change sticks — it resets the input on the render right after otherwise.
+  const input = field()
 
   fireEvent.focus(input)
   fireEvent.change(input, { target: { value } })
+}
+
+/** Manual entry is a row in the same dropdown, not a button beside it. */
+const enterManually = async () => {
+  fireEvent.mouseDown(field())
+  fireEvent.click(await screen.findByText(/enter the address manually/i))
 }
 
 async function pickPlace() {
@@ -253,7 +261,7 @@ describe('AddPropertyDialog address autofill', () => {
 
     // No address was searched, so the selects only exist once the user asks
     // to enter the address by hand.
-    fireEvent.click(screen.getByRole('button', { name: /enter the address manually/i }))
+    await enterManually()
 
     // Trigger step-1 validation without filling anything in — Region and
     // District (among others) come back required.

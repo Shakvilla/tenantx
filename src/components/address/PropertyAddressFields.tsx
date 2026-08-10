@@ -12,12 +12,12 @@ import Select from '@mui/material/Select'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
-import AddressSearchField from '@/components/address/AddressSearchField'
-import DigitalAddressField, { type DecodedAddress } from '@/components/address/DigitalAddressField'
-import UseMyLocationButton, { type CapturedPosition } from '@/components/address/UseMyLocationButton'
+import UnifiedAddressField from '@/components/address/UnifiedAddressField'
+import type { CapturedPosition } from '@/components/address/UnifiedAddressField.types'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import { getCities as fetchCities } from '@/lib/api/reference'
-import { reverseResolve, type PlaceSuggestion, type ReverseResolved } from '@/lib/api/places'
+import type { PlaceSuggestion, ReverseResolved } from '@/lib/api/places'
+import type { DecodedAddress } from '@/lib/postcodeTable'
 import { applyPlaceToForm, describeAutofill } from '@/views/properties/addressAutofill'
 
 export type AddressValue = { gpsCode: string; street: string; region: string; district: string; city: string }
@@ -74,9 +74,9 @@ const PropertyAddressFields = ({
   const [autofillNote, setAutofillNote] = useState<string | null>(null)
 
   // Set only by onUnavailable, alongside the setMode('manual') call it makes
-  // in the same batch. AddressSearchField's own "search is unavailable"
-  // helper text unmounts with it — this is what lets manual mode carry that
-  // reason forward instead of silently swallowing it.
+  // in the same batch. The field's own dropdown has nothing left to say once
+  // the geocoder is down — this is what lets manual mode carry that reason
+  // forward instead of silently swallowing it.
   const [searchUnavailable, setSearchUnavailable] = useState(false)
 
   // Fields the caller has errored at least once while still in `searching`
@@ -151,8 +151,9 @@ const PropertyAddressFields = ({
   // One-shot: cleared the moment an address-field edit consumes it.
   const [cityFromAutofill, setCityFromAutofill] = useState(false)
 
-  // A resolved address waiting for the landlord to accept it. Never applied
-  // on arrival — see handlePositionCaptured.
+  // A contested location awaiting an answer, and nothing else. An
+  // uncontested pick is applied straight away by handleLocationPicked, so a
+  // non-null proposal always means "the code and the location disagree".
   const [proposal, setProposal] = useState<ReverseResolved | null>(null)
 
   const [cities, setCities] = useState<string[]>([])
@@ -304,9 +305,8 @@ const PropertyAddressFields = ({
    * It carries no placeId — there is no geocoder place behind it — and the
    * reported accuracy travels with it so the record says how far to trust it.
    *
-   * The address fields are deliberately left alone here. Turning a coordinate
-   * back into a region and district is Task 11's reverse lookup, and it has
-   * to be offered for confirmation rather than applied.
+   * The address fields are left alone: turning a coordinate back into a
+   * district is offered as a row, not applied.
    */
   const handlePositionCaptured = (position: CapturedPosition) => {
     onCoordinates({
@@ -315,13 +315,34 @@ const PropertyAddressFields = ({
       placeId: null,
       accuracyMetres: position.accuracyMetres
     })
+  }
 
-    // Offered, never applied. An OSM place node is a point rather than a
-    // boundary, so a property near a district edge can resolve to its
-    // neighbour — filling the form silently would file it in the wrong
-    // district with nothing on screen to reveal it. A null answer changes
-    // nothing: the capture succeeded and the coordinates stand regardless.
-    reverseResolve(position.latitude, position.longitude).then(setProposal)
+  /**
+   * The landlord has chosen the captured location. If a digital address says
+   * otherwise, that disagreement is now worth raising — a mistyped code and a
+   * capture taken at home both look like this, and neither is automatically
+   * right, so it is a question rather than a correction.
+   *
+   * Only against a CONFIDENT position. A guess tens of kilometres from the
+   * nearest locality node disagreeing with the code proves nothing, and
+   * treating that as a conflict would cry wolf on every rural property.
+   */
+  const handleLocationPicked = (resolved: ReverseResolved) => {
+    const decoded = lastDecoded.current
+
+    if (
+      decoded &&
+      resolved.confident &&
+      value.district === decoded.districtValue &&
+      resolved.district !== decoded.districtValue
+    ) {
+      setProposal(resolved)
+
+      return
+    }
+
+    onChange({ region: resolved.region, district: resolved.district, city: resolved.city })
+    setMode('resolved')
   }
 
   const acceptProposal = () => {
@@ -331,24 +352,6 @@ const PropertyAddressFields = ({
     setProposal(null)
     setMode('resolved')
   }
-
-  /**
-   * The code and the position are two independent claims about the same
-   * property, so a disagreement means something real is wrong — a mistyped
-   * code, or a capture taken at home rather than at the property. Both are
-   * worth catching and neither is automatically right, so this is a question
-   * rather than a correction.
-   *
-   * Only raised against a CONFIDENT position. A guess tens of kilometres from
-   * the nearest locality node disagreeing with the code proves nothing, and
-   * treating that as a conflict would cry wolf on every rural property.
-   */
-  const conflict =
-    proposal !== null &&
-    proposal.confident &&
-    Boolean(lastDecoded.current) &&
-    value.district === lastDecoded.current?.districtValue &&
-    proposal.district !== lastDecoded.current?.districtValue
 
   const keepTheCode = () => setProposal(null)
 
@@ -529,39 +532,30 @@ const PropertyAddressFields = ({
 
   return (
     <>
-      <DigitalAddressField
-        value={value.gpsCode}
-        onChange={handleGpsCodeChange}
-        onDecoded={handleDecoded}
-        size={size}
-      />
-
-      {searchable && mode !== 'manual' && (
-        <Grid size={{ xs: 12 }}>
-          <AddressSearchField
-            onSelect={handlePlaceSelected}
-            onUnavailable={() => {
-              setSearchUnavailable(true)
-              setMode('manual')
-            }}
-          />
-          {autofillNote && (
-            <Typography variant='caption' color='success.main' className='mts-1 block'>
-              {autofillNote}
-            </Typography>
-          )}
-          {mode === 'searching' && (
-            <Button size='small' onClick={() => setMode('manual')} sx={{ mt: 1 }}>
-              Can&apos;t find it? Enter the address manually
-            </Button>
-          )}
-        </Grid>
-      )}
-
       <Grid size={{ xs: 12 }}>
-        <UseMyLocationButton onCaptured={handlePositionCaptured} />
+        <UnifiedAddressField
+          gpsCode={value.gpsCode}
+          onGpsCodeChange={handleGpsCodeChange}
+          onDecoded={handleDecoded}
+          onPlaceSelected={handlePlaceSelected}
+          onPositionCaptured={handlePositionCaptured}
+          onLocationPicked={handleLocationPicked}
+          onManual={() => setMode('manual')}
+          onUnavailable={() => {
+            setSearchUnavailable(true)
+            setMode('manual')
+          }}
+          disabled={!searchable}
+          size={size}
+        />
 
-        {conflict && proposal && (
+        {autofillNote && (
+          <Typography variant='caption' color='success.main' className='mts-1 block'>
+            {autofillNote}
+          </Typography>
+        )}
+
+        {proposal && (
           <Box sx={{ mt: 1 }}>
             <Typography variant='body2'>
               Your digital address is in <strong>{decodedDistrictLabel}</strong>, but your location looks like{' '}
@@ -578,31 +572,6 @@ const PropertyAddressFields = ({
                 Use my location
               </Button>
             </Box>
-          </Box>
-        )}
-
-        {proposal && !conflict && (
-          <Box sx={{ mt: 1 }}>
-            <Typography variant='body2'>
-              Looks like{' '}
-              <strong>
-                {proposal.regionLabel} › {proposal.districtLabel} › {proposal.city}
-              </strong>
-            </Typography>
-
-            {/* "Nearest we know" is a different claim from "where you are".
-                Saying which one this is, and how far, is what lets the
-                landlord tell them apart. */}
-            {!proposal.confident && (
-              <Typography variant='caption' color='warning.main' className='block'>
-                That is the nearest place we know, about {formatDistance(proposal.distanceMetres)} away — worth
-                checking before you use it.
-              </Typography>
-            )}
-
-            <Button size='small' onClick={acceptProposal} sx={{ mt: 0.5 }}>
-              Use this address
-            </Button>
           </Box>
         )}
       </Grid>
@@ -660,11 +629,6 @@ const PropertyAddressFields = ({
       )}
     </>
   )
-}
-
-/** "120 m" / "42 km" — a five-digit metre count reads as false precision. */
-function formatDistance(metres: number): string {
-  return metres >= 1000 ? `${Math.round(metres / 1000)} km` : `${Math.round(metres)} m`
 }
 
 export default PropertyAddressFields

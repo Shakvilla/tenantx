@@ -22,6 +22,16 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
           value: 'greater-accra',
           label: 'Greater Accra',
           districts: [{ value: 'ayawaso-west', label: 'Ayawaso West Municipal', region: 'greater-accra' }]
+        },
+        {
+          value: 'northern',
+          label: 'Northern',
+          districts: [{ value: 'tamale-metro', label: 'Tamale Metropolitan', region: 'northern' }]
+        },
+        {
+          value: 'ashanti',
+          label: 'Ashanti',
+          districts: [{ value: 'amansie-central', label: 'Amansie Central District', region: 'ashanti' }]
         }
       ]
     }
@@ -68,7 +78,7 @@ const field = () => screen.getByRole('combobox', { name: /address/i })
 // that reset with `if (focused && !valueChange) return`). A real user always
 // focuses the field before typing; `fireEvent.change` alone does not, so the
 // focus event has to be fired explicitly for the keystroke to stick — same
-// workaround as AddressSearchField.test.tsx and UnifiedAddressField.code.test.tsx.
+// workaround as UnifiedAddressField.code.test.tsx.
 const type = (text: string) => {
   const input = field()
 
@@ -135,6 +145,25 @@ describe('searching from the one field', () => {
     expect(searchPlaces).not.toHaveBeenCalled()
   })
 
+  // Migrated from the standalone search field's suite, which this one absorbed.
+  it('does not search before the third character', async () => {
+    // Two letters match half of Accra. The geocoder is a free community
+    // service and a query that cannot be useful is one not worth making.
+    renderField()
+    type('ea')
+    await settle()
+
+    expect(searchPlaces).not.toHaveBeenCalled()
+  })
+
+  it('sends the query with its surrounding whitespace trimmed', async () => {
+    renderField()
+    type('  East Legon  ')
+    await settle()
+
+    expect(searchPlaces).toHaveBeenCalledWith('East Legon')
+  })
+
   it('waits for a pause before asking', async () => {
     renderField()
     type('Eas')
@@ -194,5 +223,72 @@ describe('searching from the one field', () => {
     await settle()
 
     expect(searchPlaces).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * The backend deliberately returns every district an ambiguous locality
+ * belongs to rather than guessing between them — Aboabo exists in both
+ * Tamale Metropolitan and Amansie Central. That is only useful if the list
+ * makes them tellable apart, so the secondary line is load-bearing here, not
+ * decoration. Migrated from the standalone search field's suite.
+ */
+const aboabo = (district: string, region: string): PlaceSuggestion => ({
+  label: 'Aboabo',
+  street: null,
+  region,
+  district,
+  city: 'Aboabo',
+  latitude: 9.4,
+  longitude: -0.84,
+  // Local suggestions carry no placeId — our catalogue holds localities, not
+  // buildings. Two of them must still be distinct rows.
+  placeId: null,
+  source: 'local'
+})
+
+describe('ambiguous localities in the one field', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.mocked(searchPlaces).mockReset()
+    vi.mocked(searchPlaces).mockResolvedValue({
+      status: 'ok',
+      suggestions: [aboabo('tamale-metro', 'northern'), aboabo('amansie-central', 'ashanti')]
+    })
+    onPlaceSelected.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('distinguishes two same-named localities by their district and region', async () => {
+    renderField()
+    type('Aboabo')
+    await settle()
+
+    expect(await screen.findByText('Tamale Metropolitan, Northern')).toBeTruthy()
+    expect(screen.getByText('Amansie Central District, Ashanti')).toBeTruthy()
+  })
+
+  it('keeps both on screen as separate rows despite sharing a null placeId', async () => {
+    renderField()
+    type('Aboabo')
+    await settle()
+
+    // Two localities plus the manual-entry row that always sits at the end.
+    const options = await screen.findAllByRole('option')
+
+    expect(options.filter(option => option.textContent?.startsWith('Aboabo'))).toHaveLength(2)
+  })
+
+  it('reports the district the landlord actually clicked', async () => {
+    renderField()
+    type('Aboabo')
+    await settle()
+
+    fireEvent.click(await screen.findByText('Amansie Central District, Ashanti'))
+
+    expect(onPlaceSelected).toHaveBeenCalledWith(expect.objectContaining({ district: 'amansie-central' }))
   })
 })
