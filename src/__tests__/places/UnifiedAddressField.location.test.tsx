@@ -149,13 +149,15 @@ describe('capturing a position from the one field', () => {
 
   it('says how far away an unconfident guess is', async () => {
     // "Nearest we know" is a different claim from "where you are", and the
-    // distance is what lets the landlord tell them apart.
+    // distance is what lets the landlord tell them apart. The fix's own
+    // accuracy still has to be stated here too — an unconfident guess is not
+    // an excuse to drop it.
     vi.mocked(reverseResolve).mockResolvedValue({ ...resolved, distanceMetres: 42000, confident: false })
 
     renderField()
     fireEvent.click(pin())
 
-    expect(await screen.findByText(/nearest we know · 42.0 km away/)).toBeTruthy()
+    expect(await screen.findByText(/nearest we know · 42.0 km away · ±8 m/)).toBeTruthy()
   })
 
   it('applies nothing until the row is picked', async () => {
@@ -179,6 +181,9 @@ describe('capturing a position from the one field', () => {
     renderField()
     fireEvent.click(pin())
 
+    // Accuracy is stated here too — a saved-but-unnamed capture is not
+    // exempt just because it has no place name to sit next to.
+    expect(await screen.findByText(/location captured · ±8 m/i)).toBeTruthy()
     expect(await screen.findByText(/no nearby place we know/i)).toBeTruthy()
     expect(onPositionCaptured).toHaveBeenCalled()
   })

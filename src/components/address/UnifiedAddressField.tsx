@@ -402,10 +402,17 @@ const UnifiedAddressField = ({
 
           const { resolved, position } = row
 
+          // The fix's own accuracy is stated in every branch, never rounded
+          // away or hidden: a landlord accepting an unconfident row still
+          // needs to know the phone's own reading was ±3 km, and a
+          // saved-but-unnamed capture is not exempt just because it has no
+          // place name to sit next to.
+          const accuracy = `±${formatMetres(position.accuracyMetres)}`
+
           const detail = resolved
             ? resolved.confident
-              ? `${resolved.districtLabel} · ±${formatMetres(position.accuracyMetres)}`
-              : `nearest we know · ${formatMetres(resolved.distanceMetres)} away`
+              ? `${resolved.districtLabel} · ${accuracy}`
+              : `nearest we know · ${formatMetres(resolved.distanceMetres)} away · ${accuracy}`
             : 'no nearby place we know'
 
           return (
@@ -413,7 +420,7 @@ const UnifiedAddressField = ({
               <Box>
                 <Typography variant='body2'>
                   <i className='ri-crosshair-line mie-2' />
-                  {resolved ? resolved.city : 'Location captured'}
+                  {resolved ? resolved.city : `Location captured · ${accuracy}`}
                 </Typography>
                 <Typography variant='caption' color={resolved?.confident === false ? 'warning.main' : 'text.secondary'}>
                   {detail}
