@@ -26,6 +26,8 @@ vi.mock('@/contexts/ReferenceDataContext', () => ({
 const onDecoded = vi.fn()
 const onPlaceSelected = vi.fn()
 const onManual = vi.fn()
+const onPositionCaptured = vi.fn()
+const onLocationPicked = vi.fn()
 
 function Harness() {
   const [gpsCode, setGpsCode] = useState('')
@@ -38,6 +40,8 @@ function Harness() {
         onDecoded={onDecoded}
         onPlaceSelected={onPlaceSelected}
         onManual={onManual}
+        onPositionCaptured={onPositionCaptured}
+        onLocationPicked={onLocationPicked}
       />
       <output data-testid='code'>{gpsCode}</output>
     </>

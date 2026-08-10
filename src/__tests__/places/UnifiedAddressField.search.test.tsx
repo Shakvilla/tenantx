@@ -44,6 +44,8 @@ const place = (over: Partial<PlaceSuggestion> = {}): PlaceSuggestion => ({
 const onPlaceSelected = vi.fn()
 const onManual = vi.fn()
 const onUnavailable = vi.fn()
+const onPositionCaptured = vi.fn()
+const onLocationPicked = vi.fn()
 
 const renderField = () =>
   render(
@@ -54,6 +56,8 @@ const renderField = () =>
       onPlaceSelected={onPlaceSelected}
       onManual={onManual}
       onUnavailable={onUnavailable}
+      onPositionCaptured={onPositionCaptured}
+      onLocationPicked={onLocationPicked}
     />
   )
 

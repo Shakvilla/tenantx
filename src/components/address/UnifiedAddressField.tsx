@@ -9,10 +9,11 @@ import CircularProgress from '@mui/material/CircularProgress'
 import IconButton from '@mui/material/IconButton'
 import InputAdornment from '@mui/material/InputAdornment'
 import TextField from '@mui/material/TextField'
+import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
-import { searchPlaces, type PlaceSuggestion, type ReverseResolved } from '@/lib/api/places'
+import { reverseResolve, searchPlaces, type PlaceSuggestion, type ReverseResolved } from '@/lib/api/places'
 import type { PostcodeDistrict } from '@/lib/api/reference'
 import { parseGhanaPostCode } from '@/lib/ghanaPostCode'
 import { decodePrefix, loadPostcodeTable, type DecodedAddress } from '@/lib/postcodeTable'
@@ -20,6 +21,25 @@ import type { CapturedPosition } from '@/components/address/UnifiedAddressField.
 
 const MIN_QUERY_LENGTH = 3
 const SEARCH_DEBOUNCE_MS = 400
+
+/** Long enough for a cold GPS lock, short enough not to look hung. */
+const GEO_TIMEOUT_MS = 15_000
+
+/**
+ * GeolocationPositionError codes, by their spec-stable numbers rather than the
+ * constants on the error instance. Those constants are only present when the
+ * object really is a GeolocationPositionError; a polyfill or a bare `{ code }`
+ * delivers undefined, every comparison falls through, and the landlord gets
+ * "try again in a moment" when the real answer was "allow location access" —
+ * advice that can never work.
+ */
+const PERMISSION_DENIED = 1
+const TIMED_OUT = 3
+
+/** "8 m" / "3.0 km" — a four-digit metre count reads as false precision. */
+function formatMetres(metres: number): string {
+  return metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`
+}
 
 /**
  * One list, three sources. Picking any row is the same gesture, so the
@@ -57,6 +77,15 @@ type Props = {
   onManual: () => void
   onUnavailable?: () => void
 
+  /**
+   * Fires as soon as a fix arrives, because the coordinates are worth keeping
+   * whatever the landlord does next.
+   */
+  onPositionCaptured: (position: CapturedPosition) => void
+
+  /** Fires only when the resolved-location row is chosen. */
+  onLocationPicked: (resolved: ReverseResolved) => void
+
   disabled?: boolean
   size?: 'small' | 'medium'
 }
@@ -76,6 +105,8 @@ const UnifiedAddressField = ({
   onPlaceSelected,
   onManual,
   onUnavailable,
+  onPositionCaptured,
+  onLocationPicked,
   disabled,
   size = 'small'
 }: Props) => {
@@ -89,6 +120,65 @@ const UnifiedAddressField = ({
   const [loading, setLoading] = useState(false)
   const [unavailable, setUnavailable] = useState(false)
   const requestId = useRef(0)
+
+  const [supported, setSupported] = useState(false)
+  const [capturing, setCapturing] = useState(false)
+  const [locationRow, setLocationRow] = useState<Extract<AddressRow, { kind: 'location' }> | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+
+  // Read on the client only: `navigator` does not exist while the server
+  // renders, and assuming support would render a button that throws on click.
+  useEffect(() => {
+    setSupported(typeof navigator !== 'undefined' && Boolean(navigator.geolocation))
+  }, [])
+
+  const capture = () => {
+    setCapturing(true)
+    setLocationError(null)
+
+    navigator.geolocation.getCurrentPosition(
+      async geo => {
+        const position: CapturedPosition = {
+          latitude: geo.coords.latitude,
+          longitude: geo.coords.longitude,
+          accuracyMetres: geo.coords.accuracy
+        }
+
+        setCapturing(false)
+
+        // The coordinates are worth keeping whatever happens next: the
+        // capture succeeded, and the accuracy travels with it so the record
+        // says how far to trust it.
+        onPositionCaptured(position)
+
+        const resolved = await reverseResolve(position.latitude, position.longitude)
+
+        setLocationRow({ kind: 'location', resolved, position })
+        setOpen(true)
+      },
+      failure => {
+        setCapturing(false)
+        setLocationRow(null)
+
+        setLocationError(
+          failure.code === PERMISSION_DENIED
+            ? 'Location is blocked. Allow it in your browser, then try again.'
+            : failure.code === TIMED_OUT
+              ? 'That took too long. Being outdoors usually helps — try again.'
+              : "Your device couldn't get a location right now. Try again in a moment."
+        )
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: GEO_TIMEOUT_MS,
+
+        // A cached fix from another part of town, presented as "your current
+        // location", is wrong in a way nothing on screen would reveal.
+        maximumAge: 0
+      }
+    )
+  }
 
   // The decode is one-shot per distinct code. Re-deriving on every render
   // would silently undo a district the landlord corrected by hand afterwards.
@@ -211,7 +301,11 @@ const UnifiedAddressField = ({
     return [district?.label ?? option.district, region?.label ?? option.region].filter(Boolean).join(', ')
   }
 
-  const rows: AddressRow[] = [...options.map(place => ({ kind: 'place' as const, place })), { kind: 'manual' as const }]
+  const rows: AddressRow[] = [
+    ...(locationRow ? [locationRow] : []),
+    ...options.map(place => ({ kind: 'place' as const, place })),
+    { kind: 'manual' as const }
+  ]
 
   const pick = (row: AddressRow | null) => {
     if (!row) return
@@ -220,6 +314,14 @@ const UnifiedAddressField = ({
 
     if (row.kind === 'place') onPlaceSelected(row.place)
     if (row.kind === 'manual') onManual()
+
+    if (row.kind === 'location') {
+      // A capture that resolved to nothing still leaves the coordinates,
+      // which were saved when the fix arrived. There is simply no address to
+      // apply.
+      if (row.resolved) onLocationPicked(row.resolved)
+      setLocationRow(null)
+    }
   }
 
   /**
@@ -258,6 +360,9 @@ const UnifiedAddressField = ({
         onInputChange={(_, next) => setInput(next)}
         value={null}
         onChange={(_, row) => pick(row)}
+        open={open}
+        onOpen={() => setOpen(true)}
+        onClose={() => setOpen(false)}
         getOptionLabel={row =>
           row.kind === 'place' ? row.place.label : row.kind === 'manual' ? 'Enter the address manually' : ''
         }
@@ -295,7 +400,27 @@ const UnifiedAddressField = ({
             )
           }
 
-          return <li key='location' {...rest} />
+          const { resolved, position } = row
+
+          const detail = resolved
+            ? resolved.confident
+              ? `${resolved.districtLabel} · ±${formatMetres(position.accuracyMetres)}`
+              : `nearest we know · ${formatMetres(resolved.distanceMetres)} away`
+            : 'no nearby place we know'
+
+          return (
+            <li key='location' {...rest}>
+              <Box>
+                <Typography variant='body2'>
+                  <i className='ri-crosshair-line mie-2' />
+                  {resolved ? resolved.city : 'Location captured'}
+                </Typography>
+                <Typography variant='caption' color={resolved?.confident === false ? 'warning.main' : 'text.secondary'}>
+                  {detail}
+                </Typography>
+              </Box>
+            </li>
+          )
         }}
         renderInput={params => (
           <TextField
@@ -338,6 +463,20 @@ const UnifiedAddressField = ({
               endAdornment: (
                 <>
                   {loading ? <CircularProgress size={16} /> : null}
+                  {supported && (
+                    <Tooltip title='Use my current location'>
+                      <span>
+                        <IconButton
+                          size='small'
+                          aria-label='Use my current location'
+                          disabled={disabled || capturing}
+                          onClick={capture}
+                        >
+                          {capturing ? <CircularProgress size={16} /> : <i className='ri-crosshair-line' />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
                   {params.InputProps.endAdornment}
                 </>
               )
@@ -345,6 +484,21 @@ const UnifiedAddressField = ({
           />
         )}
       />
+
+      {/* A cold GPS lock can take fifteen seconds. role="status" carries an
+          implicit aria-live="polite", so the wait is announced rather than
+          being a spinner a screen-reader user cannot see. */}
+      {capturing && (
+        <Typography role='status' variant='caption' color='text.secondary' className='mts-1 block'>
+          Finding you…
+        </Typography>
+      )}
+
+      {locationError && (
+        <Typography variant='caption' color='error' className='mts-1 block'>
+          {locationError}
+        </Typography>
+      )}
 
       {unknownPrefix && (
         <Typography variant='caption' color='warning.main' className='mts-1 block'>
