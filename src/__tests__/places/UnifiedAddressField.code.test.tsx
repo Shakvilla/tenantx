@@ -19,14 +19,26 @@ vi.mock('@/lib/api/places', async importOriginal => ({
   searchPlaces: vi.fn(async () => ({ status: 'ok', suggestions: [] }))
 }))
 
+vi.mock('@/contexts/ReferenceDataContext', () => ({
+  useReferenceData: () => ({ ref: { regions: [] } })
+}))
+
 const onDecoded = vi.fn()
+const onPlaceSelected = vi.fn()
+const onManual = vi.fn()
 
 function Harness() {
   const [gpsCode, setGpsCode] = useState('')
 
   return (
     <>
-      <UnifiedAddressField gpsCode={gpsCode} onGpsCodeChange={setGpsCode} onDecoded={onDecoded} />
+      <UnifiedAddressField
+        gpsCode={gpsCode}
+        onGpsCodeChange={setGpsCode}
+        onDecoded={onDecoded}
+        onPlaceSelected={onPlaceSelected}
+        onManual={onManual}
+      />
       <output data-testid='code'>{gpsCode}</output>
     </>
   )
