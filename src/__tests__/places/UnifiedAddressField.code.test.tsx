@@ -1,0 +1,165 @@
+import { useState } from 'react'
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
+
+import UnifiedAddressField from '@/components/address/UnifiedAddressField'
+import type { DecodedAddress } from '@/lib/postcodeTable'
+
+vi.mock('@/lib/api/reference', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/api/reference')>()),
+  getPostcodeDistricts: vi.fn(async () => [
+    { prefix: 'GD', regionValue: 'greater-accra', districtValue: 'adenta', sourceLabel: 'Adentan Municipal District' },
+    { prefix: 'GL', regionValue: null, districtValue: null, sourceLabel: 'Ledzokuku-Krowor Municipal District' }
+  ])
+}))
+
+vi.mock('@/lib/api/places', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/lib/api/places')>()),
+  searchPlaces: vi.fn(async () => ({ status: 'ok', suggestions: [] }))
+}))
+
+const onDecoded = vi.fn()
+
+function Harness() {
+  const [gpsCode, setGpsCode] = useState('')
+
+  return (
+    <>
+      <UnifiedAddressField gpsCode={gpsCode} onGpsCodeChange={setGpsCode} onDecoded={onDecoded} />
+      <output data-testid='code'>{gpsCode}</output>
+    </>
+  )
+}
+
+const field = () => screen.getByRole('combobox', { name: /address/i })
+const code = () => screen.getByTestId('code').textContent
+
+const type = (text: string) => {
+  const input = field()
+
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: text } })
+}
+
+/** The commit is debounced; nothing happens until the landlord stops typing. */
+const settle = async () => {
+  await act(async () => {
+    vi.advanceTimersByTime(500)
+  })
+}
+
+describe('recognising a digital address in the one field', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    onDecoded.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('turns a recognised code into a chip and clears the input', async () => {
+    render(<Harness />)
+    type('GD-184-7915')
+    await settle()
+
+    // The Harness echoes gpsCode into an <output> right next to the chip, so
+    // an unscoped text match finds both — scope to the chip label itself.
+    expect(await screen.findByText('GD-184-7915', { selector: '.MuiChip-label' })).toBeTruthy()
+    expect(code()).toBe('GD-184-7915')
+    expect((field() as HTMLInputElement).value).toBe('')
+  })
+
+  it('normalises however the landlord pasted it', async () => {
+    // These arrive from utility bills, the GhanaPostGPS app and WhatsApp,
+    // with and without separators and in either case.
+    render(<Harness />)
+    type('gd1847915')
+    await settle()
+
+    expect(code()).toBe('GD-184-7915')
+  })
+
+  it('fills region and district from a recognised prefix', async () => {
+    render(<Harness />)
+    type('GD-184-7915')
+    await settle()
+
+    await waitFor(() =>
+      expect(onDecoded).toHaveBeenCalledWith<[DecodedAddress]>({
+        regionValue: 'greater-accra',
+        districtValue: 'adenta'
+      })
+    )
+  })
+
+  it('saves an unrecognised prefix but fills nothing, and says so', async () => {
+    // GL is a real published prefix whose district has since been split.
+    // Guessing would file the property in the wrong district carrying the
+    // landlord's own code as the apparent source.
+    render(<Harness />)
+    type('GL-100-0001')
+    await settle()
+
+    expect(code()).toBe('GL-100-0001')
+    await waitFor(() => expect(onDecoded).toHaveBeenCalledWith(null))
+    expect(await screen.findByText(/don't recognise/i)).toBeTruthy()
+  })
+
+  it('commits immediately on Enter rather than waiting out the debounce', async () => {
+    render(<Harness />)
+    type('GD-184-7915')
+    fireEvent.keyDown(field(), { key: 'Enter' })
+
+    await waitFor(() => expect(code()).toBe('GD-184-7915'))
+  })
+
+  it('keeps exactly one chip when a second code is entered', async () => {
+    // A property has one gpsCode. The parser also accepts 6-9 digits, so a
+    // half-typed code can commit early — a later keystroke must replace it
+    // rather than accumulate.
+    render(<Harness />)
+    type('GD-184-7915')
+    await settle()
+    type('GL-100-0001')
+    await settle()
+
+    expect(code()).toBe('GL-100-0001')
+    expect(screen.queryByText('GD-184-7915')).toBeNull()
+  })
+
+  it('leaves the address fields alone when the chip is removed', async () => {
+    // Removing the code clears the code. The landlord may have corrected the
+    // district by hand, and emptying a filled form as a side effect of
+    // removing something else is worse than a stale value they can see.
+    render(<Harness />)
+    type('GD-184-7915')
+    await settle()
+    onDecoded.mockClear()
+
+    fireEvent.click(await screen.findByRole('button', { name: /remove/i }))
+
+    await waitFor(() => expect(code()).toBe(''))
+    expect(onDecoded).not.toHaveBeenCalled()
+  })
+
+  it('removes the chip on backspace from an empty input', async () => {
+    render(<Harness />)
+    type('GD-184-7915')
+    await settle()
+
+    fireEvent.keyDown(field(), { key: 'Backspace' })
+
+    await waitFor(() => expect(code()).toBe(''))
+  })
+
+  it('does not chip ordinary address text', async () => {
+    render(<Harness />)
+    type('East Legon')
+    await settle()
+
+    expect(code()).toBe('')
+    expect((field() as HTMLInputElement).value).toBe('East Legon')
+  })
+})
