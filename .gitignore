@@ -54,3 +54,7 @@ __test_output.txt
 
 /docs
 
+
+# Agent scratch: SDD ledgers, task briefs, review packages.
+.superpowers/
+.claude/
