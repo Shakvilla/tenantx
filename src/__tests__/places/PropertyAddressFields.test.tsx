@@ -34,7 +34,7 @@ vi.mock('@/lib/api/places', async importOriginal => ({
 }))
 
 import { getCities } from '@/lib/api/reference'
-import { searchPlaces } from '@/lib/api/places'
+import { reverseResolve, searchPlaces } from '@/lib/api/places'
 
 /**
  * The five shapes the geocoder actually returns, offered together so a test
@@ -741,6 +741,120 @@ describe('PropertyAddressFields with the search off', () => {
     await waitFor(() =>
       expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ accuracyMetres: 8, placeId: null }))
     )
+    expect(await screen.findByText(/located to within 8 m/i)).toBeTruthy()
+  })
+
+  it('offers no captured-location row, because picking one fills what edit cannot save', async () => {
+    // The search is suppressed here because the edit payload sources region
+    // and district from the property as saved while still sending `city` from
+    // the form. The location row fills those same three fields, so accepting
+    // one files the capture's locality under the property's OLD district —
+    // the same unsaveable pick, by a different route.
+    //
+    // The pin itself stays live: the coordinates and their accuracy ARE saved
+    // on edit. It is only the resolved ADDRESS that has nowhere to go.
+    vi.mocked(reverseResolve).mockResolvedValue({
+      region: 'greater-accra',
+      regionLabel: 'Greater Accra',
+      district: 'ayawaso-west',
+      districtLabel: 'Ayawaso West Municipal',
+      city: 'Ashiyie',
+      distanceMetres: 150,
+      confident: true
+    })
+
+    render(<EditHarness />)
+    fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+
+    // The capture lands and says how far to trust itself, as it must.
+    expect(await screen.findByText(/located to within 8 m/i)).toBeTruthy()
+
+    fireEvent.mouseDown(field())
+
+    expect(await screen.findByText(/enter the address manually/i)).toBeTruthy()
+    expect(screen.queryByText('Ashiyie')).toBeNull()
+
+    // And no request was spent on a free community service resolving a row
+    // that could never be offered.
+    expect(reverseResolve).not.toHaveBeenCalled()
+  })
+
+  afterEach(() => {
+    vi.mocked(reverseResolve).mockResolvedValue(null)
+  })
+})
+
+/**
+ * The captured position and the address the block saves beside it.
+ */
+describe('PropertyAddressFields and a picked location row', () => {
+  const ashiyie = {
+    region: 'greater-accra',
+    regionLabel: 'Greater Accra',
+    district: 'ayawaso-west',
+    districtLabel: 'Ayawaso West Municipal',
+    city: 'Ashiyie',
+    distanceMetres: 150,
+    confident: true
+  }
+
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      writable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback) =>
+          ok({
+            coords: { latitude: 5.71, longitude: -0.166, accuracy: 8 } as GeolocationCoordinates,
+            timestamp: 0
+          } as GeolocationPosition)
+      }
+    })
+
+    vi.mocked(reverseResolve).mockResolvedValue(ashiyie)
+  })
+
+  afterEach(() => {
+    vi.mocked(reverseResolve).mockResolvedValue(null)
+  })
+
+  it('re-asserts the position the row describes rather than trusting what the form holds', async () => {
+    // The position is applied the moment the fix arrives, so in the ordinary
+    // flow nothing needs restating. This is the flow where something does:
+    // hand-editing an address field deliberately drops the coordinates, and
+    // the captured row knows nothing about that — it lives in the address
+    // field, which never saw the edit.
+    //
+    // Accepting the row afterwards must bring its own coordinates back with
+    // its own address. Anything else saves a district and city with no
+    // position, or worse, with somebody else's.
+    const onCoords = vi.fn()
+
+    // Region is on screen because a failed validation surfaced it — the one
+    // way to reach a select without leaving the search.
+    render(<Harness onCoords={onCoords} errors={{ region: true }} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+    expect(await screen.findByText('Ashiyie')).toBeTruthy()
+
+    fireEvent.mouseDown(screen.getByLabelText(/region/i))
+    fireEvent.click(await screen.findByRole('option', { name: 'Greater Accra' }))
+    await waitFor(() => expect(onCoords).toHaveBeenLastCalledWith(null))
+
+    fireEvent.mouseDown(field())
+    fireEvent.click(await screen.findByText('Ashiyie'))
+
+    await waitFor(() =>
+      expect(onCoords).toHaveBeenLastCalledWith({
+        latitude: 5.71,
+        longitude: -0.166,
+        placeId: null,
+        accuracyMetres: 8
+      })
+    )
+
+    // The caption that says how far to trust the position comes back with it.
+    // Nothing else in the app renders accuracyMetres.
     expect(await screen.findByText(/located to within 8 m/i)).toBeTruthy()
   })
 })

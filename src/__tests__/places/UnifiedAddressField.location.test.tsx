@@ -31,6 +31,20 @@ const resolved = {
 
 const onPositionCaptured = vi.fn()
 const onLocationPicked = vi.fn()
+const onPlaceSelected = vi.fn()
+
+/** The geocoded place a landlord searches for after capturing a fix. */
+const eastLegon = {
+  label: 'East Legon',
+  street: null,
+  region: 'greater-accra',
+  district: 'ayawaso-west',
+  city: 'East Legon',
+  latitude: 5.63,
+  longitude: -0.16,
+  placeId: 'osm:N1',
+  source: 'local' as const
+}
 
 const grantPosition = (accuracy = 8) => {
   Object.defineProperty(navigator, 'geolocation', {
@@ -64,7 +78,7 @@ const renderField = () =>
       gpsCode=''
       onGpsCodeChange={() => {}}
       onDecoded={() => {}}
-      onPlaceSelected={() => {}}
+      onPlaceSelected={onPlaceSelected}
       onManual={() => {}}
       onPositionCaptured={onPositionCaptured}
       onLocationPicked={onLocationPicked}
@@ -72,6 +86,19 @@ const renderField = () =>
   )
 
 const pin = () => screen.getByRole('button', { name: /use my current location/i })
+const field = () => screen.getByRole('combobox', { name: /address/i })
+
+/**
+ * MUI's Autocomplete resets the input back to '' on the render right after a
+ * programmatic value change unless the field is already focused. A real user
+ * always focuses before typing; `fireEvent.change` alone does not.
+ */
+const type = (text: string) => {
+  const input = field()
+
+  fireEvent.focus(input)
+  fireEvent.change(input, { target: { value: text } })
+}
 
 describe('capturing a position from the one field', () => {
   beforeEach(() => {
@@ -184,7 +211,15 @@ describe('capturing a position from the one field', () => {
 
     fireEvent.click(screen.getByText('Ashiyie'))
 
-    await waitFor(() => expect(onLocationPicked).toHaveBeenCalledWith(resolved))
+    // The position the row describes travels back with the address, so the
+    // caller can re-assert both together.
+    await waitFor(() =>
+      expect(onLocationPicked).toHaveBeenCalledWith(resolved, {
+        latitude: 5.71,
+        longitude: -0.166,
+        accuracyMetres: 8
+      })
+    )
   })
 
   it('still offers the row when no locality is near enough to name', async () => {
@@ -268,5 +303,74 @@ describe('capturing a position from the one field', () => {
     renderField()
 
     expect(screen.queryByRole('button', { name: /use my current location/i })).toBeNull()
+  })
+})
+
+/**
+ * The captured row and the rest of the list are answers to the same question,
+ * and only one of them can be true at a time.
+ */
+describe('a captured row alongside the other rows', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.mocked(reverseResolve).mockReset()
+    vi.mocked(reverseResolve).mockResolvedValue(resolved)
+    vi.mocked(searchPlaces).mockReset()
+    vi.mocked(searchPlaces).mockResolvedValue({ status: 'ok', suggestions: [eastLegon] })
+    onPositionCaptured.mockClear()
+    onLocationPicked.mockClear()
+    onPlaceSelected.mockClear()
+    grantPosition()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** The search is debounced; nothing is requested until the typing pauses. */
+  const settle = async () => {
+    await act(async () => {
+      vi.advanceTimersByTime(500)
+    })
+  }
+
+  it('stops offering the captured row once a search result is picked', async () => {
+    // The row describes ONE position. Picking a search result replaces the
+    // coordinates with the geocoded place's, so a row left standing goes on
+    // offering Ashiyie's district and city for East Legon's latitude and
+    // longitude — and the landlord who accepts it saves an address against
+    // coordinates a kilometre away, with nothing on screen saying so.
+    renderField()
+    fireEvent.click(pin())
+    expect(await screen.findByText('Ashiyie')).toBeTruthy()
+
+    type('East Legon')
+    await settle()
+    fireEvent.click(await screen.findByText('East Legon'))
+    await waitFor(() => expect(onPlaceSelected).toHaveBeenCalled())
+
+    // Reopening the list is one click away, and nothing about the row would
+    // tell the landlord it has gone stale.
+    fireEvent.mouseDown(field())
+
+    expect(await screen.findByText(/enter the address manually/i)).toBeTruthy()
+    expect(screen.queryByText('Ashiyie')).toBeNull()
+  })
+
+  it('hands the position back with the address when the row is picked', async () => {
+    // So the caller can re-assert the two together and they can never
+    // disagree, whatever replaced the coordinates in between.
+    renderField()
+    fireEvent.click(pin())
+
+    fireEvent.click(await screen.findByText('Ashiyie'))
+
+    await waitFor(() =>
+      expect(onLocationPicked).toHaveBeenCalledWith(resolved, {
+        latitude: 5.71,
+        longitude: -0.166,
+        accuracyMetres: 8
+      })
+    )
   })
 })

@@ -118,6 +118,26 @@ describe('PropertyAddressFields digital-address decoding', () => {
     expect(state().district).toBe('')
   })
 
+  it('shows the region and district selects when a FIRST code decodes to nothing', async () => {
+    // The warning says "please choose the region and district below". On a
+    // fresh form there was no below: the block only left `searching` mode when
+    // a previous decode had something to retract, and `searching` renders
+    // nothing but the fields a failed validation has already surfaced — none,
+    // here. So the landlord was asked a question with nowhere to answer it,
+    // the manual-entry affordance having moved inside a dropdown they have no
+    // reason to reopen.
+    //
+    // An unrecognised prefix chips, saves, fills nothing, and ASKS. Asking is
+    // only asking if the selects are there.
+    render(<Harness />)
+    await typeCode('GZ-100-0001')
+
+    await waitFor(() => expect(screen.getByText(/don.t recognise/i)).toBeTruthy())
+
+    expect(screen.getByRole('combobox', { name: /^region$/i })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: /^district$/i })).toBeTruthy()
+  })
+
   it('retracts a previous decode when the code is corrected to an unmappable one', async () => {
     // The live bug: typing GA-184-7915 then correcting it to GZ-100-0001 left
     // "Greater Accra › Accra Metropolitan District" on screen underneath a

@@ -79,15 +79,26 @@ type Props = {
    */
   onPositionCaptured: (position: CapturedPosition) => void
 
-  /** Fires only when the resolved-location row is chosen. */
-  onLocationPicked: (resolved: ReverseResolved) => void
+  /**
+   * Fires only when the resolved-location row is chosen.
+   *
+   * The position the row describes travels with it. The caller already
+   * received it from `onPositionCaptured` when the fix arrived, but by the time
+   * the row is picked something else may have replaced the coordinates — a
+   * search pick applies the geocoded place's. Handing the position back here
+   * lets the caller re-assert it in the same breath as the address, so a saved
+   * address and the coordinates underneath it can never describe two different
+   * places.
+   */
+  onLocationPicked: (resolved: ReverseResolved, position: CapturedPosition) => void
 
   /** The whole control is dead: no typing, no code, no pin. */
   disabled?: boolean
 
   /**
-   * Only the geocoder search is off — no request is made and no place rows
-   * are offered. The code and the pin still work.
+   * Every row that would fill region and district is off — no search request
+   * is made, no place rows are offered, and a capture offers no resolved
+   * location row either. The code and the pin still work.
    *
    * This is the edit-mode case, and it is deliberately NOT `disabled`.
    * `UpdatePropertyRequest` cannot save a hand-picked region/district, which
@@ -95,6 +106,14 @@ type Props = {
    * coordinates — so disabling the whole field would leave a landlord able to
    * delete a digital address with the chip's × and unable to type one back,
    * a control that can only destroy.
+   *
+   * The location row goes with the search for the same reason it exists:
+   * picking one fills region, district and city, and on edit the payload
+   * sources region and district from `editData` while still sending `city`.
+   * Offering the row would save the capture's locality under the property's
+   * OLD district. The pin itself stays live because the position and its
+   * accuracy ARE saved on edit — it is only the resolved ADDRESS that edit
+   * mode cannot accept.
    */
   searchDisabled?: boolean
 
@@ -161,8 +180,15 @@ const UnifiedAddressField = ({
 
         // The coordinates are worth keeping whatever happens next: the
         // capture succeeded, and the accuracy travels with it so the record
-        // says how far to trust it.
+        // says how far to trust it. This half of the pin survives
+        // `searchDisabled` — the position is saved on edit.
         onPositionCaptured(position)
+
+        // The other half does not. Turning the fix into an address fills the
+        // two fields edit mode cannot save, so there is no row to offer — and
+        // no reason to spend a request on a free community service resolving
+        // one. See `searchDisabled`.
+        if (searchDisabled) return
 
         const resolved = await reverseResolve(position.latitude, position.longitude)
 
@@ -212,9 +238,50 @@ const UnifiedAddressField = ({
     }
   }, [])
 
+  /**
+   * The code a commit just took out of the box, held only until the next
+   * thing the landlord does.
+   *
+   * Committing blanks the input so the chip is not doubled by the text that
+   * produced it. That is fine for a finished code and wrong for an unfinished
+   * one: the parser accepts 6-9 digits, so a pause between the 6th and the 7th
+   * commits GD-184-791 and empties the box, and the next keystroke lands alone
+   * as "5" — which parses as nothing. The chip would then be a truncated code
+   * the landlord cannot correct by carrying on typing, i.e. sticky, when the
+   * whole reason the commit is debounced rather than per-keystroke is that it
+   * is supposed to be self-correcting.
+   */
+  const committedCode = useRef<string | null>(null)
+
   const commitCode = (normalised: string) => {
     onGpsCodeChange(normalised)
+    committedCode.current = normalised
     setInput('')
+  }
+
+  /**
+   * Puts a just-committed code back in front of the keystroke that continues
+   * it, so the whole string re-parses and REPLACES the chip.
+   *
+   * The seed is only used when the box is empty (a commit blanked it), the
+   * keystroke is not itself a clear, and the two together still parse as one
+   * code. That last condition is what tells a continuation from a fresh start
+   * without guessing: a code always begins with a letter and is only ever
+   * extended by a digit, so `GD-184-791` + `5` parses and `GD-184-7915` + `G`
+   * does not.
+   */
+  const handleInputChange = (next: string) => {
+    const seed = committedCode.current
+
+    committedCode.current = null
+
+    if (seed && next && input === '' && parseGhanaPostCode(seed + next)) {
+      setInput(seed + next)
+
+      return
+    }
+
+    setInput(next)
   }
 
   useEffect(() => {
@@ -314,8 +381,11 @@ const UnifiedAddressField = ({
     return [district?.label ?? option.district, region?.label ?? option.region].filter(Boolean).join(', ')
   }
 
+  // `capture` already declines to build a row under `searchDisabled`; this is
+  // the same rule stated where the list is assembled, so a row captured before
+  // the flag flipped cannot outlive it.
   const rows: AddressRow[] = [
-    ...(locationRow ? [locationRow] : []),
+    ...(locationRow && !searchDisabled ? [locationRow] : []),
     ...options.map(place => ({ kind: 'place' as const, place })),
     { kind: 'manual' as const }
   ]
@@ -323,7 +393,18 @@ const UnifiedAddressField = ({
   const pick = (row: AddressRow | null) => {
     if (!row) return
 
+    // The box is being emptied by the pick, not by a commit. There is no
+    // half-typed code to carry on from.
+    committedCode.current = null
     setInput('')
+
+    // Whatever was picked, the captured row is spent. It describes one
+    // position, and picking a SEARCH result replaces the coordinates with the
+    // geocoded place's — so a row left standing would go on offering an
+    // address for a position the form no longer holds. Accepting it later saved
+    // the capture's district and city against the searched place's
+    // latitude/longitude: wrong in a way that looks deliberate.
+    setLocationRow(null)
 
     if (row.kind === 'place') onPlaceSelected(row.place)
     if (row.kind === 'manual') onManual()
@@ -332,8 +413,7 @@ const UnifiedAddressField = ({
       // A capture that resolved to nothing still leaves the coordinates,
       // which were saved when the fix arrived. There is simply no address to
       // apply.
-      if (row.resolved) onLocationPicked(row.resolved)
-      setLocationRow(null)
+      if (row.resolved) onLocationPicked(row.resolved, row.position)
     }
   }
 
@@ -343,6 +423,12 @@ const UnifiedAddressField = ({
    */
   const removeCode = () => {
     decodedFor.current = null
+
+    // The landlord has just thrown this code away. Left standing it would be
+    // seeded back into the box by the next digit they type and re-committed,
+    // undoing the deletion.
+    committedCode.current = null
+
     setUnknownPrefix(false)
     onGpsCodeChange('')
   }
@@ -370,7 +456,7 @@ const UnifiedAddressField = ({
         options={rows}
         filterOptions={x => x}
         inputValue={input}
-        onInputChange={(_, next) => setInput(next)}
+        onInputChange={(_, next) => handleInputChange(next)}
         value={null}
         onChange={(_, row) => pick(row)}
         open={open}

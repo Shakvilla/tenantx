@@ -172,6 +172,12 @@ describe('searching from the one field', () => {
     await settle()
 
     expect(searchPlaces).toHaveBeenCalledTimes(1)
+
+    // One request, and it is the query the landlord finished on. Counting
+    // alone would be satisfied by a burst that sent the FIRST keystroke's
+    // query and dropped the rest — the same one request, for two letters of a
+    // word the landlord went on to finish.
+    expect(searchPlaces).toHaveBeenCalledWith('East L')
   })
 
   it('ignores a slow answer to a query the landlord has since erased', async () => {

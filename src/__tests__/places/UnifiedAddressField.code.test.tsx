@@ -132,9 +132,8 @@ describe('recognising a digital address in the one field', () => {
   })
 
   it('keeps exactly one chip when a second code is entered', async () => {
-    // A property has one gpsCode. The parser also accepts 6-9 digits, so a
-    // half-typed code can commit early — a later keystroke must replace it
-    // rather than accumulate.
+    // A property has one gpsCode. Two complete codes, one after the other:
+    // the second replaces the first rather than accumulating beside it.
     render(<Harness />)
     type('GD-184-7915')
     await settle()
@@ -143,6 +142,56 @@ describe('recognising a digital address in the one field', () => {
 
     expect(code()).toBe('GL-100-0001')
     expect(screen.queryByText('GD-184-7915')).toBeNull()
+  })
+
+  it('replaces an early commit when the landlord carries on typing the same code', async () => {
+    // The path the test above cannot reach, because it types two COMPLETE
+    // codes with a settle between them.
+    //
+    // The parser accepts 6-9 digits so that it agrees with the backend rule
+    // for rule, which means a pause between the sixth digit and the seventh
+    // commits a code the landlord has not finished. Committing empties the
+    // box, so the next keystroke arrives on its own as "5" — which parses as
+    // nothing. Unless the committed text goes back in front of it the
+    // truncated chip is STICKY, and debouncing the commit instead of
+    // committing per keystroke buys nothing at all.
+    render(<Harness />)
+
+    // Six digits: already a whole code as far as the parser is concerned.
+    type('GD-184-791')
+    await settle()
+    expect(code()).toBe('GD-184-791')
+
+    // The seventh digit, typed into the box the commit just emptied. A
+    // browser reports the input's whole value, and its whole value is "5".
+    type('5')
+    await settle()
+
+    expect(code()).toBe('GD-184-7915')
+    expect(screen.queryByText('GD-184-791', { selector: '.MuiChip-label' })).toBeNull()
+
+    // And nothing of the code is left behind in the box to be typed over or
+    // sent to the geocoder as an address query.
+    expect((field() as HTMLInputElement).value).toBe('')
+  })
+
+  it('does not put a deleted code back when the next thing typed is a digit', async () => {
+    // The other side of the same seam: the committed text is remembered only
+    // for the keystroke that continues it. Removing the chip is the landlord
+    // throwing that code away, and a "5" typed afterwards is the start of
+    // something new — not the seventh digit of the code they just deleted.
+    render(<Harness />)
+    type('GD-184-791')
+    await settle()
+
+    fireEvent.click(await screen.findByRole('button', { name: /remove address code/i }))
+    await waitFor(() => expect(code()).toBe(''))
+
+    type('5')
+    await settle()
+
+    expect(code()).toBe('')
+    expect((field() as HTMLInputElement).value).toBe('5')
   })
 
   it('leaves the address fields alone when the chip is removed', async () => {

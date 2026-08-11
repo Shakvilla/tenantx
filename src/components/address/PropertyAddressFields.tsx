@@ -41,10 +41,15 @@ type Props = {
   onChange: (patch: Partial<AddressValue>) => void
   onCoordinates: (coords: AddressCoordinates | null) => void
   /**
-   * false in edit mode — the update endpoint cannot save what the search
-   * fills: `UpdatePropertyRequest` carries neither the coordinates nor a
-   * hand-picked region/district, because the edit payload sources those from
-   * `editData` rather than `formData`.
+   * false in edit mode — the update endpoint cannot save the region and
+   * district a picked address fills, because the edit payload sources those
+   * from `editData` rather than `formData` while still sending `city` from the
+   * form. A pick would file the new locality under the old district.
+   *
+   * It suppresses the search AND the captured-location row, which fill the
+   * same two fields. It does not suppress the pin, the code, or the accuracy
+   * caption: the coordinates ARE saved on edit (`AddPropertyDialog` spreads
+   * them into the payload in both modes), and so is `gpsCode`.
    */
   searchable?: boolean
   errors?: Partial<Record<keyof AddressValue, boolean>>
@@ -345,8 +350,17 @@ const PropertyAddressFields = ({
     ) {
       lastDecoded.current = null
       onChange({ region: '', district: '', city: '' })
-      setMode('manual')
     }
+
+    // Opened whether or not there was anything to retract. The field's warning
+    // says "please choose the region and district below", and in `searching`
+    // mode there is no below: that branch renders only the fields a failed
+    // validation has already surfaced, which on a fresh form is none. An
+    // unrecognised prefix chips, saves, fills nothing and ASKS — asking with
+    // nowhere to answer is the dead end the permanent "enter the address
+    // manually" button used to cover, before that affordance moved inside a
+    // dropdown the landlord has no reason to reopen.
+    setMode('manual')
   }
 
   /**
@@ -379,7 +393,16 @@ const PropertyAddressFields = ({
    * nearest locality node disagreeing with the code proves nothing, and
    * treating that as a conflict would cry wolf on every rural property.
    */
-  const handleLocationPicked = (resolved: ReverseResolved) => {
+  const handleLocationPicked = (resolved: ReverseResolved, position: CapturedPosition) => {
+    // Re-asserted, not assumed. The position was applied the moment the fix
+    // arrived, but anything picked in between may have replaced it — a search
+    // result carries the geocoded place's own latitude/longitude. Restating
+    // the position the row describes, in the same breath as the address it
+    // describes, is what makes it impossible to save one place's district and
+    // city against another place's coordinates. It is also idempotent in the
+    // ordinary flow, where nothing intervened.
+    handlePositionCaptured(position)
+
     const decoded = lastDecoded.current
 
     if (

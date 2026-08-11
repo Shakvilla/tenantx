@@ -141,6 +141,39 @@ describe('the one field with only its search suppressed', () => {
     )
   })
 
+  it('offers no location row from that capture', async () => {
+    // The row fills region, district and city — exactly what the edit payload
+    // sources from the property as saved, except for `city`, which it sends
+    // from the form. Offering it lets a landlord file the capture's locality
+    // under the property's OLD district: the same unsaveable pick the
+    // suppressed search exists to prevent, by a different route.
+    //
+    // Only the row goes. The position and its accuracy are saved on edit, so
+    // the pin keeps capturing.
+    vi.mocked(reverseResolve).mockResolvedValue({
+      region: 'greater-accra',
+      regionLabel: 'Greater Accra',
+      district: 'la-nkwantanang-madina',
+      districtLabel: 'La-Nkwantanang-Madina Municipal',
+      city: 'Ashiyie',
+      distanceMetres: 150,
+      confident: true
+    })
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+
+    await waitFor(() => expect(onPositionCaptured).toHaveBeenCalled())
+
+    fireEvent.mouseDown(field())
+
+    expect(await screen.findByText(/enter the address manually/i)).toBeTruthy()
+    expect(screen.queryByText('Ashiyie')).toBeNull()
+
+    // Nor was a request spent resolving a row that could never be offered.
+    expect(reverseResolve).not.toHaveBeenCalled()
+  })
+
   it('offers no delete control at all when the WHOLE field is disabled', async () => {
     // The other half of the same rule: `disabled` means dead, and a live × on
     // a dead field is the destructive-only control this split exists to
