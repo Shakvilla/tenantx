@@ -16,7 +16,8 @@ vi.mock('@/lib/api/reference', async importOriginal => ({
 
 vi.mock('@/lib/api/places', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api/places')>()),
-  searchPlaces: vi.fn(async () => ({ status: 'ok', suggestions: [] }))
+  searchPlaces: vi.fn(async () => ({ status: 'ok', suggestions: [] })),
+  reverseResolve: vi.fn(async () => null)
 }))
 
 vi.mock('@/contexts/ReferenceDataContext', () => ({
@@ -65,10 +66,30 @@ const settle = async () => {
   })
 }
 
+const grantPosition = () => {
+  Object.defineProperty(navigator, 'geolocation', {
+    configurable: true,
+    writable: true,
+    value: {
+      getCurrentPosition: (ok: PositionCallback) =>
+        ok({
+          coords: { latitude: 5.71, longitude: -0.166, accuracy: 8 } as GeolocationCoordinates,
+          timestamp: 0
+        } as GeolocationPosition)
+    }
+  })
+}
+
 describe('recognising a digital address in the one field', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     onDecoded.mockClear()
+    onPositionCaptured.mockClear()
+
+    // The pin is only rendered where the browser has geolocation. Denied by
+    // default here so every test starts from the same field, and granted
+    // explicitly by the one test that taps it.
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, writable: true, value: undefined })
   })
 
   afterEach(() => {
@@ -217,6 +238,45 @@ describe('recognising a digital address in the one field', () => {
     fireEvent.keyDown(field(), { key: 'Backspace' })
 
     await waitFor(() => expect(code()).toBe(''))
+  })
+
+  // The two below bound the seed rather than the fold itself. A digit typed
+  // straight after a commit is genuinely ambiguous — the seventh digit of the
+  // code, or the first character of something new — and that ambiguity is
+  // accepted. What is not accepted is the seed OUTLIVING the moment: neither a
+  // blur nor a pin tap fires an input event, so before these the seed sat
+  // there indefinitely and folded a digit typed minutes and several actions
+  // later into a code the landlord had finished with.
+
+  it('lets go of a committed code once the landlord leaves the field', async () => {
+    render(<Harness />)
+    type('GD-184-7915')
+    await settle()
+
+    fireEvent.blur(field())
+
+    type('2')
+    await settle()
+
+    expect(code()).toBe('GD-184-7915')
+    expect((field() as HTMLInputElement).value).toBe('2')
+  })
+
+  it('lets go of a committed code once the landlord taps the pin', async () => {
+    grantPosition()
+
+    render(<Harness />)
+    type('GD-184-7915')
+    await settle()
+
+    fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+    await waitFor(() => expect(onPositionCaptured).toHaveBeenCalled())
+
+    type('2')
+    await settle()
+
+    expect(code()).toBe('GD-184-7915')
+    expect((field() as HTMLInputElement).value).toBe('2')
   })
 
   it('does not chip ordinary address text', async () => {

@@ -168,6 +168,13 @@ const UnifiedAddressField = ({
     setCapturing(true)
     setLocationError(null)
 
+    // Tapping the pin is the landlord turning to a different way of answering
+    // the question. Whatever a commit set aside is no longer the string they
+    // are in the middle of typing, and nothing else clears it: a pin tap fires
+    // no input event, so without this the seed would sit there across the whole
+    // capture and fold itself into the next digit typed afterwards.
+    committedCode.current = null
+
     navigator.geolocation.getCurrentPosition(
       async geo => {
         const position: CapturedPosition = {
@@ -535,6 +542,17 @@ const UnifiedAddressField = ({
             label='Address'
             placeholder='Search an address, or enter a GPS code'
             onKeyDown={handleKeyDown}
+
+            // Leaving the field ends the string the landlord was typing. Like
+            // a pin tap, a blur fires no input event, so nothing else would
+            // clear the seed — it would sit there indefinitely and fold itself
+            // into whatever digit was typed on returning, however much later.
+            // React's onBlur bubbles through the component tree, so this
+            // catches the input's own blur without displacing MUI's handler on
+            // it (which owns clearOnBlur).
+            onBlur={() => {
+              committedCode.current = null
+            }}
             helperText='Optional — a Ghana Post GPS code fills in the region and district.'
             InputProps={{
               ...params.InputProps,
