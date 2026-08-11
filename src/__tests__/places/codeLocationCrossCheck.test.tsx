@@ -253,6 +253,29 @@ describe('digital address versus captured position', () => {
     expect(screen.queryByText(/which is right/i)).toBeNull()
   })
 
+  it('stops disagreeing with a code the landlord has removed', async () => {
+    // Removing the chip deliberately leaves region and district alone — they
+    // may since have been confirmed by hand. But the code itself is gone, so
+    // there is nothing left to contest: asking "your digital address is in Ga
+    // East" about an address that is no longer on the form names a claim the
+    // landlord cannot see, and chip removal makes that one click away.
+    resolvedTo('adenta', 'Adentan Municipal')
+
+    render(<Harness />)
+    await typeCode('GE-100-0001')
+    await waitFor(() => expect(state().district).toBe('ga-east'))
+
+    fireEvent.click(await screen.findByRole('button', { name: /remove address code/i }))
+    await waitFor(() => expect(state().gpsCode).toBe(''))
+
+    capture()
+    await pickTheLocation()
+
+    // Applied, not questioned.
+    await waitFor(() => expect(state().district).toBe('adenta'))
+    expect(screen.queryByText(/which is right/i)).toBeNull()
+  })
+
   it('offers the plain proposal when there is no code to disagree with', async () => {
     resolvedTo('adenta', 'Adentan Municipal')
 

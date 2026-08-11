@@ -18,6 +18,7 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import { getCities as fetchCities } from '@/lib/api/reference'
 import type { PlaceSuggestion, ReverseResolved } from '@/lib/api/places'
 import type { DecodedAddress } from '@/lib/postcodeTable'
+import { describeAccuracy } from '@/components/address/accuracy'
 import { applyPlaceToForm, describeAutofill } from '@/views/properties/addressAutofill'
 
 export type AddressValue = { gpsCode: string; street: string; region: string; district: string; city: string }
@@ -118,9 +119,13 @@ const PropertyAddressFields = ({
   // 'searching': nothing picked yet, search only. 'resolved': a place was
   // picked, shown as text. 'manual': the selects are open.
   //
-  // Manual is terminal within a session. There is deliberately no path back
-  // to searching — a user who has started correcting by hand should not have
-  // the search silently reclaim their fields.
+  // Nothing here ever returns to 'searching': the mode only ever advances to
+  // 'resolved' or 'manual'. Since the one address field stays mounted in all
+  // three, a landlord correcting by hand can still pick a suggestion or a
+  // captured location, and handlePlaceSelected / handleLocationPicked will
+  // move them to 'resolved' and collapse the selects. That is deliberate —
+  // it takes an explicit pick. What must not happen is the search reclaiming
+  // hand-entered fields on its own, and no code path does.
   //
   // Seeded from `value`, not just `searchable`: AddPropertyDialog renders its
   // steps through a switch, so this component unmounts on every step change,
@@ -155,6 +160,15 @@ const PropertyAddressFields = ({
   // uncontested pick is applied straight away by handleLocationPicked, so a
   // non-null proposal always means "the code and the location disagree".
   const [proposal, setProposal] = useState<ReverseResolved | null>(null)
+
+  // The accuracy of the device fix currently held, or null when the
+  // coordinates are not a device fix (or there are none). Stated on screen for
+  // exactly as long as it is true: the dropdown row says it once and then
+  // disappears, and nothing else in the app renders accuracyMetres, so
+  // dropping it here would leave a saved position with nothing saying how far
+  // to trust it. Every path that changes what onCoordinates holds updates this
+  // in the same breath.
+  const [capturedAccuracy, setCapturedAccuracy] = useState<number | null>(null)
 
   const [cities, setCities] = useState<string[]>([])
 
@@ -231,6 +245,7 @@ const PropertyAddressFields = ({
     // form holds, and saving the old lat/lng beside a hand-picked district
     // would be wrong in a way that looks deliberate.
     onCoordinates(null)
+    setCapturedAccuracy(null)
     setAutofillNote(null)
 
     if (cityFromAutofill) {
@@ -258,8 +273,19 @@ const PropertyAddressFields = ({
    * The code is a label the landlord types; editing it changes nothing about
    * where the property is, so it leaves the coordinates alone — same reasoning
    * as handleStreetChange.
+   *
+   * Removing it (the chip's ×, or backspace on an empty input) deliberately
+   * does NOT retract what the code filled — region and district may since have
+   * been confirmed by hand, and emptying a filled form as a side effect of
+   * removing something else is worse than a stale value the landlord can see.
+   * But `lastDecoded` has to go, because it is the claim "the digital address
+   * says X", and there is no digital address any more. Left standing, the next
+   * confident location pick asks "Your digital address is in X, but your
+   * location looks like Y — which is right?" about a code that is not there.
    */
   const handleGpsCodeChange = (next: string) => {
+    if (!next) lastDecoded.current = null
+
     onChange({ gpsCode: next })
   }
 
@@ -315,6 +341,8 @@ const PropertyAddressFields = ({
       placeId: null,
       accuracyMetres: position.accuracyMetres
     })
+
+    setCapturedAccuracy(position.accuracyMetres)
   }
 
   /**
@@ -374,6 +402,12 @@ const PropertyAddressFields = ({
     } else {
       onCoordinates(null)
     }
+
+    // Either way the device fix is gone: a geocoded address states no
+    // uncertainty of its own, so leaving "Located to within 8 m" underneath it
+    // would attribute a phone's reading to a place the phone never saw.
+    setCapturedAccuracy(null)
+
     setAutofillNote(describeAutofill(place))
     setCityFromAutofill(!place.district && Boolean(place.city))
     setMode('resolved')
@@ -545,7 +579,7 @@ const PropertyAddressFields = ({
             setSearchUnavailable(true)
             setMode('manual')
           }}
-          disabled={!searchable}
+          searchDisabled={!searchable}
           size={size}
         />
 
@@ -554,6 +588,26 @@ const PropertyAddressFields = ({
             {autofillNote}
           </Typography>
         )}
+
+        {/* Stays for as long as the coordinates do. The dropdown row states
+            the accuracy once and then vanishes with the pick, and nothing else
+            in the app renders accuracyMetres — so without this a landlord ends
+            up with a saved position and no way to tell a 8 m fix from a 3 km
+            one. */}
+        {capturedAccuracy !== null &&
+          (() => {
+            const { text, approximate } = describeAccuracy(capturedAccuracy)
+
+            return (
+              <Typography
+                variant='caption'
+                color={approximate ? 'warning.main' : 'success.main'}
+                className='mts-1 block'
+              >
+                {text}
+              </Typography>
+            )
+          })()}
 
         {proposal && (
           <Box sx={{ mt: 1 }}>

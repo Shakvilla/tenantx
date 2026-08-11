@@ -18,6 +18,7 @@ import type { PostcodeDistrict } from '@/lib/api/reference'
 import { parseGhanaPostCode } from '@/lib/ghanaPostCode'
 import { decodePrefix, loadPostcodeTable, type DecodedAddress } from '@/lib/postcodeTable'
 import type { CapturedPosition } from '@/components/address/UnifiedAddressField.types'
+import { formatMetres } from '@/components/address/accuracy'
 
 const MIN_QUERY_LENGTH = 3
 const SEARCH_DEBOUNCE_MS = 400
@@ -35,11 +36,6 @@ const GEO_TIMEOUT_MS = 15_000
  */
 const PERMISSION_DENIED = 1
 const TIMED_OUT = 3
-
-/** "8 m" / "3.0 km" — a four-digit metre count reads as false precision. */
-function formatMetres(metres: number): string {
-  return metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${Math.round(metres)} m`
-}
 
 /**
  * One list, three sources. Picking any row is the same gesture, so the
@@ -86,7 +82,22 @@ type Props = {
   /** Fires only when the resolved-location row is chosen. */
   onLocationPicked: (resolved: ReverseResolved) => void
 
+  /** The whole control is dead: no typing, no code, no pin. */
   disabled?: boolean
+
+  /**
+   * Only the geocoder search is off — no request is made and no place rows
+   * are offered. The code and the pin still work.
+   *
+   * This is the edit-mode case, and it is deliberately NOT `disabled`.
+   * `UpdatePropertyRequest` cannot save a hand-picked region/district, which
+   * is why the search is suppressed, but it does carry `gpsCode` and the
+   * coordinates — so disabling the whole field would leave a landlord able to
+   * delete a digital address with the chip's × and unable to type one back,
+   * a control that can only destroy.
+   */
+  searchDisabled?: boolean
+
   size?: 'small' | 'medium'
 }
 
@@ -108,6 +119,7 @@ const UnifiedAddressField = ({
   onPositionCaptured,
   onLocationPicked,
   disabled,
+  searchDisabled,
   size = 'small'
 }: Props) => {
   const { ref } = useReferenceData()
@@ -249,8 +261,9 @@ const UnifiedAddressField = ({
     // suggestions.
     const id = ++requestId.current
 
-    if (unavailable || disabled) {
+    if (unavailable || disabled || searchDisabled) {
       setLoading(false)
+      setOptions([])
 
       return
     }
@@ -289,7 +302,7 @@ const UnifiedAddressField = ({
 
     // onUnavailable is a callback prop; callers pass a stable handler.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, unavailable, disabled])
+  }, [input, unavailable, disabled, searchDisabled])
 
   /** "Ayawaso West Municipal, Greater Accra" — the slugs resolved to labels. */
   const describeWhere = (option: PlaceSuggestion) => {
@@ -448,7 +461,12 @@ const UnifiedAddressField = ({
                     <Chip
                       size='small'
                       label={gpsCode}
-                      onDelete={removeCode}
+                      // No × at all when the whole field is dead. MUI keeps a
+                      // chip's delete button live regardless of the input's
+                      // disabled state, which would leave a control that can
+                      // only destroy: remove the code, and no way to type it
+                      // back.
+                      onDelete={disabled ? undefined : removeCode}
                       deleteIcon={
 
                         // MUI's default delete icon is aria-hidden with no

@@ -179,6 +179,66 @@ describe('reverse resolving a captured position', () => {
     expect(state().region).toBe('')
   })
 
+  it('keeps saying how accurate the held position is, long after the row is gone', async () => {
+    // The row states the accuracy once and then vanishes with the pick, and
+    // nothing else in the app renders accuracyMetres. Without a line that
+    // stays, a landlord ends up with a saved position and no way to tell a
+    // good fix from a guess.
+    vi.mocked(reverseResolve).mockResolvedValue(confident)
+
+    render(<Harness />)
+    capture()
+
+    expect(await screen.findByText(/located to within 8 m/i)).toBeTruthy()
+
+    await pickTheLocation()
+
+    await waitFor(() => expect(state().district).toBe('adenta'))
+
+    // The row is gone; the accuracy is not.
+    expect(screen.queryByText(/Adenta Municipal · ±8 m/)).toBeNull()
+    expect(screen.getByText(/located to within 8 m/i)).toBeTruthy()
+
+    // A good fix is stated, not editorialised.
+    expect(screen.queryByText(/approximate/i)).toBeNull()
+  })
+
+  it('calls a poor fix approximate and says what would read better', async () => {
+    // A 3 km fix and a 8 m fix arrive through the identical API and land in
+    // the identical columns. Presenting them the same way is how a guess ends
+    // up indistinguishable from a survey.
+    grantPosition(3000)
+    vi.mocked(reverseResolve).mockResolvedValue(confident)
+
+    render(<Harness />)
+    capture()
+
+    const note = await screen.findByText(/approximate only/i)
+
+    expect(note.textContent).toContain('3.0 km')
+    expect(note.textContent).toContain('Standing outside at the property gives a much better reading.')
+  })
+
+  it('drops the accuracy when the coordinates it described are dropped', async () => {
+    // Hand-editing a locality field clears the coordinates. Leaving "Located
+    // to within 8 m" underneath would describe a position the form no longer
+    // holds.
+    vi.mocked(reverseResolve).mockResolvedValue(confident)
+
+    render(<Harness />)
+    capture()
+
+    await screen.findByText(/located to within 8 m/i)
+    await pickTheLocation()
+    await waitFor(() => expect(state().district).toBe('adenta'))
+
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+    fireEvent.mouseDown(await screen.findByRole('combobox', { name: /district/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Ga East Municipal' }))
+
+    await waitFor(() => expect(screen.queryByText(/located to within/i)).toBeNull())
+  })
+
   it('does not overwrite an address the landlord already chose', async () => {
     // Picking is what applies it, so a form already filled stays filled
     // until they say otherwise.

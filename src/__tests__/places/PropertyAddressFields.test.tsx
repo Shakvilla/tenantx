@@ -669,6 +669,82 @@ describe('PropertyAddressFields street line', () => {
   })
 })
 
+/**
+ * `searchable={false}` is edit mode. The update endpoint cannot save what a
+ * suggestion fills, which is why the search is off — but it does carry
+ * `gpsCode` and the coordinates, so those two must keep working. Passing the
+ * whole-field `disabled` here instead of the search-only flag left a landlord
+ * able to delete a digital address and unable to type one back.
+ */
+describe('PropertyAddressFields with the search off', () => {
+  // Its own harness: this is the only group that needs to read the value back,
+  // and echoing it into the DOM for every other group makes a bare
+  // getByText(/East Legon/) match the JSON as well as the address.
+  function EditHarness({ onCoords }: { onCoords?: (c: any) => void }) {
+    const [value, setValue] = useState<AddressValue>({ gpsCode: '', street: '', region: '', district: '', city: '' })
+
+    return (
+      <>
+        <PropertyAddressFields
+          value={value}
+          onChange={patch => setValue(v => ({ ...v, ...patch }))}
+          onCoordinates={c => onCoords?.(c)}
+          searchable={false}
+        />
+        <output data-testid='state'>{JSON.stringify(value)}</output>
+      </>
+    )
+  }
+
+  const state = () => JSON.parse(screen.getByTestId('state').textContent!)
+
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      writable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback) =>
+          ok({
+            coords: { latitude: 5.71, longitude: -0.166, accuracy: 8 } as GeolocationCoordinates,
+            timestamp: 0
+          } as GeolocationPosition)
+      }
+    })
+  })
+
+  it('asks the geocoder nothing', async () => {
+    render(<EditHarness />)
+    type('east legon')
+    await settle()
+
+    expect(searchPlaces).not.toHaveBeenCalled()
+  })
+
+  it('still takes a digital address, and still gives it back', async () => {
+    render(<EditHarness />)
+    type('GD-184-7915')
+    await settle()
+
+    await waitFor(() => expect(state().gpsCode).toBe('GD-184-7915'))
+
+    fireEvent.click(await screen.findByRole('button', { name: /remove address code/i }))
+
+    await waitFor(() => expect(state().gpsCode).toBe(''))
+  })
+
+  it('still captures a position, accuracy and all', async () => {
+    const onCoords = vi.fn()
+
+    render(<EditHarness onCoords={onCoords} />)
+    fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
+
+    await waitFor(() =>
+      expect(onCoords).toHaveBeenCalledWith(expect.objectContaining({ accuracyMetres: 8, placeId: null }))
+    )
+    expect(await screen.findByText(/located to within 8 m/i)).toBeTruthy()
+  })
+})
+
 describe('PropertyAddressFields local suggestions', () => {
   it('does not claim coordinates for a locality picked from our own catalogue', async () => {
     // Our catalogue's coordinates are the locality's centre — the middle of a

@@ -147,6 +147,18 @@ describe('capturing a position from the one field', () => {
     expect(screen.getByText(/La-Nkwantanang-Madina Municipal · ±8 m/)).toBeTruthy()
   })
 
+  it('states a kilometre-scale fix in kilometres', async () => {
+    // An IP-derived fix can be kilometres out and arrives through the same API
+    // as a 8 m GPS lock. "±3000 m" reads as a precise number; the point of the
+    // row is that the two are tellable apart at a glance.
+    grantPosition(3000)
+
+    renderField()
+    fireEvent.click(pin())
+
+    expect(await screen.findByText(/La-Nkwantanang-Madina Municipal · ±3.0 km/)).toBeTruthy()
+  })
+
   it('says how far away an unconfident guess is', async () => {
     // "Nearest we know" is a different claim from "where you are", and the
     // distance is what lets the landlord tell them apart. The fix's own
