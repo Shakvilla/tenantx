@@ -240,20 +240,20 @@ describe('recognising a digital address in the one field', () => {
     await waitFor(() => expect(code()).toBe(''))
   })
 
-  // The two below bound the seed rather than the fold itself. A digit typed
-  // straight after a commit is genuinely ambiguous — the seventh digit of the
-  // code, or the first character of something new — and that ambiguity is
-  // accepted. What is not accepted is the seed OUTLIVING the moment: neither a
-  // blur nor a pin tap fires an input event, so before these the seed sat
-  // there indefinitely and folded a digit typed minutes and several actions
-  // later into a code the landlord had finished with.
+  // A canonical Ghana Post code is XX-NNN-NNNN — exactly seven digits, the
+  // shape the parser normalises to. The parser's 6-9 range is wider only so the
+  // client agrees with the backend's permissiveness. So "is this code
+  // finished?" has a real answer, and it is what decides whether a following
+  // digit continues the code or begins something new.
 
-  it('lets go of a committed code once the landlord leaves the field', async () => {
+  it('leaves a complete code alone when the next thing typed is a digit', async () => {
+    // Seven digits is a whole address. The landlord is not still typing it, so
+    // a "2" after it belongs to whatever they are typing now — folding it in
+    // would silently turn their finished code into an eight-digit one, and
+    // re-run the decode over the top of a city they had already chosen.
     render(<Harness />)
     type('GD-184-7915')
     await settle()
-
-    fireEvent.blur(field())
 
     type('2')
     await settle()
@@ -262,21 +262,76 @@ describe('recognising a digital address in the one field', () => {
     expect((field() as HTMLInputElement).value).toBe('2')
   })
 
+  it('still recovers a short code whose prefix ends in a digit', async () => {
+    // The prefix is [A-Z][A-Z0-9], so its second character can itself be a
+    // digit. G1-184-791 has SIX address digits and is truncated — but counting
+    // digits by stripping non-digits from the whole code would read it as seven
+    // and call it finished, silently withdrawing the recovery from every
+    // G1/G2/… code. The count has to start after the prefix.
+    render(<Harness />)
+    type('G1-184-791')
+    await settle()
+
+    type('5')
+    await settle()
+
+    expect(code()).toBe('G1-184-7915')
+    expect((field() as HTMLInputElement).value).toBe('')
+  })
+
+  it('leaves an over-long code alone too', async () => {
+    // Eight digits already exceeds the canonical shape and only parses because
+    // the backend is permissive. Growing it to nine was never a correction.
+    render(<Harness />)
+    type('GD-184-79156')
+    await settle()
+    expect(code()).toBe('GD-184-79156')
+
+    type('2')
+    await settle()
+
+    expect(code()).toBe('GD-184-79156')
+    expect((field() as HTMLInputElement).value).toBe('2')
+  })
+
+  // The two below bound the seed in time rather than by length: a SHORT code is
+  // remembered, but only for the moment. Neither a blur nor a pin tap fires an
+  // input event, so before these the seed sat there indefinitely and folded a
+  // digit typed minutes and several actions later.
+
+  // Both use a SHORT code deliberately. A seven-digit one is not remembered at
+  // all now, so these would pass without the clears ever running and would be
+  // guarding nothing.
+
+  it('lets go of a committed code once the landlord leaves the field', async () => {
+    render(<Harness />)
+    type('GD-184-791')
+    await settle()
+
+    fireEvent.blur(field())
+
+    type('5')
+    await settle()
+
+    expect(code()).toBe('GD-184-791')
+    expect((field() as HTMLInputElement).value).toBe('5')
+  })
+
   it('lets go of a committed code once the landlord taps the pin', async () => {
     grantPosition()
 
     render(<Harness />)
-    type('GD-184-7915')
+    type('GD-184-791')
     await settle()
 
     fireEvent.click(screen.getByRole('button', { name: /use my current location/i }))
     await waitFor(() => expect(onPositionCaptured).toHaveBeenCalled())
 
-    type('2')
+    type('5')
     await settle()
 
-    expect(code()).toBe('GD-184-7915')
-    expect((field() as HTMLInputElement).value).toBe('2')
+    expect(code()).toBe('GD-184-791')
+    expect((field() as HTMLInputElement).value).toBe('5')
   })
 
   it('does not chip ordinary address text', async () => {

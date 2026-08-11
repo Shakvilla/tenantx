@@ -57,6 +57,28 @@ export type AddressRow =
  */
 export const CODE_COMMIT_DEBOUNCE_MS = 400
 
+/**
+ * The digit count of a canonical Ghana Post digital address: XX-NNN-NNNN.
+ *
+ * It comes from the shape the parser itself normalises to —
+ * `digits.slice(0, 3)` then `digits.slice(3)` — which only produces that shape
+ * for seven. The parser's 6-9 range is wider on purpose, so the client agrees
+ * with the backend's own permissiveness rule for rule and no code is accepted
+ * here that would be rejected on save. Wider does not mean eight or nine digits
+ * is a real address, and this is the number to reason about when asking whether
+ * a code is FINISHED.
+ */
+const CANONICAL_CODE_DIGITS = 7
+
+/**
+ * The digit run of a normalised code.
+ *
+ * Not a blanket strip of non-digits: the prefix is `[A-Z][A-Z0-9]`, so its
+ * second character can itself be a digit (G1-184-7915), and counting it would
+ * make a complete code look over-long.
+ */
+const digitCount = (normalised: string) => normalised.slice(3).replace(/-/g, '').length
+
 type Props = {
   gpsCode: string
   onGpsCodeChange: (code: string) => void
@@ -246,8 +268,8 @@ const UnifiedAddressField = ({
   }, [])
 
   /**
-   * The code a commit just took out of the box, held only until the next
-   * thing the landlord does.
+   * An UNFINISHED code a commit just took out of the box, held only until the
+   * next thing the landlord does.
    *
    * Committing blanks the input so the chip is not doubled by the text that
    * produced it. That is fine for a finished code and wrong for an unfinished
@@ -257,12 +279,26 @@ const UnifiedAddressField = ({
    * the landlord cannot correct by carrying on typing, i.e. sticky, when the
    * whole reason the commit is debounced rather than per-keystroke is that it
    * is supposed to be self-correcting.
+   *
+   * Two things keep that recovery from reaching past the case it is for. It is
+   * only ever set for a code short of `CANONICAL_CODE_DIGITS` (see commitCode),
+   * and it is dropped by anything that ends the string being typed: another
+   * input event, a blur, a pin tap, a pick, or removing the chip.
    */
   const committedCode = useRef<string | null>(null)
 
   const commitCode = (normalised: string) => {
     onGpsCodeChange(normalised)
-    committedCode.current = normalised
+
+    // Only a SHORT commit is worth remembering, and that is the whole
+    // discriminator. Fewer than seven digits IS the truncation the seed exists
+    // to recover from — the landlord paused mid-code. Seven is canonical, so
+    // the code is finished and a digit typed next is a new thing being typed,
+    // not a continuation. Eight and nine only exist because the parser matches
+    // the backend's permissiveness; folding further digits onto an already
+    // over-long code was never right either.
+    committedCode.current = digitCount(normalised) < CANONICAL_CODE_DIGITS ? normalised : null
+
     setInput('')
   }
 
