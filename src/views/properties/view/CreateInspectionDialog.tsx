@@ -46,6 +46,9 @@ import type {
 } from '@/types/inspection'
 import type { UtilityMeterResponse } from '@/types/utility'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const ROOMS: { value: InspectionRoom; label: string }[] = [
@@ -193,7 +196,7 @@ function ItemRow({
           <Box key={idx} sx={{ position: 'relative', width: 40, height: 40 }}>
             <Box
               component='img'
-              src={url}
+              src={ikUrl(url, IK_THUMB)}
               sx={{ width: 40, height: 40, borderRadius: 1, objectFit: 'cover' }}
             />
             <IconButton

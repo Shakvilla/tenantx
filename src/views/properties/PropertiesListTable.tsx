@@ -63,6 +63,9 @@ import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+
 declare module '@tanstack/table-core' {
   interface FilterFns {
     fuzzy: FilterFn<unknown>
@@ -304,7 +307,7 @@ const PropertiesListTable = () => {
             <Avatar
               variant='rounded'
               sx={{ width: 30, height: 30 }}
-              src={row.original.images?.[row.original.thumbnailIndex ?? 0]}
+              src={ikUrl(row.original.images?.[row.original.thumbnailIndex ?? 0], IK_THUMB)}
             />
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>

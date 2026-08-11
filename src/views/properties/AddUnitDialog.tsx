@@ -34,6 +34,9 @@ import { createUnit, updateUnit, uploadUnitImages } from '@/lib/api/units'
 import { getStoredTenantId } from '@/lib/api/storage'
 import type { CreateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+
 // ---------------------------------------------------------------------------
 // Styled upload area (matches AddPropertyDialog)
 // ---------------------------------------------------------------------------
@@ -701,7 +704,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
                         <ImagePreviewCard>
                           <CardMedia
                             component='img'
-                            image={url}
+                            image={ikUrl(url, IK_THUMB)}
                             alt={`Unit image ${index + 1}`}
                             sx={{ height: 160, objectFit: 'cover' }}
                           />

@@ -39,6 +39,9 @@ import type {
   InspectionStatus,
 } from '@/types/inspection'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 const ROOM_LABELS: Record<InspectionRoom, string> = {
@@ -273,7 +276,7 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
                             <Box
                               key={idx}
                               component='img'
-                              src={url}
+                              src={ikUrl(url, IK_CARD)}
                               alt={`photo-${idx + 1}`}
                               sx={{
                                 width: 80, height: 60,

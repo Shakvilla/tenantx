@@ -12,6 +12,9 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 
+// ImageKit does not serve original files on this account.
+import { ikUrl, IK_FULL, IK_THUMB } from '@/lib/imagekit'
+
 type UnitViewData = {
   images: string[]
 }
@@ -51,7 +54,7 @@ const UnitImagesCard = ({ unitData }: { unitData?: UnitViewData }) => {
           >
             <CardMedia
               component='img'
-              image={mainImage}
+              image={ikUrl(mainImage, IK_FULL)}
               alt='Unit main image'
               sx={{
                 width: '100%',
@@ -89,7 +92,7 @@ const UnitImagesCard = ({ unitData }: { unitData?: UnitViewData }) => {
                   >
                     <CardMedia
                       component='img'
-                      image={image}
+                      image={ikUrl(image, IK_THUMB)}
                       alt={`Unit thumbnail ${index + 1}`}
                       sx={{
                         width: '100%',

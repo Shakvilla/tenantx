@@ -50,6 +50,9 @@ import type { Property, Unit } from '@/types/property'
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+
 // ─── Styled Components ────────────────────────────────────────────────────────
 
 const UploadArea = styled(Box)(({ theme }) => ({
@@ -736,7 +739,7 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
                     <ImagePreviewCard key={`existing-${idx}`}>
                       <Box
                         component='img'
-                        src={url}
+                        src={ikUrl(url, IK_THUMB)}
                         alt={`Image ${idx + 1}`}
                         sx={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
                       />

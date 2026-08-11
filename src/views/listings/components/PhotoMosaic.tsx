@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import Lightbox from './Lightbox'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 interface PhotoMosaicProps {
   images: string[]
   title: string
@@ -31,7 +34,7 @@ export default function PhotoMosaic({ images, title }: PhotoMosaicProps) {
             aria-label='Open photo'
             className='block h-[300px] w-full cursor-zoom-in border-none bg-transparent p-0 sm:h-[420px]'
           >
-            <img src={images[0]} alt={title} className='block h-full w-full object-cover' />
+            <img src={ikUrl(images[0], IK_CARD)} alt={title} className='block h-full w-full object-cover' />
           </button>
         ) : (
           <div className='grid h-[300px] grid-cols-1 gap-0.5 sm:h-[420px] sm:grid-cols-2'>
@@ -41,7 +44,7 @@ export default function PhotoMosaic({ images, title }: PhotoMosaicProps) {
               className='block cursor-zoom-in overflow-hidden border-none bg-transparent p-0'
             >
               <img
-                src={images[0]} alt={title}
+                src={ikUrl(images[0], IK_CARD)} alt={title}
                 className='block h-full w-full object-cover transition-transform duration-300 hover:scale-[1.04]'
               />
             </button>

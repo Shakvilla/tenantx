@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import type { CityGroup } from '../lib/city'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 const arrowBtn =
   'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-solid ' +
   'border-[#DDDDDD] bg-white text-[#222222] transition-colors hover:border-[#222222] ' +
@@ -74,7 +77,7 @@ export default function CityExploreStrip({ groups }: { groups: CityGroup[] }) {
             >
               {photo && (
                 <img
-                  src={photo}
+                  src={ikUrl(photo, IK_CARD)}
                   alt=''
                   loading='lazy'
                   className='absolute inset-0 h-full w-full object-cover opacity-85 transition-transform duration-300 group-hover/city:scale-105'

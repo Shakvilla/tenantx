@@ -14,6 +14,9 @@ import InputAdornment from '@mui/material/InputAdornment'
 import AdvanceRentSection from './AdvanceRentSection'
 import CautionFeeSection from './CautionFeeSection'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 type TenantData = {
   id: string
   name: string
@@ -43,7 +46,7 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
           {tenantData?.propertyImage ? (
             <CardMedia
               component='img'
-              image={tenantData.propertyImage}
+              image={ikUrl(tenantData.propertyImage, IK_CARD)}
               alt={tenantData?.propertyName || 'Property'}
               sx={{ height: 500, objectFit: 'cover' }}
             />

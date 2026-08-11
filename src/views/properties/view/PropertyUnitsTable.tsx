@@ -47,6 +47,9 @@ import { formatCurrency } from '@/utils/currency'
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
@@ -263,7 +266,7 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
             <Avatar
               variant='rounded'
               sx={{ width: 34, height: 34 }}
-              src={row.original.images?.[0] ?? undefined}
+              src={ikUrl(row.original.images?.[0], IK_THUMB) || undefined}
             >
               <i className='ri-home-3-line text-base' />
             </Avatar>

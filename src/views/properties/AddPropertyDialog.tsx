@@ -57,6 +57,9 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 import PropertyAddressFields from '@/components/address/PropertyAddressFields'
 import type { AddressValue, AddressCoordinates } from '@/components/address/PropertyAddressFields'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+
 type PropertyEditData = {
   id?: string
   name?: string
@@ -1053,7 +1056,7 @@ const AddPropertyDialog = ({
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
                             component='img'
-                            image={imageUrl}
+                            image={ikUrl(imageUrl, IK_THUMB)}
                             alt={`Existing property image ${index + 1}`}
                             sx={{
                               height: 200,
@@ -1142,7 +1145,7 @@ const AddPropertyDialog = ({
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
                             component='img'
-                            image={imageUrl}
+                            image={ikUrl(imageUrl, IK_THUMB)}
                             alt={`Property image ${index + 1}`}
                             sx={{
                               height: 200,
@@ -1453,7 +1456,7 @@ const AddPropertyDialog = ({
                             >
                               <CardMedia
                                 component='img'
-                                image={imageUrl}
+                                image={ikUrl(imageUrl, IK_THUMB)}
                                 alt={`Property image ${index + 1}`}
                                 sx={{
                                   height: 100,

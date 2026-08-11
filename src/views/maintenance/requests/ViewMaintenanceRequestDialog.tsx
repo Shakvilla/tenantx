@@ -53,6 +53,9 @@ import { getUnitById } from '@/lib/api/units'
 import { getStoredTenantId } from '@/lib/api/storage'
 import { useAuth } from '@/contexts/AuthContext'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 type Props = {
   open: boolean
   setOpen: (open: boolean) => void
@@ -671,7 +674,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
                   <Box sx={{ position: 'relative', width: '100%', height: 260, borderRadius: 1, overflow: 'hidden', bgcolor: 'action.hover', mb: 1.5 }}>
                     <CardMedia
                       component='img'
-                      image={images[selectedImageIndex]}
+                      image={ikUrl(images[selectedImageIndex], IK_CARD)}
                       alt='Request image'
                       sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
@@ -689,7 +692,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
                               '&:hover': { borderColor: 'primary.main' }
                             }}
                           >
-                            <CardMedia component='img' image={img} alt={`Image ${i + 1}`}
+                            <CardMedia component='img' image={ikUrl(img, IK_CARD)} alt={`Image ${i + 1}`}
                               sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </Box>
                         </Grid>

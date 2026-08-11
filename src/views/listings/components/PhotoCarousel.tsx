@@ -2,6 +2,9 @@
 
 import { useRef, useState } from 'react'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_FULL } from '@/lib/imagekit'
+
 interface PhotoCarouselProps {
   images: string[]
   alt: string
@@ -49,7 +52,7 @@ export default function PhotoCarousel({ images, alt }: PhotoCarouselProps) {
   return (
     <div className='relative h-full w-full touch-pan-y' onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
       <img
-        src={images[idx]} alt={alt} loading='lazy' draggable={false}
+        src={ikUrl(images[idx], IK_FULL)} alt={alt} loading='lazy' draggable={false}
         className='block h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105'
       />
       {images.length > 1 && (

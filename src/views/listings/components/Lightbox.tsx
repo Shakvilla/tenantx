@@ -2,6 +2,9 @@
 
 import { useEffect, useRef } from 'react'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_FULL } from '@/lib/imagekit'
+
 interface LightboxProps {
   images: string[]
   title: string
@@ -83,7 +86,7 @@ export default function Lightbox({ images, title, index, onIndexChange, onClose 
           ‹
         </button>
         <img
-          src={images[index]}
+          src={ikUrl(images[index], IK_FULL)}
           alt={`${title} — photo ${index + 1}`}
           className='max-h-[72vh] max-w-[80vw] rounded-lg object-contain'
         />

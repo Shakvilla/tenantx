@@ -7,6 +7,9 @@ import Card from '@mui/material/Card'
 import Typography from '@mui/material/Typography'
 import { styled } from '@mui/material/styles'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 // Type Imports
 type PageBannerProps = {
   title: string
@@ -113,7 +116,7 @@ const PageBanner = ({ title, description, icon = 'ri-rocket-line', image }: Page
         </TextWrapper>
         {image ? (
           <ImageWrapper>
-            <img src={image} alt={title} />
+            <img src={ikUrl(image, IK_CARD)} alt={title} />
           </ImageWrapper>
         ) : (
           <IconWrapper>
