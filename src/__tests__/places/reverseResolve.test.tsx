@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-import PropertyAddressFields, { type AddressValue } from '@/components/address/PropertyAddressFields'
+import PropertyAddressFields, {
+  type AddressValue,
+  type AddressCoordinates
+} from '@/components/address/PropertyAddressFields'
 
 vi.mock('@/lib/api/reference', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api/reference')>()),
@@ -66,6 +69,41 @@ function Harness({ onCoords }: { onCoords?: (c: any) => void }) {
         onCoordinates={c => onCoords?.(c)}
       />
       <output data-testid='state'>{JSON.stringify(value)}</output>
+    </>
+  )
+}
+
+/**
+ * AddPropertyDialog's step switch, reduced to what matters here: the address
+ * block really unmounts and remounts, while the coordinates it reported stay
+ * with the parent across the gap — exactly as `coordinates` state does there.
+ */
+function SteppedHarness() {
+  const [value, setValue] = useState<AddressValue>({
+    gpsCode: '',
+    street: '',
+    region: '',
+    district: '',
+    city: ''
+  })
+
+  const [coordinates, setCoordinates] = useState<AddressCoordinates | null>(null)
+  const [onStepZero, setOnStepZero] = useState(true)
+
+  return (
+    <>
+      {onStepZero ? (
+        <PropertyAddressFields
+          value={value}
+          onChange={patch => setValue(v => ({ ...v, ...patch }))}
+          onCoordinates={setCoordinates}
+          capturedAccuracyMetres={coordinates?.accuracyMetres}
+        />
+      ) : (
+        <p>step two</p>
+      )}
+      <button onClick={() => setOnStepZero(false)}>Next step</button>
+      <button onClick={() => setOnStepZero(true)}>Previous step</button>
     </>
   )
 }
@@ -237,6 +275,47 @@ describe('reverse resolving a captured position', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'Ga East Municipal' }))
 
     await waitFor(() => expect(screen.queryByText(/located to within/i)).toBeNull())
+  })
+
+  it('restates the accuracy after the block is unmounted and brought back', async () => {
+    // AddPropertyDialog renders this block inside a step switch, so Next
+    // genuinely unmounts it and Previous mounts a fresh one — the same remount
+    // that forced the postcode table's module-scope memo. The parent goes on
+    // holding the coordinates across that, so a caption seeded only to null
+    // leaves a position that is still going to be saved with nothing on screen
+    // saying how far to trust it.
+    //
+    // This has to be a real unmount: a re-render passes without the seed.
+    vi.mocked(reverseResolve).mockResolvedValue(confident)
+
+    render(<SteppedHarness />)
+    capture()
+
+    expect(await screen.findByText(/located to within 8 m/i)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /next step/i }))
+
+    // Really gone, not merely hidden.
+    expect(screen.queryByRole('combobox', { name: /address/i })).toBeNull()
+    expect(screen.queryByText(/located to within/i)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /previous step/i }))
+
+    expect(await screen.findByText(/located to within 8 m/i)).toBeTruthy()
+  })
+
+  it('states nothing on a remount when the caller holds no position', async () => {
+    // The seed must not invent an accuracy for coordinates that are not held.
+    // A landlord who never captured, or who hand-edited a locality field and
+    // dropped the fix, must come back to a clean field.
+    render(<SteppedHarness />)
+
+    fireEvent.click(screen.getByRole('button', { name: /next step/i }))
+    fireEvent.click(screen.getByRole('button', { name: /previous step/i }))
+
+    await screen.findByRole('combobox', { name: /address/i })
+
+    expect(screen.queryByText(/located to within|approximate only/i)).toBeNull()
   })
 
   it('does not overwrite an address the landlord already chose', async () => {

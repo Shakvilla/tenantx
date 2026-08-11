@@ -766,6 +766,10 @@ const AddPropertyDialog = ({
                 }}
                 onChange={handleAddressChange}
                 onCoordinates={setCoordinates}
+                // The steps render through a switch, so the address block
+                // unmounts on every Next. This is what lets it restate the
+                // accuracy of a position this dialog is still holding.
+                capturedAccuracyMetres={coordinates?.accuracyMetres}
                 searchable={mode !== 'edit'}
                 errors={{ region: errors.region, district: errors.district, city: errors.city }}
                 onStatusChange={({ canWaiveCity: waive }) => setCanWaiveCity(waive)}

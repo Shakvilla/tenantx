@@ -51,6 +51,23 @@ type Props = {
   size?: 'small' | 'medium'
   cityLabel?: string
   onStatusChange?: (status: { canWaiveCity: boolean }) => void
+
+  /**
+   * The `accuracyMetres` of the coordinates the CALLER currently holds, so the
+   * accuracy caption can be restored on a remount.
+   *
+   * AddPropertyDialog renders this block inside a step switch, so it unmounts
+   * on every Next and remounts on Previous — the same remount that forced the
+   * postcode table's module-scope memo. Without a seed, `capturedAccuracy`
+   * comes back null while the parent still holds the position, and the caption
+   * silently disappears from a position that is still going to be saved.
+   *
+   * Pass it straight from the coordinates: `coordinates?.accuracyMetres`. Null
+   * or undefined when there are none, or when they came from a geocoded place
+   * (which states no accuracy of its own) — this must never name a number for
+   * coordinates the caller is no longer holding.
+   */
+  capturedAccuracyMetres?: number | null
 }
 
 /**
@@ -68,7 +85,8 @@ const PropertyAddressFields = ({
   errors = {},
   size = 'small',
   cityLabel = 'City',
-  onStatusChange
+  onStatusChange,
+  capturedAccuracyMetres
 }: Props) => {
   const { ref } = useReferenceData()
 
@@ -168,7 +186,13 @@ const PropertyAddressFields = ({
   // dropping it here would leave a saved position with nothing saying how far
   // to trust it. Every path that changes what onCoordinates holds updates this
   // in the same breath.
-  const [capturedAccuracy, setCapturedAccuracy] = useState<number | null>(null)
+  //
+  // Seeded from the caller, not from nothing, for the same reason `mode` is
+  // seeded from `value`: this block unmounts on every step change, and the
+  // parent goes on holding the coordinates across it. Lazy, so it seeds once
+  // per mount — the clearing paths below own it from then on, and re-reading
+  // the prop on later renders would resurrect a caption they just cleared.
+  const [capturedAccuracy, setCapturedAccuracy] = useState<number | null>(() => capturedAccuracyMetres ?? null)
 
   const [cities, setCities] = useState<string[]>([])
 

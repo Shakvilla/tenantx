@@ -94,6 +94,7 @@ return
           }}
           onChange={handleAddressChange}
           onCoordinates={setCoordinates}
+          capturedAccuracyMetres={coordinates?.accuracyMetres}
           size='medium'
           cityLabel='City / area'
           onStatusChange={({ canWaiveCity: waive }) => setCanWaiveCity(waive)}
