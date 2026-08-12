@@ -50,6 +50,7 @@ import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import { getOccupants, deleteOccupant, getOccupantStats, type OccupantRecord } from '@/lib/api/occupants'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { tablePaginationCount } from '@/lib/api/pagination'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -570,7 +571,7 @@ const OccupantsListTable = () => {
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
+            count={tablePaginationCount(total)}
             rowsPerPage={pageSize}
             page={page}
             SelectProps={{

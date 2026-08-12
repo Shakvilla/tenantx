@@ -41,6 +41,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 import { getUnitsByProperty as getPropertyUnits, deleteUnit } from '@/lib/api/units'
 import { getOccupantById } from '@/lib/api/occupants'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { tablePaginationCount } from '@/lib/api/pagination'
 import type { Unit as PropertyUnit } from '@/types/property'
 import { formatCurrency } from '@/utils/currency'
 
@@ -470,7 +471,7 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
               rowsPerPageOptions={[10, 25, 50]}
               component='div'
               className='border-bs'
-              count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
+              count={tablePaginationCount(total)}
               rowsPerPage={pageSize}
               page={page}
               SelectProps={{

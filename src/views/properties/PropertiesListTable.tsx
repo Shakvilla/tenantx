@@ -48,6 +48,7 @@ import type { Property, PropertyStats } from '@/types/property'
 // API Imports
 import { getProperties, getPropertyStats, deleteProperty, exportPropertiesCsv } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { tablePaginationCount } from '@/lib/api/pagination'
 
 // Context Imports
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
@@ -674,7 +675,7 @@ const PropertiesListTable = () => {
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
+            count={tablePaginationCount(total)}
             rowsPerPage={pageSize}
             page={page}
             SelectProps={{

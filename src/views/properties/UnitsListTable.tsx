@@ -41,6 +41,7 @@ import type { Unit } from '@/types/property'
 import { getAllUnits, deleteUnit, exportUnitsCsv } from '@/lib/api/units'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
+import { tablePaginationCount } from '@/lib/api/pagination'
 
 // Component Imports
 import RowActions from '@components/table/RowActions'
@@ -589,7 +590,7 @@ const UnitsListTable = () => {
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={hasNext ? (page + 2) * pageSize : (page + 1) * pageSize}
+            count={tablePaginationCount(total)}
             rowsPerPage={pageSize}
             page={page}
             SelectProps={{

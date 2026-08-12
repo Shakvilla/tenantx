@@ -33,6 +33,28 @@ export const DEFAULT_PAGE_SIZE = 10
 export const MAX_PAGE_SIZE = 100
 
 /**
+ * MUI's `TablePagination` sentinel for "the total is not known". It renders as
+ * "1–10 of more than 10" and keeps next/prev working.
+ */
+export const UNKNOWN_TOTAL = -1
+
+/**
+ * The row count to hand `TablePagination`, given the API's reported total.
+ *
+ * The cursor-paginated tables used to derive this from page arithmetic —
+ * `hasNext ? (page + 2) * pageSize : (page + 1) * pageSize` — which rounds the
+ * total up to the next multiple of the page size. One property read as
+ * "1–10 of 10". The API has been returning the real figure all along, in
+ * `meta.pagination.total`; it simply was not read.
+ *
+ * A missing or nonsensical total returns {@link UNKNOWN_TOTAL} rather than a
+ * guess: "more than 10" is true, and inventing a number is the bug being fixed.
+ */
+export function tablePaginationCount(total: number | null | undefined): number {
+  return typeof total === 'number' && Number.isInteger(total) && total >= 0 ? total : UNKNOWN_TOTAL
+}
+
+/**
  * Parses and validates pagination parameters from URL search params.
  * 
  * @example
