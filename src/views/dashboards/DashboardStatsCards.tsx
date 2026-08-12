@@ -22,7 +22,8 @@ const DashboardStatsCards = ({ onLoaded }: { onLoaded?: () => void }) => {
     totalProperties: 0,
     totalOccupants: 0,
     occupiedUnits: 0,
-    vacantUnits: 0
+    vacantUnits: 0,
+    reservedUnits: 0
   })
 
   useEffect(() => {
@@ -37,7 +38,11 @@ const DashboardStatsCards = ({ onLoaded }: { onLoaded?: () => void }) => {
         totalProperties: propStats?.data?.total ?? 0,
         totalOccupants: occStats?.total ?? 0,
         occupiedUnits: propStats?.data?.occupiedUnits ?? 0,
-        vacantUnits: (propStats?.data?.totalUnits ?? 0) - (propStats?.data?.occupiedUnits ?? 0)
+
+        // Read directly rather than as totalUnits - occupiedUnits: that subtraction
+        // counted units under maintenance and units awaiting move-in as vacant.
+        vacantUnits: propStats?.data?.vacantUnits ?? 0,
+        reservedUnits: propStats?.data?.reservedUnits ?? 0
       })
     }).finally(() => { setLoading(false); onLoaded?.() })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -97,6 +102,15 @@ const DashboardStatsCards = ({ onLoaded }: { onLoaded?: () => void }) => {
           description='Total number of vacant units'
           icon='ri-home-line'
           iconColor='error'
+        />
+      </Grid>
+      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+        <PropertyStatsCard
+          title='Reserved Units'
+          value={stats.reservedUnits.toString()}
+          description='Awaiting move-in — activate the agreement to occupy'
+          icon='ri-calendar-check-line'
+          iconColor='success'
         />
       </Grid>
     </>

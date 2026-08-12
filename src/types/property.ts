@@ -76,8 +76,22 @@ export interface PropertyStats {
   total: number
   active: number
   inactive: number
+
+  /** Units under maintenance (the API calls these `damagedUnits`). */
   maintenance: number
+
+  /** Units awaiting move-in: an agreement exists but has not been activated. */
+  reservedUnits: number
+
+  vacantUnits: number
+
+  /**
+   * Every unit, whatever its status. occupied + vacant + maintenance + reserved —
+   * these four are the whole of `Unit.status` and this must stay their sum, or
+   * units disappear from the landlord's totals.
+   */
   totalUnits: number
+
   occupiedUnits: number
   occupancyRate: number
 }

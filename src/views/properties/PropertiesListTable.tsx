@@ -120,6 +120,8 @@ const PropertiesListTable = () => {
     active: 0,
     inactive: 0,
     maintenance: 0,
+    reservedUnits: 0,
+    vacantUnits: 0,
     totalUnits: 0,
     occupiedUnits: 0,
     occupancyRate: 0
@@ -459,8 +461,12 @@ const PropertiesListTable = () => {
       <PropertiesStatsCard
         allProperties={stats.total}
         occupiedUnits={stats.occupiedUnits}
-        vacantUnits={stats.totalUnits - stats.occupiedUnits}
+        // The API reports this directly. It used to be derived as
+        // totalUnits - occupiedUnits, which quietly counted every non-occupied
+        // unit as vacant — including ones under maintenance or awaiting move-in.
+        vacantUnits={stats.vacantUnits}
         damagedUnits={stats.maintenance}
+        reservedUnits={stats.reservedUnits}
       />
       <Card className='mbs-6'>
         <CardHeader

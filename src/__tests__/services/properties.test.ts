@@ -200,10 +200,11 @@ describe('Properties Service', () => {
         totalProperties: 5,
         occupiedUnits: 10,
         vacantUnits: 2,
-        damagedUnits: 1
+        damagedUnits: 1,
+        reservedUnits: 3
       }
       vi.mocked(apiGet).mockResolvedValue(mockRawStats)
-      
+
       const result = await getPropertyStats(tenantId)
 
       expect(apiGet).toHaveBeenCalledWith(
@@ -215,7 +216,30 @@ describe('Properties Service', () => {
       expect(result.success).toBe(true)
       expect(result.data?.total).toBe(5)
       expect(result.data?.occupiedUnits).toBe(10)
-      expect(result.data?.occupancyRate).toBe(83) // 10 / 12 * 100
+
+      // All four statuses, not just occupied + vacant. This assertion previously
+      // expected 83 (10/12), which silently dropped the damaged unit from the
+      // portfolio — and would have dropped reserved ones too once they existed.
+      expect(result.data?.totalUnits).toBe(16)
+      expect(result.data?.vacantUnits).toBe(2)
+      expect(result.data?.reservedUnits).toBe(3)
+      expect(result.data?.occupancyRate).toBe(63) // 10 / 16 * 100
+    })
+
+    it('treats an absent reservedUnits as zero rather than NaN', async () => {
+      // Defensive: an older backend, or a cached response, omits the new field.
+      vi.mocked(apiGet).mockResolvedValue({
+        totalProperties: 1,
+        occupiedUnits: 1,
+        vacantUnits: 1,
+        damagedUnits: 0
+      })
+
+      const result = await getPropertyStats(tenantId)
+
+      expect(result.data?.reservedUnits).toBe(0)
+      expect(result.data?.totalUnits).toBe(2)
+      expect(result.data?.occupancyRate).toBe(50)
     })
 
     it('should handle API errors gracefully', async () => {

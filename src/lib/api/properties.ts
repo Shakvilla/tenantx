@@ -195,14 +195,26 @@ export async function getPropertyStats(tenantId: string): Promise<ApiResponse<Pr
     })
 
     // Map backend fields to frontend PropertyStats interface
-    // Backend: { totalProperties, activeProperties, inactiveProperties, occupiedUnits, vacantUnits, damagedUnits }
+    // Backend: { totalProperties, activeProperties, inactiveProperties,
+    //            occupiedUnits, vacantUnits, damagedUnits, reservedUnits }
+    const occupiedUnits = rawData.occupiedUnits || 0
+    const vacantUnits = rawData.vacantUnits || 0
+    const maintenance = rawData.damagedUnits || 0
+    const reservedUnits = rawData.reservedUnits || 0
+
     const mappedStats: PropertyStats = {
       total: rawData.totalProperties || 0,
       active: rawData.activeProperties || 0,
       inactive: rawData.inactiveProperties || 0,
-      maintenance: rawData.damagedUnits || 0,
-      totalUnits: (rawData.occupiedUnits || 0) + (rawData.vacantUnits || 0),
-      occupiedUnits: rawData.occupiedUnits || 0,
+      maintenance,
+      reservedUnits,
+      vacantUnits,
+
+      // All four statuses. This used to be occupied + vacant only, so units under
+      // maintenance and units awaiting move-in were missing from the total — and the
+      // occupancy rate below, computed from it, read high as a result.
+      totalUnits: occupiedUnits + vacantUnits + maintenance + reservedUnits,
+      occupiedUnits,
       occupancyRate: 0
     }
 
