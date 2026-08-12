@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { PublicListingDto } from '@/lib/api/listings-public-client'
+import { amenityLabel, amenityIcon } from '@/lib/amenities'
 import { usePlatformBranding } from '@/contexts/PlatformBrandingContext'
 import { useSavedListings } from './lib/useSavedListings'
 import PhotoMosaic from './components/PhotoMosaic'
@@ -14,23 +15,6 @@ import MobileBookingBar from './components/MobileBookingBar'
 import SimilarListings from './components/SimilarListings'
 import SaveButton from './components/SaveButton'
 import SiteFooter from './components/SiteFooter'
-
-// ─── Amenity icon map (unchanged from previous version) ─────────────────────
-
-const AMENITY_ICONS: Record<string, string> = {
-  wifi: 'ri-wifi-line', parking: 'ri-parking-box-line', pool: 'ri-drop-line',
-  gym: 'ri-run-line', security: 'ri-shield-check-line', generator: 'ri-flashlight-line',
-  water: 'ri-water-flash-line', ac: 'ri-temp-cold-line', furnished: 'ri-sofa-line',
-  balcony: 'ri-building-line', kitchen: 'ri-restaurant-line', laundry: 'ri-t-shirt-line',
-}
-
-function amenityIcon(name: string): string {
-  const key = name.toLowerCase()
-  for (const [k, v] of Object.entries(AMENITY_ICONS)) {
-    if (key.includes(k)) return v
-  }
-  return 'ri-checkbox-circle-line'
-}
 
 // ─── View ────────────────────────────────────────────────────────────────────
 
@@ -216,7 +200,7 @@ export default function ListingDetailView({ listing, allListings = [] }: Listing
                   {visibleAmenities.map((a, i) => (
                     <div key={i} className='flex items-center gap-3 text-sm text-[#222222]'>
                       <i className={`${amenityIcon(a)} shrink-0 text-xl`} aria-hidden='true' />
-                      {a}
+                      {amenityLabel(a)}
                     </div>
                   ))}
                 </div>

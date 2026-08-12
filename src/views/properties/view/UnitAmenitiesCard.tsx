@@ -8,25 +8,16 @@ import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 
+import { UNIT_AMENITIES } from '@/lib/amenities'
+
 type UnitViewData = {
   amenities: string[]
 }
 
-const unitAmenitiesList = [
-  { id: 'furnished', label: 'Furnished', icon: 'ri-home-heart-line' },
-  { id: 'ac', label: 'Air Conditioning', icon: 'ri-temp-cold-line' },
-  { id: 'balcony', label: 'Balcony', icon: 'ri-window-line' },
-  { id: 'laundry', label: 'In-unit Laundry', icon: 'ri-water-flash-line' },
-  { id: 'parking', label: 'Parking Space', icon: 'ri-parking-box-line' },
-  { id: 'kitchen_cabinets', label: 'Kitchen Cabinets', icon: 'ri-cup-line' },
-  { id: 'wardrobes', label: 'Built-in Wardrobes', icon: 'ri-shirt-line' },
-  { id: 'wifi', label: 'WiFi / Internet', icon: 'ri-wifi-line' }
-]
-
 const UnitAmenitiesCard = ({ unitData }: { unitData?: UnitViewData }) => {
   if (!unitData) return null
 
-  const selectedAmenities = unitAmenitiesList.filter(amenity => unitData.amenities.includes(amenity.id))
+  const selectedAmenities = UNIT_AMENITIES.filter(amenity => unitData.amenities.includes(amenity.id))
 
   return (
     <Card>

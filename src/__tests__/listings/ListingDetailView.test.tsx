@@ -19,6 +19,14 @@ describe('ListingDetailView', () => {
     expect(screen.getByTitle('Map of Sunrise Apartments')).toBeInTheDocument()
   })
 
+  it('labels amenities instead of printing their stored ids', () => {
+    // This page is what strangers see; it shipped rendering "kitchen_cabinets".
+    render(<ListingDetailView listing={makeListing()} allListings={[]} />)
+    expect(screen.getByText('Kitchen Cabinets')).toBeInTheDocument()
+    expect(screen.getByText('WiFi / Internet')).toBeInTheDocument()
+    expect(screen.queryByText('kitchen_cabinets')).not.toBeInTheDocument()
+  })
+
   it('renders share and save actions in the title row', () => {
     render(<ListingDetailView listing={makeListing()} allListings={[]} />)
     expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument()

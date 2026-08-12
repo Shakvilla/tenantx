@@ -26,6 +26,7 @@ import Chip from '@mui/material/Chip'
 
 // API Imports
 import { createUnit, updateUnit } from '@/lib/api/units'
+import { UNIT_AMENITIES } from '@/lib/amenities'
 import { getStoredTenantId } from '@/lib/api/storage'
 import type { Unit as PropertyUnit } from '@/lib/api/units'
 import type { CreateUnitPayload, UpdateUnitPayload } from '@/lib/validation/schemas/unit.schema'
@@ -34,16 +35,6 @@ import type { CreateUnitPayload, UpdateUnitPayload } from '@/lib/validation/sche
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // Unit amenities are unit-specific and not in the global reference data
-const unitAmenities = [
-  { id: 'furnished', label: 'Furnished' },
-  { id: 'ac', label: 'Air Conditioning' },
-  { id: 'balcony', label: 'Balcony' },
-  { id: 'laundry', label: 'In-unit Laundry' },
-  { id: 'parking', label: 'Parking Space' },
-  { id: 'kitchen_cabinets', label: 'Kitchen Cabinets' },
-  { id: 'wardrobes', label: 'Built-in Wardrobes' },
-  { id: 'wifi', label: 'WiFi / Internet' }
-]
 
 interface Props {
   open: boolean
@@ -401,7 +392,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
                 Unit Amenities
               </Typography>
               <FormGroup sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
-                {unitAmenities.map(amenity => (
+                {UNIT_AMENITIES.map(amenity => (
                   <FormControlLabel
                     key={amenity.id}
                     control={

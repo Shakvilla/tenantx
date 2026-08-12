@@ -36,6 +36,7 @@ import type { CreateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
 // ImageKit does not serve original files on this account; see ikUrl.
 import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { UNIT_AMENITIES } from '@/lib/amenities'
 
 // ---------------------------------------------------------------------------
 // Styled upload area (matches AddPropertyDialog)
@@ -132,17 +133,6 @@ type FormDataType = {
   features: Record<string, any>
   metadata: Record<string, any>
 }
-
-const unitAmenities = [
-  { id: 'furnished', label: 'Furnished' },
-  { id: 'ac', label: 'Air Conditioning' },
-  { id: 'balcony', label: 'Balcony' },
-  { id: 'laundry', label: 'In-unit Laundry' },
-  { id: 'parking', label: 'Parking Space' },
-  { id: 'kitchen_cabinets', label: 'Kitchen Cabinets' },
-  { id: 'wardrobes', label: 'Built-in Wardrobes' },
-  { id: 'wifi', label: 'WiFi / Internet' }
-]
 
 const initialData: FormDataType = {
   unitNumber: '',
@@ -620,7 +610,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
                 Unit Amenities
               </Typography>
               <FormGroup sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
-                {unitAmenities.map(amenity => (
+                {UNIT_AMENITIES.map(amenity => (
                   <FormControlLabel
                     key={amenity.id}
                     control={

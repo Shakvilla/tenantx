@@ -11,7 +11,11 @@ export function makeListing(overrides: Partial<PublicListingDto> = {}): PublicLi
     sizeSqft: 870,
     rent: 1500,
     currency: 'GHS',
-    amenities: ['Wifi', 'Parking', 'Security'],
+    // Stored ids, as the API actually returns them. This fixture used to hold
+    // ['Wifi', 'Parking', 'Security'] — already-presentable words that no real
+    // row contains — so every amenity assertion passed while the live page
+    // printed "kitchen_cabinets" at prospective tenants.
+    amenities: ['wifi', 'parking', 'kitchen_cabinets'],
     images: ['/img/a.jpg', '/img/b.jpg'],
     propertyId: 'prop-1',
     propertyName: 'Sunrise Apartments',

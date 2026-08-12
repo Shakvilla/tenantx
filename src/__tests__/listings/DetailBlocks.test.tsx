@@ -13,6 +13,11 @@ describe('Highlights', () => {
     expect(screen.getByText(/3 amenities included/)).toBeInTheDocument()
   })
 
+  it('labels the amenities it names in the subtitle', () => {
+    render(<Highlights listing={makeListing()} />)
+    expect(screen.getByText('WiFi / Internet, Parking Space & more')).toBeInTheDocument()
+  })
+
   it('renders nothing when there is nothing to highlight', () => {
     const bare = makeListing({
       availableFrom: null, bedrooms: null, amenities: [], contactPhone: null,

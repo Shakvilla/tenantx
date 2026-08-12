@@ -1,6 +1,7 @@
 'use client'
 
 import type { PublicListingDto } from '@/lib/api/listings-public-client'
+import { amenityLabel } from '@/lib/amenities'
 import { formatDate } from '../lib/format'
 
 export default function Highlights({ listing }: { listing: PublicListingDto }) {
@@ -26,7 +27,7 @@ export default function Highlights({ listing }: { listing: PublicListingDto }) {
     items.push({
       icon: 'ri-star-line',
       title: `${listing.amenities.length} amenities included`,
-      sub: listing.amenities.slice(0, 2).join(', ') + ' & more',
+      sub: listing.amenities.slice(0, 2).map(amenityLabel).join(', ') + ' & more',
     })
   }
   if (listing.contactPhone) {
