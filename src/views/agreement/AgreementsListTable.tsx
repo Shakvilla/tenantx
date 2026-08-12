@@ -377,8 +377,8 @@ const AgreementsListTable = () => {
                 // Renew / Terminate only while no decision has been recorded yet
                 ...(!row.original.renewalDecision ? [
                   {
-                    // Distinct from 'Update Status' (ri-refresh-line) — RowActions renders these as
-                    // inline icon buttons, so a duplicate icon would be ambiguous.
+                    // Distinct from 'Update Status' (ri-refresh-line): the two sit next to each
+                    // other in the overflow menu, where a repeated icon reads as a duplicate row.
                     text: 'Renew',
                     icon: 'ri-restart-line',
                     menuItemProps: {

@@ -33,15 +33,30 @@ const base = {
   createdAt: '2025-08-01T00:00:00Z', updatedAt: null,
 }
 
-/** RowActions renders each action as an inline icon button — find it by its icon class. */
-function clickAction(container: HTMLElement, iconClass: string) {
-  const btn = container.querySelector(`.${iconClass}`)?.closest('button')
-  if (!btn) throw new Error(`Action button not found for icon .${iconClass}`)
-  fireEvent.click(btn)
+/**
+ * RowActions shows actions inline only while there are two or fewer, and
+ * collapses the rest behind a "⋯" trigger (INLINE_LIMIT). A landlord row here
+ * carries six — View, Edit, Update Status, Renew, Terminate, Delete — so every
+ * action lives in the overflow menu and none of their icons is in the DOM until
+ * it is opened.
+ *
+ * These helpers query `screen`, not `container`: MUI renders the menu in a
+ * portal, outside the tree `render` hands back.
+ */
+function openRowMenu(container: HTMLElement) {
+  const trigger = container.querySelector<HTMLButtonElement>('button[aria-label="more actions"]')
+
+  if (!trigger) throw new Error('Row overflow menu trigger not found')
+  fireEvent.click(trigger)
 }
 
-const RENEW_ICON = 'ri-restart-line'
-const TERMINATE_ICON = 'ri-close-circle-line'
+function clickAction(container: HTMLElement, name: RegExp) {
+  openRowMenu(container)
+  fireEvent.click(screen.getByRole('menuitem', { name }))
+}
+
+const RENEW = /^Renew$/
+const TERMINATE = /^Terminate$/
 
 describe('AgreementsListTable — renewal workflow', () => {
   beforeEach(() => {
@@ -55,7 +70,7 @@ describe('AgreementsListTable — renewal workflow', () => {
     const { container } = render(<AgreementsListTable />)
     await screen.findByText('AGR-2026-001')
 
-    clickAction(container, RENEW_ICON)
+    clickAction(container, RENEW)
 
     fireEvent.change(await screen.findByLabelText(/new end date/i), { target: { value: '2027-07-31' } })
     fireEvent.click(screen.getByRole('button', { name: /^renew$/i }))
@@ -70,7 +85,7 @@ describe('AgreementsListTable — renewal workflow', () => {
     const { container } = render(<AgreementsListTable />)
     await screen.findByText('AGR-2026-001')
 
-    clickAction(container, TERMINATE_ICON)
+    clickAction(container, TERMINATE)
 
     fireEvent.change(await screen.findByLabelText(/reason/i), { target: { value: 'Tenant relocating' } })
     fireEvent.click(screen.getByRole('button', { name: /^terminate$/i }))
@@ -87,7 +102,15 @@ describe('AgreementsListTable — renewal workflow', () => {
     expect(screen.getAllByText('Renewed').length).toBeGreaterThan(0)
 
     // ...and the lifecycle actions are gone.
-    expect(container.querySelector(`.${RENEW_ICON}`)).toBeNull()
-    expect(container.querySelector(`.${TERMINATE_ICON}`)).toBeNull()
+    openRowMenu(container)
+
+    // Positive control first. This assertion used to query the closed menu's
+    // icons, so it passed whether or not the actions were conditioned on the
+    // decision at all — proving a sibling action IS listed is what makes the
+    // two absences below mean something.
+    expect(screen.getByRole('menuitem', { name: /^Update Status$/ })).toBeInTheDocument()
+
+    expect(screen.queryByRole('menuitem', { name: RENEW })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: TERMINATE })).toBeNull()
   })
 })
