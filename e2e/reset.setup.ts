@@ -14,7 +14,17 @@ import { E2E_USER } from './fixtures'
  * Scoped to `e2e-qa-ltd` by an explicit WHERE on every statement. It must never
  * be pointed at a tenant with real data.
  */
+/**
+ * Order matters only for readability — every statement is a plain DELETE scoped
+ * by tenant_id, and none of these carry a foreign key to another (see F-09:
+ * agreements have no FK to property/unit/occupant at all).
+ */
 const TABLES = [
+  // Payments and the wallet entries they credit, before the invoices they settle.
+  // Without these the payment spec's second run starts against an invoice that
+  // is already PAID, and its part-payment assertion fails for the wrong reason.
+  'payment_transactions',
+  'ledger_entries',
   'invoices',
   'agreements',
   'vacancy_listings',

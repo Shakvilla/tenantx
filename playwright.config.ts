@@ -18,6 +18,13 @@ export default defineConfig({
   testDir: './e2e',
   // Writes race each other: two specs creating properties in the same tenant
   // make row-count assertions non-deterministic. Correctness over speed here.
+  //
+  // Spec files are NUMBERED because the order is load-bearing, not cosmetic.
+  // Playwright runs them alphabetically, and 01-write-paths drives the
+  // first-run wizard — which only appears while the tenant has no properties.
+  // Any spec that creates one must therefore run after it; unnumbered,
+  // "payments" sorted before "write-paths" and silently removed the wizard the
+  // other spec was there to test.
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
