@@ -17,8 +17,11 @@ export default async function ListingsPage() {
 
   try {
     listings = await getPublicListings()
-  } catch {
-    // Render empty state — don't 404 on a list page
+  } catch (err) {
+    // Render empty state — don't 404 on a list page. But log it: an
+    // unreachable API and a genuinely empty catalogue both render "No listings
+    // yet", and without this line there is nothing anywhere to tell them apart.
+    console.error('[listings] failed to load public listings:', err)
   }
 
   return <ListingsIndexView listings={listings} />
