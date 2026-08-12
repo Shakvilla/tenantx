@@ -118,6 +118,18 @@ type Props = {
   disabled?: boolean
 
   /**
+   * Caption under the field. Defaults to describing the control as optional,
+   * which is true where region and district are not required to save.
+   *
+   * It is NOT true everywhere: the first-run wizard cannot submit without a
+   * region and district, and this control is the only thing that sets them —
+   * so a caller in that position must say so rather than inherit a caption that
+   * tells the landlord they can skip the one field standing between them and a
+   * working button.
+   */
+  helperText?: string
+
+  /**
    * Every row that would fill region and district is off — no search request
    * is made, no place rows are offered, and a capture offers no resolved
    * location row either. The code and the pin still work.
@@ -160,6 +172,7 @@ const UnifiedAddressField = ({
   onPositionCaptured,
   onLocationPicked,
   disabled,
+  helperText = 'Optional — a Ghana Post GPS code fills in the region and district.',
   searchDisabled,
   size = 'small'
 }: Props) => {
@@ -589,7 +602,7 @@ const UnifiedAddressField = ({
             onBlur={() => {
               committedCode.current = null
             }}
-            helperText='Optional — a Ghana Post GPS code fills in the region and district.'
+            helperText={helperText}
             InputProps={{
               ...params.InputProps,
               startAdornment: (

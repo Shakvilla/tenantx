@@ -11,6 +11,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Button from '@mui/material/Button'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
+import Typography from '@mui/material/Typography'
 import CircularProgress from '@mui/material/CircularProgress'
 
 import { createProperty } from '@/lib/api/properties'
@@ -30,6 +31,21 @@ export default function PropertyStep({ tenantId, onComplete, onSkip }: Onboardin
   const [canWaiveCity, setCanWaiveCity] = useState(false)
 
   const valid = form.name && form.type && form.region && form.district && (form.city || canWaiveCity)
+
+  /**
+   * What is still missing, in the words the landlord sees on the field.
+   *
+   * Only `name` and `type` are visibly starred, but region, district and city
+   * are required too and are set exclusively by the address control. Filling
+   * both starred fields therefore left "Save & continue" dead with nothing on
+   * screen explaining why — the single thing most likely to end a first run.
+   */
+  const missing = [
+    !form.name && 'a property name',
+    !form.type && 'a property type',
+    (!form.region || !form.district) && 'an address, GPS code or map pin',
+    form.region && form.district && !form.city && !canWaiveCity && 'a city / area'
+  ].filter(Boolean) as string[]
 
   const update = (field: keyof typeof form, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -97,6 +113,7 @@ return
           capturedAccuracyMetres={coordinates?.accuracyMetres}
           size='medium'
           cityLabel='City / area'
+          addressHelperText='Required — enter a Ghana Post GPS code or search for the address to set the region and district.'
           onStatusChange={({ canWaiveCity: waive }) => setCanWaiveCity(waive)}
         />
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -125,6 +142,13 @@ return
             </Select>
           </FormControl>
         </Grid>
+        {!valid && missing.length > 0 && (
+          <Grid size={{ xs: 12 }}>
+            <Typography variant='body2' color='text.secondary'>
+              Still needed: {missing.join(', ')}.
+            </Typography>
+          </Grid>
+        )}
         <Grid size={{ xs: 12 }} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Button variant='text' color='inherit' onClick={onSkip} disabled={submitting}>
             Skip this step

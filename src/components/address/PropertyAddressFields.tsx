@@ -55,6 +55,14 @@ type Props = {
   errors?: Partial<Record<keyof AddressValue, boolean>>
   size?: 'small' | 'medium'
   cityLabel?: string
+
+  /**
+   * Caption under the address field. Pass one wherever region and district are
+   * required to save — the default describes the control as optional, which is
+   * wrong in those callers and leaves the submit button dead with no
+   * explanation.
+   */
+  addressHelperText?: string
   onStatusChange?: (status: { canWaiveCity: boolean }) => void
 
   /**
@@ -90,6 +98,7 @@ const PropertyAddressFields = ({
   errors = {},
   size = 'small',
   cityLabel = 'City',
+  addressHelperText,
   onStatusChange,
   capturedAccuracyMetres
 }: Props) => {
@@ -628,6 +637,7 @@ const PropertyAddressFields = ({
           }}
           searchDisabled={!searchable}
           size={size}
+          {...(addressHelperText ? { helperText: addressHelperText } : {})}
         />
 
         {autofillNote && (
