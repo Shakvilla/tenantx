@@ -258,7 +258,10 @@ const PropertiesListTable = () => {
       setSelectedProperty(null)
       setDeletePropertyOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete property')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it here is what let the dialog announce "Property deleted
+      // successfully" for a delete the server had refused.
+      throw err instanceof Error ? err : new Error('Failed to delete property')
     }
   }
 

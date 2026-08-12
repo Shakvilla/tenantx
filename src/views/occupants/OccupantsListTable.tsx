@@ -223,7 +223,9 @@ const OccupantsListTable = () => {
       fetchOccupants(null)
       fetchStats()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete occupant')
+      // Rethrow so ConfirmationDialog can report the real outcome — a delete the
+      // server refused must not be announced as a success.
+      throw err instanceof Error ? err : new Error('Failed to delete occupant')
     }
   }
 

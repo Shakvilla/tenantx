@@ -9,6 +9,7 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -33,13 +34,35 @@ type ConfirmationDialogProps = {
   open: boolean
   setOpen: (open: boolean) => void
   type: ConfirmationType
-  onConfirm?: () => void
+
+  /**
+   * The action itself. Awaited before any outcome is reported, so it may be
+   * async — and if it throws, the result dialog reports the failure and shows
+   * the thrown message rather than claiming the action succeeded.
+   */
+  onConfirm?: () => void | Promise<void>
 }
 
 const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDialogProps) => {
   // States
   const [secondDialog, setSecondDialog] = useState(false)
   const [userInput, setUserInput] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  /**
+   * Why this exists.
+   *
+   * The result dialog used to open from handleConfirmation() and onConfirm()
+   * ran later, from handleSecondDialogClose(). So "Deleted — Property deleted
+   * successfully." rendered BEFORE the request was sent, and regardless of what
+   * came back. A landlord whose delete the server refused was congratulated on
+   * it, and the row was still there.
+   *
+   * Null while the action has not been attempted; the reason string is the
+   * server's own message, which is the only text that says anything useful
+   * ("Move out all active occupants before deleting this property").
+   */
+  const [failure, setFailure] = useState<string | null>(null)
 
   // Vars
   const Wrapper = type === 'suspend-account' ? 'div' : Fragment
@@ -47,17 +70,35 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
   const handleSecondDialogClose = () => {
     setSecondDialog(false)
     setOpen(false)
+    setFailure(null)
+  }
 
-    if (userInput && onConfirm) {
-      onConfirm()
+  const handleConfirmation = async (value: boolean) => {
+    setUserInput(value)
+
+    if (!value) {
+      setSecondDialog(true)
+      setOpen(false)
+
+      return
+    }
+
+    // Run the action FIRST, and report what actually happened.
+    setBusy(true)
+    setFailure(null)
+
+    try {
+      await onConfirm?.()
+    } catch (err) {
+      setFailure(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setBusy(false)
+      setOpen(false)
+      setSecondDialog(true)
     }
   }
 
-  const handleConfirmation = (value: boolean) => {
-    setUserInput(value)
-    setSecondDialog(true)
-    setOpen(false)
-  }
+  const succeeded = userInput && !failure
 
   return (
     <>
@@ -124,7 +165,14 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
           </Wrapper>
         </DialogContent>
         <DialogActions className='justify-center pbs-0 sm:pbe-16 sm:pli-16'>
-          <Button variant='contained' onClick={() => handleConfirmation(true)}>
+          <Button
+            variant='contained'
+            onClick={() => handleConfirmation(true)}
+            // The action now runs while this dialog is still up, so it has to
+            // say so — and a second click must not fire a second delete.
+            disabled={busy}
+            startIcon={busy ? <CircularProgress size={16} color='inherit' /> : undefined}
+          >
             {type === 'suspend-account'
               ? 'Yes, Suspend User!'
               : type === 'delete-order'
@@ -154,6 +202,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
           <Button
             variant='outlined'
             color='secondary'
+            disabled={busy}
             onClick={() => {
               handleConfirmation(false)
             }}
@@ -168,19 +217,24 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
         <DialogContent className='flex items-center flex-col text-center sm:pbs-16 sm:pbe-6 sm:pli-16'>
           <i
             className={classnames('text-[88px] mbe-6', {
-              'ri-checkbox-circle-line': userInput,
-              'text-success': userInput,
-              'ri-close-circle-line': !userInput,
-              'text-error': !userInput
+              'ri-checkbox-circle-line': succeeded,
+              'text-success': succeeded,
+              'ri-close-circle-line': !succeeded,
+              'text-error': !succeeded
             })}
           />
           <Typography variant='h4' className='mbe-2'>
-            {userInput
-              ? `${type === 'delete-account' ? 'Deactivated' : type === 'unsubscribe' ? 'Unsubscribed' : type === 'delete-order' || type === 'delete-customer' || type === 'delete-property' || type === 'delete-unit' || type === 'delete-occupant' || type === 'delete-tenant' || type === 'delete-expense' || type === 'delete-document' || type === 'delete-communication' || type === 'delete-maintainer' || type === 'delete-maintenance-request' ? 'Deleted' : 'Suspended!'}`
-              : 'Cancelled'}
+            {failure
+              ? 'Not done'
+              : succeeded
+                ? `${type === 'delete-account' ? 'Deactivated' : type === 'unsubscribe' ? 'Unsubscribed' : type === 'delete-order' || type === 'delete-customer' || type === 'delete-property' || type === 'delete-unit' || type === 'delete-occupant' || type === 'delete-tenant' || type === 'delete-expense' || type === 'delete-document' || type === 'delete-communication' || type === 'delete-maintainer' || type === 'delete-maintenance-request' ? 'Deleted' : 'Suspended!'}`
+                : 'Cancelled'}
           </Typography>
           <Typography color='text.primary'>
-            {userInput ? (
+            {/* The server's own words. They say what to do about it; ours would not. */}
+            {failure ? (
+              failure
+            ) : succeeded ? (
               <>
                 {type === 'delete-account' && 'Your account has been deactivated successfully.'}
                 {type === 'unsubscribe' && 'Your subscription cancelled successfully.'}

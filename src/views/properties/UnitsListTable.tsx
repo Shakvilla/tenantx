@@ -224,7 +224,9 @@ const UnitsListTable = () => {
       setSelectedUnit(null)
       setDeleteUnitOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete unit')
+      // Rethrow so ConfirmationDialog can report the real outcome — a delete the
+      // server refused must not be announced as a success.
+      throw err instanceof Error ? err : new Error('Failed to delete unit')
     }
   }
 

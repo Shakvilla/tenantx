@@ -185,6 +185,46 @@ test.describe.serial('deleting records', () => {
     await req.dispose()
   })
 
+  /**
+   * Ordering matters and is load-bearing: this must run while the occupant is
+   * still there to be guarded by. Move it below the occupant-deletion test and
+   * the guard has nothing to refuse, the delete succeeds, and the test fails
+   * against correct behaviour.
+   */
+  test('a refused delete is reported as a failure, with the reason', async ({ page }) => {
+    /**
+     * This was a defect until the run that added it: ConfirmationDialog opened
+     * its result dialog from handleConfirmation(), so "Deleted — Property
+     * deleted successfully." rendered BEFORE any request was sent, and
+     * regardless of the answer. A landlord whose delete the guard refused was
+     * congratulated on it while the row sat there untouched.
+     *
+     * The dialog now awaits the action and reports what actually happened, and
+     * the delete handlers rethrow instead of swallowing so it has something to
+     * report. This test holds both halves: swallow the error again, or move the
+     * result dialog back ahead of the request, and it fails.
+     */
+    await page.goto('/properties')
+    await expect(page.getByText(propertyName)).toBeVisible({ timeout: 30_000 })
+
+    const row = page.getByRole('row').filter({ hasText: propertyName })
+
+    await row.getByRole('button', { name: /more actions/i }).click()
+    await page.getByRole('menuitem', { name: /^Delete$/ }).click()
+    await page.getByRole('button', { name: /Yes, Delete Property!/i }).click()
+
+    // This property still has an active occupant, so the server refuses it.
+    await expect(page.getByText(/Not done/i)).toBeVisible({ timeout: 30_000 })
+
+    // And the reason is the server's own, which is the only text that says what
+    // to do about it.
+    await expect(page.getByText(/Move out all active occupants/i)).toBeVisible()
+
+    // Nothing anywhere claims it worked, and the row is still there.
+    await expect(page.getByText(/deleted successfully/i)).not.toBeVisible()
+    expect(rowCount('properties', propertyId)).toBe(1)
+  })
+
   // ── The successful paths, and what they must clean up ─────────────────────
 
   test('deleting an occupant frees their unit and revokes their login', async ({ playwright }) => {
@@ -236,46 +276,11 @@ test.describe.serial('deleting records', () => {
     await page.getByRole('menuitem', { name: /^Delete$/ }).click()
     await page.getByRole('button', { name: /Yes, Delete Property!/i }).click()
 
-    // The delete only fires when the second dialog is dismissed — see the
-    // documented defect below. Close it so the request is actually sent.
-    await page.getByRole('button', { name: /^Ok$/i }).click()
+    // The result dialog only appears once the delete has actually run, so the
+    // success wording is itself evidence — not a message printed on the way in.
+    await expect(page.getByText(/Property deleted successfully/i)).toBeVisible({ timeout: 30_000 })
 
-    await expect
-      .poll(() => rowCount('properties', emptyPropertyId), { timeout: 30_000 })
-      .toBe(0)
+    expect(rowCount('properties', emptyPropertyId)).toBe(0)
   })
 
-  // ── Documented defect ─────────────────────────────────────────────────────
-
-  test.fail('the confirm dialog does not claim success before the delete is attempted', async ({ page }) => {
-    /**
-     * KNOWN DEFECT — this test is expected to fail until it is fixed.
-     *
-     * ConfirmationDialog.handleConfirmation() opens the result dialog
-     * immediately, so "Deleted — Property deleted successfully." renders BEFORE
-     * any request is made. onConfirm() — the actual delete — runs later, from
-     * handleSecondDialogClose().
-     *
-     * So a landlord who deletes a property that the guard refuses is told it
-     * was deleted, and the row is still there. The failure surfaces only as an
-     * inline error behind a dialog that has already congratulated them. For a
-     * destructive action reported against the wrong outcome, that is worse than
-     * showing nothing.
-     *
-     * Fix: await onConfirm() and report what it returned. Deleting this
-     * test.fail marker is the last step of that change.
-     */
-    await page.goto('/properties')
-    await expect(page.getByText(propertyName)).toBeVisible({ timeout: 30_000 })
-
-    const row = page.getByRole('row').filter({ hasText: propertyName })
-
-    await row.getByRole('button', { name: /more actions/i }).click()
-    await page.getByRole('menuitem', { name: /^Delete$/ }).click()
-    await page.getByRole('button', { name: /Yes, Delete Property!/i }).click()
-
-    // This property has an active occupant, so the delete is refused. Nothing
-    // should tell the landlord it succeeded.
-    await expect(page.getByText(/deleted successfully/i)).not.toBeVisible()
-  })
 })
