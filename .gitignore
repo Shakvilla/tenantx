@@ -58,3 +58,6 @@ __test_output.txt
 # Agent scratch: SDD ledgers, task briefs, review packages.
 .superpowers/
 .claude/
+e2e/.auth/
+test-results/
+playwright-report/
