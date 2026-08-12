@@ -62,16 +62,26 @@ export const formatDateRange = (dateRange: DateRange): string => {
 }
 
 /**
- * Convert a DateRange's startDate/endDate into ISO strings suitable for API query params.
+ * Convert a DateRange's startDate/endDate into strings suitable for API query params.
  * - `date` mode returns 'yyyy-MM-dd' (for LocalDate params, e.g. invoices/expenses).
- * - `datetime` mode returns a full ISO-8601 datetime string (for LocalDateTime params,
- *   e.g. occupants/maintenance requests, which filter on createdAt).
+ * - `datetime` mode returns 'yyyy-MM-ddTHH:mm:ss' (for LocalDateTime params, e.g.
+ *   occupants/maintenance requests, which filter on createdAt).
+ *
+ * Both are slices of the ISO string, and the slice lengths are the whole point.
+ * Spring's parsers are strict: a `LocalDateTime` param rejects both the
+ * milliseconds and the trailing `Z` that `toISOString()` produces. Sending the
+ * full ISO string returned 400 —
+ * "Parameter 'startDate' is not a valid LocalDateTime" — which the Tenants and
+ * Maintenance reports rendered as legitimate zeros rather than as an error.
+ * Verified against the running backend: `…T00:00:00.000Z` 400,
+ * `…T00:00:00` 200, on both /occupants and /maintenance/requests.
  */
 export const toApiDateParams = (
   dateRange: DateRange,
   mode: 'date' | 'datetime' = 'date'
 ): { startDate?: string; endDate?: string } => {
-  const format = (d: Date) => (mode === 'date' ? d.toISOString().slice(0, 10) : d.toISOString())
+  // 10 = 'yyyy-MM-dd', 19 = 'yyyy-MM-ddTHH:mm:ss' — i.e. stop before '.sssZ'.
+  const format = (d: Date) => d.toISOString().slice(0, mode === 'date' ? 10 : 19)
 
   return {
     startDate: dateRange.startDate ? format(dateRange.startDate) : undefined,
