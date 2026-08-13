@@ -301,26 +301,24 @@ test.describe.serial('editing a record', () => {
   })
 
   /**
-   * A property with a Ghana Post GPS code cannot be edited at all.
+   * A property with a Ghana Post GPS code can be edited, and keeps its city.
    *
    * Opening the dialog decodes the property's own stored code, and
-   * `handleDecoded` in PropertyAddressFields clears City along with region and
-   * district — a rule written for a user TYPING a new code, where a city under
-   * the previous district would indeed be wrong. On open the code has not
-   * changed, so the stored city is discarded for no reason, and City is
-   * required. There is nothing to re-pick: `learned_localities` holds one row
-   * for the whole database, so the list comes back empty for every district.
+   * `handleDecoded` cleared City along with region and district — a rule
+   * written for a user TYPING a new code, where a city under the previous
+   * district would indeed be wrong. On open nothing has moved, so the stored
+   * city was discarded for no reason, and City is required. There was nothing
+   * to re-pick either: `learned_localities` holds one row for the whole
+   * database, so the list comes back empty for every district. The property
+   * could not be saved at all.
    *
-   * Isolated by creating the same property twice, with and without a code: the
-   * one without advances past Step 1, the one with does not.
-   *
-   * Marked expected-to-fail so it announces itself when fixed. The fix is
-   * probably to clear City only when the decoded district DIFFERS from the one
-   * already on the form — re-entering the same code should not discard a city
-   * that still belongs to it.
+   * Isolated at the time by creating the same property twice, with and without
+   * a code: the one without advanced past Step 1, the one with did not. City is
+   * now cleared only when the decoded district actually differs.
    */
-  test.fail('a property with a GPS code can be edited at all', async ({ page }) => {
+  test('a property with a GPS code can be edited, and keeps its city', async ({ page }) => {
     const headers = await apiHeaders(page)
+    const codedStreet = unique('2 Coded Street')
 
     const withCode = await post<{ id: string }>(page.request, '/properties', {
       name: unique('Gps Property'),
@@ -331,8 +329,16 @@ test.describe.serial('editing a record', () => {
       region: 'Greater Accra',
       district: 'Accra',
       city: 'Accra',
-      address: { street: unique('2 Coded Street'), city: 'Accra' },
-      gpsCode: GPS
+      address: { street: codedStreet, city: 'Accra' },
+      gpsCode: GPS,
+      description: 'Coded original',
+
+      // Step 2 requires all three. A property created without them cannot be
+      // saved from the form at all, which would block this test for a reason
+      // that has nothing to do with the code.
+      bedrooms: 3,
+      bathrooms: 2,
+      rooms: 4
     }, headers)
 
     await page.goto(`/properties/${withCode.id}`)
@@ -342,14 +348,43 @@ test.describe.serial('editing a record', () => {
 
     await expect(dialog.getByLabel(/Property Name/i)).toHaveValue(/Gps Property/, { timeout: 30_000 })
 
-    // Settle the locality fetch first, so this cannot be mistaken for a race
-    // against it — the block survives the wait.
-    await expect(dialog.getByLabel(/^City/i)).not.toHaveAttribute('aria-disabled', 'true', { timeout: 30_000 })
+    // Wait for the decode to settle, so a pass here cannot be a race that
+    // happened to land the right way. The block shows the resolved district
+    // rather than the region/district/city selects once a code has decoded —
+    // which is itself the evidence the read-back decode ran.
+    await expect(dialog.getByText(/Accra Metropolitan/i).first()).toBeVisible({ timeout: 30_000 })
+
+    await dialog.getByLabel(/Description/i).fill('Coded edited')
+
+    // Step 2 is where Bedrooms lives. Reaching it is the whole point: the form
+    // used to stay on Step 1 with "City — This field is required" against a
+    // select that had no options to offer.
+    await dialog.getByRole('button', { name: /^Next$/i }).click()
+    await expect(dialog.getByLabel(/Bedrooms/i)).toBeVisible({ timeout: 30_000 })
 
     await dialog.getByRole('button', { name: /^Next$/i }).click()
+    await expect(dialog.getByText(/Upload Images|drag/i).first()).toBeVisible({ timeout: 30_000 })
 
-    // Step 2 is where Bedrooms lives. Today the form stays on Step 1 with
-    // "City — This field is required" against a select that has no options.
-    await expect(dialog.getByLabel(/Bedrooms/i)).toBeVisible({ timeout: 15_000 })
+    await dialog.getByRole('button', { name: /^Next$/i }).click()
+    await dialog.getByRole('button', { name: /^Submit$/i }).click()
+    await expect(dialog).toBeHidden({ timeout: 60_000 })
+
+    const row = queryDb(
+      `SELECT description, city, gps_code, district, address_line_1
+       FROM properties WHERE id = '${withCode.id}';`
+    )
+
+    const [description, city, gpsCode, district, street] = row.split('|')
+
+    expect(description).toBe('Coded edited')
+
+    // The city the decode used to discard. Advancing past the step is not
+    // enough on its own — a form that let the edit through while saving an
+    // empty city would still have lost it.
+    expect(city).toBe('Accra')
+
+    expect(gpsCode).toBe(GPS)
+    expect(district).toBe('Accra')
+    expect(street).toBe(codedStreet)
   })
 })

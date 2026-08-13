@@ -181,6 +181,17 @@ const PropertyAddressFields = ({
   // retract exactly that and nothing else.
   const lastDecoded = useRef<DecodedAddress | null>(null)
 
+  /**
+   * Whether this form opened on a property that already had a code.
+   *
+   * The field decodes whatever code it is given, so opening an existing
+   * property for editing produces a decode nobody asked for. That is not the
+   * landlord relocating the property — it is the form reading back what was
+   * saved — and it must not be treated as a change. See handleDecoded.
+   */
+  const openedWithCode = useRef(Boolean(value.gpsCode))
+  const decodedSinceMount = useRef(false)
+
   // True only right after a suggestion filled city from its region-wide
   // locality fallback (district: null, city set) — the exact case
   // describeAutofill tells the user to "choose the district below". The
@@ -328,15 +339,43 @@ const PropertyAddressFields = ({
   }
 
   /**
-   * A recognised prefix fills region and district. City is cleared with them:
-   * a city from a previously-chosen district, sitting under a district the
-   * code just supplied, is wrong in a way that looks deliberate — the same
-   * rule applyPlaceToForm already follows.
+   * A recognised prefix fills region and district. City goes with them when
+   * the code moves the property: a city from a previously-chosen district,
+   * sitting under a district the code just supplied, is wrong in a way that
+   * looks deliberate — the same rule applyPlaceToForm already follows.
+   *
+   * It only goes when the district actually CHANGES, though. This fires on
+   * every decode, including the one that runs when an existing property is
+   * opened for editing and its own stored code is decoded — where nothing has
+   * moved, and the city still belongs to the district it was saved under.
+   * Clearing it there discarded a valid value and then blocked the form on it:
+   * City is required, and its options come from the district's locality list,
+   * which is empty for most districts. The property could not be saved at all.
    */
   const handleDecoded = (decoded: DecodedAddress | null) => {
     if (decoded) {
+      const previous = lastDecoded.current
+
+      // The decode that runs when an existing property is opened: the form
+      // read back its own saved code, nothing moved, and the saved city still
+      // belongs to the saved district.
+      const isReadBack = !decodedSinceMount.current && openedWithCode.current
+
+      // The same code decoded again — re-typed, or re-rendered. It cannot have
+      // moved the property either.
+      const unchanged =
+        previous !== null &&
+        previous.regionValue === decoded.regionValue &&
+        previous.districtValue === decoded.districtValue
+
+      decodedSinceMount.current = true
       lastDecoded.current = decoded
-      onChange({ region: decoded.regionValue, district: decoded.districtValue, city: '' })
+
+      onChange({
+        region: decoded.regionValue,
+        district: decoded.districtValue,
+        ...(isReadBack || unchanged ? {} : { city: '' })
+      })
       setMode('resolved')
 
       return

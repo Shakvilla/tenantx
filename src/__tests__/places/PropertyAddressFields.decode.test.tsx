@@ -16,6 +16,10 @@ vi.mock('@/lib/api/reference', async importOriginal => ({
   getPostcodeDistricts: vi.fn(async () => [
     // Mapped: the ordinary case.
     { prefix: 'GA', regionValue: 'greater-accra', districtValue: 'accra-metro', sourceLabel: 'Accra Metropolitan District' },
+
+    // A second mapped prefix, so a code can be changed to a DIFFERENT district.
+    { prefix: 'GE', regionValue: 'greater-accra', districtValue: 'ga-east', sourceLabel: 'Ga East Municipal' },
+
     // Known to the table but unmappable — Ledzokuku-Krowor became two
     // districts, so the code genuinely does not identify one of ours.
     { prefix: 'GZ', regionValue: null, districtValue: null, sourceLabel: 'Ledzokuku-Krowor Municipal District' }
@@ -52,6 +56,28 @@ function Harness() {
     region: '',
     district: '',
     city: ''
+  })
+
+  return (
+    <>
+      <PropertyAddressFields
+        value={value}
+        onChange={patch => setValue(v => ({ ...v, ...patch }))}
+        onCoordinates={() => {}}
+      />
+      <output data-testid='state'>{JSON.stringify(value)}</output>
+    </>
+  )
+}
+
+/** The block as an existing property opens it: code, district and city saved. */
+function SavedPropertyHarness() {
+  const [value, setValue] = useState<AddressValue>({
+    gpsCode: 'GA-184-7915',
+    street: '7 Ako Adjei Street',
+    region: 'greater-accra',
+    district: 'accra-metro',
+    city: 'Accra Central'
   })
 
   return (
@@ -180,5 +206,36 @@ describe('PropertyAddressFields digital-address decoding', () => {
     await waitFor(() => expect(screen.queryByText(/don.t recognise/i)).toBeNull())
     expect(state().gpsCode).toBe('')
     expect(state().district).toBe('')
+  })
+
+  it('keeps the saved city when an existing property is opened for editing', async () => {
+    // The block decodes whatever code it is given, so opening a saved property
+    // produces a decode nobody asked for. Treating that like a landlord
+    // relocating the property discarded the saved city, and City is required
+    // with options drawn from the district's locality list — empty for most
+    // districts, so there was nothing to re-pick. The property could not be
+    // saved at all.
+    render(<SavedPropertyHarness />)
+
+    // Proof the decode actually ran. Without this the assertion below passes
+    // for the wrong reason on any change that stops the read-back decoding.
+    expect(await screen.findByText(/Accra Metropolitan District/)).toBeTruthy()
+
+    expect(state().city).toBe('Accra Central')
+    expect(state().district).toBe('accra-metro')
+  })
+
+  it('still clears the city when a new code moves the property', async () => {
+    // The control for the test above. "Keep the city on read-back" must not
+    // become "never clear the city": a city belonging to Accra Metropolitan,
+    // sitting under a district a new code just changed to Ga East, is wrong.
+    render(<SavedPropertyHarness />)
+    await screen.findByText(/Accra Metropolitan District/)
+
+    fireEvent.click(await screen.findByRole('button', { name: /change/i }))
+    await typeCode('GE-123-4567')
+
+    await waitFor(() => expect(state().district).toBe('ga-east'))
+    expect(state().city).toBe('')
   })
 })
