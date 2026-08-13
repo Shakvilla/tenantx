@@ -1,9 +1,16 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 /**
- * Public page routes that don't require authentication
+ * Public page routes that don't require authentication.
+ *
+ * `/platform-offline` is the screen shown when the platform itself is down.
+ * It lived at `/maintenance` until it was found to be shadowing the
+ * landlord's own Maintenance section: because these routes were matched with
+ * a bare `startsWith`, listing `/maintenance` here made `/maintenance/requests`
+ * and every other page under it public, so a signed-out visitor reached them
+ * with no redirect to login. See `matchesRoute` below.
  */
-const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password', '/auth/impersonate', '/maintenance', '/jobs']
+const PUBLIC_PAGE_ROUTES = ['/login', '/register', '/forgot-password', '/auth/impersonate', '/platform-offline', '/jobs']
 
 /**
  * Public vacancy listing routes — no auth required
@@ -31,12 +38,27 @@ const LANDLORD_ONLY_ROUTES = [
   '/settings/team',
 ]
 
+/**
+ * Prefix match on whole path segments.
+ *
+ * These lists have to match subpaths — `/jobs/<token>` is public, and
+ * `/settings/payment` is one entry standing for a page. A bare `startsWith`
+ * does that but also matches any route merely *beginning* with those
+ * characters, which is how the entire `/maintenance/**` subtree ended up
+ * public: it shared a prefix with the platform's offline page. Requiring the
+ * next character to be a '/' keeps the subpaths while making a listed route
+ * unable to speak for a sibling that happens to start the same way.
+ */
+function matchesRoute(pathname: string, routes: readonly string[]): boolean {
+  return routes.some(route => pathname === route || pathname.startsWith(`${route}/`))
+}
+
 function isPublicPageRoute(pathname: string): boolean {
-  return PUBLIC_PAGE_ROUTES.some(route => pathname.startsWith(route))
+  return matchesRoute(pathname, PUBLIC_PAGE_ROUTES)
 }
 
 function isPublicVacancyRoute(pathname: string): boolean {
-  return PUBLIC_VACANCY_ROUTES.some(route => pathname.startsWith(route))
+  return matchesRoute(pathname, PUBLIC_VACANCY_ROUTES)
 }
 
 function isAdminRoute(pathname: string): boolean {
@@ -44,11 +66,11 @@ function isAdminRoute(pathname: string): boolean {
 }
 
 function isAdminPublicRoute(pathname: string): boolean {
-  return ADMIN_PUBLIC_ROUTES.some(route => pathname.startsWith(route))
+  return matchesRoute(pathname, ADMIN_PUBLIC_ROUTES)
 }
 
 function isLandlordOnlyRoute(pathname: string): boolean {
-  return LANDLORD_ONLY_ROUTES.some(route => pathname.startsWith(route))
+  return matchesRoute(pathname, LANDLORD_ONLY_ROUTES)
 }
 
 /**
@@ -59,8 +81,11 @@ function isLandlordOnlyRoute(pathname: string): boolean {
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payloadB64 = token.split('.')[1]
+
     if (!payloadB64) return null
+
     const json = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'))
+
     return JSON.parse(json)
   } catch {
     return null
@@ -93,6 +118,7 @@ export async function middleware(request: NextRequest) {
       if (isAdminAuthenticated) {
         return NextResponse.redirect(new URL('/admin', request.url))
       }
+
       return NextResponse.next()
     }
 
@@ -103,6 +129,7 @@ export async function middleware(request: NextRequest) {
 
     // Inject admin token as Authorization header for admin Server Components
     const requestHeaders = new Headers(request.headers)
+
     requestHeaders.set('Authorization', `Bearer ${adminToken}`)
 
     return NextResponse.next({ request: { headers: requestHeaders } })
@@ -112,13 +139,13 @@ export async function middleware(request: NextRequest) {
   // AUTH PAGES  /login, /register, etc.
   // ═══════════════════════════════════════════════════════════════════════════
   if (isPublicPageRoute(pathname)) {
-    // Maintenance page, impersonation, and maintainer job links — always allow
-    // through regardless of session state. A job link must render the same
-    // for signed-in and signed-out visitors alike, because whoever holds the
-    // link (e.g. a maintainer with no TenantX account) is the intended
-    // audience — a signed-in landlord tapping it must not be bounced to
-    // /dashboard.
-    if (pathname.startsWith('/auth/impersonate') || pathname.startsWith('/maintenance') || pathname.startsWith('/jobs')) {
+    // Platform-offline notice, impersonation, and maintainer job links —
+    // always allow through regardless of session state. A job link must render
+    // the same for signed-in and signed-out visitors alike, because whoever
+    // holds the link (e.g. a maintainer with no TenantX account) is the
+    // intended audience — a signed-in landlord tapping it must not be bounced
+    // to /dashboard.
+    if (matchesRoute(pathname, ['/auth/impersonate', '/platform-offline', '/jobs'])) {
       return NextResponse.next()
     }
 
@@ -142,9 +169,11 @@ export async function middleware(request: NextRequest) {
   // 1. Unauthenticated → login
   if (!isTenantAuthenticated) {
     const redirectUrl = new URL('/login', request.url)
+
     if (pathname !== '/') {
       redirectUrl.searchParams.set('redirectTo', pathname)
     }
+
     return NextResponse.redirect(redirectUrl)
   }
 
@@ -152,6 +181,7 @@ export async function middleware(request: NextRequest) {
   if (isLandlordOnlyRoute(pathname)) {
     const claims = decodeJwtPayload(authToken!)
     const userType = (claims?.userType as string) ?? ''
+
     if (userType !== 'LANDLORD') {
       return NextResponse.redirect(new URL('/dashboard?error=access_denied', request.url))
     }
@@ -159,6 +189,7 @@ export async function middleware(request: NextRequest) {
 
   // 3. Authenticated — inject auth headers for Server Components
   const requestHeaders = new Headers(request.headers)
+
   requestHeaders.set('Authorization', `Bearer ${authToken}`)
   requestHeaders.set('X-Tenant-ID', tenantId!)
 

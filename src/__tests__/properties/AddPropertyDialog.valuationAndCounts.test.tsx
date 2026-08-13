@@ -125,6 +125,13 @@ async function submitAndCapture(api: typeof createProperty | typeof updateProper
 }
 
 describe('AddPropertyDialog — valuation and room counts', () => {
+  // Each of these renders the full four-step dialog and walks it end to end.
+  // That takes ~2s on an idle machine and over 10s when the Docker stack is
+  // running alongside — right on Vitest's default, so the suite failed a
+  // different subset on every run with "Test timed out" and no assertion
+  // error. A timeout that trips on load reports the machine, not the code.
+  vi.setConfig({ testTimeout: 30_000 })
+
   afterEach(() => vi.clearAllMocks())
 
   it('sends the valuation the landlord typed', async () => {
