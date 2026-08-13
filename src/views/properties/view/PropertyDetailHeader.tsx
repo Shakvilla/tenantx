@@ -36,6 +36,9 @@ type PropertyData = {
   bedrooms?: string
   bathrooms?: string
   rooms?: string
+  rawBedrooms?: number
+  rawBathrooms?: number
+  rawRooms?: number
   amenities?: Record<string, boolean>
   images?: string[]
   imageFileIds?: string[]
@@ -80,9 +83,13 @@ const PropertyDetailHeader = ({ propertyData, propertyId }: { propertyData?: Pro
         city: propertyData.city,
         gpsCode: propertyData.gpsCode,
         description: propertyData.description,
-        bedrooms: propertyData.bedrooms,
-        bathrooms: propertyData.bathrooms,
-        rooms: propertyData.rooms,
+
+        // The stored counts, not the page's display strings — the dialog maps
+        // them onto its options itself, and needs the exact number to tell an
+        // 8-bedroom property from the "6+" bucket it prefills into.
+        bedrooms: propertyData.rawBedrooms,
+        bathrooms: propertyData.rawBathrooms,
+        rooms: propertyData.rawRooms,
         amenities: propertyData.amenities,
         images: propertyData.images,
 

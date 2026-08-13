@@ -42,3 +42,46 @@ export function toCountOption(
 
   return ''
 }
+
+/**
+ * Resolves the count to store from a submitted option and the count already on
+ * record.
+ *
+ * The open-ended option stands for every count at or above its number, so on
+ * its own it cannot say which. Taking it literally rewrites an 8-bedroom
+ * property to 6 the moment its owner edits the description — the count they
+ * never touched. When the stored count already falls in that bucket, keep it.
+ */
+export function fromCountOption(
+  option: string | null | undefined,
+  stored?: number | string | null
+): number | undefined {
+  if (!option) return undefined
+
+  const submitted = parseInt(option.replace('+', ''), 10)
+
+  if (!Number.isFinite(submitted)) return undefined
+
+  if (!option.endsWith('+')) return submitted
+
+  const previous = typeof stored === 'number' ? stored : parseInt(String(stored ?? '').replace('+', ''), 10)
+
+  return Number.isFinite(previous) && previous >= submitted ? previous : submitted
+}
+
+/**
+ * Renders a stored count for display.
+ *
+ * Read-only views have no fixed option list to honour, so they show the real
+ * number: `toCountOption` is for prefilling the form's Select and collapses
+ * every count of 6 or more onto "6+", which on a detail page reads as an
+ * approximation of a number the system knows exactly. Returns '' when there is
+ * no count to show, leaving the caller to phrase its own absence.
+ */
+export function countLabel(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return ''
+
+  const count = typeof value === 'number' ? value : parseInt(String(value).replace('+', ''), 10)
+
+  return Number.isFinite(count) && count >= 1 ? String(count) : ''
+}

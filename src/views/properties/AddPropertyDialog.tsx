@@ -16,6 +16,7 @@ import StepLabel from '@mui/material/StepLabel'
 import Stepper from '@mui/material/Stepper'
 import Avatar from '@mui/material/Avatar'
 import TextField from '@mui/material/TextField'
+import InputAdornment from '@mui/material/InputAdornment'
 import Button from '@mui/material/Button'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
@@ -48,7 +49,8 @@ import {
   uploadPropertyImages
 } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
-import { BATHROOM_OPTIONS, BEDROOM_OPTIONS, ROOM_OPTIONS, toCountOption } from '@/lib/property-options'
+import { BATHROOM_OPTIONS, BEDROOM_OPTIONS, ROOM_OPTIONS, fromCountOption, toCountOption } from '@/lib/property-options'
+import { formatCurrency } from '@/utils/currency'
 
 // Context Imports
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
@@ -63,6 +65,7 @@ import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 type PropertyEditData = {
   id?: string
   name?: string
+
   /** Backend status. Only a 'draft' record can be saved through the draft
    *  endpoints — the backend rejects the rest with 409. */
   status?: string
@@ -80,6 +83,7 @@ type PropertyEditData = {
   thumbnailIndex?: number | null
   price?: string
   address?: string
+
   // Fields used in payload mapping
   street?: string
   region?: string
@@ -90,10 +94,12 @@ type PropertyEditData = {
   purchasePrice?: number
   currentValue?: number
   currency?: string
+
   // Callers pass this through from broader API/view-local types where it's a plain
   // string; the value is re-cast to the 'own' | 'lease' union at the one call site
   // that consumes it (see mode === 'edit' below).
   ownership?: string
+
   // Raw lowercase API values — used when coming from the property detail page
   // (which title-cases the display values for rendering)
   rawType?: string
@@ -153,6 +159,10 @@ type FormDataType = {
   bedrooms: string
   bathrooms: string
   rooms: string
+
+  // The landlord's own valuation. Held as a string because the input is a
+  // text field; parsed once on submit.
+  currentValue: string
   amenities: Record<string, boolean>
   images: File[]
   thumbnailIndex: number | null
@@ -171,6 +181,7 @@ const initialData: FormDataType = {
   bedrooms: '',
   bathrooms: '',
   rooms: '',
+  currentValue: '',
   amenities: {},
   images: [],
   thumbnailIndex: null
@@ -268,6 +279,7 @@ const AddPropertyDialog = ({
         propertyName: editData.name || '',
         propertyType: editData.rawType || editData.type || '',
         condition: editData.rawCondition || editData.condition || '',
+
         // Properties saved before the street field existed had the city
         // written into address_line_1. Prefilling that would show the city
         // under "Street / House Address" and re-save the duplicate on the
@@ -280,11 +292,13 @@ const AddPropertyDialog = ({
         city: editData.city || '',
         gpsCode: editData.gpsCode || '',
         description: editData.description || '',
+
         // Stored counts are plain integers; map them back onto the option
         // values so an open-ended count ("6+" → 6) prefills instead of blanking.
         bedrooms: toCountOption(editData.bedrooms, BEDROOM_OPTIONS),
         bathrooms: toCountOption(editData.bathrooms, BATHROOM_OPTIONS),
         rooms: toCountOption(editData.rooms, ROOM_OPTIONS),
+        currentValue: editData.currentValue != null ? String(editData.currentValue) : '',
         amenities: editData.amenities || buildEmptyAmenities(),
         images: [],
         thumbnailIndex: editData.thumbnailIndex ?? null
@@ -439,6 +453,15 @@ const AddPropertyDialog = ({
       if (!formData.bedrooms) newErrors.bedrooms = true
       if (!formData.bathrooms) newErrors.bathrooms = true
       if (!formData.rooms) newErrors.rooms = true
+
+      // Optional, but a figure that is present must be a real one: a number
+      // input still accepts "e" and "-", and the column is unsigned in meaning
+      // if not in type.
+      if (formData.currentValue) {
+        const value = Number(formData.currentValue)
+
+        if (!Number.isFinite(value) || value <= 0) newErrors.currentValue = true
+      }
     }
 
     setErrors(newErrors)
@@ -540,9 +563,13 @@ const AddPropertyDialog = ({
         gpsCode: formData.gpsCode || undefined,
         description: formData.description || undefined,
         condition: backendCondition as 'new' | 'good' | 'fair' | 'poor',
-        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
-        bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
-        rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
+
+        // Pass the stored count alongside the option: "6+" cannot say whether
+        // the property has 6 bedrooms or 11, so taking it literally would
+        // rewrite an 11-bedroom property to 6 on an unrelated edit.
+        bedrooms: fromCountOption(formData.bedrooms, editData?.bedrooms),
+        bathrooms: fromCountOption(formData.bathrooms, editData?.bathrooms),
+        rooms: fromCountOption(formData.rooms, editData?.rooms),
         amenities: amenitiesArray,
         images: imageUrls,
         imageFileIds: imageFileIds,
@@ -551,7 +578,12 @@ const AddPropertyDialog = ({
 
         // Financial data
         purchasePrice: (mode === 'edit' && editData?.purchasePrice) ? Number(editData.purchasePrice) : undefined,
-        currentValue: (mode === 'edit' && editData?.currentValue) ? Number(editData.currentValue) : undefined,
+
+        // Now captured by the form. It was previously only ever echoed back
+        // from `editData`, which nothing could ever set — so `current_value`
+        // was null on every property and the detail page's figure read "N/A"
+        // for every landlord, permanently.
+        currentValue: formData.currentValue ? Number(formData.currentValue) : undefined,
         currency: (mode === 'edit' && editData?.currency) || 'GHS'
       }
 
@@ -690,9 +722,10 @@ const AddPropertyDialog = ({
         gpsCode: formData.gpsCode || undefined,
         description: formData.description || undefined,
         condition: formData.condition?.toLowerCase() || undefined,
-        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
-        bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
-        rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
+        bedrooms: fromCountOption(formData.bedrooms, editData?.bedrooms),
+        bathrooms: fromCountOption(formData.bathrooms, editData?.bathrooms),
+        rooms: fromCountOption(formData.rooms, editData?.rooms),
+        currentValue: formData.currentValue ? Number(formData.currentValue) : undefined,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
         imageFileIds: imageFileIds.length > 0 ? imageFileIds : undefined,
@@ -769,6 +802,7 @@ const AddPropertyDialog = ({
                 }}
                 onChange={handleAddressChange}
                 onCoordinates={setCoordinates}
+
                 // The steps render through a switch, so the address block
                 // unmounts on every Next. This is what lets it restate the
                 // accuracy of a position this dialog is still holding.
@@ -923,6 +957,22 @@ const AddPropertyDialog = ({
                     </Typography>
                   )}
                 </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  size='small'
+                  type='number'
+                  label='Estimated value'
+                  placeholder='e.g. 850000'
+                  value={formData.currentValue}
+                  error={Boolean(errors.currentValue)}
+                  helperText={
+                    errors.currentValue ? 'Enter a positive amount, or leave it blank.' : 'Optional — what the property is worth today.'
+                  }
+                  onChange={e => handleInputChange('currentValue', e.target.value)}
+                  slotProps={{ input: { startAdornment: <InputAdornment position='start'>₵</InputAdornment> } }}
+                />
               </Grid>
             </Grid>
 
@@ -1377,6 +1427,16 @@ const AddPropertyDialog = ({
                       </Typography>
                       <Typography variant='body1' className='font-medium' color='text.primary'>
                         {formData.rooms || '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Estimated Value
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.currentValue ? formatCurrency(Number(formData.currentValue)) : '-'}
                       </Typography>
                     </div>
                   </Grid>

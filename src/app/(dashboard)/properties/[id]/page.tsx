@@ -3,12 +3,8 @@ import { cookies } from 'next/headers'
 
 // API Imports
 import { serverGetPropertyById } from '@/lib/api/properties.server'
-import {
-  BATHROOM_OPTIONS,
-  BEDROOM_OPTIONS,
-  ROOM_OPTIONS,
-  toCountOption
-} from '@/lib/property-options'
+import { countLabel } from '@/lib/property-options'
+import { formatCurrency } from '@/utils/currency'
 
 // Component Imports
 import PropertyDetails from '@/views/properties/view/PropertyDetails'
@@ -59,16 +55,26 @@ function toPropertyViewData(property: Record<string, any>) {
     location: property.district || property.region || 'Unknown',
     type: type || 'House',
     stock: property.status === 'active',
+
     // Street first. This read `gpsCode || street`, so the street address could
     // never display: a property with one showed its Ghana Post code here AND in
     // the GPS Code row below — the same value twice, and the actual street
     // nowhere. The code remains the fallback, since it locates the property
     // better than an empty row when no street was entered.
     address: property.address?.street || property.gpsCode || '',
-    price: property.currentValue ? `${property.currency ?? '₵'}${property.currentValue.toLocaleString()}` : 'N/A',
-    bedrooms: toCountOption(property.bedrooms, BEDROOM_OPTIONS),
-    bathrooms: toCountOption(property.bathrooms, BATHROOM_OPTIONS),
-    rooms: toCountOption(property.rooms, ROOM_OPTIONS),
+
+    // Was `${currency ?? '₵'}${value.toLocaleString()}`, which prints the code
+    // rather than the symbol — "GHS1,500,000" — since `currency` holds 'GHS'
+    // and is only null on rows that predate the column. formatCurrency resolves
+    // the symbol properly. Empty when unset; the card phrases the absence.
+    price: property.currentValue != null ? formatCurrency(Number(property.currentValue), property.currency) : '',
+
+    // The real counts, not the form's option buckets: `toCountOption` collapses
+    // 6-and-above onto "6+" so a fixed Select can prefill, and reusing it here
+    // made a property with exactly 6 bedrooms read "6+".
+    bedrooms: countLabel(property.bedrooms),
+    bathrooms: countLabel(property.bathrooms),
+    rooms: countLabel(property.rooms),
     condition: toTitleCase(property.condition) || 'New',
     region: toTitleCase(property.region) || '',
     district: district || '',
@@ -80,7 +86,12 @@ function toPropertyViewData(property: Record<string, any>) {
     thumbnailIndex: property.thumbnailIndex ?? 0,
     amenities: amenitiesRecord,
 
-    // Raw backend fields preserved for the edit dialog payload
+    // Raw backend fields preserved for the edit dialog payload. The counts go
+    // through as numbers so the dialog maps them onto its options itself,
+    // rather than the display strings above having to survive a parse.
+    rawBedrooms: property.bedrooms ?? undefined,
+    rawBathrooms: property.bathrooms ?? undefined,
+    rawRooms: property.rooms ?? undefined,
     status: property.status,
     ownership: property.ownership || 'own',
     totalUnits: property.totalUnits ?? 0,

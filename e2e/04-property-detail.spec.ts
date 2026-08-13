@@ -17,6 +17,14 @@ import { E2E_USER, unique } from './fixtures'
  *     field, which rendered below the labelled list as raw storage keys. Every
  *     amenity appeared twice: once as "Kitchen Cabinets", once as
  *     `kitchenCabinets`.
+ *
+ *   - the room counts ran through `toCountOption`, the helper that collapses
+ *     6-and-above onto the form Select's "6+" option, so a property with
+ *     exactly 6 bedrooms displayed "6+".
+ *
+ *   - the value figure read `${currency}${value}` — "GHS850,000" rather than
+ *     "₵850,000.00" — and no form field ever set `currentValue`, so in practice
+ *     it read "N/A" on every property in the product.
  */
 
 const API = process.env.E2E_API_URL ?? 'http://localhost:8099/api/v1'
@@ -69,7 +77,15 @@ test.describe.serial('property detail', () => {
       // Stored as ids; the page resolves them to display names through the
       // reference data. `kitchenCabinets` is the one whose raw form is most
       // obviously wrong on screen.
-      amenities: ['kitchenCabinets', 'popCeiling', 'gatedCompound']
+      amenities: ['kitchenCabinets', 'popCeiling', 'gatedCompound'],
+
+      // 6 is the first count the form's open-ended "6+" option swallows, and 11
+      // is well inside it — both must display as themselves.
+      bedrooms: 6,
+      bathrooms: 3,
+      rooms: 11,
+      currentValue: 850_000,
+      currency: 'GHS'
     }, headers)
 
     propertyId = property.id
@@ -101,5 +117,52 @@ test.describe.serial('property detail', () => {
     // And exactly once — the duplicate block rendered the same amenity twice,
     // which a "is it visible" assertion would not have caught.
     await expect(page.getByText('Kitchen Cabinets', { exact: true })).toHaveCount(1)
+  })
+
+  test('the room counts read as the numbers stored, not the form buckets', async ({ page }) => {
+    await page.goto(`/properties/${propertyId}`)
+
+    const info = page.locator('.MuiCard-root').filter({ hasText: 'Property Information' })
+
+    await expect(info).toBeVisible({ timeout: 30_000 })
+
+    // Scoped to the card because "6" and "11" are common enough to match
+    // something incidental elsewhere on the page.
+    await expect(info.getByText('6', { exact: true })).toBeVisible()
+    await expect(info.getByText('11', { exact: true })).toBeVisible()
+
+    // The bucket labels belong to the edit form's Select, nowhere else.
+    await expect(info.getByText('6+', { exact: true })).toHaveCount(0)
+  })
+
+  test('the value is shown in cedis, and unset values say so', async ({ page }) => {
+    await page.goto(`/properties/${propertyId}`)
+
+    const info = page.locator('.MuiCard-root').filter({ hasText: 'Property Information' })
+
+    await expect(info.getByText('Estimated Value')).toBeVisible({ timeout: 30_000 })
+
+    // What the app's shared formatter produces for GHS under en-GH. Asserting
+    // the rendered string exactly: the old concatenation printed the currency
+    // CODE — "GHS850,000" — which a "contains 850,000" assertion would have
+    // sailed straight past.
+    await expect(info.getByText('GH₵850,000.00')).toBeVisible()
+    await expect(info.getByText(/GHS\s?850,000/)).toHaveCount(0)
+
+    // A property with no valuation says "Not set" rather than "N/A" — the
+    // figure is missing, not broken. 01-write-paths creates one with no value.
+    const plain = await page.request.get(`${API}/properties`, {
+      headers: await apiHeaders(page)
+    })
+
+    const body = (await plain.json()) as { data: Array<{ id: string; currentValue: number | null }> }
+    const unvalued = body.data.find(p => p.currentValue == null)
+
+    expect(unvalued, 'expected at least one property with no valuation').toBeTruthy()
+
+    await page.goto(`/properties/${unvalued!.id}`)
+    await expect(
+      page.locator('.MuiCard-root').filter({ hasText: 'Property Information' }).getByText('Not set').first()
+    ).toBeVisible({ timeout: 30_000 })
   })
 })

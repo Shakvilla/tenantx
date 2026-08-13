@@ -26,6 +26,12 @@ type PropertyData = {
   city: string
   gpsCode: string
   description: string
+
+  // The counts above are display strings; these are what the edit dialog maps
+  // back onto its Select options.
+  rawBedrooms?: number
+  rawBathrooms?: number
+  rawRooms?: number
   images: string[]
   imageFileIds?: string[]
   thumbnailIndex: number
