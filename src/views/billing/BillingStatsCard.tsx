@@ -29,20 +29,33 @@ type StatItem = {
   iconColor: 'primary' | 'success' | 'info' | 'error' | 'warning'
 }
 
+/**
+ * The row showed Total, Paid, Pending and Overdue — dropping Draft, Partial
+ * and Cancelled, which the same API response has always carried. So a draft
+ * invoice appeared in no tile at all while still counting towards Total, and
+ * the four numbers could not be made to add up: a landlord with unsent drafts
+ * saw a Total nobody could account for and no sign there was work waiting.
+ *
+ * The statuses now appear in lifecycle order. Cancelled stays out of the row —
+ * it is terminal and not something to act on — and is named in the Total tile
+ * instead, so the figures still reconcile:
+ *
+ *     total = draft + pending + partial + overdue + paid + cancelled
+ */
 const buildStats = (stats: InvoiceStats): StatItem[] => [
   {
     title: 'Total Invoices',
     value: stats.total.toString(),
     icon: 'ri-file-list-3-line',
-    desc: 'All invoices generated',
+    desc: stats.cancelled > 0 ? `Includes ${stats.cancelled} cancelled` : 'All invoices generated',
     iconColor: 'primary'
   },
   {
-    title: 'Paid Invoices',
-    value: stats.paid.toString(),
-    icon: 'ri-checkbox-circle-line',
-    desc: 'Successfully paid',
-    iconColor: 'success'
+    title: 'Draft Invoices',
+    value: stats.draft.toString(),
+    icon: 'ri-draft-line',
+    desc: 'Not yet issued',
+    iconColor: 'warning'
   },
   {
     title: 'Pending Invoices',
@@ -52,13 +65,41 @@ const buildStats = (stats: InvoiceStats): StatItem[] => [
     iconColor: 'info'
   },
   {
+    title: 'Part-paid Invoices',
+    value: stats.partial.toString(),
+    icon: 'ri-progress-4-line',
+    desc: 'Balance outstanding',
+    iconColor: 'info'
+  },
+  {
     title: 'Overdue Invoices',
     value: stats.overdue.toString(),
     icon: 'ri-error-warning-line',
     desc: 'Past due date',
     iconColor: 'error'
+  },
+  {
+    title: 'Paid Invoices',
+    value: stats.paid.toString(),
+    icon: 'ri-checkbox-circle-line',
+    desc: 'Settled in full',
+    iconColor: 'success'
   }
 ]
+
+/** Shown before the figures land, so the row does not jump size on load. */
+const PLACEHOLDERS: StatItem[] = buildStats({
+  total: 0,
+  draft: 0,
+  pending: 0,
+  partial: 0,
+  paid: 0,
+  overdue: 0,
+  cancelled: 0,
+  totalAmount: 0,
+  paidAmount: 0,
+  outstandingAmount: 0
+}).map(item => ({ ...item, value: '-' }))
 
 const BillingStatsCard = () => {
   const [stats, setStats] = useState<InvoiceStats | null>(null)
@@ -75,50 +116,49 @@ const BillingStatsCard = () => {
       .finally(() => setLoading(false))
   }, [])
 
-  const data: StatItem[] = stats
-    ? buildStats(stats)
-    : [
-        { title: 'Total Invoices',   value: '-', icon: 'ri-file-list-3-line',      desc: 'All invoices generated', iconColor: 'primary' },
-        { title: 'Paid Invoices',    value: '-', icon: 'ri-checkbox-circle-line',   desc: 'Successfully paid',      iconColor: 'success' },
-        { title: 'Pending Invoices', value: '-', icon: 'ri-time-line',              desc: 'Awaiting payment',       iconColor: 'info' },
-        { title: 'Overdue Invoices', value: '-', icon: 'ri-error-warning-line',     desc: 'Past due date',          iconColor: 'error' }
-      ]
+  const data: StatItem[] = stats ? buildStats(stats) : PLACEHOLDERS
+
+  // The separators used to be written for exactly four tiles on one row: a
+  // right border on every item but the last, which with two rows leaves a
+  // stray border hanging at the end of the first. Deriving the row width
+  // instead keeps them correct however many tiles there are.
+  const perRow = isSmallScreen ? 1 : isBelowMdScreen ? 2 : 3
+  const lastRowStart = data.length - (data.length % perRow || perRow)
 
   return (
     <Card className='my-6'>
       <CardContent>
         <Grid container spacing={6}>
-          {data.map((item, index) => (
-            <Grid
-              size={{ xs: 12, sm: 6, md: 3 }}
-              key={index}
-              className={classnames({
-                '[&:nth-of-type(odd)>div]:pie-6 [&:nth-of-type(odd)>div]:border-ie': isBelowMdScreen && !isSmallScreen,
-                '[&:not(:last-child)>div]:pie-6 [&:not(:last-child)>div]:border-ie': !isBelowMdScreen
-              })}
-            >
-              <div className='flex flex-col gap-1'>
-                <div className='flex justify-between'>
-                  <div className='flex flex-col gap-1'>
-                    <Typography>{item.title}</Typography>
-                    {loading ? (
-                      <Skeleton variant='text' width={60} height={40} />
-                    ) : (
-                      <Typography variant='h4'>{item.value}</Typography>
-                    )}
+          {data.map((item, index) => {
+            const endsRow = (index + 1) % perRow === 0
+            const inLastRow = index >= lastRowStart
+
+            return (
+              <Grid
+                size={{ xs: 12, sm: 6, md: 4 }}
+                key={index}
+                className={classnames({ '[&>div]:pie-6 [&>div]:border-ie': !endsRow && index !== data.length - 1 })}
+              >
+                <div className='flex flex-col gap-1'>
+                  <div className='flex justify-between'>
+                    <div className='flex flex-col gap-1'>
+                      <Typography>{item.title}</Typography>
+                      {loading ? (
+                        <Skeleton variant='text' width={60} height={40} />
+                      ) : (
+                        <Typography variant='h4'>{item.value}</Typography>
+                      )}
+                    </div>
+                    <CustomAvatar variant='rounded' skin='light' color={item.iconColor} size={44}>
+                      <i className={classnames(item.icon, 'text-[28px]')} />
+                    </CustomAvatar>
                   </div>
-                  <CustomAvatar variant='rounded' skin='light' color={item.iconColor} size={44}>
-                    <i className={classnames(item.icon, 'text-[28px]')} />
-                  </CustomAvatar>
+                  <Typography>{item.desc}</Typography>
                 </div>
-                <Typography>{item.desc}</Typography>
-              </div>
-              {isBelowMdScreen && !isSmallScreen && index < data.length - 2 && (
-                <Divider className={classnames('mbs-6', { 'mie-6': index % 2 === 0 })} />
-              )}
-              {isSmallScreen && index < data.length - 1 && <Divider className='mbs-6' />}
-            </Grid>
-          ))}
+                {!inLastRow && <Divider className={classnames('mbs-6', { 'mie-6': !endsRow })} />}
+              </Grid>
+            )
+          })}
         </Grid>
       </CardContent>
     </Card>

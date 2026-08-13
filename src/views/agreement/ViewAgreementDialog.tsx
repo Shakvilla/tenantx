@@ -70,6 +70,12 @@ const freqLabels: Record<string, string> = {
   MONTHLY: 'Monthly', QUARTERLY: 'Quarterly', YEARLY: 'Yearly', ONE_TIME: 'One-time'
 }
 
+// Every other enum in this dialog is rendered through a label map; the renewal
+// decision was printed raw, so the Renewal section read "Decision: TERMINATED".
+const decisionLabels: Record<string, string> = {
+  RENEWED: 'Renewed', TERMINATED: 'Terminated'
+}
+
 const yesNo = (v: boolean | null | undefined): string => (v ? 'Yes' : 'No')
 
 const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber }: Props) => {
@@ -418,7 +424,9 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
                       {agreement.renewalDecision && (
                         <Typography variant='body2'>
                           <span className='text-textSecondary'>Decision: </span>
-                          <span className='font-medium'>{agreement.renewalDecision}</span>
+                          <span className='font-medium'>
+                            {decisionLabels[agreement.renewalDecision] ?? agreement.renewalDecision}
+                          </span>
                           {agreement.renewalDecidedAt ? ` on ${formatDate(agreement.renewalDecidedAt)}` : ''}
                         </Typography>
                       )}

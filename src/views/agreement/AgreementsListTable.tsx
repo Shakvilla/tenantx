@@ -327,10 +327,18 @@ return (
           const s = agreementStatusObj[row.original.status] ?? { label: row.original.status, color: 'default' }
           const decision = row.original.renewalDecision
 
+          // The decision chip only earns its place when it says something the
+          // status does not. Terminating writes TERMINATED to both fields, so
+          // every terminated agreement read "Terminated Terminated"; renewing
+          // writes only the decision and leaves the status to say whether the
+          // old term is still running — "Active · Renewed" is the case this
+          // second chip exists for.
+          const decisionAddsInfo = decision && decision !== row.original.status
+
           return (
             <div className='flex items-center gap-1'>
               <Chip variant='tonal' label={s.label} size='small' color={s.color} />
-              {decision && (
+              {decisionAddsInfo && (
                 <Chip
                   variant='tonal'
                   size='small'

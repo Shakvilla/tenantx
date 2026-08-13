@@ -60,8 +60,17 @@ export default defineConfig({
     // Reporters
     reporters: ['default'],
     
-    // Timeout for async tests
-    testTimeout: 10000,
+    // Timeout for async tests.
+    //
+    // 10s was too tight for the dialog tests, which render a full multi-step
+    // MUI form and walk it end to end: ~2s on an idle machine, well past 10s
+    // whenever anything else is running. That failed a different handful of
+    // tests on every run — always "Test timed out", never an assertion — and
+    // each one passed on its own, which is the worst kind of red: it teaches
+    // you to ignore the suite. 30s still fails a genuinely hung test promptly
+    // enough, and every test here is expected to finish in single-digit
+    // seconds, so a run near this limit is a signal in itself.
+    testTimeout: 30000,
     
     // Pool options
     pool: 'forks',
