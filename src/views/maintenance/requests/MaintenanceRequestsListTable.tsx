@@ -72,8 +72,10 @@ type RequestWithAction = MaintenanceRequest & { action?: string }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -83,19 +85,25 @@ const DebouncedInput = ({
   ...props
 }: { value: string | number; onChange: (v: string | number) => void; debounce?: number } & Omit<TextFieldProps, 'onChange'>) => {
   const [value, setValue] = useState(initialValue)
+
   useEffect(() => { setValue(initialValue) }, [initialValue])
   useEffect(() => {
     const t = setTimeout(() => onChange(value), debounce)
-    return () => clearTimeout(t)
+
+    
+return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
-  return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
+  
+return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
 }
 
 const formatDate = (d?: string | null) => {
   if (!d) return '-'
   const date = new Date(d)
-  return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
+
+  
+return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' }> = {
@@ -103,6 +111,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: 'default' | 'primary
   awaiting_approval: { label: 'Awaiting Approval', color: 'info'      },
   approved:          { label: 'Approved',          color: 'secondary' },
   in_progress:       { label: 'In Progress',       color: 'primary'   },
+
   // 'completed' now means the work is done but awaiting the tenant's confirmation.
   completed:         { label: 'Awaiting Confirmation', color: 'info'  },
   closed:            { label: 'Closed',            color: 'success'   },
@@ -159,9 +168,11 @@ const MaintenanceRequestsListTable = () => {
   const fetchRequests = useCallback(async (cursor: string | null) => {
     setLoading(true)
     setError(null)
+
     try {
       const statuses = selectedStatus ? [selectedStatus] : undefined
       const fetchFn = (isOccupant || isMaintainer) ? getMyMaintenanceRequests : getMaintenanceRequests
+
       const response = await fetchFn({
         size: pageSize,
         cursor: cursor ?? undefined,
@@ -169,6 +180,7 @@ const MaintenanceRequestsListTable = () => {
         priority: selectedPriority || undefined,
         categoryId: selectedCategoryId || undefined
       })
+
       setData(response.data ?? [])
       setHasNext(response.meta?.pagination?.hasNext ?? false)
       setNextCursor(response.meta?.pagination?.cursor ?? null)
@@ -200,6 +212,7 @@ const MaintenanceRequestsListTable = () => {
   const handlePrevPage = () => {
     if (pageIndex === 0) return
     const prevCursor = cursorStack[pageIndex - 1]
+
     setCursorStack(prev => prev.slice(0, prev.length - 1))
     setPageIndex(prev => prev - 1)
     setRowSelection({})
@@ -211,6 +224,7 @@ const MaintenanceRequestsListTable = () => {
   // Load categories once for filter + display
   useEffect(() => {
     const tenantId = getStoredTenantId() ?? undefined
+
     getMaintenanceCategories(false, tenantId)
       .then(res => setCategories(Array.isArray(res) ? res : []))
       .catch(() => {})
@@ -221,7 +235,9 @@ const MaintenanceRequestsListTable = () => {
   const filteredData = useMemo(() => {
     if (!globalFilter) return data
     const q = globalFilter.toLowerCase()
-    return data.filter(r =>
+
+    
+return data.filter(r =>
       r.title?.toLowerCase().includes(q) ||
       r.description?.toLowerCase().includes(q) ||
       r.requestNumber?.toLowerCase().includes(q) ||
@@ -260,7 +276,9 @@ const MaintenanceRequestsListTable = () => {
       header: 'Priority',
       cell: ({ row }) => {
         const p = row.original.priority?.toLowerCase() ?? ''
-        return <Chip variant='tonal' label={p} size='small' color={PRIORITY_COLORS[p] ?? 'secondary'} className='capitalize' />
+
+        
+return <Chip variant='tonal' label={p} size='small' color={PRIORITY_COLORS[p] ?? 'secondary'} className='capitalize' />
       }
     }),
     columnHelper.accessor('status', {
@@ -268,7 +286,9 @@ const MaintenanceRequestsListTable = () => {
       cell: ({ row }) => {
         const s = row.original.status ?? ''
         const cfg = STATUS_CONFIG[s] ?? { label: s.replace(/_/g, ' '), color: 'default' as const }
-        return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} className='capitalize' />
+
+        
+return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} className='capitalize' />
       }
     }),
     columnHelper.accessor('estimatedCost', {
@@ -314,6 +334,7 @@ const MaintenanceRequestsListTable = () => {
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+
     // Pagination is server-side (cursor-based) — see fetchRequests/handleNextPage/handlePrevPage
     manualPagination: true,
     pageCount: pageSize > 0 ? Math.ceil(total / pageSize) : 0
@@ -321,15 +342,19 @@ const MaintenanceRequestsListTable = () => {
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!selectedRequest) return
+
     const ids = Object.keys(rowSelection).length > 0
       ? (Object.keys(rowSelection).map(k => filteredData[parseInt(k)]?.id).filter(Boolean) as string[])
       : [selectedRequest.id]
+
     try {
       await Promise.all(ids.map(id => deleteMaintenanceRequest(id)))
       setData(prev => prev.filter(r => !ids.includes(r.id)))
       setRowSelection({})
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to delete request(s)')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error(err?.message ?? 'Failed to delete request(s)')
     } finally {
       setDeleteOpen(false)
       setSelectedRequest(null)
@@ -347,7 +372,9 @@ const MaintenanceRequestsListTable = () => {
             <div className='flex items-center gap-2'>
               {!isOccupant && !isMaintainer && Object.keys(rowSelection).length > 0 && (
                 <Button variant='outlined' color='error' startIcon={<i className='ri-delete-bin-line' />}
-                  onClick={() => { const f = filteredData[parseInt(Object.keys(rowSelection)[0])]; if (f) { setSelectedRequest(f); setDeleteOpen(true) } }}>
+                  onClick={() => { const f = filteredData[parseInt(Object.keys(rowSelection)[0])];
+
+ if (f) { setSelectedRequest(f); setDeleteOpen(true) } }}>
                   Delete Selected ({Object.keys(rowSelection).length})
                 </Button>
               )}

@@ -74,7 +74,9 @@ import tableStyles from '@core/styles/table.module.css'
 const formatDate = (dateString: string) => {
   if (!dateString) return '-'
   const date = new Date(dateString)
-  return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
+
+  
+return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
 }
 
 function apiToDisplay(item: CommunicationItem): CommunicationType {
@@ -115,8 +117,10 @@ declare module '@tanstack/table-core' {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -135,7 +139,9 @@ const DebouncedInput = ({
 
   useEffect(() => {
     const timeout = setTimeout(() => onChange(value), debounce)
-    return () => clearTimeout(timeout)
+
+    
+return () => clearTimeout(timeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
@@ -196,9 +202,11 @@ const CommunicationsListTable = () => {
   // ---- Fetch communications ----
   const fetchCommunications = useCallback(async () => {
     setLoading(true)
+
     try {
       const raw = await getCommunications()
       const items = Array.isArray(raw) ? raw : []
+
       setData(items.map(apiToDisplay))
     } catch (err) {
       console.error('Failed to load communications:', err)
@@ -211,6 +219,7 @@ const CommunicationsListTable = () => {
   // ---- Fetch lookup data (properties, units, occupants) ----
   useEffect(() => {
     const tenantId = getStoredTenantId()
+
     if (!tenantId) return
 
     Promise.all([
@@ -219,9 +228,11 @@ const CommunicationsListTable = () => {
       getOccupants(tenantId, { size: 500 }).catch(() => ({ data: null }))
     ]).then(([propRes, unitRes, occRes]) => {
       const props = (propRes.data ?? []) as any[]
+
       setProperties(props.map(p => ({ id: p.id, name: p.name })))
 
       const unitList = (unitRes.data ?? []) as any[]
+
       setUnits(unitList.map(u => ({
         id:          u.id,
         unitNumber:  u.unitNo,
@@ -230,6 +241,7 @@ const CommunicationsListTable = () => {
       })))
 
       const occList = ((occRes as any).data ?? []) as any[]
+
       setTenants(occList.map((o: any) => ({
         id:         o.id,
         name:       `${o.firstName ?? ''} ${o.lastName ?? ''}`.trim(),
@@ -245,9 +257,11 @@ const CommunicationsListTable = () => {
   // ---- Filtered data ----
   const filteredData = useMemo(() => {
     let result = data
+
     if (selectedType)   result = result.filter(c => c.type === selectedType)
     if (selectedStatus) result = result.filter(c => c.status === selectedStatus)
-    return result
+    
+return result
   }, [data, selectedType, selectedStatus])
 
   // ---- Columns ----
@@ -277,7 +291,9 @@ const CommunicationsListTable = () => {
       header: 'SL',
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination
-        return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+        
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
       }
     }),
     columnHelper.accessor('subject', {
@@ -314,7 +330,9 @@ const CommunicationsListTable = () => {
       header: 'Type',
       cell: ({ row }) => {
         const cfg = TYPE_CONFIG[row.original.type] ?? { color: 'secondary', icon: 'ri-file-line' }
-        return (
+
+        
+return (
           <Chip
             variant='tonal' label={row.original.type} size='small'
             color={cfg.color} icon={<i className={cfg.icon} />} className='capitalize'
@@ -326,7 +344,9 @@ const CommunicationsListTable = () => {
       header: 'Status',
       cell: ({ row }) => {
         const cfg = STATUS_CONFIG[row.original.status] ?? { color: 'secondary' }
-        return <Chip variant='tonal' label={row.original.status} size='small' color={cfg.color} className='capitalize' />
+
+        
+return <Chip variant='tonal' label={row.original.status} size='small' color={cfg.color} className='capitalize' />
       }
     }),
     columnHelper.accessor('date', {
@@ -406,11 +426,28 @@ const CommunicationsListTable = () => {
       ? Object.keys(rowSelection).map(key => filteredData[parseInt(key)]?.id).filter(Boolean) as string[]
       : [selectedCommunication.id]
 
-    await Promise.allSettled(idsToDelete.map(id => deleteCommunication(id)))
+    // allSettled rather than all, so one failure does not abandon the rest of a
+    // bulk delete — but the rejections must still be reported. Discarding them
+    // meant a delete that failed for every row looked identical to one that
+    // worked, and ConfirmationDialog would announce success either way.
+    const results = await Promise.allSettled(idsToDelete.map(id => deleteCommunication(id)))
+
     setRowSelection({})
     setDeleteOpen(false)
     setSelectedCommunication(null)
     fetchCommunications()
+
+    const failed = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
+
+    if (failed.length > 0) {
+      const reason = failed[0].reason
+
+      throw new Error(
+        idsToDelete.length === 1
+          ? (reason?.message ?? 'Failed to delete communication')
+          : `${failed.length} of ${idsToDelete.length} could not be deleted: ${reason?.message ?? 'unknown error'}`
+      )
+    }
   }
 
   // ---- Render ----
@@ -432,6 +469,7 @@ const CommunicationsListTable = () => {
                   startIcon={<i className='ri-delete-bin-line' />}
                   onClick={() => {
                     const first = filteredData[parseInt(Object.keys(rowSelection)[0])]
+
                     if (first) { setSelectedCommunication(first); setDeleteOpen(true) }
                   }}
                 >

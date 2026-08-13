@@ -85,7 +85,9 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 function transformUnits(units: PropertyUnit[], nameMap: Record<string, string> = {}): UnitType[] {
   return units.map(unit => {
     const oId = unit.occupantId || unit.tenantRecordId || null
-    return {
+
+    
+return {
       id: unit.id,
       unitNumber: unit.unitNo,
       type: unit.type,
@@ -115,12 +117,14 @@ async function resolveOccupantNames(
   )
 
   const map: Record<string, string> = {}
+
   results.forEach((r, i) => {
     if (r.status === 'fulfilled' && r.value?.firstName) {
       map[ids[i]] = `${r.value.firstName} ${r.value.lastName}`
     }
   })
-  return map
+  
+return map
 }
 
 const columnHelper = createColumnHelper<UnitType>()
@@ -179,6 +183,8 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
 
         if (response.success && response.data) {
           const units = response.data
+
+
           // Show units immediately, then patch names in once resolved
           setData(transformUnits(units))
           setTotal(response.meta?.pagination?.total || units.length || 0)
@@ -246,7 +252,10 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
       fetchUnits()
     } catch (err) {
       console.error('Error deleting unit:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete unit')
+
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error('Failed to delete unit')
     } finally {
       setDeleting(false)
     }

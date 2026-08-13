@@ -59,8 +59,10 @@ declare module '@tanstack/table-core' {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -70,19 +72,25 @@ const DebouncedInput = ({
   ...props
 }: { value: string | number; onChange: (v: string | number) => void; debounce?: number } & Omit<TextFieldProps, 'onChange'>) => {
   const [value, setValue] = useState(initialValue)
+
   useEffect(() => { setValue(initialValue) }, [initialValue])
   useEffect(() => {
     const t = setTimeout(() => onChange(value), debounce)
-    return () => clearTimeout(t)
+
+    
+return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
-  return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
+  
+return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
 }
 
 const formatDate = (d?: string | null) => {
   if (!d) return '-'
   const date = new Date(d)
-  return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}`
+
+  
+return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}`
 }
 
 const columnHelper = createColumnHelper<MaintenanceCategory>()
@@ -103,9 +111,11 @@ const MaintenanceCategoriesListTable = () => {
   const fetchCategories = useCallback(async () => {
     setLoading(true)
     setError(null)
+
     try {
       const tenantId = getStoredTenantId() ?? undefined
       const res = await getMaintenanceCategories(!showInactive, tenantId)
+
       setData(Array.isArray(res) ? res : [])
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load categories')
@@ -118,8 +128,10 @@ const MaintenanceCategoriesListTable = () => {
 
   const handleToggleActive = useCallback(async (cat: MaintenanceCategory) => {
     setTogglingId(cat.id)
+
     try {
       const updated = await updateMaintenanceCategory(cat.id, { isActive: !cat.isActive })
+
       setData(prev => prev.map(c => c.id === cat.id ? { ...c, isActive: updated.isActive } : c))
     } catch (err: any) {
       setError(err?.message ?? 'Failed to update category')
@@ -130,11 +142,14 @@ const MaintenanceCategoriesListTable = () => {
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!selected) return
+
     try {
       await deleteMaintenanceCategory(selected.id)
       setData(prev => prev.filter(c => c.id !== selected.id))
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to delete category')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error(err?.message ?? 'Failed to delete category')
     } finally {
       setDeleteOpen(false)
       setSelected(null)
@@ -146,7 +161,9 @@ const MaintenanceCategoriesListTable = () => {
       id: 'sl', header: 'SL',
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination
-        return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+        
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
       }
     }),
     columnHelper.accessor('icon', {

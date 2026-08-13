@@ -211,7 +211,9 @@ const TenantsListTable = () => {
       setSelectedTenant(null)
       setDeleteTenantOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete tenant')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error('Failed to delete tenant')
     }
   }
 

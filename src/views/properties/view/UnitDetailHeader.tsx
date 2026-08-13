@@ -88,8 +88,11 @@ const UnitDetailHeader = ({
     } catch (error) {
       console.error('Failed to delete unit:', error)
 
-      // In a real app we'd show a toast here
-      alert('Failed to delete unit. Please try again.')
+      // Rethrow: ConfirmationDialog awaits this and shows the server's own
+      // reason. The alert this replaces threw that reason away and said "Please
+      // try again" — advice that cannot work when the delete was refused
+      // because the unit still has an active occupant.
+      throw error instanceof Error ? error : new Error('Failed to delete unit')
     } finally {
       setIsDeleting(false)
     }

@@ -115,6 +115,7 @@ const ExpenseConfigsListTable = () => {
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
+
     try {
       const configs = await getExpenseConfigs(false) // false = get all (active + inactive)
 
@@ -164,13 +165,16 @@ const ExpenseConfigsListTable = () => {
   const handleDeleteConfirm = async () => {
     if (!configToDelete) return
     setDeleting(true)
+
     try {
       await deleteExpenseConfig(configToDelete.id)
       setData(prev => prev.filter(c => c.id !== configToDelete.id))
       setDeleteDialogOpen(false)
       setConfigToDelete(null)
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to delete expense config')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error(err?.message ?? 'Failed to delete expense config')
     } finally {
       setDeleting(false)
     }

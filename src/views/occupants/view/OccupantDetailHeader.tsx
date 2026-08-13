@@ -61,8 +61,11 @@ const OccupantDetailHeader = ({
       router.push('/occupants')
     } catch (error) {
       console.error('Failed to delete occupant:', error)
-      setDeleteError(error instanceof Error ? error.message : 'Failed to delete occupant')
       setIsDeleting(false)
+
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw error instanceof Error ? error : new Error('Failed to delete occupant')
     }
   }
 

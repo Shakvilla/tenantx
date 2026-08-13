@@ -80,8 +80,10 @@ declare module '@tanstack/table-core' {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 type AgreementWithAction = Agreement & { action?: string }
@@ -141,6 +143,7 @@ const AgreementsListTable = () => {
     setLoading(true)
     setApiError(null)
     const params: { status?: string; type?: string; occupantId?: string } = {}
+
     if (statusFilter) params.status = statusFilter
     if (typeFilter) params.type = typeFilter
     if (isOccupant && user?.id) params.occupantId = user.id
@@ -155,20 +158,25 @@ const AgreementsListTable = () => {
   const handleSaved = (agreement: Agreement) => {
     setData(prev => {
       const idx = prev.findIndex(a => a.id === agreement.id)
-      return idx >= 0 ? prev.map(a => a.id === agreement.id ? agreement : a) : [agreement, ...prev]
+
+      
+return idx >= 0 ? prev.map(a => a.id === agreement.id ? agreement : a) : [agreement, ...prev]
     })
   }
 
   const handleDeleteConfirm = async () => {
     if (!selectedAgreement) return
     setDeleting(true)
+
     try {
       await deleteAgreement(selectedAgreement.id)
       setData(prev => prev.filter(a => a.id !== selectedAgreement.id))
       setDeleteOpen(false)
       setSelectedAgreement(null)
     } catch (err: any) {
-      setApiError(err?.message ?? 'Failed to delete agreement')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error(err?.message ?? 'Failed to delete agreement')
     } finally {
       setDeleting(false)
     }
@@ -178,6 +186,7 @@ const AgreementsListTable = () => {
     if (!renewFor || !renewEndDate) return
     setDecisionBusy(true)
     setDecisionError(null)
+
     try {
       const successor = await renewAgreement(renewFor.id, {
         startDate: renewStartDate || undefined,
@@ -185,6 +194,8 @@ const AgreementsListTable = () => {
         rent: renewRent ? Number(renewRent) : undefined,
         notes: renewNotes || undefined
       })
+
+
       // The predecessor is now RENEWED; the successor is a brand-new PENDING agreement.
       setData(prev => [
         successor,
@@ -203,8 +214,10 @@ const AgreementsListTable = () => {
     if (!terminateFor) return
     setDecisionBusy(true)
     setDecisionError(null)
+
     try {
       const updated = await terminateAgreement(terminateFor.id, terminateNotes || undefined)
+
       setData(prev => prev.map(a => (a.id === updated.id ? updated : a)))
       setTerminateFor(null)
       setTerminateNotes('')
@@ -218,8 +231,10 @@ const AgreementsListTable = () => {
   const handleStatusUpdate = async () => {
     if (!selectedAgreement || !pendingStatus) return
     setStatusUpdating(true)
+
     try {
       const updated = await updateAgreementStatus(selectedAgreement.id, pendingStatus)
+
       handleSaved(updated)
       setStatusUpdateOpen(false)
       setSelectedAgreement(null)
@@ -233,6 +248,7 @@ const AgreementsListTable = () => {
 
   const handleExport = async () => {
     setExporting(true)
+
     try {
       await exportAgreementsCsv()
     } catch (err: any) {
@@ -269,14 +285,18 @@ const AgreementsListTable = () => {
         header: 'TYPE',
         cell: ({ row }) => {
           const t = agreementTypeObj[row.original.type] ?? { label: row.original.type, color: 'default' }
-          return <Chip variant='tonal' label={t.label} size='small' color={t.color} />
+
+          
+return <Chip variant='tonal' label={t.label} size='small' color={t.color} />
         }
       }),
       columnHelper.accessor('occupantName', {
         header: 'OCCUPANT',
         cell: ({ row }) => {
           const name = row.original.occupantName ?? '—'
-          return (
+
+          
+return (
             <div className='flex items-center gap-3'>
               <CustomAvatar skin='light' color='primary' size={34}>
                 {getInitials(name)}
@@ -374,6 +394,7 @@ const AgreementsListTable = () => {
                     }
                   }
                 },
+
                 // Renew / Terminate only while no decision has been recorded yet
                 ...(!row.original.renewalDecision ? [
                   {
@@ -443,13 +464,16 @@ const AgreementsListTable = () => {
   const statusOptions = useMemo<AgreementStatus[]>(() => {
     if (!selectedAgreement) return []
     const current = selectedAgreement.status
+
     const transitions: Record<string, AgreementStatus[]> = {
       PENDING:    ['ACTIVE', 'TERMINATED'],
       ACTIVE:     ['EXPIRED', 'TERMINATED'],
       EXPIRED:    ['TERMINATED'],
       TERMINATED: []
     }
-    return transitions[current] ?? []
+
+    
+return transitions[current] ?? []
   }, [selectedAgreement])
 
   return (

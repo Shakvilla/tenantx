@@ -58,8 +58,11 @@ const TenantDetailHeader = ({ tenantData, tenantId }: { tenantData?: TenantData;
       router.push('/tenants')
     } catch (error) {
       console.error('Failed to delete tenant:', error)
-      setDeleteError(error instanceof Error ? error.message : 'Failed to delete tenant')
       setIsDeleting(false)
+
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw error instanceof Error ? error : new Error('Failed to delete tenant')
     }
   }
 

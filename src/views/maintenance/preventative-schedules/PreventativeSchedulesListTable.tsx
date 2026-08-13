@@ -57,8 +57,10 @@ declare module '@tanstack/table-core' {
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -68,26 +70,34 @@ const DebouncedInput = ({
   ...props
 }: { value: string | number; onChange: (v: string | number) => void; debounce?: number } & Omit<TextFieldProps, 'onChange'>) => {
   const [value, setValue] = useState(initialValue)
+
   useEffect(() => { setValue(initialValue) }, [initialValue])
   useEffect(() => {
     const t = setTimeout(() => onChange(value), debounce)
-    return () => clearTimeout(t)
+
+    
+return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
-  return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
+  
+return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
 }
 
 const formatDate = (d?: string | null) => {
   if (!d) return '-'
   const date = new Date(d)
-  return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}`
+
+  
+return `${date.getDate()} ${date.toLocaleString('en-US', { month: 'short' })} ${date.getFullYear()}`
 }
 
 const isDueSoon = (nextDueDate: string) => {
   const due = new Date(nextDueDate)
   const now = new Date()
   const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  return diffDays <= 7
+
+  
+return diffDays <= 7
 }
 
 const isOverdue = (nextDueDate: string) => new Date(nextDueDate) < new Date()
@@ -118,8 +128,10 @@ const PreventativeSchedulesListTable = () => {
   const fetchSchedules = useCallback(async () => {
     setLoading(true)
     setError(null)
+
     try {
       const res = await getPreventativeSchedules({ size: 100, sort: 'nextDueDate,asc' })
+
       setData(res.data ?? [])
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load schedules')
@@ -132,8 +144,10 @@ const PreventativeSchedulesListTable = () => {
 
   const handleToggleActive = useCallback(async (schedule: PreventativeSchedule) => {
     setTogglingId(schedule.id)
+
     try {
       const updated = await updatePreventativeSchedule(schedule.id, { isActive: !schedule.isActive })
+
       setData(prev => prev.map(s => s.id === schedule.id ? { ...s, isActive: updated.isActive } : s))
     } catch (err: any) {
       setError(err?.message ?? 'Failed to update schedule')
@@ -144,11 +158,14 @@ const PreventativeSchedulesListTable = () => {
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!selected) return
+
     try {
       await deletePreventativeSchedule(selected.id)
       setData(prev => prev.filter(s => s.id !== selected.id))
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to delete schedule')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error(err?.message ?? 'Failed to delete schedule')
     } finally {
       setDeleteOpen(false)
       setSelected(null)
@@ -160,7 +177,9 @@ const PreventativeSchedulesListTable = () => {
       id: 'sl', header: 'SL',
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination
-        return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+        
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
       }
     }),
     columnHelper.accessor('title', {
@@ -189,7 +208,9 @@ const PreventativeSchedulesListTable = () => {
       header: 'Priority',
       cell: ({ row }) => {
         const p = row.original.priority?.toLowerCase() ?? ''
-        return <Chip variant='tonal' label={p} size='small' color={PRIORITY_COLORS[p] ?? 'secondary'} className='capitalize' />
+
+        
+return <Chip variant='tonal' label={p} size='small' color={PRIORITY_COLORS[p] ?? 'secondary'} className='capitalize' />
       }
     }),
     columnHelper.accessor('nextDueDate', {
@@ -198,7 +219,9 @@ const PreventativeSchedulesListTable = () => {
         const d = row.original.nextDueDate
         const overdue = isOverdue(d)
         const soon = !overdue && isDueSoon(d)
-        return (
+
+        
+return (
           <Typography
             variant='body2'
             color={overdue ? 'error.main' : soon ? 'warning.main' : 'text.primary'}

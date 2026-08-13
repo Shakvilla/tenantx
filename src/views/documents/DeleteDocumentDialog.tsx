@@ -15,10 +15,14 @@ type DeleteDocumentDialogProps = {
 }
 
 /**
- * Single-step delete confirmation for a document. The API call fires on the one
- * confirm click (via onConfirm) — unlike the shared two-step ConfirmationDialog,
- * whose "deleted successfully" screen appears before the request and only fires
- * the delete when that success screen is dismissed.
+ * Single-step delete confirmation for a document: the API call fires on the one
+ * confirm click, and the caller reports the outcome inline.
+ *
+ * This was originally written to route around the shared ConfirmationDialog,
+ * which used to show "deleted successfully" before the request was even sent and
+ * only fired the delete once that screen was dismissed. That defect is fixed —
+ * the shared dialog now awaits the action and reports what actually happened —
+ * so this exists for its shorter flow, not to dodge a bug.
  */
 const DeleteDocumentDialog = ({ open, setOpen, onConfirm, documentName }: DeleteDocumentDialogProps) => {
   const handleClose = () => setOpen(false)

@@ -150,6 +150,7 @@ const ExpensesListTable = () => {
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
+
     try {
       const [expenses, expStats] = await Promise.all([
         getExpenses(statusFilter ? { status: statusFilter } : {}),
@@ -200,12 +201,14 @@ const ExpensesListTable = () => {
 
       return [saved, ...prev]
     })
+
     // Refresh stats
     getExpenseStats().then(setStats).catch(() => {})
   }, [])
 
   const handleDeleteConfirm = async () => {
     if (!toDelete) return
+
     try {
       await deleteExpense(toDelete.id)
       setData(prev => prev.filter(e => e.id !== toDelete.id))
@@ -213,7 +216,9 @@ const ExpensesListTable = () => {
       setToDelete(null)
       getExpenseStats().then(setStats).catch(() => {})
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to delete expense')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error(err?.message ?? 'Failed to delete expense')
     }
   }
 

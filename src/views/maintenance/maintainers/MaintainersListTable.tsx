@@ -63,21 +63,27 @@ type MaintainerWithAction = Maintainer & { action?: string }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
+
   addMeta({ itemRank })
-  return itemRank.passed
+  
+return itemRank.passed
 }
 
 const DebouncedInput = ({
   value: initialValue, onChange, debounce = 500, ...props
 }: { value: string | number; onChange: (v: string | number) => void; debounce?: number } & Omit<TextFieldProps, 'onChange'>) => {
   const [value, setValue] = useState(initialValue)
+
   useEffect(() => { setValue(initialValue) }, [initialValue])
   useEffect(() => {
     const t = setTimeout(() => onChange(value), debounce)
-    return () => clearTimeout(t)
+
+    
+return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
-  return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
+  
+return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
 }
 
 const STATUS_COLORS: Record<string, 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'> = {
@@ -107,8 +113,10 @@ const MaintainersListTable = () => {
   const fetchMaintainers = useCallback(async () => {
     setLoading(true)
     setError(null)
+
     try {
       const response = await getMaintainers({ size: 100 })
+
       setData(response.data ?? [])
     } catch (err: any) {
       setError(err?.message ?? 'Failed to load maintainers')
@@ -121,13 +129,17 @@ const MaintainersListTable = () => {
 
   const uniqueSpecializations = useMemo(() => {
     const all = data.flatMap(m => m.specializations ?? [])
-    return Array.from(new Set(all)).sort()
+
+    
+return Array.from(new Set(all)).sort()
   }, [data])
 
   const filteredData = useMemo(() => {
     let filtered = data
+
     if (globalFilter) {
       const q = globalFilter.toLowerCase()
+
       filtered = filtered.filter(m =>
         m.name?.toLowerCase().includes(q) ||
         m.email?.toLowerCase().includes(q) ||
@@ -136,9 +148,11 @@ const MaintainersListTable = () => {
         m.specializations?.some(s => s.toLowerCase().includes(q))
       )
     }
+
     if (selectedStatus) filtered = filtered.filter(m => m.status?.toUpperCase() === selectedStatus.toUpperCase())
     if (selectedSpecialization) filtered = filtered.filter(m => m.specializations?.includes(selectedSpecialization))
-    return filtered
+    
+return filtered
   }, [data, globalFilter, selectedStatus, selectedSpecialization])
 
   const columns = useMemo<ColumnDef<MaintainerWithAction, any>[]>(() => [
@@ -155,7 +169,9 @@ const MaintainersListTable = () => {
       id: 'sl', header: 'SL',
       cell: ({ row, table }) => {
         const { pageIndex, pageSize } = table.getState().pagination
-        return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
+
+        
+return <Typography>{pageIndex * pageSize + row.index + 1}.</Typography>
       }
     }),
     columnHelper.accessor('name', {
@@ -208,7 +224,9 @@ const MaintainersListTable = () => {
       header: 'Status',
       cell: ({ row }) => {
         const s = row.original.status ?? ''
-        return <Chip variant='tonal' label={s} size='small' color={STATUS_COLORS[s] ?? 'secondary'} className='capitalize' />
+
+        
+return <Chip variant='tonal' label={s} size='small' color={STATUS_COLORS[s] ?? 'secondary'} className='capitalize' />
       }
     }),
     columnHelper.display({
@@ -247,6 +265,7 @@ const MaintainersListTable = () => {
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!selectedMaintainer) return
+
     const ids = Object.keys(rowSelection).length > 0
       ? (Object.keys(rowSelection).map(k => filteredData[parseInt(k)]?.id).filter(Boolean) as string[])
       : [selectedMaintainer.id]
@@ -254,10 +273,14 @@ const MaintainersListTable = () => {
     try {
       await Promise.all(ids.map(id => deleteMaintainer(id)))
       setData(prev => prev.filter(m => !ids.includes(m.id)))
-    } catch {
-      // optimistic removal failed — refetch
+    } catch (err: any) {
+      // The optimistic removal is undone either way, but the failure must also
+      // reach the landlord: ConfirmationDialog awaits this and reports the
+      // outcome, and swallowing it announces a delete that did not happen.
       fetchMaintainers()
+      throw err instanceof Error ? err : new Error(err?.message ?? 'Failed to delete maintainer(s)')
     }
+
     setRowSelection({})
     setDeleteOpen(false)
     setSelectedMaintainer(null)
@@ -273,7 +296,9 @@ const MaintainersListTable = () => {
             <div className='flex items-center gap-2'>
               {Object.keys(rowSelection).length > 0 && (
                 <Button variant='outlined' color='error' startIcon={<i className='ri-delete-bin-line' />}
-                  onClick={() => { const f = filteredData[parseInt(Object.keys(rowSelection)[0])]; if (f) { setSelectedMaintainer(f); setDeleteOpen(true) } }}>
+                  onClick={() => { const f = filteredData[parseInt(Object.keys(rowSelection)[0])];
+
+ if (f) { setSelectedMaintainer(f); setDeleteOpen(true) } }}>
                   Delete Selected ({Object.keys(rowSelection).length})
                 </Button>
               )}
