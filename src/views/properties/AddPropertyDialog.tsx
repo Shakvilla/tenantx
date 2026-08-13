@@ -558,8 +558,20 @@ const AddPropertyDialog = ({
         },
         type: backendType as 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment',
         ownership: ((mode === 'edit' && editData?.ownership) || 'own') as 'own' | 'lease',
-        region: (mode === 'edit' && editData?.region) || formData.region,
-        district: (mode === 'edit' && editData?.district) || formData.district,
+        // formData, not editData. `editData.region` is the DISPLAY value — the
+        // detail page title-cases it for rendering — so preferring it here sent
+        // 'Greater Accra' back over the stored 'greater-accra', and every edit
+        // quietly rewrote a catalogue slug into a display name. That is how the
+        // two forms got mixed in the database, and it broke the very lookups
+        // the slug exists for: the locality list a city is picked from, and
+        // marketplace search, which compares regions literally.
+        //
+        // formData is seeded from rawRegion/rawDistrict at line ~290 and holds
+        // whatever the landlord has since picked, so it is already correct in
+        // both directions; the raw fields are only a fallback for a form that
+        // never rendered these controls.
+        region: formData.region || (mode === 'edit' ? editData?.rawRegion : undefined),
+        district: formData.district || (mode === 'edit' ? editData?.rawDistrict : undefined),
         gpsCode: formData.gpsCode || undefined,
         description: formData.description || undefined,
         condition: backendCondition as 'new' | 'good' | 'fair' | 'poor',

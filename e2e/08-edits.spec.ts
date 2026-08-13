@@ -84,14 +84,14 @@ test.describe.serial('editing a record', () => {
       ownership: 'own',
       condition: 'good',
       status: 'active',
-      region: 'Greater Accra',
-      district: 'Accra',
+      region: 'greater-accra',
+      district: 'accra-metro',
       city: 'Accra',
       address: { street: STREET, city: 'Accra' },
 
-      // No GPS code. One with a code cannot be edited at all right now — see
-      // the last test in this file — and this one is here to exercise the
-      // round trip, not that defect.
+      // No GPS code, so this stays a test of the round trip. What a code adds
+      // — a decode on open that used to discard the city — is the last test in
+      // this file, on its own fixture.
       description: 'Original description',
 
       // 11 is the count the form cannot represent exactly: it prefills as the
@@ -309,13 +309,18 @@ test.describe.serial('editing a record', () => {
    * district would indeed be wrong. On open nothing has moved, so the stored
    * city was discarded for no reason, and City is required.
    *
-   * Whether that merely annoys or hard-blocks depends on the property. The
+   * Whether that merely annoys or hard-blocks depended on the property. The
    * catalogue itself is fine — reference/ghana-locations.json ships 7,150
-   * localities and `?district=accra-metro` returns 26 of them. But the lookup
-   * matches the district SLUG, and properties saved before that convention
-   * hold display names ('Accra', 'Adenta') which match nothing. Those get an
-   * empty City list, so there is nothing to re-pick and the property cannot be
-   * saved at all. This fixture is one of them, deliberately.
+   * localities and `?district=accra-metro` returns 26 of them, 'Accra' among
+   * them. But the lookup matches the district SLUG, and properties saved
+   * before anything checked hold display names ('Accra', 'Adenta') that match
+   * nothing: those got an empty City list, so there was nothing to re-pick and
+   * the property could not be saved at all.
+   *
+   * This fixture uses catalogue values, because that is what the product now
+   * writes and refuses to accept anything else. It still guards the fix: with
+   * the city cleared on open, the form loses a value the owner never touched
+   * and saves an empty one.
    *
    * Isolated at the time by creating the same property twice, with and without
    * a code: the one without advanced past Step 1, the one with did not. City is
@@ -331,8 +336,8 @@ test.describe.serial('editing a record', () => {
       ownership: 'own',
       condition: 'good',
       status: 'active',
-      region: 'Greater Accra',
-      district: 'Accra',
+      region: 'greater-accra',
+      district: 'accra-metro',
       city: 'Accra',
       address: { street: codedStreet, city: 'Accra' },
       gpsCode: GPS,
@@ -375,11 +380,11 @@ test.describe.serial('editing a record', () => {
     await expect(dialog).toBeHidden({ timeout: 60_000 })
 
     const row = queryDb(
-      `SELECT description, city, gps_code, district, address_line_1
+      `SELECT description, city, gps_code, region, district, address_line_1
        FROM properties WHERE id = '${withCode.id}';`
     )
 
-    const [description, city, gpsCode, district, street] = row.split('|')
+    const [description, city, gpsCode, region, district, street] = row.split('|')
 
     expect(description).toBe('Coded edited')
 
@@ -389,7 +394,12 @@ test.describe.serial('editing a record', () => {
     expect(city).toBe('Accra')
 
     expect(gpsCode).toBe(GPS)
-    expect(district).toBe('Accra')
+    // The catalogue slugs, unchanged. The edit dialog used to send the display
+    // name back over these — 'Greater Accra' for 'greater-accra' — so every
+    // save rewrote the values the locality lookup and marketplace search
+    // depend on, in the one flow most likely to be used on an old property.
+    expect(region).toBe('greater-accra')
+    expect(district).toBe('accra-metro')
     expect(street).toBe(codedStreet)
   })
 })

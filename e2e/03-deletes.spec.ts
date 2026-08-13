@@ -81,8 +81,8 @@ test.describe.serial('deleting records', () => {
       ownership: 'own',
       condition: 'good',
       status: 'active',
-      region: 'Greater Accra',
-      district: 'Accra',
+      region: 'greater-accra',
+      district: 'accra-metro',
       city: 'Accra'
     }
 

@@ -82,8 +82,8 @@ test.describe.serial('recording a payment against an invoice', () => {
       ownership: 'own',
       condition: 'good',
       status: 'active',
-      region: 'Greater Accra',
-      district: 'Accra',
+      region: 'greater-accra',
+      district: 'accra-metro',
       city: 'Accra'
     }, headers)
 
