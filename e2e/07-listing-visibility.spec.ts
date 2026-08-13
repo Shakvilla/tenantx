@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process'
+
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 
 import { E2E_USER, unique } from './fixtures'
@@ -38,6 +40,14 @@ async function post<T>(req: APIRequestContext, path: string, body: unknown, head
   if (!res.ok()) throw new Error(`POST ${path} → ${res.status()} ${await res.text()}`)
 
   return (await res.json()) as T
+}
+
+function queryDb(sql: string): string {
+  return execFileSync(
+    'docker',
+    ['exec', 'tenantx-backend-db-1', 'psql', '-U', 'postgres', '-d', 'tenantx', '-t', '-A', '-c', sql],
+    { encoding: 'utf8' }
+  ).trim()
 }
 
 /** The listing ids the public browse endpoint is currently serving. */
@@ -166,5 +176,55 @@ test.describe.serial('listing visibility', () => {
     // The switch stays on: the owner's setting really is on, and the listing
     // returns by itself once the unit frees up.
     await expect(card.getByRole('checkbox')).toBeChecked()
+  })
+
+  test('the owner is notified that the listing paused', async () => {
+    /**
+     * The unit tests drive the entity listener directly, which proves the
+     * transition logic and nothing else — not that Hibernate calls @PostLoad,
+     * not that the snapshot survives to @PostUpdate, and not that the
+     * after-commit event reaches the notifier. Only the real stack does, and
+     * every one of those is a way for this to be silently dead.
+     *
+     * Read from the database rather than the bell: an unread count can be
+     * satisfied by any other notification the fixtures happened to produce.
+     */
+    const row = queryDb(
+      `SELECT title FROM user_notifications
+       WHERE tenant_id = '${E2E_USER.tenantId}' AND entity_type = 'UNIT'
+       ORDER BY created_at DESC LIMIT 1;`
+    )
+
+    expect(row, 'no listing-paused notification was written').toContain('Listing paused')
+
+    const body = queryDb(
+      `SELECT body FROM user_notifications
+       WHERE tenant_id = '${E2E_USER.tenantId}' AND entity_type = 'UNIT'
+       ORDER BY created_at DESC LIMIT 1;`
+    )
+
+    expect(body).toContain('reserved')
+    expect(body).toContain('start showing again by itself')
+
+    // Addressed to the unit, so the bell can deep-link to the page whose
+    // Advertise card explains the pause. A notification about a listing with
+    // nowhere to click is half a feature.
+    const target = queryDb(
+      `SELECT entity_id FROM user_notifications
+       WHERE tenant_id = '${E2E_USER.tenantId}' AND entity_type = 'UNIT'
+       ORDER BY created_at DESC LIMIT 1;`
+    )
+
+    expect(target).toBe(unitId)
+
+    // Exactly one. The unit went available → reserved once; a listener that
+    // announced the state rather than the transition would fire again on every
+    // later write to the row.
+    const count = queryDb(
+      `SELECT count(*) FROM user_notifications
+       WHERE tenant_id = '${E2E_USER.tenantId}' AND entity_type = 'UNIT';`
+    )
+
+    expect(count).toBe('1')
   })
 })

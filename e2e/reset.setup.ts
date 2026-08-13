@@ -20,6 +20,12 @@ import { E2E_USER } from './fixtures'
  * agreements have no FK to property/unit/occupant at all).
  */
 const TABLES = [
+  // Notifications accumulate across runs, and the listing-pause spec asserts
+  // exactly one was written — a listener that announced a unit's state rather
+  // than its transition would show up as a growing count, which only reads as
+  // a failure from a clean slate.
+  'user_notifications',
+
   // Payments and the wallet entries they credit, before the invoices they settle.
   // Without these the payment spec's second run starts against an invoice that
   // is already PAID, and its part-payment assertion fails for the wrong reason.

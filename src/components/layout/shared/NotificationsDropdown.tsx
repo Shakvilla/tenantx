@@ -73,6 +73,10 @@ function entityRoute(entityType: string | null, entityId: string | null): string
       return entityId ? `/occupants/${entityId}` : '/occupants'
     case 'INSPECTION':
       return '/inspections'
+    case 'UNIT':
+      // The unit page carries the Advertise card, which is what explains a
+      // paused listing — the only reason a UNIT notification is raised today.
+      return entityId ? `/properties/units/${entityId}` : '/properties/units'
     default:
       return null
   }
@@ -131,6 +135,8 @@ function mapEntityToAvatar(entityType: string | null): Pick<NotificationsType, '
       return { avatarIcon: 'ri-money-dollar-circle-line', avatarColor: 'success' }
     case 'AGREEMENT':
       return { avatarIcon: 'ri-file-text-line', avatarColor: 'primary' }
+    case 'UNIT':
+      return { avatarIcon: 'ri-home-search-line', avatarColor: 'warning' }
     default:
       return { avatarIcon: 'ri-notification-2-line', avatarColor: 'info' }
   }
