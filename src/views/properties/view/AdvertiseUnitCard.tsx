@@ -38,7 +38,30 @@ export default function AdvertiseUnitCard({ unitId, unitNo, propertyName }: Prop
       .finally(() => setLoading(false))
   }, [unitId])
 
+  // The landlord's setting. Left alone by everything except this switch.
   const isActive = listing?.status === 'ACTIVE'
+
+  /**
+   * Whether the public can actually see it, which is not the same thing.
+   *
+   * The public queries require the unit to still be available on top of the
+   * listing being ACTIVE, so signing an agreement — which reserves the unit —
+   * takes the listing off the public page without touching it. This card used
+   * to read `status` alone and go on saying "Listed for rent" regardless, so
+   * the only symptom was silence from a page nobody could see.
+   *
+   * Nothing was deactivated, so it comes back by itself once the unit is free
+   * again; the switch stays on because the setting really is on.
+   */
+  const pausedBy = isActive && listing && listing.unitStatus !== 'available' ? listing.unitStatus : null
+
+  const PAUSE_REASON: Record<string, string> = {
+    occupied: 'this unit is occupied',
+    reserved: 'this unit is reserved',
+    maintenance: 'this unit is under maintenance'
+  }
+
+  const pauseReason = pausedBy ? (PAUSE_REASON[pausedBy] ?? `this unit is ${pausedBy}`) : null
 
   // ── toggle handler ───────────────────────────────────────────────────────
 
@@ -81,20 +104,27 @@ export default function AdvertiseUnitCard({ unitId, unitNo, propertyName }: Prop
         title='Advertise Unit'
         subheader='List this unit to attract prospective tenants'
         avatar={
+
+          // Tracks what the public sees, not the switch — a success-green icon
+          // beside a "Paused" chip contradicts it.
           <Box sx={{
             width: 40, height: 40, borderRadius: '50%',
-            background: isActive
-              ? 'var(--mui-palette-success-lightOpacity)'
-              : 'var(--mui-palette-action-hover)',
+            background: pausedBy
+              ? 'var(--mui-palette-warning-lightOpacity)'
+              : isActive
+                ? 'var(--mui-palette-success-lightOpacity)'
+                : 'var(--mui-palette-action-hover)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             <i
               className='ri-home-search-line'
               style={{
                 fontSize: 20,
-                color: isActive
-                  ? 'var(--mui-palette-success-main)'
-                  : 'var(--mui-palette-text-secondary)',
+                color: pausedBy
+                  ? 'var(--mui-palette-warning-main)'
+                  : isActive
+                    ? 'var(--mui-palette-success-main)'
+                    : 'var(--mui-palette-text-secondary)',
               }}
             />
           </Box>
@@ -129,10 +159,10 @@ export default function AdvertiseUnitCard({ unitId, unitNo, propertyName }: Prop
             </Box>
 
             <Chip
-              label={isActive ? 'Active listing' : 'Inactive'}
+              label={pausedBy ? 'Paused — not showing publicly' : isActive ? 'Active listing' : 'Inactive'}
               size='small'
               variant='tonal'
-              color={isActive ? 'success' : 'default'}
+              color={pausedBy ? 'warning' : isActive ? 'success' : 'default'}
               sx={{ alignSelf: 'flex-start' }}
             />
 
@@ -141,9 +171,11 @@ export default function AdvertiseUnitCard({ unitId, unitNo, propertyName }: Prop
             )}
 
             <Typography variant='caption' color='text.secondary'>
-              {isActive
-                ? 'This unit will appear on the public vacancy listing page when it goes live.'
-                : 'Toggle on to include this unit in the public vacancy listing.'}
+              {pausedBy
+                ? `Hidden from the public vacancy page while ${pauseReason}. It will start showing again on its own once the unit is available — you do not need to re-list it.`
+                : isActive
+                  ? 'This unit is showing on the public vacancy listing page.'
+                  : 'Toggle on to include this unit in the public vacancy listing.'}
             </Typography>
           </Box>
         )}

@@ -1,7 +1,16 @@
+/**
+ * A listing is only shown publicly when it is ACTIVE *and* its unit is still
+ * available — the second half is enforced in the query, not stored. So
+ * `status` alone never tells you whether the public can see it; `unitStatus`
+ * is the other half.
+ */
+export type UnitAvailability = 'available' | 'occupied' | 'reserved' | 'maintenance'
+
 export interface VacancyListing {
   id: string
   unitId: string
   unitNo: string
+  unitStatus: UnitAvailability
   unitType: string
   bedrooms: number | null
   bathrooms: number | null
