@@ -236,13 +236,34 @@ test.describe.serial('recording a payment against an invoice', () => {
 
     await expect(row).toBeVisible({ timeout: 30_000 })
 
-    // The STATUS column is an icon-only avatar whose word lives in a tooltip, so
-    // there is nothing to assert there. The BALANCE column is the readable
-    // signal: InvoicesListTable:395 swaps the figure for a "Paid" chip once the
-    // balance reaches zero, so this asserts settlement AND that the balance
-    // actually landed at zero — the amount would still be rendered otherwise.
-    // The amount column still reads ₵1,200.00 — that is the invoice's value and
-    // does not change when it is settled. Only the balance column flips.
+    // The BALANCE column swaps the figure for a "Paid" chip once the balance
+    // reaches zero, so this asserts settlement AND that the balance actually
+    // landed at zero — the amount would still be rendered otherwise. The amount
+    // column still reads ₵1,200.00: that is the invoice's value and does not
+    // change when it is settled. Only the balance column flips.
     await expect(row).toContainText('Paid')
+  })
+
+  test('the invoice status is readable, not just an icon', async ({ page }) => {
+    /**
+     * The STATUS column used to be an icon-only avatar with the word hidden in a
+     * hover tooltip — nothing to read at a glance, nothing for a screen reader,
+     * and no tooltip at all on a touch device, on the column that says whether
+     * you have been paid. Verified in the live DOM at the time: the cell had
+     * empty innerText, no aria-label and no title.
+     *
+     * Asserted on the cell itself rather than the row, because the row already
+     * contains "Paid" from the balance column — which is exactly how a
+     * regression here would hide.
+     */
+    await page.goto('/billing/invoices')
+
+    const row = page.getByRole('row').filter({ hasText: invoiceNumber })
+
+    await expect(row).toBeVisible({ timeout: 30_000 })
+
+    const statusCell = row.getByRole('cell').nth(2)
+
+    await expect(statusCell).toHaveText(/Paid/i)
   })
 })

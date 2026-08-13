@@ -88,18 +88,25 @@ declare module '@tanstack/table-core' {
 type InvoiceWithAction = Invoice & { action?: string }
 
 type StatusConfig = {
+
+  /** Shown to the user. Colour and icon alone are not readable — see the STATUS column. */
+  label: string
   icon: string
   color: 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'
 }
 
 const invoiceStatusObj: Record<string, StatusConfig> = {
-  PAID: { color: 'success', icon: 'ri-checkbox-circle-line' },
-  PARTIAL: { color: 'primary', icon: 'ri-pie-chart-2-line' },
-  PENDING: { color: 'warning', icon: 'ri-time-line' },
-  OVERDUE: { color: 'error', icon: 'ri-error-warning-line' },
-  DRAFT: { color: 'info', icon: 'ri-file-edit-line' },
-  CANCELLED: { color: 'secondary', icon: 'ri-close-circle-line' }
+  PAID: { label: 'Paid', color: 'success', icon: 'ri-checkbox-circle-line' },
+  PARTIAL: { label: 'Partial', color: 'primary', icon: 'ri-pie-chart-2-line' },
+  PENDING: { label: 'Pending', color: 'warning', icon: 'ri-time-line' },
+  OVERDUE: { label: 'Overdue', color: 'error', icon: 'ri-error-warning-line' },
+  DRAFT: { label: 'Draft', color: 'info', icon: 'ri-file-edit-line' },
+  CANCELLED: { label: 'Cancelled', color: 'secondary', icon: 'ri-close-circle-line' }
 }
+
+/** Falls back to the raw status rather than showing nothing for a value we do not know. */
+const statusConfigFor = (status: string): StatusConfig =>
+  invoiceStatusObj[status] ?? { label: status || 'Unknown', color: 'secondary', icon: 'ri-question-line' }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
@@ -313,18 +320,26 @@ const InvoicesListTable = () => {
       columnHelper.accessor('status', {
         header: 'STATUS',
         cell: ({ row }) => {
-          const cfg = invoiceStatusObj[row.original.status] ?? { color: 'secondary', icon: 'ri-question-line' }
+          const cfg = statusConfigFor(row.original.status)
           const available = getAvailableStatuses(row.original.status)
 
           return (
             <div className='flex items-center gap-2'>
+              {/*
+                * The label is rendered, not just the icon. This was an icon-only
+                * avatar with the status hidden in the tooltip below, on the one
+                * column that says whether you have been paid: nothing to read at
+                * a glance, nothing for a screen reader, and no tooltip at all on
+                * a touch device. Draft/Pending/Partial are also near-
+                * indistinguishable by colour.
+                *
+                * The tooltip stays for balance and due date, which are genuinely
+                * supplementary — losing them to a hover is acceptable in a way
+                * that losing the status is not.
+                */}
               <Tooltip
                 title={
                   <div>
-                    <Typography variant='body2' component='span' className='text-inherit'>
-                      {row.original.status}
-                    </Typography>
-                    <br />
                     <Typography variant='body2' component='span' className='text-inherit'>
                       Balance: {formatCurrency(row.original.balance, row.original.currency)}
                     </Typography>
@@ -335,9 +350,13 @@ const InvoicesListTable = () => {
                   </div>
                 }
               >
-                <CustomAvatar skin='light' color={cfg.color} size={28}>
-                  <i className={classnames('text-base', cfg.icon)} />
-                </CustomAvatar>
+                <Chip
+                  size='small'
+                  variant='tonal'
+                  color={cfg.color}
+                  label={cfg.label}
+                  icon={<i className={classnames('text-base', cfg.icon)} />}
+                />
               </Tooltip>
               {available.length > 0 && (
                 <IconButton size='small' onClick={() => handleEditClick(row.original)} className='text-primary'>
@@ -612,9 +631,9 @@ const InvoicesListTable = () => {
               {selectedInvoice && (
                 <Chip
                   variant='tonal'
-                  label={selectedInvoice.status}
+                  label={statusConfigFor(selectedInvoice.status).label}
                   size='small'
-                  color={invoiceStatusObj[selectedInvoice.status]?.color ?? 'default'}
+                  color={statusConfigFor(selectedInvoice.status).color}
                 />
               )}
             </div>
