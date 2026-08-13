@@ -5,16 +5,21 @@ import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
-import Chip from '@mui/material/Chip'
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 
 // Context Imports
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
+/**
+ * `facilities` used to sit alongside this, populated from the SAME
+ * `property.amenities` array, and was rendered below as raw chips —
+ * `kitchenCabinets`, `popCeiling`, `gatedCompound`. So the page listed every
+ * amenity twice: once labelled through the reference data, once as its storage
+ * key. One column, one list, one rendering.
+ */
 type PropertyData = {
   amenities: Record<string, boolean>
-  facilities: string[]
 }
 
 const PropertyFeaturesCard = ({ propertyData }: { propertyData?: PropertyData }) => {
@@ -53,25 +58,6 @@ const PropertyFeaturesCard = ({ propertyData }: { propertyData?: PropertyData })
             <Typography color='text.secondary'>No amenities selected</Typography>
           )}
 
-          {propertyData.facilities && propertyData.facilities.length > 0 && (
-            <div className='flex flex-col gap-2 mts-4'>
-              <Typography variant='subtitle2' className='font-medium' color='text.primary'>
-                Facilities
-              </Typography>
-              <div className='flex flex-wrap gap-2'>
-                {propertyData.facilities.map((facility, index) => (
-                  <Chip
-                    key={index}
-                    label={facility}
-                    size='small'
-                    variant='tonal'
-                    color='primary'
-                    icon={<i className={`ri-${facility === 'wifi' ? 'wifi' : facility === 'bed' ? 'bed' : 'lightbulb'}-line`} />}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>

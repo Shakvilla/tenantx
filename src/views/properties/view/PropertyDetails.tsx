@@ -20,7 +20,6 @@ type PropertyData = {
   bedrooms: string
   bathrooms: string
   rooms: string
-  facilities: string[]
   condition: string
   region: string
   district: string

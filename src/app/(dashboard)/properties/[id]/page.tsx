@@ -59,12 +59,16 @@ function toPropertyViewData(property: Record<string, any>) {
     location: property.district || property.region || 'Unknown',
     type: type || 'House',
     stock: property.status === 'active',
-    address: property.gpsCode || property.address?.street || '',
+    // Street first. This read `gpsCode || street`, so the street address could
+    // never display: a property with one showed its Ghana Post code here AND in
+    // the GPS Code row below — the same value twice, and the actual street
+    // nowhere. The code remains the fallback, since it locates the property
+    // better than an empty row when no street was entered.
+    address: property.address?.street || property.gpsCode || '',
     price: property.currentValue ? `${property.currency ?? '₵'}${property.currentValue.toLocaleString()}` : 'N/A',
     bedrooms: toCountOption(property.bedrooms, BEDROOM_OPTIONS),
     bathrooms: toCountOption(property.bathrooms, BATHROOM_OPTIONS),
     rooms: toCountOption(property.rooms, ROOM_OPTIONS),
-    facilities: property.amenities || [],
     condition: toTitleCase(property.condition) || 'New',
     region: toTitleCase(property.region) || '',
     district: district || '',
