@@ -9,7 +9,7 @@ import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 
-import { createAgreement } from '@/lib/api/agreements'
+import { createAgreement, updateAgreementStatus } from '@/lib/api/agreements'
 import type { OnboardingStepProps } from '../onboardingTypes'
 
 interface AgreementStepProps extends OnboardingStepProps {
@@ -47,8 +47,26 @@ export default function AgreementStep({ entityIds, onComplete, onSkip, defaultRe
 
       if (!agreement?.id) {
         setError('Could not create agreement. Please try again.')
-        
+
 return
+      }
+
+      // Activate it. createAgreement always writes PENDING (AgreementMapper
+      // hardcodes it) and puts the unit in `reserved`, which is right for a
+      // lease signed ahead of a move-in — but this is first-run setup, where the
+      // landlord is recording a tenancy that already exists. Left PENDING, the
+      // occupant step's `occupied` is overwritten by `reserved` and the unit
+      // lands in neither the Occupied nor the Vacant tile, having also dropped
+      // out of public listings. PENDING -> ACTIVE is the supported transition
+      // and is what returns the unit to `occupied`.
+      //
+      // Best-effort: if it fails, the agreement still exists and can be
+      // activated from the Agreements page. Losing the whole step over the
+      // status would be worse than finishing with it pending.
+      try {
+        await updateAgreementStatus(agreement.id, 'ACTIVE')
+      } catch {
+        // Deliberately swallowed — see above.
       }
 
       onComplete({ agreementId: agreement.id })

@@ -127,31 +127,36 @@ test.describe.serial('first-run wizard — the whole chain', () => {
   })
 
   test('the generated invoice names its tenant, property and unit', async ({ page }) => {
-    // Currently fails, deliberately. `test.fail()` keeps the suite green while
-    // recording a real defect, and turns RED the moment someone fixes it —
-    // which is the prompt to delete this line.
-    //
-    // The invoice row is written with occupant_id set but occupant_name,
-    // property_name and unit_no all empty, so the invoices list shows an
-    // invoice belonging to nobody, for nothing. Confirmed in the database.
-    test.fail()
+    /**
+     * Was a defect: the wizard sends ids only, and the invoice row was written
+     * with a live occupant_id but occupant_name, property_name and unit_no all
+     * empty — an invoice belonging to nobody, for nothing.
+     *
+     * InvoiceServiceImpl.fillMissingNames now resolves the blanks from the ids
+     * on write, so every caller gets them, not just the forms that happened to
+     * send both. Stop resolving them and this goes red.
+     */
     await page.goto('/billing/invoices')
     await expect(page.getByText(occupantLast).first()).toBeVisible({ timeout: 30_000 })
   })
 
   test('a fully onboarded unit is marked occupied, not reserved', async ({ page }) => {
-    // Currently fails, deliberately — see the note on the invoice test above.
-    //
-    // Completing ALL FIVE steps still leaves: unit `reserved`, agreement
-    // PENDING, occupant active. The occupant step correctly sets the unit to
-    // `occupied`, and then the agreement step downgrades it to `reserved`
-    // (AgreementServiceImpl:142). This wizard offers no activation choice, so
-    // there is no way to finish onboarding in a fully-active state.
-    //
-    // Consequence: the dashboard reads Occupied 0 AND Vacant 0 for a unit that
-    // has a live tenant in it, and the unit drops out of public listings.
-    test.fail()
-
+    /**
+     * Was a defect: completing all five steps still left the unit `reserved`,
+     * the agreement PENDING and the occupant active. The occupant step sets the
+     * unit `occupied` and the agreement step then downgraded it to `reserved`
+     * (AgreementServiceImpl:142), because createAgreement always writes PENDING
+     * — AgreementMapper hardcodes it — and reserves the unit to match.
+     *
+     * `reserved` is right for a lease signed ahead of a move-in. It is wrong
+     * for first-run setup, where the tenancy already exists, and the unit then
+     * fell into neither the Occupied nor the Vacant tile while also dropping
+     * out of public listings.
+     *
+     * AgreementStep now activates the agreement it just created, via the
+     * supported PENDING -> ACTIVE transition, which returns the unit to
+     * `occupied`.
+     */
     await page.goto('/properties/units')
 
     const row = page.getByRole('row').filter({ hasText: unitNo })
