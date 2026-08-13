@@ -348,9 +348,11 @@ const PropertyAddressFields = ({
    * every decode, including the one that runs when an existing property is
    * opened for editing and its own stored code is decoded — where nothing has
    * moved, and the city still belongs to the district it was saved under.
-   * Clearing it there discarded a valid value and then blocked the form on it:
-   * City is required, and its options come from the district's locality list,
-   * which is empty for most districts. The property could not be saved at all.
+   * Clearing it there discarded a valid value and then blocked the form on it,
+   * because City is required. For a property whose district is one the
+   * locality lookup cannot match — those saved with a display name rather than
+   * a slug — the replacement list comes back empty, so there was nothing to
+   * re-pick and the property could not be saved at all.
    */
   const handleDecoded = (decoded: DecodedAddress | null) => {
     if (decoded) {

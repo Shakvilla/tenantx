@@ -307,10 +307,15 @@ test.describe.serial('editing a record', () => {
    * `handleDecoded` cleared City along with region and district — a rule
    * written for a user TYPING a new code, where a city under the previous
    * district would indeed be wrong. On open nothing has moved, so the stored
-   * city was discarded for no reason, and City is required. There was nothing
-   * to re-pick either: `learned_localities` holds one row for the whole
-   * database, so the list comes back empty for every district. The property
-   * could not be saved at all.
+   * city was discarded for no reason, and City is required.
+   *
+   * Whether that merely annoys or hard-blocks depends on the property. The
+   * catalogue itself is fine — reference/ghana-locations.json ships 7,150
+   * localities and `?district=accra-metro` returns 26 of them. But the lookup
+   * matches the district SLUG, and properties saved before that convention
+   * hold display names ('Accra', 'Adenta') which match nothing. Those get an
+   * empty City list, so there is nothing to re-pick and the property cannot be
+   * saved at all. This fixture is one of them, deliberately.
    *
    * Isolated at the time by creating the same property twice, with and without
    * a code: the one without advanced past Step 1, the one with did not. City is

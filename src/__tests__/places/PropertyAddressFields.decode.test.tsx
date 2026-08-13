@@ -212,9 +212,10 @@ describe('PropertyAddressFields digital-address decoding', () => {
     // The block decodes whatever code it is given, so opening a saved property
     // produces a decode nobody asked for. Treating that like a landlord
     // relocating the property discarded the saved city, and City is required
-    // with options drawn from the district's locality list — empty for most
-    // districts, so there was nothing to re-pick. The property could not be
-    // saved at all.
+    // with options drawn from the district's locality list. For a property
+    // whose stored district the lookup cannot match — the ones saved with a
+    // display name rather than a slug — that list comes back empty, so there
+    // was nothing to re-pick and the property could not be saved at all.
     render(<SavedPropertyHarness />)
 
     // Proof the decode actually ran. Without this the assertion below passes
