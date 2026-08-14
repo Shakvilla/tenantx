@@ -1,22 +1,33 @@
 # Landlord Portal — Final Pre-Production QA
 
 Environment: local Docker (`web` :3099, `api` :8099), branch `feat/rbac-fixes`.
-Tester: manual UI sweep + Playwright. Swept 2026-08-12, fixed through 2026-08-13.
+Tester: manual UI sweep + Playwright. Swept 2026-08-12, fixed through 2026-08-13,
+second sweep of all 28 sidebar destinations 2026-08-14.
 
 > Written to a scratchpad and nearly lost — it survived only because the path
 > was remembered. Kept in the repo from here.
 
 ---
 
-## STATUS — 2026-08-13, end of the fix pass
+## STATUS — 2026-08-14, end of the third pass
 
-**All 19 findings are fixed, verified against a rebuilt stack, and pushed.**
+**All 19 original findings are fixed, verified against a rebuilt stack, and
+pushed. Two further passes over the sidebar found nine more; seven are fixed and
+uncommitted, two are open pending decisions that are not mine to make.**
 
-| suite | at first report | now |
-|---|---|---|
-| backend | 894 | **918** |
-| frontend unit | 463 | **479** |
-| E2E | 16 | **35** |
+- [The second pass](#the-second-pass--2026-08-14) opened all 28 destinations
+  and read what they rendered. Four findings.
+- [The third pass](#the-third-pass--2026-08-14--every-menus-primary-action)
+  clicked the primary action on each one. Four findings.
+- [F-28](#f-28--deleted-images-stayed-live-on-the-cdn--2026-08-14), found while
+  removing the Ghana Card files: every image the product had ever deleted was
+  still being served from its CDN URL.
+
+| suite | at first report | after the fix pass | now |
+|---|---|---|---|
+| backend | 894 | 918 | **928** |
+| frontend unit | 463 | 479 | **494** |
+| E2E | 16 | 35 | **39** |
 
 No `test.fail` markers remain: every test asserts what its name claims.
 
@@ -54,12 +65,23 @@ Also scoped, not started:
 property/unit/occupant **edit** (change one field, assert every other survives
 in the database), route guards, listing visibility, the pause notification.
 
-**Still not covered:** **exports** (PDF/Excel/CSV) — and they were 500ing in the
-July platform-admin sweep, never re-verified. Also Settings, Support, Occupant
-History, and the ~20 feature areas swept manually in earlier sessions
-(utilities, expenses, agents, comms, caution fee, guarantors, rent reviews,
-advance rent, documents, violations, team management, subscription, reports,
-wallet). Those are unwatched, not known-broken.
+**Now covered too, since the second pass:** CSV **export** from all four list
+tables, driven by clicking the real button and asserting the downloaded file
+contains that run's fixture. This closes the gap flagged here — they were
+500ing in the July platform-admin sweep and had never been re-verified.
+
+**Still not covered by tests:** Settings, Support, Occupant History and the ~20
+feature areas swept manually (utilities, expenses, agents, comms, caution fee,
+guarantors, rent reviews, advance rent, documents, violations, team management,
+subscription, reports, wallet). Every one has now been *driven by hand* — the
+third pass pressed each menu's primary button and checked the result persisted —
+but only the MoMo pattern gained a test. Unwatched, not known-broken. F-24 is
+the argument for changing that: it sat in the money-out path of a shipped
+product and no suite would have caught it.
+
+**Cannot be tested under Docker at all:** document upload — not because the
+local stack is special, but because `docker-compose.yml` never passes the
+Supabase keys to the web container. See F-27.
 
 **Everything here was verified against local Docker with ten properties and one
 real tenant.** Nothing in this report speaks to scale, concurrency, or real
@@ -83,6 +105,435 @@ individual errors:
 
 The common thread, and the thing to watch for next time: **treating absence of
 output as evidence.**
+
+---
+
+## The second pass — 2026-08-14
+
+The first sweep visited **8 of the 28 destinations a landlord sees in the
+sidebar**. This pass opened all 28 on a tenant elevated to PRO, so that a locked
+screen anywhere would itself be a defect. None appeared, and no page produced a
+failed request. Four defects came out of it.
+
+Newly opened here for the first time: Occupant History, Agents, Documents,
+Wallet, Expenses, Expense Config, Communication, Maintenance Categories,
+Maintainers, Preventative Schedules, Utilities, Rent Reviews, Subscription
+Plans, Support, and all six Settings pages.
+
+| id | defect | severity | state |
+|----|--------|----------|-------|
+| F-20 | Units Overview tiles omit `reserved`, and mix a portfolio-wide total with page-local counts | 🟠 | fixed, uncommitted |
+| F-21 | Login History records nothing for any real sign-in | 🟠 | fixed, uncommitted |
+| F-22 | Company Settings asks for a company name the landlord gave at signup | 🟡 | fixed, uncommitted |
+| F-23 | "Downgrade to Free Plan" offered with no unit-cap check anywhere | 🟠 | **open — product decision** |
+
+### F-20 🟠 Units Overview tiles omit `reserved` and don't reconcile
+
+Exactly F-01 on a second screen. `/properties/units` showed **All 4 · Occupied 0
+· Vacant 1 · Maintenance 0**, with three reserved units in no tile at all.
+
+Worse than the missing tile: `allUnits` came from the server-wide total while
+the other three were `data.filter(...)` over the **current page**. A landlord
+with 25 units saw four numbers that could not be made to add up, and that
+changed as they paged.
+
+Fixed by feeding all five tiles from `getPropertyStats`, the same portfolio-wide
+endpoint the dashboard uses, and adding the Reserved tile with the caption
+"Awaiting move-in". Verified on screen: **All 8 = Occupied 3 + Vacant 2 +
+Reserved 3 + Maintenance 0**.
+
+### F-21 🟠 Login History records nothing for any real sign-in
+
+The Security page listed four `curl/8.7.1` entries and none of the browser
+sign-ins that had just happened.
+
+Only `AuthServiceImpl.login` — the single-tenant endpoint — ever wrote to
+`tenant_login_history`. The portal stopped using it when login split into a
+global step plus a workspace selection, and `POST /global/auth/login` writes
+nothing. So the one page a landlord opens to ask *"has anyone else been in my
+account?"* answered with a blank list. The same table backs the admin
+dashboard's active-user count, which under-reported for the same reason.
+
+Recording moved to tenant selection, in a new `LoginHistoryRecorder` shared with
+the legacy path. That is the first point where a tenant **and** a tenant-scoped
+user id both exist — the id the history is keyed by — and the first point where
+it is settled which workspace was entered. It runs `REQUIRES_NEW` so a failed
+history insert can never poison the sign-in transaction, which is the failure
+that once turned every login into a 500.
+
+Verified end to end: signed out, signed back in through the browser, and the row
+appears as `Mozilla/5.0 (Macintosh…) — Just now`. Two unit tests pin it —
+one that a landlord's selection records, one that an occupant's does not (their
+id points at `occupants`, not `users`, so a row would be attributed to nobody).
+
+### F-22 🟡 Company Settings asks for a name already given at signup
+
+`tenants.name` has held the company name since signup, but the form hydrates
+only from the schemaless settings blob, which does not exist until the first
+save. Every new landlord opened a **required** Company Name field, blank.
+
+`GET /settings/contact` already loads the Tenant row and returned only the
+phone. It now also returns `companyName`, read-only, and the form uses it as a
+fallback — a landlord who saved a different trading name keeps theirs.
+
+### F-23 🟠 Downgrade to Free is offered with no unit-cap check
+
+The button is enabled for a tenant with 8 units against Free's 5-unit cap.
+`scheduleDowngrade` performs no check; `processRenewal` then applies the pending
+plan unconditionally, with no grandfathering (that exists only for an admin
+lowering the cap). The landlord clicks, is told it is scheduled, and at period
+end lands on a plan they exceed — with nothing said about units 6–8.
+
+**Left open deliberately.** Whether this should be a hard block, a warning
+naming the units at risk, or automatic grandfathering is a product and billing
+decision, not a bug fix.
+
+### Seen but not confirmed
+
+- ~~The email-template editor opens with blank Subject and Body.~~ **Wrong —
+  withdrawn in the third pass.** The Subject reads
+  `Invoice #{{invoice_number}} - Payment Due` and the body is 150 characters of
+  real template. It looked blank because the page text was read with a tool that
+  does not render input values. See [what this pass got
+  wrong](#what-this-pass-got-wrong).
+- Occupant History is built from `status=inactive`, which may not be the same
+  set as "has vacated". The seeded portfolio had no vacated tenant to tell them
+  apart. Still unconfirmed.
+
+Also carried over, still open from the first pass and unrelated to the sidebar:
+attaching a tenant by agreement sets `unit.occupantId` but never writes back to
+the occupant, so the Occupants list shows `-` for unit, property and move-in
+while the unit page names them as Current Tenant.
+
+### A correction from this pass
+
+The Wallet's balance (₵45,600) does not match its ledger (₵1,200). That was
+reported in passing as if it were a product defect. It is not: it was caused by
+this session's own fixture cleanup deleting ledger rows. Every balance mutation
+in `WalletServiceImpl` writes a ledger entry, and the only foreign key on
+`ledger_entries` is `wallet_id` with `NO ACTION` — nothing in the product can
+delete a ledger row behind the balance.
+
+---
+
+## Ghana Card images removed — 2026-08-14
+
+Not a QA finding: a regulatory change. Ghana no longer permits holding images of
+the Ghana Card. Payslips were dropped at the same time as no longer needed. The
+card **number** is still permitted and is still collected.
+
+### Where the capture actually was
+
+| where | state | what happened |
+|---|---|---|
+| **Add Occupant** → Identification | live, sidebar-reachable | Front/Back of ID, JPG/PNG/PDF → ImageKit, stored on four `occupants` columns. **Removed.** |
+| **Add Tenant** → Ghana Card Front/Back, marked required | dead | Lives on `/tenants`, whose API does not exist — the page prints "No endpoint found for GET /api/v1/tenants" and the OpenAPI spec has no `/tenants` path at all. It never stored anything. **Removed as dead code.** |
+| **Documents** → `Ghana Card`, `ID Card`, `Passport Photo`, `Passport`, `Payslip` | live but unused | The `documents` table was **empty across every tenant**. **Removed from both the frontend list and the backend `@Pattern`.** |
+
+Kept untouched: `occupants.ghana_card_id`, `occupants.id_type`,
+`agents.ghana_card_number`, and the Ghana Card Number fields on the agent and
+customer drawers. All text.
+
+### Decisions taken
+
+Removal went wider than the letter of the rule, on the reasoning that a
+near-miss label is a way back in: the Front/Back control was generic, driven by
+an ID Type dropdown, so keeping it for Passport or Voter ID would leave a
+landlord able to photograph a Ghana Card under a different label — and the
+control cannot verify what is in the picture. So the whole ID-image feature
+went, and the neighbouring identity document types went with it.
+
+### The data
+
+One occupant held images: `shakvilla-homes`, both files **OnePayGh logo PNGs**
+rather than real ID documents — someone had tested the upload with placeholders.
+No real Ghana Card image existed anywhere in the system.
+
+Both objects were deleted from ImageKit (details endpoint now 404s) **and their
+CDN cache purged**. The purge is the part worth remembering: after deletion the
+delivery URL still returned **200**, because deleting a file does not evict the
+edge cache. A file id alone is not enough to make an image unreachable.
+
+That has a consequence beyond this cleanup: `ImageKitService.deleteFile` —
+called whenever an occupant, property or unit is deleted — deleted without
+purging. Every image this product had ever "deleted" was still served from its
+CDN URL. **Now fixed — see F-28 below.**
+
+### Changes
+
+Backend: four columns dropped from `occupants` via `V138`; the fields removed
+from the entity, `OccupantResponse`, both request DTOs, `OccupantMapper` and
+`OccupantServiceImpl.update`; the document-type `@Pattern` rewritten.
+
+Frontend: the ID upload block removed from `AddOccupantDialog` (state, refs,
+preview cleanup, ImageKit upload, payload); the Ghana Card block removed from
+the dead `AddTenantDialog`; `uploadTenantImage`'s `fileType` union narrowed to
+`'avatar'`; the display block removed from `ProfileInformationTab`;
+`DOCUMENT_TYPES` rewritten.
+
+The section is now titled **Identification** and holds ID Type beside ID Number,
+which had been sitting in a different accordion — the field the rules still
+allow now sits under a heading that says what it is, with the helper text
+"The number only — we do not keep a copy of the card".
+
+### Verified
+
+- Migration `V138` applied; `id_card%` columns on `occupants`: **0**;
+  `ghana_card_id` + `id_type`: **still present**.
+- Add Occupant renders **ID Type + ID Number**, no upload controls, and the only
+  remaining file input in the dialog is the profile avatar.
+- Documents offers exactly the eight new types, agreements first.
+- Server-side enforcement, driven through the real API:
+
+  | documentType | result |
+  |---|---|
+  | Ghana Card · ID Card · Passport · Passport Photo · Payslip | **400** |
+  | Signed Tenancy Agreement | **201** |
+
+- Suites: **921 backend / 494 frontend / 39 E2E**, all green. The removed types
+  are pinned as an explicit rejection list in `DocumentTypeValidationTest` and
+  in the frontend dialog test, rather than merely deleted — a suite that only
+  dropped them would pass just as happily if someone restored them.
+
+---
+
+## F-28 🔴 Deleted images stayed live on the CDN — 2026-08-14
+
+Found while purging the Ghana Card files above. Deleting a file from ImageKit
+does not evict it from the edge cache, and `ImageKitService.deleteFile` only
+deleted. Every image the product had ever removed — a property photo a landlord
+took down, an occupant avatar, a maintenance photo — kept serving 200 to anyone
+holding the URL. Eight call sites across occupants, properties, units and
+maintenance.
+
+### The fix
+
+`deleteFile` now resolves the delivery URL, deletes, then purges — in that
+order, because after deletion the URL is unrecoverable and purging beforehand
+just re-caches a live file.
+
+The URL is resolved inside the service rather than passed in. The entities do
+store URLs beside ids, but as parallel arrays; on the partial-update paths a
+caller would have to re-pair "which removed id was which URL" by index, which is
+how the wrong image gets purged. One extra lookup buys correctness at all eight
+sites.
+
+Cleanup also moved off the request thread. It is fire-and-forget — every caller
+already ignores the outcome — and it runs inside `@Transactional` deletes such
+as `PropertyServiceImpl.deleteProperty`. Purging tripled the round-trips per
+image, so inline it would have held a database transaction open across three
+sequential HTTPS calls for every image on the property.
+
+### Two things only the live check caught
+
+**The first version of this fix did not work.** ImageKit returns the URL with a
+cache-busting `?updatedAt=...` query appended, but the product stores and serves
+the bare path — check any row of `properties.images` or `occupants.avatar`.
+Purging is per-variant, so the fix cleared a URL nobody requests and left the
+one everybody does. Measured: the canonical URL still served **200 ninety
+seconds** after a "successful" purge of a file whose details endpoint already
+404'd. The query string is now stripped before purging.
+
+The unit tests passed throughout — they mock the SDK, so they prove the call is
+made, not that it does anything. This is the second time in this report a
+green suite certified a fix that did nothing.
+
+**`@Autowired` on the constructor is load-bearing.** Adding a test-seam
+constructor made this a two-constructor bean; without the marker Spring looks
+for a no-arg constructor, fails, and takes the entire application context down —
+63 unrelated integration tests at once. (I first misread that failure as an
+`@Async` CGLIB proxy problem. It was not.)
+
+### Verified end to end, against real ImageKit
+
+Uploaded a file, warmed its edge cache to **200**, attached it to a property,
+deleted the property through the real API, and watched the URL:
+
+| | |
+|---|---|
+| delete endpoint | `204` |
+| ImageKit file details | `404` |
+| backend log | deleted, then `purged CDN cache for …png` — canonical, no query — on the `Async-1` pool thread |
+| canonical URL at t+15s | `200` |
+| canonical URL at t+30s onward | **`404`** |
+
+Both throwaway test files were removed afterwards; the folder is empty.
+
+Suites: **928 backend**, up 7 — six pinning the delete/purge sequence and one
+pinning the query-stripping, since that is the part that was silently wrong.
+
+---
+
+## The third pass — 2026-08-14 — every menu's primary action
+
+The second pass opened all 28 destinations and read what they rendered. That is
+not a test. Every one of those pages exists to *do* something — Add Agent, New
+Category, Add Meter, Record Bill, Send Notice, Invite Staff, Submit ticket,
+Save Settings — and not one of those buttons had been pressed. A page that
+renders a correct empty state and a page that works are different claims, and
+the second pass only established the first while reporting the second.
+
+This pass clicked the primary action on each menu, filled the form as a landlord
+would, submitted it, and confirmed the result persisted — reloading the page or
+reading the database rather than trusting the screen.
+
+### Worked, end to end
+
+Maintenance Categories (created, icon persisted, Edit/Delete present) ·
+Maintainers · Agents · Utility meters · Expense Config · Expenses (tiles updated
+with the new total) · Rent Reviews · Preventative Schedules (with a clear
+validation alert when Property was missing) · Communication (notice sent to all
+6 tenants, all marked Sent) · Support ticket · Team invite (staff created and
+listed) · Roles (new role created with permissions) · SMS Sender ID (request
+went PENDING) · Notification settings (toggle persisted across reload) ·
+Recurring-invoice settings (persisted across reload) · Wallet MoMo linking
+(after the fix below).
+
+### Not tested — and F-27, which is why
+
+**Document upload.** The dialog returns "Supabase is not configured on the
+server." The failure is reported clearly and offers Try Again, which is the
+right behaviour — but the upload path is **unverified**, and so is everything
+downstream of it (a document cannot be accepted without a file).
+
+I first wrote this off as a local-environment limitation. It is not — see
+[F-27](#f-27--document-upload-is-dead-in-every-docker-deployment) below.
+
+Two corrections to what that paragraph originally said:
+
+- **The landlord's company logo does not use Supabase.** `handleLogoUpload` in
+  `BasicInformationSettings.tsx` reads the file with `FileReader` into a base64
+  data URL and stores it in the settings blob. It is testable locally; I simply
+  did not test it. (Only the *platform admin's* logo, in
+  `AdminPlatformSettingsView.tsx:271`, posts to `/api/upload-logo`.)
+- Storing a logo as base64 inside a JSON settings column is worth a look on its
+  own — a 5 MB image becomes ~6.7 MB of text in that row, and no size guard was
+  evident. Not investigated; noted so it is not lost.
+
+### F-27 🔴 Document upload is dead in every Docker deployment
+
+`docker-compose.yml` passes `IMAGEKIT_*` into the web build but contains **no
+`SUPABASE` reference at all** — zero occurrences. `.env.local` has all three
+Supabase keys, so `npm run dev` uploads fine; the container never receives them
+and every upload 500s.
+
+So the behaviour splits by how the app is run:
+
+| how it runs | reads | document upload |
+|---|---|---|
+| `npm run dev` | `.env.local` | works |
+| `docker compose up` | compose env only | **500, every time** |
+
+That makes this a deployment defect rather than a testing inconvenience. It is
+filed unfixed because the correct fix depends on something I should not assume:
+whether this compose file is the production deployment path or only a local
+harness, and where the service-role key is meant to come from in each case. The
+one-line change is to thread `NEXT_PUBLIC_SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` through to the `web` service the way the ImageKit
+keys already are — but the key is a service-role JWT with full storage rights,
+so where it is sourced from matters more than the wiring.
+
+**Storage is split across two providers.** ImageKit holds property, unit,
+occupant and inspection images and is wired end to end, backend included.
+Supabase holds only tenant documents and the platform-admin logo, and the
+backend does not reference it anywhere — it exists solely in two Next route
+handlers. Consolidating is not this report's call, but the split is why one
+half of file handling is configured everywhere and the other half is configured
+in exactly one place.
+
+### Findings
+
+| id | defect | severity | state |
+|----|--------|----------|-------|
+| F-24 | every valid Ghanaian MoMo number is rejected — nothing can be linked, nothing can be withdrawn | 🔴 | fixed, uncommitted |
+| F-25 | recording a utility bill saves, but the table keeps saying "No bills recorded yet" | 🟠 | fixed, uncommitted |
+| F-26 | a new rent review shows its tenant as "Vacant" | 🟡 | fixed, uncommitted |
+| F-27 | document upload 500s in every Docker deployment — compose never passes the Supabase keys | 🔴 | **open — needs a deployment decision** |
+| F-28 | every "deleted" image stayed live on the CDN — delete never purged | 🔴 | fixed, uncommitted |
+
+### F-24 🔴 No landlord can link a MoMo number or withdraw their money
+
+Typing `0244778899` into Linked MoMo Number returns **"Enter a valid 10-digit
+Ghanaian number"**. It is a valid 10-digit Ghanaian number.
+
+The pattern is `/^0[2-9]\d{7}$/` — a leading zero, a network digit, then seven
+more. Nine digits. A Ghanaian mobile number is ten. The rule and the error
+message printed beside it contradicted each other, and the rule won:
+
+```
+0244778899  (10 digits, real)  → rejected
+024477889   ( 9 digits, fake)  → accepted
+```
+
+It appears **twice** — `WalletDashboard.tsx:313` in the withdraw dialog and
+`:920` in the linked-number card — so both halves of the money-out path were
+closed. The backend stores the number without validating it, so this regex was
+the only gate.
+
+This is the most serious defect in the report. Everything else costs a landlord
+confidence or a re-entry; this one means the rent they have collected cannot
+leave the platform. It was invisible to the second pass because the field
+renders perfectly — you only see it if you type a real number and press the
+button.
+
+Fixed by declaring the pattern once, `/^0[2-9]\d{8}$/`, above both call sites.
+Verified live: the number now saves, and `wallets.linked_momo_number` reads
+`0244778899 | MTN`. Pinned by 15 assertions in
+`src/__tests__/wallet/momoNumber.test.ts`, including the nine-digit case —
+a test written with a nine-digit fixture would have passed against the bug.
+
+### F-25 🟠 A recorded utility bill is not shown until the page is reloaded
+
+`POST /utilities/bills` returns **201**, the dialog closes, and the table
+underneath still reads "No bills recorded yet — 0–0 of 0". The bill is really
+there; a manual reload shows it.
+
+`BillsTable` loads once per meter (`useCallback(..., [meter.id])`) and
+`UtilitiesView`'s `onCreated` only closed the dialog. Nothing told the table.
+
+The cost is not the missing row, it is what the landlord does next: told the
+bill did not save, they record it again. `RecordTokenDialog` had the identical
+wiring, so prepaid tokens duplicated the same way.
+
+Fixed with a `refreshKey` the parent bumps on create, threaded into both tables'
+load dependencies. Verified live: a second bill appeared immediately, no reload.
+
+### F-26 🟡 A new rent review calls its tenant "Vacant"
+
+Creating a review against an occupied unit renders **Occupant: Vacant**.
+
+`POST /rent-reviews` resolves and stores `occupantId` correctly, then returns
+`occupantName`, `occupantPhone` and `occupantEmail` as `null` —
+`RentReviewServiceImpl:118` passed a literal `null` where the mapper expects the
+occupant. The list endpoint enriches properly, so the row is right after a
+reload; only the response the table renders first was wrong.
+
+The three null fields are the same three the notify step reads, which is why
+this was worth fixing rather than leaving as cosmetic: the workflow is
+propose → **notify** → apply. Verified live: the tenant's name now appears the
+moment the review is created.
+
+### What this pass got wrong
+
+Recorded because the same mistakes will otherwise recur:
+
+- **A blank field is not a blank field.** Two "findings" from the second pass
+  were text-extraction artefacts: the email templates (withdrawn above) and the
+  Invite Staff dialog, which pre-fills Company Name with the tenant's name.
+  The tool used reads rendered text, not `input.value`.
+- **A dialog that seems to have closed may not have.** Preventative Schedules
+  looked like a silent failure. It was a validation alert inside a dialog that
+  had stayed open — invisible because the page text was read from `<main>` and
+  the dialog is a portal.
+- **Driving React through injected JavaScript manufactures bugs.** A
+  programmatic click on the property dropdown left the unit dropdown empty and
+  looked like a real defect. Repeating it with genuine clicks showed the unit
+  listed. Every finding here was re-confirmed through the real UI before being
+  written down.
+
+The lesson is the first report's, arriving again from a new direction:
+**treating absence of output as evidence.** Three of the four false alarms above
+were an empty reading from a tool that could not have shown the value.
 
 ---
 
@@ -130,6 +581,15 @@ returned by the API and ignored. The unit count was one status short.
 dropped two statuses. Each looked local; together they are a habit to watch for
 in review.
 
+It kept holding across both passes, which is why it is worth stating as a rule
+rather than a tally. Later instances: the property valuation the form collected
+and dropped (F-06); the exact room counts rewritten to "6+" (F-07); the
+`unitStatus` the API knew and the card never asked for (F-02); the Units
+Overview counts recomputed from one page of rows when a portfolio-wide endpoint
+already existed (F-20); the company name typed at signup and asked for again
+(F-22). **Before deriving a number, check whether something upstream already
+knows it.**
+
 ### Was open at first report — 10 of 19, all since closed
 
 Kept as written, because the reasoning is what justified the priority. Every
@@ -153,8 +613,8 @@ Ranked by what they cost a landlord:
 Plus: `/listings` swallows Next's `DynamicServerError`, which prints on every
 build. Runtime is unaffected — Next opts the route into dynamic rendering
 anyway — but the swallow is what Next explicitly warns against, and the fix is
-to rethrow it. **Still open** — it was never one of the numbered nineteen, and
-it is the only item from this report that has not been addressed.
+to rethrow it. **Still open** — it was never one of the numbered nineteen. It
+was the only unaddressed item in this report until the second pass added F-23.
 
 **Coverage gap remaining:** edit and export flows. Create, payments and deletes
 are covered. *(Edit is now covered; export is not — see the status at the top.)*
