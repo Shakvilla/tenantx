@@ -42,6 +42,9 @@ const PAYER_LABELS: Record<string, string> = {
 type Props = {
   meter:         UtilityMeterResponse
   onRecordToken: () => void
+
+  /** Bumped by the parent after a token is recorded. Same refetch gap as BillsTable. */
+  refreshKey?: number
 }
 
 type Row = UtilityTokenResponse
@@ -55,7 +58,7 @@ const fmtCurr = (n: number) => `GHS ${n.toFixed(2)}`
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function TokensTable({ meter, onRecordToken }: Props) {
+export default function TokensTable({ meter, onRecordToken, refreshKey = 0 }: Props) {
   const [data, setData]               = useState<Row[]>([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
@@ -71,7 +74,7 @@ export default function TokensTable({ meter, onRecordToken }: Props) {
       .then(setData)
       .catch(err => setError(err?.message ?? 'Failed to load tokens'))
       .finally(() => setLoading(false))
-  }, [meter.id])
+  }, [meter.id, refreshKey])
 
   useEffect(() => { load() }, [load])
 

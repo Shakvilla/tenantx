@@ -63,6 +63,13 @@ export default function UtilitiesView() {
   // dialogs
   const [addMeterOpen, setAddMeterOpen]   = useState(false)
   const [recordBillOpen, setRecordBillOpen] = useState(false)
+
+  // Recording a bill or a token 201s and then closes the dialog. Nothing told
+  // the table underneath, which loads once per meter, so it went on reporting
+  // "No bills recorded yet" over a bill that had just been saved — and the
+  // landlord's next move is to record it again. Bumping this refetches.
+  const [billsRefresh, setBillsRefresh]   = useState(0)
+  const [tokensRefresh, setTokensRefresh] = useState(0)
   const [recordTokenOpen, setRecordTokenOpen] = useState(false)
   const [deleteId, setDeleteId]           = useState<string | null>(null)
   const [deleting, setDeleting]           = useState(false)
@@ -309,6 +316,7 @@ export default function UtilitiesView() {
                   <TabPanel value='bills' sx={{ p: 0 }}>
                     <BillsTable
                       meter={selectedMeter}
+                      refreshKey={billsRefresh}
                       onRecordBill={() => setRecordBillOpen(true)}
                       onBillPaid={updated => {
                         /* bills table manages its own state — refresh handled inside */
@@ -319,6 +327,7 @@ export default function UtilitiesView() {
                     <TabPanel value='tokens' sx={{ p: 0 }}>
                       <TokensTable
                         meter={selectedMeter}
+                        refreshKey={tokensRefresh}
                         onRecordToken={() => setRecordTokenOpen(true)}
                       />
                     </TabPanel>
@@ -344,13 +353,13 @@ export default function UtilitiesView() {
             open={recordBillOpen}
             meter={selectedMeter}
             onClose={() => setRecordBillOpen(false)}
-            onCreated={() => setRecordBillOpen(false)}
+            onCreated={() => { setRecordBillOpen(false); setBillsRefresh(n => n + 1) }}
           />
           <RecordTokenDialog
             open={recordTokenOpen}
             meter={selectedMeter}
             onClose={() => setRecordTokenOpen(false)}
-            onCreated={() => setRecordTokenOpen(false)}
+            onCreated={() => { setRecordTokenOpen(false); setTokensRefresh(n => n + 1) }}
           />
         </>
       )}

@@ -38,6 +38,16 @@ type Props = {
   meter:        UtilityMeterResponse
   onRecordBill: () => void
   onBillPaid?:  (bill: UtilityBillResponse) => void
+
+  /**
+   * Bumped by the parent after a bill is recorded, to force a refetch.
+   *
+   * Without it this table loaded once per meter and never again: recording a
+   * bill returned 201, the dialog closed, and the table went on saying "No
+   * bills recorded yet." The landlord's reasonable conclusion is that it did
+   * not save, and the reasonable next step is to record it a second time.
+   */
+  refreshKey?: number
 }
 
 type Row = UtilityBillResponse
@@ -59,7 +69,7 @@ const fmtCurr = (n: number) => `GHS ${n.toFixed(2)}`
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function BillsTable({ meter, onRecordBill, onBillPaid }: Props) {
+export default function BillsTable({ meter, onRecordBill, onBillPaid, refreshKey = 0 }: Props) {
   const [data, setData]               = useState<Row[]>([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
@@ -77,7 +87,7 @@ export default function BillsTable({ meter, onRecordBill, onBillPaid }: Props) {
       .then(setData)
       .catch(err => setError(err?.message ?? 'Failed to load bills'))
       .finally(() => setLoading(false))
-  }, [meter.id])
+  }, [meter.id, refreshKey])
 
   useEffect(() => { load() }, [load])
 
