@@ -1,5 +1,5 @@
 /**
- * Minimal User type (previously from @supabase/supabase-js).
+ * Minimal User type, defined here rather than imported from an SDK.
  * Kept local to avoid external dependency.
  */
 export interface User {

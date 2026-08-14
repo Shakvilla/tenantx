@@ -110,12 +110,11 @@ export function parseSortParams(
 }
 
 /**
- * Calculates Supabase range for pagination.
- * 
+ * Converts a page number into an inclusive row range.
+ *
  * @example
  * ```typescript
- * const { from, to } = calculateRange(page, pageSize)
- * const { data } = await supabase.from('tenants').select('*').range(from, to)
+ * const { from, to } = calculateRange(page, pageSize)  // page 2, size 10 -> { from: 10, to: 19 }
  * ```
  */
 export function calculateRange(
