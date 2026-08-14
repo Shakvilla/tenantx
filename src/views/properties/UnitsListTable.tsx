@@ -39,7 +39,7 @@ import type { Unit } from '@/types/property'
 
 // API Imports
 import { getAllUnits, deleteUnit, exportUnitsCsv } from '@/lib/api/units'
-import { getProperties } from '@/lib/api/properties'
+import { getProperties, getPropertyStats } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 import { tablePaginationCount } from '@/lib/api/pagination'
 
@@ -243,15 +243,45 @@ const UnitsListTable = () => {
     }
   }
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    return {
-      allUnits: total,
-      occupiedUnits: data.filter(u => u.status === 'occupied').length,
-      vacantUnits: data.filter(u => u.status === 'available').length,
-      maintenanceUnits: data.filter(u => u.status === 'maintenance').length
-    }
-  }, [data, total])
+  /**
+   * Portfolio-wide counts, from the same endpoint the dashboard uses.
+   *
+   * These were counted from `data` — the page currently on screen — while
+   * All Units came from the server's `total`. So a landlord with 25 units read
+   * "All Units 25" beside an Occupied and Vacant that only described the ten
+   * rows in front of them, and the three numbers changed every time they paged.
+   * Reserved was not counted anywhere at all, on any page.
+   */
+  const [stats, setStats] = useState({
+    allUnits: 0,
+    occupiedUnits: 0,
+    vacantUnits: 0,
+    reservedUnits: 0,
+    maintenanceUnits: 0
+  })
+
+  useEffect(() => {
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) return
+
+    getPropertyStats(tenantId)
+      .then(res => {
+        if (!res.success || !res.data) return
+
+        setStats({
+          allUnits: res.data.totalUnits,
+          occupiedUnits: res.data.occupiedUnits,
+          vacantUnits: res.data.vacantUnits,
+          reservedUnits: res.data.reservedUnits,
+          maintenanceUnits: res.data.maintenance
+        })
+      })
+      .catch(() => {
+        // Leave the tiles at zero rather than showing a page-local count that
+        // contradicts the list beneath it.
+      })
+  }, [total])
 
   // status/bedrooms/bathrooms filters are now applied server-side (see fetchUnits),
   // so the fetched page already reflects the selected filters — no client-side
@@ -394,6 +424,7 @@ const UnitsListTable = () => {
         allUnits={stats.allUnits}
         occupiedUnits={stats.occupiedUnits}
         vacantUnits={stats.vacantUnits}
+        reservedUnits={stats.reservedUnits}
         maintenanceUnits={stats.maintenanceUnits}
       />
       <Card className='mbs-6'>
