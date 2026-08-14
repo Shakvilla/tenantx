@@ -263,18 +263,21 @@ export default function AdminPlatformSettingsView() {
     setDirty(prev => new Set(prev).add(key))
   }
 
+  /**
+   * Uploaded to ImageKit, and deliberately NOT as a private file: this is the
+   * platform's own logo, rendered on the login page and in emails, so it must
+   * be readable without a signed link. Documents are the opposite case and are
+   * uploaded private — see lib/document-storage.ts.
+   *
+   * Previously posted to a Next route holding a Supabase service-role key.
+   */
   async function handleLogoUpload(file: File) {
     setLogoUploading(true)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload-logo', { method: 'POST', body: fd })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error((body as { error?: string }).error ?? 'Upload failed')
-      }
-      const { publicUrl } = await res.json() as { publicUrl: string }
-      await save('branding.logo_url', publicUrl)
+      const { uploadImage } = await import('@/lib/imagekit')
+      const uploaded = await uploadImage(file, { folder: '/tenantx/platform/branding' })
+
+      await save('branding.logo_url', uploaded.url)
     } catch (e: unknown) {
       setToast(e instanceof Error ? e.message : 'Logo upload failed')
     } finally {

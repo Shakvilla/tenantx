@@ -33,7 +33,7 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 import type { DocumentType } from '@/types/documents/documentTypes'
 import { getDocuments, deleteDocument, updateDocumentStatus, type DocumentItem } from '@/lib/api/documents'
-import { deleteUploadedFile } from '@/lib/supabase-storage'
+import { getDocumentDownloadUrl } from '@/lib/document-storage'
 
 import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -187,17 +187,41 @@ const DocumentsListTable = () => {
     }
   }
 
+  /**
+   * Document files are private in ImageKit, so their stored URL 401s on its
+   * own — the link has to be minted per click, and it expires. That is the
+   * point: the previous scheme handed out a permanent public URL, readable by
+   * anyone who ever saw it, with no check that they owned the document.
+   *
+   * Opened via an anchor rather than window.open because the fetch happens
+   * first: a popup opened before the await is blocked by the browser as
+   * un-gestured, and one opened after loses the user-gesture context anyway.
+   */
+  const handleDownload = async (doc: DocumentTypeWithAction) => {
+    try {
+      const url = await getDocumentDownloadUrl(doc.id)
+      const a = document.createElement('a')
+
+      a.href = url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.click()
+      setActionError(null)
+    } catch (err: any) {
+      setActionError(
+        err?.response?.data?.message ?? err?.message ?? 'Could not open the document. Please try again.'
+      )
+    }
+  }
+
   const handleDelete = async () => {
     if (!selectedDocument) return
     const doc = selectedDocument
     try {
+      // The stored file goes with it, server-side. The browser used to make a
+      // second, best-effort call after this one — which was silently skipped
+      // whenever the tab was closed first, leaving the file behind forever.
       await deleteDocument(doc.id)
-      // Best-effort storage cleanup — never block the record deletion on it.
-      if (doc.fileId) {
-        deleteUploadedFile(doc.fileId).catch(err =>
-          console.warn('Document deleted, but its storage file could not be removed:', err)
-        )
-      }
       setActionError(null)
       fetchDocuments()
     } catch (err: any) {
@@ -300,7 +324,7 @@ const DocumentsListTable = () => {
             ...(row.original.fileUrl ? [{
               text: 'Download',
               icon: 'ri-download-line',
-              menuItemProps: { onClick: () => window.open(row.original.fileUrl, '_blank') }
+              menuItemProps: { onClick: () => handleDownload(row.original) }
             }] : []),
             {
               text: 'Delete',

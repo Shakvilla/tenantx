@@ -29,7 +29,7 @@ import {
   ALLOWED_EXTENSIONS,
   ALLOWED_TYPES,
   MAX_FILE_SIZE_MB
-} from '@/lib/supabase-storage'
+} from '@/lib/document-storage'
 import type { Property } from '@/types/property'
 
 // ---------------------------------------------------------------------------
