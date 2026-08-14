@@ -1,35 +1,58 @@
 # Landlord Portal — Final Pre-Production QA
 
 Environment: local Docker (`web` :3099, `api` :8099), branch `feat/rbac-fixes`.
-Tester: manual UI sweep + Playwright. Swept 2026-08-12, fixed through 2026-08-13,
-second sweep of all 28 sidebar destinations 2026-08-14.
+Tester: manual UI sweep + Playwright. Swept 2026-08-12, fixed through 2026-08-13.
+On 2026-08-14: a second sweep opening all 28 sidebar destinations, a third
+pressing each menu's primary action, and a fourth closing the items those left
+open. Read the STATUS block below for where things stand — it links to each pass. The
+sections after it are in the order they were written, not the order the work
+happened, because each was appended as it finished.
 
 > Written to a scratchpad and nearly lost — it survived only because the path
 > was remembered. Kept in the repo from here.
 
 ---
 
-## STATUS — 2026-08-14, end of the third pass
+## STATUS — 2026-08-14, end of day
 
-**All 19 original findings are fixed, verified against a rebuilt stack, and
-pushed. Two further passes over the sidebar found nine more; seven are fixed and
-uncommitted, two are open pending decisions that are not mine to make.**
+**Nothing from this report is outstanding.** Every numbered finding is fixed and
+pushed, or closed with a stated reason. Thirty findings in total: the original
+nineteen, plus eleven from three further passes and the work that followed them.
 
-- [The second pass](#the-second-pass--2026-08-14) opened all 28 destinations
-  and read what they rendered. Four findings.
+- [The second pass](#the-second-pass--2026-08-14) opened all 28 sidebar
+  destinations and read what they rendered. Four findings.
 - [The third pass](#the-third-pass--2026-08-14--every-menus-primary-action)
   clicked the primary action on each one. Four findings.
-- [F-28](#f-28--deleted-images-stayed-live-on-the-cdn--2026-08-14), found while
-  removing the Ghana Card files: every image the product had ever deleted was
-  still being served from its CDN URL.
+- [The fourth pass](#the-fourth-pass--2026-08-14--closing-the-open-items) closed
+  the two items left open, and found F-29 and F-30 on the way.
 
-| suite | at first report | after the fix pass | now |
+Larger pieces of work have their own sections:
+[Ghana Card images removed](#ghana-card-images-removed--2026-08-14) ·
+[Supabase removed](#supabase-removed--2026-08-14) ·
+[F-28, deleted images on the CDN](#f-28--deleted-images-stayed-live-on-the-cdn--2026-08-14) ·
+[the `/listings` build warning](#the-listings-build-warning--2026-08-14) ·
+[the flaky frontend tests](#the-flaky-frontend-tests--2026-08-14)
+
+| suite | at first report | after the fix pass | end of day |
 |---|---|---|---|
-| backend | 894 | 918 | **928** |
-| frontend unit | 463 | 479 | **494** |
-| E2E | 16 | 35 | **39** |
+| backend | 894 | 918 | **943** |
+| frontend unit | 463 | 479 | **501** |
+| E2E | 16 | 35 | **45** |
 
-No `test.fail` markers remain: every test asserts what its name claims.
+No `test.fail` markers remain: every test asserts what its name claims. The full
+E2E suite was run against a stack rebuilt from the committed code — 45 passed in
+4.9 minutes — after checking each container's image id against the freshly built
+one, because a stale container fooled me twice today.
+
+### The two that were open, and how they closed
+
+| id | was | closed by |
+|----|-----|-----------|
+| F-23 | downgrade with no unit-cap check — **a product decision, not mine** | you chose a hard block; implemented and verified live |
+| F-27 | document upload dead in every Docker deployment | the Supabase → ImageKit migration removed the cause entirely |
+
+Also carried from the original report and now fixed: the `/listings`
+`DynamicServerError` swallow, which was never one of the numbered nineteen.
 
 ### The ten that were open at first report, and what closed them
 
@@ -79,13 +102,36 @@ but only the MoMo pattern gained a test. Unwatched, not known-broken. F-24 is
 the argument for changing that: it sat in the money-out path of a shipped
 product and no suite would have caught it.
 
-**Cannot be tested under Docker at all:** document upload — not because the
-local stack is special, but because `docker-compose.yml` never passes the
-Supabase keys to the web container. See F-27.
+**Now covered too, since the fourth pass:** the downgrade unit cap (both the
+disabled card and the server refusing a request from a stale page), and document
+upload end to end — a real PDF through the real dialog, asserting the stored URL
+is not publicly readable, that the signed link returns `%PDF` bytes, and that
+deleting the document takes the file to 404.
+
+**Document upload was previously untestable under Docker**, because
+`docker-compose.yml` never passed the Supabase keys to the web container. The
+ImageKit migration removed that: it uses vars compose already supplies.
 
 **Everything here was verified against local Docker with ten properties and one
 real tenant.** Nothing in this report speaks to scale, concurrency, or real
 payment gateways.
+
+### Operational notes that outlive this branch
+
+Three things that cost time today and will cost it again:
+
+- **A combined `docker compose up -d --build api web` reported success while
+  silently not rebuilding one of the two services.** Build services explicitly
+  and verify by behaviour — image ids, or an endpoint that only exists in the
+  new code — not by timestamps.
+- **The test suite and the running app use different databases.**
+  `spring.datasource.url` is `localhost:5432`; the Docker stack publishes
+  `55432`. A green backend suite says nothing about the app's schema until the
+  container restarts and Flyway runs there. This is exactly how `V139` showed as
+  applied on one and missing on the other.
+- **A Vitest config key that does not exist is ignored in silence.** No warning,
+  no error — the config simply does nothing. Verify a config change by observing
+  the behaviour it was meant to change.
 
 ### Corrections made to this document after the fact
 
@@ -106,6 +152,30 @@ individual errors:
 The common thread, and the thing to watch for next time: **treating absence of
 output as evidence.**
 
+Later passes added more, kept here for the same reason:
+
+- **The containers were called stale twice, and were not.** Once the new
+  endpoint was missing from `/v3/api-docs` and a deleted Next route still
+  answered 200 — the first was the endpoint correctly reporting "this document
+  has no file", the second was Next serving its own 404 page. Settled by
+  behaviour: hitting the endpoint and reading the bytes. (A third time the
+  containers genuinely *were* stale, which is what made the pattern hard to
+  see.)
+- **The privacy assertion had the wrong number.** The E2E expected 401; ImageKit
+  answers 403 for an unsigned private file. The product was right and the test
+  was wrong — the opposite of the failure mode worth having.
+- **The flaky tests were blamed on my own concurrent builds.** They failed on a
+  quiet machine too; the all-green run cited as evidence was luck. Root cause
+  was worker starvation, found by profiling rather than assuming.
+- **A test-timing claim was drawn from the wrong two tests.** "1.3–1.9s" came
+  from the cheapest tests in the file; the slow ones were 5.8–10.4s.
+- **The E2E count was quoted as 47 and is 45.** Added 4 + 4 to 39 without
+  re-counting; the setup steps are not test cases. Quote the number the runner
+  prints.
+- **A config fix was reported as applied when it did nothing.**
+  `poolOptions.forks.maxForks` does not exist in this Vitest and was ignored in
+  silence. Caught only by re-running and seeing the identical failures.
+
 ---
 
 ## The second pass — 2026-08-14
@@ -125,7 +195,7 @@ Plans, Support, and all six Settings pages.
 | F-20 | Units Overview tiles omit `reserved`, and mix a portfolio-wide total with page-local counts | 🟠 | fixed, uncommitted |
 | F-21 | Login History records nothing for any real sign-in | 🟠 | fixed, uncommitted |
 | F-22 | Company Settings asks for a company name the landlord gave at signup | 🟡 | fixed, uncommitted |
-| F-23 | "Downgrade to Free Plan" offered with no unit-cap check anywhere | 🟠 | **open — product decision** |
+| F-23 | "Downgrade to Free Plan" offered with no unit-cap check anywhere | 🟠 | fixed in the [fourth pass](#the-fourth-pass--2026-08-14--closing-the-open-items) once the product decision was made |
 
 ### F-20 🟠 Units Overview tiles omit `reserved` and don't reconcile
 
@@ -213,6 +283,237 @@ this session's own fixture cleanup deleting ledger rows. Every balance mutation
 in `WalletServiceImpl` writes a ledger entry, and the only foreign key on
 `ledger_entries` is `wallet_id` with `NO ACTION` — nothing in the product can
 delete a ledger row behind the balance.
+
+---
+
+## The fourth pass — 2026-08-14 — closing the open items
+
+The third pass ended with two findings I would not close myself: F-23 needed a
+product decision, and F-27 needed a deployment one. Both came back, and the work
+turned up two more defects plus one that had been hiding in code I was deleting.
+
+| id | defect | severity | state |
+|----|--------|----------|-------|
+| F-23 | downgrade offered with no unit-cap check | 🟠 | fixed — `4c7907f` · `2911b37` |
+| F-27 | document upload dead in every Docker deployment | 🔴 | fixed by the migration — `94ebefe` |
+| F-29 | a deleted unit orphans its rent reviews | 🟠 | fixed — `b5b8d93` |
+| F-30 | internal error messages returned in production | 🟠 | fixed — `676a904` |
+
+### F-23 🟠 Downgrading below your unit count
+
+You chose a hard block. `scheduleDowngrade` now refuses when the tenant's active
+units exceed the target plan's cap, with a message that does the arithmetic:
+
+> You have 8 units and the FREE plan allows 5. Remove 3 units, or choose a plan
+> that fits.
+
+"Too many units" would leave a landlord guessing how many to remove.
+
+Three decisions worth stating, because they are not obvious from the code:
+
+- **Exactly on the cap is allowed.** Five units into a five-unit plan fits;
+  refusing there would be the opposite mistake.
+- **The grandfathered cap is deliberately not consulted.** It is an override
+  attached to the tenant's *present* subscription, granted so an admin could
+  lower a plan's cap without breaking existing customers. Carrying it into a
+  plan the landlord is choosing to move to would let it defeat that plan's cap
+  entirely. Verified live against a tenant whose grandfathered cap is 500: the
+  downgrade was still refused.
+- **Cancellation is deliberately not gated.** Cancelling is how a customer stops
+  paying; refusing it until they delete units would trap them in a paid plan.
+  Landing on FREE over cap only stops them *adding* units — nothing is deleted,
+  because `enforceUnitCap` is consulted on creation only.
+
+The card now disables the button and says why before it is clicked. That
+uncovered a second half: `handleDowngrade` was `catch { /* silent */ }`, so the
+server's refusal — the one that names how many units to remove — would have
+shown the landlord nothing at all. The gate would have been invisible.
+
+Verified live: 14 units → FREE returned 409 and wrote no pending plan; → BASIC
+(no cap) returned 200 and scheduled normally.
+
+### F-29 🟠 A deleted unit orphans its rent reviews
+
+Found by driving the portal, not by reading code. `rent_reviews` had **no
+foreign keys at all**, so deleting a unit left its reviews pointing at nothing.
+They rendered as "Unit —" with no property and no occupant — and worse than
+clutter, their row menu still offered **Notify Occupant** and **Apply Now**:
+messaging a tenant who is not there, and applying a rent rise to a unit that no
+longer exists. Two of four reviews in the QA tenant were in that state.
+
+Fixed at the database rather than in `UnitServiceImpl.deleteUnit`, and that
+choice was decided by something checked rather than assumed: `units.property_id`
+already cascades, so deleting a **property** removes its units directly in the
+database without `deleteUnit` ever running. Java-side cleanup would have closed
+one path and left the other open.
+
+CASCADE for unit and property, not the SET NULL that agreements took in F-09. A
+terminated lease stays auditable after its unit is gone; a rent review is a
+proposal about one specific unit, and detached from it cannot be displayed,
+actioned or understood — SET NULL would have preserved exactly the "Unit —" row
+this removes. `occupant_id` takes SET NULL instead: the review is about a unit
+that still exists, and losing the tenant should not delete its rent history.
+
+The test earns its keep. With the constraint dropped it fails with *"the review
+outlived its unit"*, then passes with it — and it covers the property path,
+which is the one Java cleanup would have missed.
+
+### F-30 🟠 Internal error messages returned in production
+
+Found while deleting the last Supabase references, and not the cosmetic cleanup
+it looked like. `handleError` had a leftover branch whose type guard was:
+
+```ts
+typeof error === 'object' && error !== null && 'message' in error
+```
+
+— true of every `Error`. It sat **above** the generic handler, so it ran instead
+of it for essentially everything: labelling all failures `DATABASE_ERROR`,
+mapping them through a table of Postgres codes that no longer arrive, and
+returning `error.message` verbatim. The generic branch two lines below
+deliberately withholds the message outside development. Nothing ever reached it.
+
+That is the reason this is a fix and not a tidy-up, and it is only visible if you
+check the ordering rather than reading the branch in isolation.
+
+---
+
+## Supabase removed — 2026-08-14
+
+Supabase was the only thing in the product still on it: three files and two
+features, against ImageKit which already held every property, unit, occupant and
+inspection image and was already wired through `docker-compose.yml`. The backend
+never referenced it at all.
+
+Three reasons to move, only one of which was tidiness:
+
+- The old route returned a permanent **public** URL which the list opened
+  directly. Anyone holding the link could read a tenancy agreement, and nothing
+  checked they owned it — a document id from another tenant was as good as your
+  own.
+- It routed bytes through a Next route handler holding a **service-role key with
+  full storage rights**, sitting in the web tier.
+- It was **dead in every Docker deployment** (F-27): compose never passed the
+  Supabase keys, so every upload 500'd there. Only `npm run dev` worked.
+
+### What it looks like now
+
+Files go straight to ImageKit as **private** objects, signed by a short-lived
+token Spring issues, so bytes never touch our server and no storage key lives in
+the web tier. Reading one goes through `GET /documents/{id}/download-url`, which
+resolves the document within the caller's tenant and signs a link valid for five
+minutes — long enough to click, short enough that a URL copied out of history, a
+chat message or a proxy log is worthless later.
+
+Deleting a document now removes the file server-side. The browser used to make
+that call afterwards, best-effort, and skipped it entirely whenever the tab was
+closed first.
+
+The platform-admin logo moved too, and stays deliberately **public** — it renders
+on the login page and in emails, where a signed link would be wrong.
+
+No data migration was needed: the `documents` table was empty in every tenant,
+which is why this was cheap today and would not have been later.
+
+### Verified with a real PDF
+
+Driven through the real dialog, with real PDF bytes rather than a renamed text
+file:
+
+| | |
+|---|---|
+| stored URL, on its own | **403** — and no `%PDF` bytes in the body |
+| signed link | **200**, body begins `%PDF` |
+| after deleting the document | **404** |
+
+Under Supabase the first of those was **200, to anyone at all**.
+
+### Known trade-off, deliberately taken
+
+`isPrivateFile` is set by the browser, and the upload signature covers only the
+token and its expiry, so a hand-built request could omit it. That is the same
+trust this app already extends to `folder` on every property and occupant image.
+Closing it means proxying uploads through Spring — server-controlled flags, at
+the cost of streaming 10 MB files through Java. Worth doing if documents ever
+carry something stricter than they do today.
+
+### What is left of Supabase
+
+Nothing that runs. No SDK (it was never in `package.json`), no routes, no keys
+in `.env.example`, and three comments that explain what used to be there.
+
+---
+
+## The `/listings` build warning — 2026-08-14
+
+Carried from the original report, never one of the numbered nineteen. Every
+production build printed:
+
+```
+[listings] failed to load public listings: Error: Dynamic server usage:
+Route /listings couldn't be rendered statically because it used no-store fetch
+{ digest: 'DYNAMIC_SERVER_USAGE' }
+```
+
+That is the framework saying *"render this route on demand"*, caught by a
+try/catch meant for *"the API was unreachable"* and logged as an application
+failure. Runtime was never affected — Next opted the route into dynamic
+rendering regardless — but anyone reading the build log would reasonably
+conclude the listings API was broken.
+
+Fixed at the cause and at the class: `export const dynamic = 'force-dynamic'` on
+the three listing routes, and a `rethrowIfNextControlFlow()` guard called first
+in every catch around a Server Component fetch. `notFound()`, `redirect()` and
+the dynamic bail-out are all raised as exceptions carrying a `digest`, so any
+catch broad enough to be useful is broad enough to eat them.
+
+It was not only the index page. `/listings/[id]` had `catch { notFound() }`, so a
+build-time dynamic signal was answered with a **404** — "render this on demand"
+turned into "this listing does not exist".
+
+Verified by building before and after — **2 warnings to 0**, with `/listings`
+still classified `ƒ (Dynamic)` — then against the real built output, both halves
+of what the catch exists for:
+
+- **API up:** page renders, nothing logged, so an empty page means an empty
+  catalogue
+- **API pointed at a closed port:** still fails open to the empty state, *and*
+  logs the real failure
+
+---
+
+## The flaky frontend tests — 2026-08-14
+
+Five tests failed on `Test timed out in 30000ms` on a quiet machine, and every
+one passed when run alone. Always a timeout, never an assertion — the kind of
+red that teaches you to ignore the suite.
+
+I first told you these were self-inflicted by my own concurrent builds. **That
+was wrong**: they failed with nothing else running, and the all-green run I had
+cited was luck.
+
+Not a slow test doing something silly. Profiled phase by phase, the property
+dialog costs **2.4s to render** and ~500ms per Select interaction, so walking its
+wizard is 6–10s of real work — inherent to a 1600-line MUI form in happy-dom.
+
+The failures were **starvation**: one fork per core, each re-importing the whole
+MUI surface. Halving the workers more than halved the total work, because the
+contention was costing more than the parallelism was buying:
+
+| | before | after |
+|---|---|---|
+| cumulative import | 893s | **100s** |
+| cumulative tests | 1025s | **104s** |
+| wall clock | 202s *(5 failing)* | **47–55s green** |
+
+Faster *and* green — four consecutive full runs at 501/501. Scaled to
+`os.cpus()` rather than pinned, so a 4-core CI box does not hit the same
+starvation from the other direction.
+
+**The part worth remembering:** the first version of this fix set
+`poolOptions.forks.maxForks`, which this Vitest does not have. It was ignored in
+silence and the suite went on failing identically — the config looked applied and
+did nothing. The working key is `maxWorkers` on `test`.
 
 ---
 
@@ -448,7 +749,7 @@ in exactly one place.
 | F-24 | every valid Ghanaian MoMo number is rejected — nothing can be linked, nothing can be withdrawn | 🔴 | fixed, uncommitted |
 | F-25 | recording a utility bill saves, but the table keeps saying "No bills recorded yet" | 🟠 | fixed, uncommitted |
 | F-26 | a new rent review shows its tenant as "Vacant" | 🟡 | fixed, uncommitted |
-| F-27 | document upload 500s in every Docker deployment — compose never passes the Supabase keys | 🔴 | **open — needs a deployment decision** |
+| F-27 | document upload 500s in every Docker deployment — compose never passes the Supabase keys | 🔴 | fixed — the [Supabase removal](#supabase-removed--2026-08-14) took the cause away |
 | F-28 | every "deleted" image stayed live on the CDN — delete never purged | 🔴 | fixed, uncommitted |
 
 ### F-24 🔴 No landlord can link a MoMo number or withdraw their money
@@ -587,8 +888,18 @@ and dropped (F-06); the exact room counts rewritten to "6+" (F-07); the
 `unitStatus` the API knew and the card never asked for (F-02); the Units
 Overview counts recomputed from one page of rows when a portfolio-wide endpoint
 already existed (F-20); the company name typed at signup and asked for again
-(F-22). **Before deriving a number, check whether something upstream already
-knows it.**
+(F-22); the rent review that stored an `occupantId` and then returned null for
+the name (F-26). **Before deriving a number, check whether something upstream
+already knows it.**
+
+A second pattern earned its place over the later passes: **a catch broad enough
+to be useful is broad enough to swallow something that mattered.** The wallet
+swallowed the MoMo refusal, the downgrade card swallowed the server's 409, the
+document delete swallowed its own storage cleanup, `/listings` swallowed Next's
+dynamic-rendering signal, and `handleError` swallowed the entire generic error
+branch — that last one leaking internal messages into production for as long as
+it stood. Four of the five printed nothing at all. **When you write a catch, say
+out loud what it is allowed to eat.**
 
 ### Was open at first report — 10 of 19, all since closed
 
@@ -613,8 +924,9 @@ Ranked by what they cost a landlord:
 Plus: `/listings` swallows Next's `DynamicServerError`, which prints on every
 build. Runtime is unaffected — Next opts the route into dynamic rendering
 anyway — but the swallow is what Next explicitly warns against, and the fix is
-to rethrow it. **Still open** — it was never one of the numbered nineteen. It
-was the only unaddressed item in this report until the second pass added F-23.
+to rethrow it. Fixed on 2026-08-14 — see [the `/listings` build
+warning](#the-listings-build-warning--2026-08-14). It was never one of the
+numbered nineteen, and was the last item in this report to be closed.
 
 **Coverage gap remaining:** edit and export flows. Create, payments and deletes
 are covered. *(Edit is now covered; export is not — see the status at the top.)*
