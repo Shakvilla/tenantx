@@ -1,7 +1,17 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getPublicListing, getPublicListings } from '@/lib/api/listings-public-client'
+import { rethrowIfNextControlFlow } from '@/lib/next-control-flow'
 import ListingDetailView from '@/views/listings/ListingDetailView'
+
+/**
+ * Always rendered on demand: the listing behind this URL can be taken down at
+ * any moment, and the fetch is `no-store`. Declaring it stops Next raising
+ * DYNAMIC_SERVER_USAGE mid-render during `next build`, which a catch below
+ * would otherwise have to recognise.
+ */
+export const dynamic = 'force-dynamic'
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,7 +54,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         ...(image && { images: [image] }),
       },
     }
-  } catch {
+  } catch (err) {
+    rethrowIfNextControlFlow(err)
+
     return {
       title: 'Listing not found',
     }
@@ -58,14 +70,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PublicListingPage({ params }: Props) {
   // Full list powers the "More homes you might like" row — fail-open to empty.
   // Started before awaiting the single listing so both requests run concurrently.
-  const allListingsPromise = getPublicListings().catch(() => [])
+  const allListingsPromise = getPublicListings().catch(err => {
+    rethrowIfNextControlFlow(err)
+
+    return []
+  })
 
   let listing
 
   try {
     const { id } = await params
     listing = await getPublicListing(id)
-  } catch {
+  } catch (err) {
+    // Without this, a build-time DYNAMIC_SERVER_USAGE was caught here and
+    // answered with notFound() — turning "render this on demand" into a 404.
+    rethrowIfNextControlFlow(err)
+
     notFound()
   }
 

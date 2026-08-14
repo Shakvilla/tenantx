@@ -1,8 +1,18 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getPublicListings } from '@/lib/api/listings-public-client'
+import { rethrowIfNextControlFlow } from '@/lib/next-control-flow'
 import { labelForSlug } from '@/views/listings/lib/city'
 import ListingsIndexView from '@/views/listings/ListingsIndexView'
+
+/**
+ * Always rendered on demand: the listing behind this URL can be taken down at
+ * any moment, and the fetch is `no-store`. Declaring it stops Next raising
+ * DYNAMIC_SERVER_USAGE mid-render during `next build`, which a catch below
+ * would otherwise have to recognise.
+ */
+export const dynamic = 'force-dynamic'
+
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,7 +28,11 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const listings = await getPublicListings().catch(() => [])
+  const listings = await getPublicListings().catch(err => {
+    rethrowIfNextControlFlow(err)
+
+    return []
+  })
   const label = labelForSlug(listings, slug)
 
   if (!label) return { title: 'Listings' }
