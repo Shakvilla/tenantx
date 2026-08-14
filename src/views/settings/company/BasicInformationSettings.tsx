@@ -86,8 +86,16 @@ const BasicInformationSettings = () => {
     ]).then(([settings, contact]) => {
       const b = settings ? (settings as any).basic : null
 
+      // The signup name is the fallback, not the override: a landlord who has
+      // saved a different trading name here keeps it. Before this, the required
+      // Company Name field opened blank for everyone who had never saved — it
+      // hydrates only from the settings blob, which does not exist until the
+      // first save, while the answer had been sitting in `tenants.name` since
+      // the day they signed up.
+      const signupName = contact?.companyName || ''
+
       if (b) {
-        setCompanyName(b.companyName || '')
+        setCompanyName(b.companyName || signupName)
         setStreet(b.address?.street || '')
         setCity(b.address?.city || '')
         setState(b.address?.state || '')
@@ -97,6 +105,8 @@ const BasicInformationSettings = () => {
         setWebsite(b.website || '')
         setTimezone(b.timezone || 'Africa/Accra')
         if (b.logo) setLogo(b.logo)
+      } else if (signupName) {
+        setCompanyName(signupName)
       }
 
       // The published number is the typed column, not the settings blob. Fall

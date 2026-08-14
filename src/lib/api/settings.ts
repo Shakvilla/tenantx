@@ -67,6 +67,14 @@ export interface TenantContact {
 
   /** Normalised to E.164 by the backend on write; null when none is set. */
   contactPhone: string | null
+
+  /**
+   * The company name captured at signup (`tenants.name`). Read-only — writes go
+   * to the settings blob as before. It is here so Company Settings can pre-fill
+   * its required Company Name field instead of showing it blank to a landlord
+   * who already typed it.
+   */
+  companyName?: string | null
 }
 
 /** Matches the backend's `@Pattern` exactly. Blank is legal — it clears. */
