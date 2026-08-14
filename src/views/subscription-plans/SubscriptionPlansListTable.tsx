@@ -613,11 +613,14 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
 function PlanCard({
   plan,
   currentPlanName,
+  unitCount,
   onUpgrade,
   onDowngrade,
 }: {
   plan: SubscriptionPlanPublicDto
   currentPlanName: string
+  /** The tenant's current active units, used to tell them before they click. */
+  unitCount: number
   onUpgrade: (p: SubscriptionPlanPublicDto) => void
   onDowngrade: (p: SubscriptionPlanPublicDto) => void
 }) {
@@ -625,6 +628,12 @@ function PlanCard({
   const isHigher  = PLAN_ORDER[plan.name] > PLAN_ORDER[currentPlanName]
   const isLower   = PLAN_ORDER[plan.name] < PLAN_ORDER[currentPlanName]
   const isPro     = plan.name === 'PRO'
+
+  // The server refuses a downgrade that would leave the landlord above the
+  // target plan's cap. Saying so on the card is the difference between a
+  // decision and an error message: a null cap means unlimited.
+  const excessUnits = plan.freeUnitCap != null ? unitCount - plan.freeUnitCap : 0
+  const wontFit     = isLower && excessUnits > 0
 
   return (
     <Card
@@ -706,9 +715,23 @@ function PlanCard({
             Upgrade to {plan.displayName}
           </Button>
         ) : isLower ? (
-          <Button fullWidth variant='outlined' color='inherit' onClick={() => onDowngrade(plan)}>
-            Downgrade to {plan.displayName}
-          </Button>
+          <Box sx={{ width: '100%' }}>
+            <Button
+              fullWidth
+              variant='outlined'
+              color='inherit'
+              disabled={wontFit}
+              onClick={() => onDowngrade(plan)}
+            >
+              Downgrade to {plan.displayName}
+            </Button>
+            {wontFit && (
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 1 }}>
+                You have {unitCount} units and this plan allows {plan.freeUnitCap}. Remove{' '}
+                {excessUnits} unit{excessUnits === 1 ? '' : 's'} to switch.
+              </Typography>
+            )}
+          </Box>
         ) : null}
       </CardActions>
     </Card>
@@ -886,6 +909,7 @@ export default function SubscriptionPlansListTable() {
   const [plansLoading, setPlansLoading] = useState(true)
   const [upgradeTarget, setUpgradeTarget] = useState<SubscriptionPlanPublicDto | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
     getAvailablePlans()
@@ -907,7 +931,18 @@ export default function SubscriptionPlansListTable() {
       await scheduleDowngrade(plan.name)
       await refresh()
       setSuccessMsg('Downgrade to ' + plan.displayName + ' scheduled for end of billing period.')
-    } catch { /* silent */ }
+    } catch (err: any) {
+      // This was `catch { /* silent */ }`. The card below disables the button
+      // when the units will not fit, but a stale count — units added in another
+      // tab, or by a colleague — still reaches the server, and the server's
+      // refusal names exactly how many units to remove. Swallowing it left the
+      // landlord pressing a button that did nothing and said nothing.
+      setErrorMsg(
+        err?.response?.data?.message ??
+        err?.message ??
+        'Could not schedule the downgrade. Please try again.'
+      )
+    }
   }
 
   const currentPlan = subscription?.plan ?? 'FREE'
@@ -936,6 +971,7 @@ export default function SubscriptionPlansListTable() {
             <PlanCard
               plan={plan}
               currentPlanName={currentPlan}
+              unitCount={subscription?.unitCount ?? 0}
               onUpgrade={setUpgradeTarget}
               onDowngrade={handleDowngrade}
             />
@@ -963,6 +999,19 @@ export default function SubscriptionPlansListTable() {
         message={successMsg}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+
+      <Snackbar
+        open={errorMsg !== null}
+        // Longer than the success toast: this one asks the landlord to do
+        // something, and it names a number they need to read.
+        autoHideDuration={10000}
+        onClose={() => setErrorMsg(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity='error' onClose={() => setErrorMsg(null)} variant='filled'>
+          {errorMsg}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }
