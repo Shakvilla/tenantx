@@ -97,7 +97,7 @@ test.describe.serial('status readouts', () => {
       agreementType: 'LEASE',
       startDate: '2026-01-01',
       endDate: '2026-12-31',
-      rentAmount: 900,
+      rent: 900,
       currency: 'GHS',
       paymentFrequency: 'MONTHLY',
       status: 'ACTIVE'
@@ -125,7 +125,7 @@ test.describe.serial('status readouts', () => {
       // correct but tests the lifecycle rather than the chip.
       startDate: '2026-01-01',
       endDate: '2026-12-31',
-      rentAmount: 900,
+      rent: 900,
       currency: 'GHS',
       paymentFrequency: 'MONTHLY',
       status: 'ACTIVE'

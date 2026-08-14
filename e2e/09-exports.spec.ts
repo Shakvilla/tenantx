@@ -122,7 +122,7 @@ test.describe.serial('exporting to CSV', () => {
       agreementType: 'LEASE',
       startDate: '2026-01-01',
       endDate: '2026-12-31',
-      rentAmount: 1400,
+      rent: 1400,
       currency: 'GHS',
       paymentFrequency: 'MONTHLY',
       status: 'ACTIVE'

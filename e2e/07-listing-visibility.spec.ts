@@ -150,7 +150,7 @@ test.describe.serial('listing visibility', () => {
       agreementType: 'LEASE',
       startDate: '2026-01-01',
       endDate: '2026-12-31',
-      rentAmount: 1100,
+      rent: 1100,
       currency: 'GHS',
       paymentFrequency: 'MONTHLY',
       status: 'ACTIVE'
