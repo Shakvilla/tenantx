@@ -65,8 +65,6 @@ type OccupantData = {
   propertyId?: string
   ghanaCardId?: string
   idType?: string
-  idCardFrontUrl?: string
-  idCardBackUrl?: string
   securityDeposit?: string
   lateFee?: string
   rentType?: string

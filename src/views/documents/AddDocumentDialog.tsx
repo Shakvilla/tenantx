@@ -34,10 +34,23 @@ import type { Property } from '@/types/property'
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Agreements first, because they are what a landlord files most often.
+ *
+ * Identity documents are deliberately absent. "Ghana Card", "ID Card",
+ * "Passport" and "Passport Photo" were removed when Ghana's rules stopped
+ * permitting images of the card to be held; the neighbouring ID types went with
+ * them so there is no near-miss label left to file a card scan under. "Payslip"
+ * was dropped as no longer needed. The card NUMBER is still collected, on the
+ * occupant record.
+ *
+ * This list must stay identical to the @Pattern regexp on
+ * DocumentDto.CreateRequest — they are validated independently, so a type in
+ * one and not the other is offered by the form and then rejected by the API.
+ */
 const DOCUMENT_TYPES = [
-  'ID Card', 'Passport', 'Lease Agreement', 'Contract', 'Other',
-  'Ghana Card', 'Passport Photo', 'Employment Letter', 'Payslip',
-  'Business Registration', 'Reference', 'Receipt'
+  'Signed Tenancy Agreement', 'Lease Agreement', 'Contract', 'Receipt',
+  'Employment Letter', 'Business Registration', 'Reference', 'Other'
 ]
 
 const FILE_ICONS: Record<string, string> = {

@@ -216,14 +216,20 @@ export async function getTenantStats(tenantId: string): Promise<ApiResponse<Tena
 }
 
 /**
- * Upload a tenant image to Supabase storage
+ * Upload a tenant avatar.
+ *
+ * The fileType union used to carry 'ghanaCardFront' | 'ghanaCardBack'. Ghana no
+ * longer permits holding images of the card, so those are gone — and the two
+ * calls that passed them were on a screen backed by an API that does not exist
+ * (`/api/v1/tenants` is absent from the OpenAPI spec entirely), so they had
+ * never stored anything.
  */
 export async function uploadTenantImage(
   tenantId: string,
   file: File,
   propertyName: string,
   tenantName: string,
-  fileType: 'avatar' | 'ghanaCardFront' | 'ghanaCardBack'
+  fileType: 'avatar'
 ): Promise<ApiResponse<{ path: string; url: string; fileType: string }>> {
   const formData = new FormData()
 

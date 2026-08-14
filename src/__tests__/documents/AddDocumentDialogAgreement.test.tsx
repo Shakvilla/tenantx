@@ -60,7 +60,7 @@ describe('AddDocumentDialog — agreement attachment', () => {
     ] as any)
   })
 
-  it('offers the 12-value document-type list and includes agreementId in the payload when selected', async () => {
+  it('offers the document-type list, with no identity types, and includes agreementId when selected', async () => {
     render(<AddDocumentDialog open setOpen={() => {}} onSuccess={() => {}} />)
 
     // Wait for the async occupants/properties load to finish and the form to render.
@@ -69,14 +69,22 @@ describe('AddDocumentDialog — agreement attachment', () => {
     await screen.findByLabelText(/document type/i)
 
     fireEvent.mouseDown(screen.getByLabelText(/document type/i))
-    expect(await screen.findByText('Ghana Card')).toBeInTheDocument()
+    expect(await screen.findByText('Signed Tenancy Agreement')).toBeInTheDocument()
+    expect(screen.getByText('Lease Agreement')).toBeInTheDocument()
+    expect(screen.getByText('Contract')).toBeInTheDocument()
     expect(screen.getByText('Employment Letter')).toBeInTheDocument()
-    expect(screen.getByText('Payslip')).toBeInTheDocument()
     expect(screen.getByText('Business Registration')).toBeInTheDocument()
     expect(screen.getByText('Reference')).toBeInTheDocument()
     expect(screen.getByText('Receipt')).toBeInTheDocument()
-    expect(screen.getByText('Passport Photo')).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Ghana Card'))
+
+    // Ghana no longer permits holding images of the card, so no identity type is
+    // offered — and the neighbouring ones went too, so there is no near-miss
+    // label left to file a card scan under. "Payslip" was dropped as unneeded.
+    for (const gone of ['Ghana Card', 'ID Card', 'Passport', 'Passport Photo', 'Payslip']) {
+      expect(screen.queryByText(gone), `${gone} must not be offered`).not.toBeInTheDocument()
+    }
+
+    fireEvent.click(screen.getByText('Signed Tenancy Agreement'))
 
     fireEvent.mouseDown(screen.getByLabelText(/^tenant/i))
     fireEvent.click(await screen.findByText('Ama Mensah — Unit A1'))
@@ -84,14 +92,14 @@ describe('AddDocumentDialog — agreement attachment', () => {
     // (Same MUI-menu-not-mounted-until-open caveat as above: agreements load
     // asynchronously once the occupant is set, so we open the menu first and let
     // findByText poll for the option rather than checking for it beforehand.)
-    fireEvent.mouseDown(screen.getByLabelText(/agreement/i))
+    fireEvent.mouseDown(screen.getByLabelText(/^agreement/i))
     fireEvent.click(await screen.findByText('AGR-2026-001'))
 
     fireEvent.click(screen.getByRole('button', { name: /save|upload|add/i }))
 
     await waitFor(() => expect(createDocument).toHaveBeenCalled())
     const payload = vi.mocked(createDocument).mock.calls[0][0]
-    expect(payload.documentType).toBe('Ghana Card')
+    expect(payload.documentType).toBe('Signed Tenancy Agreement')
     expect(payload.agreementId).toBe('agr-1')
     expect(payload.agreementNumber).toBe('AGR-2026-001')
   })
@@ -102,13 +110,13 @@ describe('AddDocumentDialog — agreement attachment', () => {
     await screen.findByLabelText(/document type/i)
 
     fireEvent.mouseDown(screen.getByLabelText(/document type/i))
-    fireEvent.click(await screen.findByText('Ghana Card'))
+    fireEvent.click(await screen.findByText('Signed Tenancy Agreement'))
 
     // Pick occupant A, then select an agreement belonging to them.
     fireEvent.mouseDown(screen.getByLabelText(/^tenant/i))
     fireEvent.click(await screen.findByText('Ama Mensah — Unit A1'))
 
-    fireEvent.mouseDown(screen.getByLabelText(/agreement/i))
+    fireEvent.mouseDown(screen.getByLabelText(/^agreement/i))
     fireEvent.click(await screen.findByText('AGR-2026-001'))
 
     // Switch to a different occupant without re-picking an agreement.

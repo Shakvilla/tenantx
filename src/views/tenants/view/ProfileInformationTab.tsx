@@ -23,8 +23,6 @@ type TenantData = {
   job?: string
   ghanaCardId?: string
   idType?: string
-  idCardFrontUrl?: string
-  idCardBackUrl?: string
   previousAddress?: {
     address: string
     city: string
@@ -148,42 +146,6 @@ const ProfileInformationTab = ({ tenantData }: { tenantData?: TenantData }) => {
                 )}
               </div>
             </div>
-
-            {/* ID card images */}
-            {(tenantData?.idCardFrontUrl || tenantData?.idCardBackUrl) && (
-              <div className='flex flex-col gap-3'>
-                <Divider />
-                <Typography variant='subtitle2' className='uppercase' color='text.disabled'>
-                  ID Document
-                </Typography>
-                <div className='flex gap-3'>
-                  {tenantData.idCardFrontUrl && (
-                    <div className='flex flex-col gap-1 flex-1'>
-                      <Typography variant='caption' color='text.secondary'>Front</Typography>
-                      <a href={tenantData.idCardFrontUrl} target='_blank' rel='noreferrer'>
-                        <img
-                          src={tenantData.idCardFrontUrl}
-                          alt='ID front'
-                          style={{ width: '100%', borderRadius: 4, border: '1px solid var(--mui-palette-divider)', objectFit: 'cover', maxHeight: 100 }}
-                        />
-                      </a>
-                    </div>
-                  )}
-                  {tenantData.idCardBackUrl && (
-                    <div className='flex flex-col gap-1 flex-1'>
-                      <Typography variant='caption' color='text.secondary'>Back</Typography>
-                      <a href={tenantData.idCardBackUrl} target='_blank' rel='noreferrer'>
-                        <img
-                          src={tenantData.idCardBackUrl}
-                          alt='ID back'
-                          style={{ width: '100%', borderRadius: 4, border: '1px solid var(--mui-palette-divider)', objectFit: 'cover', maxHeight: 100 }}
-                        />
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </Grid>

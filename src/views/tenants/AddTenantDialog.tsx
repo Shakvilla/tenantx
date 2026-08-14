@@ -74,8 +74,6 @@ type TenantEditData = {
   leaseStartDate?: string
   leaseEndDate?: string
   avatar?: string
-  ghanaCardFront?: string
-  ghanaCardBack?: string
 }
 
 type Props = {
@@ -118,8 +116,6 @@ type FormDataType = {
   leaseStartDate: string
   leaseEndDate: string
   tenantPicture: File | null
-  ghanaCardFront: File | null
-  ghanaCardBack: File | null
 }
 
 const initialData: FormDataType = {
@@ -151,8 +147,6 @@ const initialData: FormDataType = {
   leaseStartDate: '',
   leaseEndDate: '',
   tenantPicture: null,
-  ghanaCardFront: null,
-  ghanaCardBack: null
 }
 
 const AddTenantDialog = ({
@@ -174,12 +168,8 @@ const AddTenantDialog = ({
 
   const [previewImages, setPreviewImages] = useState<{
     tenantPicture: string | null
-    ghanaCardFront: string | null
-    ghanaCardBack: string | null
   }>({
     tenantPicture: null,
-    ghanaCardFront: null,
-    ghanaCardBack: null
   })
 
   // Dynamic units state - fetched based on selected property
@@ -188,8 +178,6 @@ const AddTenantDialog = ({
 
   // Refs for file inputs
   const tenantPictureRef = useRef<HTMLInputElement>(null)
-  const ghanaCardFrontRef = useRef<HTMLInputElement>(null)
-  const ghanaCardBackRef = useRef<HTMLInputElement>(null)
 
   // Fetch available units when property is selected
   const fetchUnitsForProperty = useCallback(async (propertyId: string) => {
@@ -305,8 +293,6 @@ const AddTenantDialog = ({
         leaseStartDate: editData.leaseStartDate || '',
         leaseEndDate: editData.leaseEndDate || '',
         tenantPicture: null,
-        ghanaCardFront: null,
-        ghanaCardBack: null
       }
     }
 
@@ -323,8 +309,6 @@ const AddTenantDialog = ({
       setExpanded('tenant-info')
       setPreviewImages({
         tenantPicture: editData?.avatar || null,
-        ghanaCardFront: editData?.ghanaCardFront || null,
-        ghanaCardBack: editData?.ghanaCardBack || null
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -358,13 +342,6 @@ const AddTenantDialog = ({
         URL.revokeObjectURL(previewImages.tenantPicture)
       }
 
-      if (previewImages.ghanaCardFront && previewImages.ghanaCardFront.startsWith('blob:')) {
-        URL.revokeObjectURL(previewImages.ghanaCardFront)
-      }
-
-      if (previewImages.ghanaCardBack && previewImages.ghanaCardBack.startsWith('blob:')) {
-        URL.revokeObjectURL(previewImages.ghanaCardBack)
-      }
     }
   }, [previewImages])
 
@@ -390,7 +367,7 @@ const AddTenantDialog = ({
     }))
   }
 
-  const handleFileChange = (type: 'tenantPicture' | 'ghanaCardFront' | 'ghanaCardBack', file: File | null) => {
+  const handleFileChange = (type: 'tenantPicture', file: File | null) => {
     setFormData(prev => ({ ...prev, [type]: file }))
 
     if (file) {
@@ -470,24 +447,6 @@ const AddTenantDialog = ({
           console.error('Failed to upload avatar:', uploadErr)
 
           // Continue without avatar if upload fails
-        }
-      }
-
-      // Upload Ghana card front if provided (for future use)
-      if (formData.ghanaCardFront) {
-        try {
-          await uploadTenantImage(tenantId, formData.ghanaCardFront, propertyName, tenantFullName, 'ghanaCardFront')
-        } catch (uploadErr) {
-          console.error('Failed to upload Ghana card front:', uploadErr)
-        }
-      }
-
-      // Upload Ghana card back if provided (for future use)
-      if (formData.ghanaCardBack) {
-        try {
-          await uploadTenantImage(tenantId, formData.ghanaCardBack, propertyName, tenantFullName, 'ghanaCardBack')
-        } catch (uploadErr) {
-          console.error('Failed to upload Ghana card back:', uploadErr)
         }
       }
 
@@ -573,7 +532,7 @@ const AddTenantDialog = ({
       handleClose()
       setFormData(initialData)
       setErrors({})
-      setPreviewImages({ tenantPicture: null, ghanaCardFront: null, ghanaCardBack: null })
+      setPreviewImages({ tenantPicture: null })
     } catch (error) {
       // console.error('Failed to save tenant:', error)
       setApiError(error instanceof Error ? error.message : 'Failed to save tenant')
@@ -586,7 +545,7 @@ const AddTenantDialog = ({
     handleClose()
     setFormData(initialData)
     setErrors({})
-    setPreviewImages({ tenantPicture: null, ghanaCardFront: null, ghanaCardBack: null })
+    setPreviewImages({ tenantPicture: null })
   }
 
   return (
@@ -782,150 +741,6 @@ const AddTenantDialog = ({
                     )}
                     {!previewImages.tenantPicture && (
                       <Typography variant='body2' color='text.secondary'>
-                        No file chosen
-                      </Typography>
-                    )}
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant='body2' className='font-medium mbe-2'>
-                    Ghana Card - Front <span className='text-error'>*</span>
-                  </Typography>
-                  <input
-                    ref={ghanaCardFrontRef}
-                    type='file'
-                    accept='image/*'
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files?.[0] || null
-
-                      handleFileChange('ghanaCardFront', file)
-
-                      if (e.target) {
-                        e.target.value = ''
-                      }
-                    }}
-                  />
-                  <Box className='flex flex-col gap-2'>
-                    {previewImages.ghanaCardFront ? (
-                      <>
-                        <Box
-                          className='border rounded p-2 cursor-pointer hover:bg-actionHover transition-colors'
-                          onClick={() => ghanaCardFrontRef.current?.click()}
-                        >
-                          <img
-                            src={previewImages.ghanaCardFront}
-                            alt='Ghana Card Front'
-                            style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 4 }}
-                          />
-                        </Box>
-                        <Box className='flex gap-2'>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            onClick={() => ghanaCardFrontRef.current?.click()}
-                            startIcon={<i className='ri-edit-line' />}
-                            fullWidth
-                          >
-                            Change
-                          </Button>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            color='error'
-                            onClick={() => handleFileChange('ghanaCardFront', null)}
-                            startIcon={<i className='ri-delete-bin-line' />}
-                            fullWidth
-                          >
-                            Remove
-                          </Button>
-                        </Box>
-                      </>
-                    ) : (
-                      <Button
-                        variant='outlined'
-                        size='small'
-                        onClick={() => ghanaCardFrontRef.current?.click()}
-                        startIcon={<i className='ri-file-upload-line' />}
-                        fullWidth
-                      >
-                        Choose File
-                      </Button>
-                    )}
-                    {!previewImages.ghanaCardFront && (
-                      <Typography variant='body2' color='text.secondary' className='text-center'>
-                        No file chosen
-                      </Typography>
-                    )}
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant='body2' className='font-medium mbe-2'>
-                    Ghana Card - Back <span className='text-error'>*</span>
-                  </Typography>
-                  <input
-                    ref={ghanaCardBackRef}
-                    type='file'
-                    accept='image/*'
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files?.[0] || null
-
-                      handleFileChange('ghanaCardBack', file)
-
-                      if (e.target) {
-                        e.target.value = ''
-                      }
-                    }}
-                  />
-                  <Box className='flex flex-col gap-2'>
-                    {previewImages.ghanaCardBack ? (
-                      <>
-                        <Box
-                          className='border rounded p-2 cursor-pointer hover:bg-actionHover transition-colors'
-                          onClick={() => ghanaCardBackRef.current?.click()}
-                        >
-                          <img
-                            src={previewImages.ghanaCardBack}
-                            alt='Ghana Card Back'
-                            style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 4 }}
-                          />
-                        </Box>
-                        <Box className='flex gap-2'>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            onClick={() => ghanaCardBackRef.current?.click()}
-                            startIcon={<i className='ri-edit-line' />}
-                            fullWidth
-                          >
-                            Change
-                          </Button>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            color='error'
-                            onClick={() => handleFileChange('ghanaCardBack', null)}
-                            startIcon={<i className='ri-delete-bin-line' />}
-                            fullWidth
-                          >
-                            Remove
-                          </Button>
-                        </Box>
-                      </>
-                    ) : (
-                      <Button
-                        variant='outlined'
-                        size='small'
-                        onClick={() => ghanaCardBackRef.current?.click()}
-                        startIcon={<i className='ri-file-upload-line' />}
-                        fullWidth
-                      >
-                        Choose File
-                      </Button>
-                    )}
-                    {!previewImages.ghanaCardBack && (
-                      <Typography variant='body2' color='text.secondary' className='text-center'>
                         No file chosen
                       </Typography>
                     )}

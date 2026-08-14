@@ -48,10 +48,6 @@ export interface OccupantRecord {
   documents?: string[] | null
   ghanaCardId?: string | null
   idType?: string | null
-  idCardFrontUrl?: string | null
-  idCardFrontFileId?: string | null
-  idCardBackUrl?: string | null
-  idCardBackFileId?: string | null
   createdAt: string
   updatedAt: string
 
@@ -93,10 +89,6 @@ export interface CreateOccupantPayload {
   documents?: string[]
   ghanaCardId?: string
   idType?: string
-  idCardFrontUrl?: string
-  idCardFrontFileId?: string
-  idCardBackUrl?: string
-  idCardBackFileId?: string
 }
 
 export interface UpdateOccupantPayload {
@@ -121,10 +113,6 @@ export interface UpdateOccupantPayload {
   documents?: string[]
   ghanaCardId?: string
   idType?: string
-  idCardFrontUrl?: string
-  idCardFrontFileId?: string
-  idCardBackUrl?: string
-  idCardBackFileId?: string
 }
 
 /**
