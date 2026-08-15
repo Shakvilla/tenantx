@@ -1,4 +1,5 @@
 // Next Imports
+import { headers } from 'next/headers'
 import { Bricolage_Grotesque } from 'next/font/google'
 
 // MUI Imports
@@ -42,10 +43,16 @@ const RootLayout = async (props: ChildrenType) => {
   const systemMode = await getSystemMode()
   const direction = 'ltr'
 
+  // Next stamps its own inline scripts with the nonce from the CSP header the
+  // middleware sets, but this one is ours, so it has to be handed the nonce
+  // explicitly. Without it the script is blocked and the page paints in the
+  // wrong colour scheme before React corrects it.
+  const nonce = (await headers()).get('x-nonce') ?? undefined
+
   return (
     <html id='__next' lang='en' dir={direction} suppressHydrationWarning className={bricolageGrotesque.variable}>
       <body className='flex is-full min-bs-full flex-auto flex-col'>
-        <InitColorSchemeScript attribute='data' defaultMode={systemMode} />
+        <InitColorSchemeScript attribute='data' defaultMode={systemMode} nonce={nonce} />
         {children}
       </body>
     </html>
