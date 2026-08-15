@@ -2,7 +2,7 @@
 import JobLinkPage from '@/views/jobs/JobLinkPage'
 
 // This is the landing page for the maintainer job-link SMS
-// ("https://app.tenantx.cloud/jobs/{token}"). The visitor has no TenantX
+// ("https://app.yiliora.cloud/jobs/{token}"). The visitor has no Yiliora
 // account — never add auth, tenant context, or dashboard chrome here.
 //
 // The token is only ever passed down to the view for API calls. Do not put

@@ -28,7 +28,7 @@ describe('useSavedListings', () => {
   })
 
   it('survives corrupt storage', () => {
-    window.localStorage.setItem('tenantx-saved-listings', '{not json')
+    window.localStorage.setItem('yiliora-saved-listings', '{not json')
     const { result } = renderHook(() => useSavedListings())
     expect(result.current.isSaved('a')).toBe(false)
   })

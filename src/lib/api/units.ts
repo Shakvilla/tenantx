@@ -248,8 +248,8 @@ export async function uploadUnitImages(
     const { uploadImages } = await import('@/lib/imagekit')
 
     const folder = unitId
-      ? `/tenantx/${tenantId}/units/${unitId}`
-      : `/tenantx/${tenantId}/units`
+      ? `/yiliora/${tenantId}/units/${unitId}`
+      : `/yiliora/${tenantId}/units`
 
     const uploaded = await uploadImages(files, { folder })
 

@@ -10,8 +10,8 @@ describe('LegalPageView — terms', () => {
 
   it('uses the platform name in the body', () => {
     render(<LegalPageView doc='terms' />)
-    // Without a branding provider the platform name defaults to TenantX
-    expect(screen.getAllByText(/TenantX/).length).toBeGreaterThan(0)
+    // Without a branding provider the platform name defaults to Yiliora
+    expect(screen.getAllByText(/Yiliora/).length).toBeGreaterThan(0)
   })
 
   it('links back to the listings index', () => {

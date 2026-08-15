@@ -261,8 +261,8 @@ export async function uploadOccupantAvatar(
   const { uploadImages } = await import('@/lib/imagekit')
 
   const folder = occupantId
-    ? `/tenantx/${tenantId}/occupants/${occupantId}`
-    : `/tenantx/${tenantId}/occupants`
+    ? `/yiliora/${tenantId}/occupants/${occupantId}`
+    : `/yiliora/${tenantId}/occupants`
 
   const [uploaded] = await uploadImages([file], { folder })
 
