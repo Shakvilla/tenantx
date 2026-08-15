@@ -1,7 +1,9 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
+
+import { useRouter } from 'next/navigation'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -14,6 +16,7 @@ import StepLabel from '@mui/material/StepLabel'
 import Stepper from '@mui/material/Stepper'
 import Avatar from '@mui/material/Avatar'
 import TextField from '@mui/material/TextField'
+import InputAdornment from '@mui/material/InputAdornment'
 import Button from '@mui/material/Button'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
@@ -38,15 +41,36 @@ import classnames from 'classnames'
 import StepperWrapper from '@core/styles/stepper'
 
 // API Imports
-import { saveDraft as saveDraftApi, updateDraft, createProperty, updateProperty, uploadPropertyImages } from '@/lib/api/properties'
+import {
+  saveDraft as saveDraftApi,
+  updateDraft,
+  createProperty,
+  updateProperty,
+  uploadPropertyImages
+} from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
+import { BATHROOM_OPTIONS, BEDROOM_OPTIONS, ROOM_OPTIONS, fromCountOption, toCountOption } from '@/lib/property-options'
+import { formatCurrency } from '@/utils/currency'
+
+// Context Imports
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
+
+// Address Autocomplete Imports
+import PropertyAddressFields from '@/components/address/PropertyAddressFields'
+import type { AddressValue, AddressCoordinates } from '@/components/address/PropertyAddressFields'
+
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 
 type PropertyEditData = {
   id?: string
   name?: string
+
+  /** Backend status. Only a 'draft' record can be saved through the draft
+   *  endpoints — the backend rejects the rest with 409. */
+  status?: string
   type?: string
   condition?: string
-  region?: string
-  district?: string
   city?: string
   gpsCode?: string
   description?: string
@@ -55,9 +79,33 @@ type PropertyEditData = {
   rooms?: number | string
   amenities?: Record<string, boolean>
   images?: string[] // URLs for existing images
+  imageFileIds?: string[] // File IDs paired with `images`, same order
   thumbnailIndex?: number | null
   price?: string
   address?: string
+
+  // Fields used in payload mapping
+  street?: string
+  region?: string
+  district?: string
+  zip?: string
+  totalUnits?: number
+  occupiedUnits?: number
+  purchasePrice?: number
+  currentValue?: number
+  currency?: string
+
+  // Callers pass this through from broader API/view-local types where it's a plain
+  // string; the value is re-cast to the 'own' | 'lease' union at the one call site
+  // that consumes it (see mode === 'edit' below).
+  ownership?: string
+
+  // Raw lowercase API values — used when coming from the property detail page
+  // (which title-cases the display values for rendering)
+  rawType?: string
+  rawCondition?: string
+  rawRegion?: string
+  rawDistrict?: string
 }
 
 type Props = {
@@ -91,24 +139,18 @@ const steps: StepProps[] = [
     title: 'STEP 3',
     subtitle: 'Upload Images'
   },
-
   {
     icon: 'ri-check-double-line',
-    title: 'SUBMIT: Submit',
+    title: 'SUBMIT',
     subtitle: 'Submit'
   }
 ]
-
-type Amenity = {
-  id: string
-  name: string
-  description: string
-}
 
 type FormDataType = {
   propertyName: string
   propertyType: string
   condition: string
+  street: string
   region: string
   district: string
   city: string
@@ -117,58 +159,20 @@ type FormDataType = {
   bedrooms: string
   bathrooms: string
   rooms: string
+
+  // The landlord's own valuation. Held as a string because the input is a
+  // text field; parsed once on submit.
+  currentValue: string
   amenities: Record<string, boolean>
   images: File[]
   thumbnailIndex: number | null
 }
 
-const amenitiesList: Amenity[] = [
-  {
-    id: 'electricity',
-    name: '24-hour Electricity',
-    description: 'Uninterrupted electricity supply'
-  },
-  {
-    id: 'kitchenCabinets',
-    name: 'Kitchen Cabinets',
-    description: 'Ultra modern kitchen cabinets'
-  },
-  {
-    id: 'popCeiling',
-    name: 'POP Ceiling',
-    description: 'Modern Pop ceiling'
-  },
-  {
-    id: 'tiledFloor',
-    name: 'Tiled Floor',
-    description: 'Standard and beautiful tiled floor'
-  },
-  {
-    id: 'diningArea',
-    name: 'Dining Area',
-    description: 'Spacious dining area'
-  },
-  {
-    id: 'parking',
-    name: 'Parking Space',
-    description: 'Dedicated parking space'
-  },
-  {
-    id: 'security',
-    name: 'Security',
-    description: '24/7 security surveillance'
-  },
-  {
-    id: 'wifi',
-    name: 'WiFi',
-    description: 'High-speed internet connection'
-  }
-]
-
 const initialData: FormDataType = {
   propertyName: '',
   propertyType: '',
   condition: '',
+  street: '',
   region: '',
   district: '',
   city: '',
@@ -177,14 +181,8 @@ const initialData: FormDataType = {
   bedrooms: '',
   bathrooms: '',
   rooms: '',
-  amenities: amenitiesList.reduce(
-    (acc, amenity) => {
-      acc[amenity.id] = false
-      
-return acc
-    },
-    {} as Record<string, boolean>
-  ),
+  currentValue: '',
+  amenities: {},
   images: [],
   thumbnailIndex: null
 }
@@ -253,63 +251,74 @@ const ImagePreviewCard = styled(Card, {
   }
 }))
 
-const AddPropertyDialog = ({ open, handleClose, propertyData, setData, editData, mode = 'add' }: Props) => {
+const AddPropertyDialog = ({
+  open,
+  handleClose,
+  propertyData: _propertyData,
+  setData: _setData,
+  editData,
+  mode = 'add'
+}: Props) => {
+  const router = useRouter()
+  const [_, startTransition] = useTransition()
+
+  // Reference data from context (enums, amenities, regions)
+  const { ref } = useReferenceData()
+
   // States
   const [activeStep, setActiveStep] = useState(0)
+
+  // Builds a fresh amenities map from current ref data (all false)
+  const buildEmptyAmenities = (): Record<string, boolean> =>
+    ref.amenities.reduce((acc, a) => ({ ...acc, [a.id]: false }), {} as Record<string, boolean>)
 
   // Initialize form data based on mode
   const getInitialFormData = (): FormDataType => {
     if (mode === 'edit' && editData) {
       return {
         propertyName: editData.name || '',
-        propertyType: editData.type || '',
-        condition: editData.condition || '',
-        region: editData.region || '',
-        district: editData.district || '',
+        propertyType: editData.rawType || editData.type || '',
+        condition: editData.rawCondition || editData.condition || '',
+
+        // Properties saved before the street field existed had the city
+        // written into address_line_1. Prefilling that would show the city
+        // under "Street / House Address" and re-save the duplicate on the
+        // next edit, so drop it when it is exactly the city — the signature
+        // of the old bug. A street that genuinely equals the city name is
+        // indistinguishable, and losing it costs the user one retype.
+        street: editData.street && editData.street !== editData.city ? editData.street : '',
+        region: editData.rawRegion || editData.region || '',
+        district: editData.rawDistrict || editData.district || '',
         city: editData.city || '',
         gpsCode: editData.gpsCode || '',
         description: editData.description || '',
-        bedrooms: editData.bedrooms?.toString() || '',
-        bathrooms: editData.bathrooms?.toString() || '',
-        rooms: editData.rooms?.toString() || '',
-        amenities:
-          editData.amenities ||
-          amenitiesList.reduce(
-            (acc, amenity) => {
-              acc[amenity.id] = false
-              
-return acc
-            },
-            {} as Record<string, boolean>
-          ),
-        images: [], // Will be handled separately for existing images
+
+        // Stored counts are plain integers; map them back onto the option
+        // values so an open-ended count ("6+" → 6) prefills instead of blanking.
+        bedrooms: toCountOption(editData.bedrooms, BEDROOM_OPTIONS),
+        bathrooms: toCountOption(editData.bathrooms, BATHROOM_OPTIONS),
+        rooms: toCountOption(editData.rooms, ROOM_OPTIONS),
+        currentValue: editData.currentValue != null ? String(editData.currentValue) : '',
+        amenities: editData.amenities || buildEmptyAmenities(),
+        images: [],
         thumbnailIndex: editData.thumbnailIndex ?? null
       }
     }
 
-    
-return {
-      ...initialData,
-      amenities:
-        initialData.amenities ||
-        amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
-            
-return acc
-          },
-          {} as Record<string, boolean>
-        ),
-      images: initialData.images || [],
-      thumbnailIndex: initialData.thumbnailIndex ?? null
-    }
+    return { ...initialData, amenities: buildEmptyAmenities() }
   }
 
   const [formData, setFormData] = useState<FormDataType>(getInitialFormData)
   const [existingImages, setExistingImages] = useState<string[]>(editData?.images || [])
+  const [existingImageFileIds, setExistingImageFileIds] = useState<string[]>(editData?.imageFileIds || [])
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [isSaving, setIsSaving] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [draftId, setDraftId] = useState<string | null>(editData?.id || null)
+
+  const [coordinates, setCoordinates] = useState<AddressCoordinates | null>(null)
+
+  const [canWaiveCity, setCanWaiveCity] = useState(false)
 
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
@@ -318,8 +327,11 @@ return acc
 
       setFormData(newFormData)
       setExistingImages(editData?.images || [])
+      setExistingImageFileIds(editData?.imageFileIds || [])
       setActiveStep(0)
       setErrors({})
+      setSubmitError(null)
+      setCoordinates(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
@@ -327,30 +339,39 @@ return acc
   // Vars
   const isLastStep = activeStep === steps.length - 1
 
+  // A draft can only be saved while the record still IS a draft. Offering the
+  // button on a published property produced a 409 ("Property is no longer a
+  // draft") on every click, which the dialog swallowed — it read as a dead button.
+  const canSaveDraft = mode === 'add' || editData?.status === 'draft'
+
   const handleInputChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => {
       const updated = { ...prev, [field]: value }
 
-
       // Ensure amenities is always defined
       if (!updated.amenities) {
-        updated.amenities = amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
-            
-return acc
-          },
-          {} as Record<string, boolean>
-        )
+        updated.amenities = buildEmptyAmenities()
       }
 
-      
-return updated
+      return updated
     })
 
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: false }))
     }
+  }
+
+  const handleAddressChange = (patch: Partial<AddressValue>) => {
+    setFormData(prev => ({ ...prev, ...patch }))
+
+    // A Region change sends a patch that also cascade-clears district and
+    // city to ''. Clearing the error for every key in the patch would wipe
+    // District's "required" highlight before the user has picked a district.
+    // Only a key whose new value is actually non-empty has been resolved.
+    setErrors(prev => ({
+      ...prev,
+      ...Object.fromEntries(Object.entries(patch).filter(([, v]) => Boolean(v)).map(([k]) => [k, false]))
+    }))
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -425,22 +446,35 @@ return updated
       if (!formData.condition) newErrors.condition = true
       if (!formData.region) newErrors.region = true
       if (!formData.district) newErrors.district = true
-      if (!formData.city) newErrors.city = true
+
+      if (formData.district && !formData.city && !canWaiveCity) newErrors.city = true
     } else if (step === 1) {
       // Validate Step 2: Property Features
       if (!formData.bedrooms) newErrors.bedrooms = true
       if (!formData.bathrooms) newErrors.bathrooms = true
       if (!formData.rooms) newErrors.rooms = true
+
+      // Optional, but a figure that is present must be a real one: a number
+      // input still accepts "e" and "-", and the column is unsigned in meaning
+      // if not in type.
+      if (formData.currentValue) {
+        const value = Number(formData.currentValue)
+
+        if (!Number.isFinite(value) || value <= 0) newErrors.currentValue = true
+      }
     }
 
     setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+
+    return Object.keys(newErrors).length === 0
   }
 
   const handleNext = () => {
     if (activeStep < steps.length - 1) {
       if (validateStep(activeStep)) {
+        // The banner describes the step you were on; carrying it forward makes
+        // it describe a problem that is no longer in front of the user.
+        setSubmitError(null)
         setActiveStep(prevActiveStep => prevActiveStep + 1)
       }
     } else {
@@ -451,6 +485,7 @@ return Object.keys(newErrors).length === 0
 
   const handlePrev = () => {
     if (activeStep > 0) {
+      setSubmitError(null)
       setActiveStep(prevActiveStep => prevActiveStep - 1)
     }
   }
@@ -467,25 +502,35 @@ return Object.keys(newErrors).length === 0
       return
     }
 
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      console.error('No tenant ID found')
+
+      return
+    }
+
     setIsSaving(true)
+    setSubmitError(null)
 
     try {
       // Step 1: Upload images first (if any)
       let imageUrls: string[] = [...existingImages] // Start with existing images
+      let imageFileIds: string[] = [...existingImageFileIds]
 
       if (formData.images && formData.images.length > 0) {
-        console.log('Uploading', formData.images.length, 'images...')
-        const uploadResponse = await uploadPropertyImages(formData.images)
+        const uploadResponse = await uploadPropertyImages(tenantId, formData.images)
 
         if (!uploadResponse.success || !uploadResponse.data) {
           throw new Error(uploadResponse.error?.message || 'Failed to upload images')
         }
 
-        // Add newly uploaded image URLs
-        const newUrls = uploadResponse.data.images.map((img) => img.url)
+        // Add newly uploaded image URLs and fileIds
+        const newUrls = uploadResponse.data.images.map(img => img.url)
+        const newFileIds = uploadResponse.data.images.map(img => img.fileId)
 
         imageUrls = [...imageUrls, ...newUrls]
-        console.log('Images uploaded:', newUrls)
+        imageFileIds = [...imageFileIds, ...newFileIds]
       }
 
       // Step 2: Transform amenities from Record<string, boolean> to string[]
@@ -494,43 +539,92 @@ return Object.keys(newErrors).length === 0
         .map(([id]) => id)
 
       // Step 3: Build property payload matching API schema
-      const propertyPayload = {
+      // Values come directly from the API as lowercase strings
+      const backendType = formData.propertyType || 'residential'
+      const backendCondition = formData.condition || 'new'
+
+      const propertyPayload: any = {
         name: formData.propertyName,
         address: {
-          street: formData.city,
-          city: formData.city,
+          // The form now collects a real street line. It is optional, so an
+          // empty one goes as undefined rather than falling back to the city
+          // — writing the city into address_line_1 is what made every
+          // property's street a duplicate of its city.
+          street: formData.street || undefined,
+          city: formData.city || 'Accra',
+          state: (mode === 'edit' && editData?.region) || formData.region,
+          zip: (mode === 'edit' && editData?.zip) || '00233',
           country: 'Ghana'
         },
-        type: (formData.propertyType?.toLowerCase() || 'residential') as 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment',
-        ownership: 'own' as const,
-        region: formData.region,
-        district: formData.district,
+        type: backendType as 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment',
+        ownership: ((mode === 'edit' && editData?.ownership) || 'own') as 'own' | 'lease',
+        // formData, not editData. `editData.region` is the DISPLAY value — the
+        // detail page title-cases it for rendering — so preferring it here sent
+        // 'Greater Accra' back over the stored 'greater-accra', and every edit
+        // quietly rewrote a catalogue slug into a display name. That is how the
+        // two forms got mixed in the database, and it broke the very lookups
+        // the slug exists for: the locality list a city is picked from, and
+        // marketplace search, which compares regions literally.
+        //
+        // formData is seeded from rawRegion/rawDistrict at line ~290 and holds
+        // whatever the landlord has since picked, so it is already correct in
+        // both directions; the raw fields are only a fallback for a form that
+        // never rendered these controls.
+        region: formData.region || (mode === 'edit' ? editData?.rawRegion : undefined),
+        district: formData.district || (mode === 'edit' ? editData?.rawDistrict : undefined),
         gpsCode: formData.gpsCode || undefined,
         description: formData.description || undefined,
-        condition: (formData.condition?.toLowerCase() || undefined) as 'new' | 'good' | 'fair' | 'poor' | undefined,
-        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
-        bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
-        rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
-        amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
-        images: imageUrls.length > 0 ? imageUrls : undefined,
+        condition: backendCondition as 'new' | 'good' | 'fair' | 'poor',
+
+        // Pass the stored count alongside the option: "6+" cannot say whether
+        // the property has 6 bedrooms or 11, so taking it literally would
+        // rewrite an 11-bedroom property to 6 on an unrelated edit.
+        bedrooms: fromCountOption(formData.bedrooms, editData?.bedrooms),
+        bathrooms: fromCountOption(formData.bathrooms, editData?.bathrooms),
+        rooms: fromCountOption(formData.rooms, editData?.rooms),
+        amenities: amenitiesArray,
+        images: imageUrls,
+        imageFileIds: imageFileIds,
         thumbnailIndex: formData.thumbnailIndex ?? undefined,
+        ...(coordinates ?? {}),
+
+        // Financial data
+        purchasePrice: (mode === 'edit' && editData?.purchasePrice) ? Number(editData.purchasePrice) : undefined,
+
+        // Now captured by the form. It was previously only ever echoed back
+        // from `editData`, which nothing could ever set — so `current_value`
+        // was null on every property and the detail page's figure read "N/A"
+        // for every landlord, permanently.
+        currentValue: formData.currentValue ? Number(formData.currentValue) : undefined,
+        currency: (mode === 'edit' && editData?.currency) || 'GHS'
+      }
+
+      // Add inventory data only for existing properties
+      if (mode === 'edit') {
+        propertyPayload.totalUnits = editData?.totalUnits ?? 0
+        propertyPayload.occupiedUnits = editData?.occupiedUnits ?? 0
       }
 
       // Step 4: Call API to create or update property
-      const existingPropertyId = (mode === 'edit' && editData?.id) ? editData.id : draftId
+      const existingPropertyId = mode === 'edit' && editData?.id ? editData.id : draftId
+
+      console.log('[PropertyDialog] Payload:', JSON.stringify(propertyPayload, null, 2))
+      console.log('[PropertyDialog] Mode:', mode, '| PropertyId:', existingPropertyId)
 
       let response
 
-      if (existingPropertyId) {
-        // Editing existing draft - update it and change status to active
+      if (mode === 'edit' && existingPropertyId) {
+        // Editing existing property - update it and preserve status
         console.log('Updating existing property:', existingPropertyId)
-        response = await updateProperty(existingPropertyId, {
+        response = await updateProperty(tenantId, existingPropertyId, {
           ...propertyPayload,
-          status: 'active', // Publish the draft
+          status: 'active'
         })
       } else {
-        // Creating new property
-        response = await createProperty(propertyPayload)
+        // Creating new property (even if we have a draftId, we use createProperty)
+        // If the backend requires a draftId in the payload, we'd add it here
+        console.log('Creating new property...')
+        response = await createProperty(tenantId, propertyPayload)
       }
 
       if (!response.success || !response.data) {
@@ -546,39 +640,54 @@ return Object.keys(newErrors).length === 0
         })
       }
 
+      // Success sequence
       handleClose()
 
-      const resetData: FormDataType = {
-        ...initialData,
-        amenities: amenitiesList.reduce(
-          (acc, amenity) => {
-            acc[amenity.id] = false
+      startTransition(() => {
+        router.refresh()
+      })
 
-            return acc
-          },
-          {} as Record<string, boolean>
-        ),
-        images: [],
-        thumbnailIndex: null
+      // Only reset if we are NOT in edit mode to avoid flickering before close
+      if (mode !== 'edit') {
+        const resetData: FormDataType = {
+          ...initialData,
+          amenities: buildEmptyAmenities(),
+          images: [],
+          thumbnailIndex: null
+        }
+
+        setFormData(resetData)
+        setActiveStep(0)
+        setDraftId(null)
       }
 
-      setFormData(resetData)
-      setActiveStep(0)
       setErrors({})
-      setDraftId(null)
-    } catch (error) {
-      console.error('Failed to create property:', error)
-
-      // Show error (you could add a toast notification here)
+    } catch (error: any) {
+      console.error('[PropertyDialog] Submit failed:', error?.message || error)
+      setSubmitError(error?.message || 'Something went wrong. Check the browser console for details.')
     } finally {
       setIsSaving(false)
     }
   }
 
   const handleSaveDraft = async () => {
-    // Validate at least the property name exists
+    setSubmitError(null)
+
+    // Validate at least the property name exists. The name lives on step 1, so
+    // from any later step the highlight alone is invisible — say why, and go
+    // back to the field that needs filling.
     if (!formData.propertyName.trim()) {
       setErrors({ propertyName: true })
+      setSubmitError('A property name is required before the draft can be saved.')
+      setActiveStep(0)
+
+      return
+    }
+
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      setSubmitError('No workspace selected. Sign in again and retry.')
 
       return
     }
@@ -588,20 +697,21 @@ return Object.keys(newErrors).length === 0
     try {
       // Step 1: Upload images first (if any new images)
       let imageUrls: string[] = [...existingImages] // Start with existing images
+      let imageFileIds: string[] = [...existingImageFileIds]
 
       if (formData.images && formData.images.length > 0) {
-        console.log('Uploading', formData.images.length, 'images for draft...')
-        const uploadResponse = await uploadPropertyImages(formData.images, draftId || undefined)
+        const uploadResponse = await uploadPropertyImages(tenantId, formData.images, draftId || undefined)
 
         if (!uploadResponse.success || !uploadResponse.data) {
           throw new Error(uploadResponse.error?.message || 'Failed to upload images')
         }
 
-        // Add newly uploaded image URLs
-        const newUrls = uploadResponse.data.images.map((img) => img.url)
+        // Add newly uploaded image URLs and fileIds
+        const newUrls = uploadResponse.data.images.map(img => img.url)
+        const newFileIds = uploadResponse.data.images.map(img => img.fileId)
 
         imageUrls = [...imageUrls, ...newUrls]
-        console.log('Images uploaded:', newUrls)
+        imageFileIds = [...imageFileIds, ...newFileIds]
       }
 
       // Step 2: Transform amenities from Record<string, boolean> to string[]
@@ -613,7 +723,7 @@ return Object.keys(newErrors).length === 0
       const draftPayload = {
         name: formData.propertyName,
         address: {
-          street: formData.city, // Using city as street for now
+          street: formData.street || undefined,
           city: formData.city,
           country: 'Ghana'
         },
@@ -624,17 +734,20 @@ return Object.keys(newErrors).length === 0
         gpsCode: formData.gpsCode || undefined,
         description: formData.description || undefined,
         condition: formData.condition?.toLowerCase() || undefined,
-        bedrooms: formData.bedrooms ? parseInt(formData.bedrooms.replace('+', '')) : undefined,
-        bathrooms: formData.bathrooms ? parseInt(formData.bathrooms.replace('+', '')) : undefined,
-        rooms: formData.rooms ? parseInt(formData.rooms.replace('+', '')) : undefined,
+        bedrooms: fromCountOption(formData.bedrooms, editData?.bedrooms),
+        bathrooms: fromCountOption(formData.bathrooms, editData?.bathrooms),
+        rooms: fromCountOption(formData.rooms, editData?.rooms),
+        currentValue: formData.currentValue ? Number(formData.currentValue) : undefined,
         amenities: amenitiesArray.length > 0 ? amenitiesArray : undefined,
         images: imageUrls.length > 0 ? imageUrls : undefined,
+        imageFileIds: imageFileIds.length > 0 ? imageFileIds : undefined,
         thumbnailIndex: formData.thumbnailIndex ?? undefined,
+        ...(coordinates ?? {})
       }
 
       // Call API - if editing draft, update; otherwise save new
       if (mode === 'edit' && editData?.id) {
-        const response = await updateDraft(editData.id, draftPayload)
+        const response = await updateDraft(tenantId, editData.id, draftPayload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update draft')
@@ -642,13 +755,13 @@ return Object.keys(newErrors).length === 0
 
         setDraftId(editData.id)
       } else if (draftId) {
-        const response = await updateDraft(draftId, draftPayload)
+        const response = await updateDraft(tenantId, draftId, draftPayload)
 
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update draft')
         }
       } else {
-        const response = await saveDraftApi(draftPayload)
+        const response = await saveDraftApi(tenantId, draftPayload)
 
         if (!response.success || !response.data) {
           throw new Error(response.error?.message || 'Failed to save draft')
@@ -657,13 +770,11 @@ return Object.keys(newErrors).length === 0
         setDraftId(response.data.id)
       }
 
-      // Show success (you could add a toast notification here)
-      console.log('Draft saved successfully')
       handleClose()
-    } catch (error) {
-      console.error('Failed to save draft:', error)
-
-      // Show error (you could add a toast notification here)
+    } catch (error: any) {
+      // Previously this was console.error only: a failed save left the dialog
+      // sitting there with no indication anything had gone wrong.
+      setSubmitError(error?.message || 'Could not save the draft. Please try again.')
     } finally {
       setIsSaving(false)
     }
@@ -682,6 +793,7 @@ return Object.keys(newErrors).length === 0
 
     setFormData(resetData)
     setExistingImages(editData?.images || [])
+    setExistingImageFileIds(editData?.imageFileIds || [])
     setActiveStep(0)
     setErrors({})
   }
@@ -692,6 +804,25 @@ return Object.keys(newErrors).length === 0
         return (
           <div className='flex flex-col gap-4'>
             <Grid container spacing={6}>
+              <PropertyAddressFields
+                value={{
+                  gpsCode: formData.gpsCode,
+                  street: formData.street,
+                  region: formData.region,
+                  district: formData.district,
+                  city: formData.city
+                }}
+                onChange={handleAddressChange}
+                onCoordinates={setCoordinates}
+
+                // The steps render through a switch, so the address block
+                // unmounts on every Next. This is what lets it restate the
+                // accuracy of a position this dialog is still holding.
+                capturedAccuracyMetres={coordinates?.accuracyMetres}
+                searchable={mode !== 'edit'}
+                errors={{ region: errors.region, district: errors.district, city: errors.city }}
+                onStatusChange={({ canWaiveCity: waive }) => setCanWaiveCity(waive)}
+              />
               <Grid size={{ xs: 12 }}>
                 <TextField
                   size='small'
@@ -715,8 +846,9 @@ return Object.keys(newErrors).length === 0
                     onChange={e => handleInputChange('propertyType', e.target.value)}
                   >
                     <MenuItem value=''>Select Property Type</MenuItem>
-                    <MenuItem value='House'>House</MenuItem>
-                    <MenuItem value='Apartment'>Apartment</MenuItem>
+                    {ref.propertyTypes.map(pt => (
+                      <MenuItem key={pt.value} value={pt.value}>{pt.label}</MenuItem>
+                    ))}
                   </Select>
                   {errors.propertyType && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -736,10 +868,9 @@ return Object.keys(newErrors).length === 0
                     onChange={e => handleInputChange('condition', e.target.value)}
                   >
                     <MenuItem value=''>Select Condition</MenuItem>
-                    <MenuItem value='New'>New</MenuItem>
-                    <MenuItem value='Good'>Good</MenuItem>
-                    <MenuItem value='Fair'>Fair</MenuItem>
-                    <MenuItem value='Poor'>Poor</MenuItem>
+                    {ref.propertyConditions.map(c => (
+                      <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>
+                    ))}
                   </Select>
                   {errors.condition && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -747,85 +878,6 @@ return Object.keys(newErrors).length === 0
                     </Typography>
                   )}
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={Boolean(errors.region)} size='small'>
-                  <InputLabel id='region-label'>Region</InputLabel>
-                  <Select
-                    size='small'
-                    labelId='region-label'
-                    label='Region'
-                    value={formData.region}
-                    onChange={e => handleInputChange('region', e.target.value)}
-                  >
-                    <MenuItem value=''>Select Region</MenuItem>
-                    <MenuItem value='Greater Accra'>Greater Accra</MenuItem>
-                    <MenuItem value='Ashanti'>Ashanti</MenuItem>
-                    <MenuItem value='Western'>Western</MenuItem>
-                    <MenuItem value='Central'>Central</MenuItem>
-                  </Select>
-                  {errors.region && (
-                    <Typography variant='caption' color='error' className='mts-1'>
-                      This field is required.
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={Boolean(errors.district)} size='small'>
-                  <InputLabel id='district-label'>District</InputLabel>
-                  <Select
-                    size='small'
-                    labelId='district-label'
-                    label='District'
-                    value={formData.district}
-                    onChange={e => handleInputChange('district', e.target.value)}
-                  >
-                    <MenuItem value=''>Select District</MenuItem>
-                    <MenuItem value='Adenta'>Adenta</MenuItem>
-                    <MenuItem value='Tema'>Tema</MenuItem>
-                    <MenuItem value='Accra'>Accra</MenuItem>
-                  </Select>
-                  {errors.district && (
-                    <Typography variant='caption' color='error' className='mts-1'>
-                      This field is required.
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={Boolean(errors.city)} size='small'>
-                  <InputLabel id='city-label'>City</InputLabel>
-                  <Select
-                    labelId='city-label'
-                    label='City'
-                    value={formData.city}
-                    onChange={e => handleInputChange('city', e.target.value)}
-                  >
-                    <MenuItem value=''>Select City</MenuItem>
-                    <MenuItem value='Accra'>Accra</MenuItem>
-                    <MenuItem value='Kumasi'>Kumasi</MenuItem>
-                    <MenuItem value='Tema'>Tema</MenuItem>
-                  </Select>
-                  {errors.city && (
-                    <Typography variant='caption' color='error' className='mts-1'>
-                      This field is required.
-                    </Typography>
-                  )}
-                </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  size='small'
-                  fullWidth
-                  label='GPS CODE'
-                  placeholder='Enter GPS code'
-                  value={formData.gpsCode}
-                  onChange={e => handleInputChange('gpsCode', e.target.value)}
-                  InputProps={{
-                    endAdornment: <i className='ri-map-pin-line text-xl' />
-                  }}
-                />
               </Grid>
               <Grid size={{ xs: 12 }}>
                 <TextField
@@ -857,12 +909,11 @@ return Object.keys(newErrors).length === 0
                     onChange={e => handleInputChange('bedrooms', e.target.value)}
                   >
                     <MenuItem value=''>Select Bedrooms</MenuItem>
-                    <MenuItem value='1'>1</MenuItem>
-                    <MenuItem value='2'>2</MenuItem>
-                    <MenuItem value='3'>3</MenuItem>
-                    <MenuItem value='4'>4</MenuItem>
-                    <MenuItem value='5'>5</MenuItem>
-                    <MenuItem value='6+'>6+</MenuItem>
+                    {BEDROOM_OPTIONS.map(o => (
+                      <MenuItem key={o} value={o}>
+                        {o}
+                      </MenuItem>
+                    ))}
                   </Select>
                   {errors.bedrooms && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -882,11 +933,11 @@ return Object.keys(newErrors).length === 0
                     onChange={e => handleInputChange('bathrooms', e.target.value)}
                   >
                     <MenuItem value=''>Select Bathrooms</MenuItem>
-                    <MenuItem value='1'>1</MenuItem>
-                    <MenuItem value='2'>2</MenuItem>
-                    <MenuItem value='3'>3</MenuItem>
-                    <MenuItem value='4'>4</MenuItem>
-                    <MenuItem value='5+'>5+</MenuItem>
+                    {BATHROOM_OPTIONS.map(o => (
+                      <MenuItem key={o} value={o}>
+                        {o}
+                      </MenuItem>
+                    ))}
                   </Select>
                   {errors.bathrooms && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -906,12 +957,11 @@ return Object.keys(newErrors).length === 0
                     onChange={e => handleInputChange('rooms', e.target.value)}
                   >
                     <MenuItem value=''>Select Rooms</MenuItem>
-                    <MenuItem value='1'>1</MenuItem>
-                    <MenuItem value='2'>2</MenuItem>
-                    <MenuItem value='3'>3</MenuItem>
-                    <MenuItem value='4'>4</MenuItem>
-                    <MenuItem value='5'>5</MenuItem>
-                    <MenuItem value='6+'>6+</MenuItem>
+                    {ROOM_OPTIONS.map(o => (
+                      <MenuItem key={o} value={o}>
+                        {o}
+                      </MenuItem>
+                    ))}
                   </Select>
                   {errors.rooms && (
                     <Typography variant='caption' color='error' className='mts-1'>
@@ -919,6 +969,22 @@ return Object.keys(newErrors).length === 0
                     </Typography>
                   )}
                 </FormControl>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  size='small'
+                  type='number'
+                  label='Estimated value'
+                  placeholder='e.g. 850000'
+                  value={formData.currentValue}
+                  error={Boolean(errors.currentValue)}
+                  helperText={
+                    errors.currentValue ? 'Enter a positive amount, or leave it blank.' : 'Optional — what the property is worth today.'
+                  }
+                  onChange={e => handleInputChange('currentValue', e.target.value)}
+                  slotProps={{ input: { startAdornment: <InputAdornment position='start'>₵</InputAdornment> } }}
+                />
               </Grid>
             </Grid>
 
@@ -933,7 +999,7 @@ return Object.keys(newErrors).length === 0
               </div>
 
               <div className='flex flex-col gap-4'>
-                {amenitiesList.map(amenity => (
+                {ref.amenities.map(amenity => (
                   <Box
                     key={amenity.id}
                     className='flex items-center justify-between p-4 border rounded-lg hover:bg-actionHover transition-colors'
@@ -1047,13 +1113,12 @@ return Object.keys(newErrors).length === 0
                     const isThumbnail =
                       formData.thumbnailIndex === totalIndex && formData.thumbnailIndex < existingImages.length
 
-                    
-return (
+                    return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`existing-${index}`}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
                             component='img'
-                            image={imageUrl}
+                            image={ikUrl(imageUrl, IK_THUMB)}
                             alt={`Existing property image ${index + 1}`}
                             sx={{
                               height: 200,
@@ -1080,11 +1145,12 @@ return (
                             className='remove-button'
                             size='small'
                             onClick={() => {
-                              // Remove from existing images
+                              // Remove from existing images and their fileIds
                               const newExisting = existingImages.filter((_, i) => i !== index)
+                              const newExistingFileIds = existingImageFileIds.filter((_, i) => i !== index)
 
                               setExistingImages(newExisting)
-
+                              setExistingImageFileIds(newExistingFileIds)
 
                               // Adjust thumbnail index if needed
                               if (formData.thumbnailIndex === totalIndex) {
@@ -1136,13 +1202,12 @@ return (
                     const totalIndex = (existingImages?.length || 0) + index
                     const isThumbnail = formData.thumbnailIndex === totalIndex
 
-                    
-return (
+                    return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
                           <CardMedia
                             component='img'
-                            image={imageUrl}
+                            image={ikUrl(imageUrl, IK_THUMB)}
                             alt={`Property image ${index + 1}`}
                             sx={{
                               height: 200,
@@ -1206,10 +1271,9 @@ return (
           </div>
         )
       case 3:
-        const selectedAmenities = amenitiesList.filter(amenity => formData.amenities[amenity.id])
+        const selectedAmenities = ref.amenities.filter(amenity => formData.amenities[amenity.id])
 
-        
-return (
+        return (
           <div className='flex flex-col gap-6'>
             <div className='flex flex-col gap-2'>
               <Typography variant='h6' className='font-semibold' color='text.primary'>
@@ -1378,6 +1442,16 @@ return (
                       </Typography>
                     </div>
                   </Grid>
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <div className='flex flex-col gap-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Estimated Value
+                      </Typography>
+                      <Typography variant='body1' className='font-medium' color='text.primary'>
+                        {formData.currentValue ? formatCurrency(Number(formData.currentValue)) : '-'}
+                      </Typography>
+                    </div>
+                  </Grid>
                   {selectedAmenities.length > 0 && (
                     <Grid size={{ xs: 12 }}>
                       <div className='flex flex-col gap-2'>
@@ -1403,8 +1477,8 @@ return (
               </CardContent>
             </Card>
 
-            {/* Step 3: Uploaded Images */}
-            {formData.images && formData.images.length > 0 && (
+            {/* Step 3: Property Images */}
+            {(existingImages.length > 0 || (formData.images && formData.images.length > 0)) && (
               <Card variant='outlined'>
                 <CardContent>
                   <div className='flex items-center gap-2 mbe-4'>
@@ -1420,13 +1494,13 @@ return (
                       <i className='ri-image-line' />
                     </Avatar>
                     <Typography variant='h6' className='font-semibold' color='text.primary'>
-                      Uploaded Images
+                      Property Images
                     </Typography>
                   </div>
                   <Divider className='mbe-4' />
                   <div className='flex flex-col gap-2'>
                     <Typography variant='body2' color='text.secondary'>
-                      Total Images: {formData.images.length}
+                      Total Images: {existingImages.length + (formData.images?.length || 0)}
                       {formData.thumbnailIndex !== null && (
                         <span className='text-primary ml-2'>
                           <i className='ri-check-line mr-1' />
@@ -1435,12 +1509,11 @@ return (
                       )}
                     </Typography>
                     <Grid container spacing={2}>
-                      {formData.images.slice(0, 6).map((image, index) => {
-                        const imageUrl = URL.createObjectURL(image)
+                      {[...existingImages, ...(formData.images || [])].slice(0, 8).map((image, index) => {
+                        const imageUrl = typeof image === 'string' ? image : URL.createObjectURL(image)
                         const isThumbnail = formData.thumbnailIndex === index
 
-                        
-return (
+                        return (
                           <Grid size={{ xs: 6, sm: 4, md: 3 }} key={index}>
                             <Box
                               sx={{
@@ -1455,7 +1528,7 @@ return (
                             >
                               <CardMedia
                                 component='img'
-                                image={imageUrl}
+                                image={ikUrl(imageUrl, IK_THUMB)}
                                 alt={`Property image ${index + 1}`}
                                 sx={{
                                   height: 100,
@@ -1487,9 +1560,9 @@ return (
                         )
                       })}
                     </Grid>
-                    {formData.images.length > 6 && (
+                    {existingImages.length + (formData.images?.length || 0) > 8 && (
                       <Typography variant='caption' color='text.secondary' className='mts-2'>
-                        + {formData.images.length - 6} more images
+                        + {existingImages.length + (formData.images?.length || 0) - 8} more images
                       </Typography>
                     )}
                   </div>
@@ -1583,6 +1656,22 @@ return (
           </StepperWrapper>
           <div className='flex-1 flex flex-col gap-4'>
             {renderStepContent()}
+            {submitError && (
+              <Box
+                sx={{
+                  p: 2,
+                  mt: 1,
+                  borderRadius: 1,
+                  backgroundColor: 'var(--mui-palette-error-lightOpacity)',
+                  border: '1px solid',
+                  borderColor: 'var(--mui-palette-error-main)',
+                  color: 'var(--mui-palette-error-main)',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <strong>Error:</strong> {submitError}
+              </Box>
+            )}
             <div className='flex items-center justify-between gap-4 mts-4 pt-4 border-t'>
               <Button
                 variant='outlined'
@@ -1593,15 +1682,19 @@ return (
                 Previous
               </Button>
               <div className='flex items-center gap-2'>
-                <Button
-                  variant='outlined'
-                  color='primary'
-                  onClick={handleSaveDraft}
-                  disabled={isSaving}
-                  startIcon={isSaving ? <CircularProgress size={16} color='inherit' /> : <i className='ri-save-line' />}
-                >
-                  {isSaving ? 'Saving...' : 'SAVE DRAFT 🗐'}
-                </Button>
+                {canSaveDraft && (
+                  <Button
+                    variant='outlined'
+                    color='primary'
+                    onClick={handleSaveDraft}
+                    disabled={isSaving}
+                    startIcon={
+                      isSaving ? <CircularProgress size={16} color='inherit' /> : <i className='ri-save-line' />
+                    }
+                  >
+                    {isSaving ? 'Saving...' : 'SAVE DRAFT 🗐'}
+                  </Button>
+                )}
                 <Button
                   variant='contained'
                   color='primary'

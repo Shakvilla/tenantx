@@ -9,12 +9,13 @@ import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import CardMedia from '@mui/material/CardMedia'
 import Box from '@mui/material/Box'
-import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 
+// ImageKit does not serve original files on this account.
+import { ikUrl, IK_FULL, IK_THUMB } from '@/lib/imagekit'
+
 // Third-party Imports
-import classnames from 'classnames'
 
 type PropertyData = {
   images: string[]
@@ -56,7 +57,7 @@ const PropertyImagesCard = ({ propertyData }: { propertyData?: PropertyData }) =
           >
             <CardMedia
               component='img'
-              image={mainImage}
+              image={ikUrl(mainImage, IK_FULL)}
               alt='Property main image'
               sx={{
                 width: '100%',
@@ -115,7 +116,7 @@ const PropertyImagesCard = ({ propertyData }: { propertyData?: PropertyData }) =
                   >
                     <CardMedia
                       component='img'
-                      image={image}
+                      image={ikUrl(image, IK_THUMB)}
                       alt={`Property image ${index + 1}`}
                       sx={{
                         width: '100%',

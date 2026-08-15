@@ -16,7 +16,6 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import IconButton from '@mui/material/IconButton'
-import { styled } from '@mui/material/styles'
 import TablePagination from '@mui/material/TablePagination'
 import type { TextFieldProps } from '@mui/material/TextField'
 
@@ -44,7 +43,7 @@ import type { CustomerType } from '@/types/members/customerTypes'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import TableFilters from './TableFilters'
 import PageBanner from '@components/banner/PageBanner'
 import AddCustomerDrawer from './AddCustomerDrawer'
@@ -71,9 +70,6 @@ type CustomerTypeWithAction = CustomerType & {
 type CustomerStatusType = {
   [key: string]: ThemeColor
 }
-
-// Styled Components
-const Icon = styled('i')({})
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   // Rank the item
@@ -342,7 +338,7 @@ const CustomersListTable = ({ tableData }: { tableData?: CustomerType[] }) => {
                   Download List of All Customers
                 </Typography>
               </Link>
-              <OptionMenu options={['Refresh', 'Share']} />
+              <RowActions options={['Refresh', 'Share']} />
             </div>
           }
         />

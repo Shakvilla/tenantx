@@ -77,6 +77,27 @@
   }
 }
 
+/*
+ * Applied to a horizontally-scrollable table wrapper (an `overflow-x-auto`
+ * container, or MUI's TableContainer) to give a visual cue that there's more
+ * content to scroll to — otherwise a table wider than its viewport has zero
+ * affordance telling the user a swipe is possible. Classic "scroll shadow"
+ * technique: two gradients matching the surrounding background mask the
+ * shadow away at the very start/end of the scroll range, while two shadow
+ * gradients stay fixed to the viewport edges and only become visible where
+ * there's still unscrolled content in that direction.
+ */
+.scrollShadow {
+  background:
+    linear-gradient(to right, var(--mui-palette-background-paper) 30%, rgb(255 255 255 / 0%)) 0 0,
+    linear-gradient(to right, rgb(255 255 255 / 0%), var(--mui-palette-background-paper) 70%) 100% 0,
+    radial-gradient(farthest-side at 0% 50%, rgb(0 0 0 / 25%), rgb(0 0 0 / 0%)) 0 0,
+    radial-gradient(farthest-side at 100% 50%, rgb(0 0 0 / 25%), rgb(0 0 0 / 0%)) 100% 0;
+  background-repeat: no-repeat;
+  background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
 .cellWithInput input {
   inline-size: 100%;
   background-color: transparent;

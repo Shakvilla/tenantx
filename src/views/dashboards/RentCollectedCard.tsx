@@ -1,5 +1,8 @@
 'use client'
 
+// React Imports
+import { useState, useEffect, useMemo } from 'react'
+
 // Next Imports
 import dynamic from 'next/dynamic'
 
@@ -7,19 +10,76 @@ import dynamic from 'next/dynamic'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
+import Skeleton from '@mui/material/Skeleton'
 
 // Third-party Imports
 import type { ApexOptions } from 'apexcharts'
 
+// API Imports
+import { getInvoices, type Invoice } from '@/lib/api/invoices'
+
 // Styled Component Imports
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
 
-// Vars
-const series = [{ data: [0, 20, 5, 30, 15, 45, 25, 50, 35, 60, 40, 65] }]
+/** Get last N months of paid invoice amounts as a sparkline array */
+function getPaidMonthlyTrend(invoices: Invoice[], months = 12): number[] {
+  const map: Record<string, number> = {}
+
+  invoices.forEach(inv => {
+    if (inv.status !== 'PAID') return
+    const d = new Date(inv.issuedDate)
+
+    if (isNaN(d.getTime())) return
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+    map[key] = (map[key] || 0) + inv.amount
+  })
+
+  const sorted = Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-months)
+    .map(([, v]) => v)
+
+  while (sorted.length < months) sorted.unshift(0)
+
+  return sorted
+}
 
 const RentCollectedCard = () => {
-  // Vars
   const infoColor = 'var(--mui-palette-info-main)'
+
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    getInvoices()
+      .then(setInvoices)
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Paid this month
+  const thisMonthPaid = useMemo(() => {
+    const now = new Date()
+
+    return invoices
+      .filter(inv => {
+        if (inv.status !== 'PAID') return false
+        const d = new Date(inv.issuedDate)
+
+        return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+      })
+      .reduce((sum, inv) => sum + inv.amount, 0)
+  }, [invoices])
+
+  const trend = useMemo(() => getPaidMonthlyTrend(invoices, 12), [invoices])
+
+  const displayAmount = thisMonthPaid >= 1000
+    ? `₵${(thisMonthPaid / 1000).toFixed(2)}K`
+    : `₵${thisMonthPaid.toFixed(2)}`
+
+  const series = [{ data: trend }]
 
   const options: ApexOptions = {
     chart: {
@@ -30,24 +90,11 @@ const RentCollectedCard = () => {
     grid: {
       strokeDashArray: 6,
       borderColor: 'var(--mui-palette-divider)',
-      xaxis: {
-        lines: { show: true }
-      },
-      yaxis: {
-        lines: { show: false }
-      },
-      padding: {
-        top: -27,
-        left: -8,
-        right: 7,
-        bottom: -11
-      }
+      xaxis: { lines: { show: true } },
+      yaxis: { lines: { show: false } },
+      padding: { top: -27, left: -8, right: 7, bottom: -11 }
     },
-    stroke: {
-      width: 3,
-      lineCap: 'butt',
-      curve: 'smooth'
-    },
+    stroke: { width: 3, lineCap: 'butt', curve: 'smooth' },
     colors: [infoColor],
     markers: {
       size: 6,
@@ -62,7 +109,7 @@ const RentCollectedCard = () => {
           seriesIndex: 0,
           strokeColor: infoColor,
           fillColor: 'var(--mui-palette-background-paper)',
-          dataPointIndex: series[0].data.length - 1
+          dataPointIndex: trend.length - 1
         }
       ]
     },
@@ -71,17 +118,11 @@ const RentCollectedCard = () => {
       axisTicks: { show: false },
       axisBorder: { show: false }
     },
-    yaxis: {
-      labels: { show: false }
-    },
+    yaxis: { labels: { show: false } },
     responsive: [
       {
         breakpoint: 1296,
-        options: {
-          chart: {
-            height: 88
-          }
-        }
+        options: { chart: { height: 88 } }
       }
     ]
   }
@@ -97,12 +138,18 @@ const RentCollectedCard = () => {
             Total amount collected this month
           </Typography>
         </div>
-        <Typography variant='h4' className='font-bold' color='text.primary'>
-          ₵58.45K
-        </Typography>
+        {loading ? (
+          <Skeleton variant='text' width={120} height={40} />
+        ) : (
+          <Typography variant='h4' className='font-bold' color='text.primary'>
+            {displayAmount}
+          </Typography>
+        )}
       </CardContent>
       <CardContent className='pt-0'>
-        <AppReactApexCharts type='line' height={100} width='100%' options={options} series={series} />
+        {!loading && (
+          <AppReactApexCharts type='line' height={100} width='100%' options={options} series={series} />
+        )}
       </CardContent>
     </Card>
   )

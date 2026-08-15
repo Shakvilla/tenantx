@@ -1,222 +1,143 @@
 'use client'
 
-// React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-// MUI Imports
 import Button from '@mui/material/Button'
+import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import FormControl from '@mui/material/FormControl'
+import FormHelperText from '@mui/material/FormHelperText'
+import Grid from '@mui/material/Grid2'
 import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
 import InputLabel from '@mui/material/InputLabel'
 import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
 import TextField from '@mui/material/TextField'
-import FormHelperText from '@mui/material/FormHelperText'
 import Typography from '@mui/material/Typography'
-import Divider from '@mui/material/Divider'
-import Grid from '@mui/material/Grid2'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import { styled } from '@mui/material/styles'
-import type { BoxProps } from '@mui/material/Box'
 
-// Third-party Imports
-import { useDropzone } from 'react-dropzone'
+import { createAgent, updateAgent } from '@/lib/api/agents'
+import type { AgentType, CreateAgentPayload } from '@/types/members/agentTypes'
 
-// Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
-
-// Styled Component Imports
-import AppReactDropzone from '@/libs/styles/AppReactDropzone'
-
-// Type Imports
-import type { AgentType } from '@/types/members/agentTypes'
-
-type Props = {
-  open: boolean
-  handleClose: () => void
-  agentData?: AgentType[]
-  setData: (data: AgentType[]) => void
-}
-
-type FormValidateType = {
-  title: string
+type FormData = {
   name: string
+  email: string
+  phone: string
   gender: string
   dateOfBirth: string
   ghanaCardNumber: string
-  userType: string
   location: string
-  ussdPhone: string
+  status: string
+  commissionType: string
+  commissionRate: string
   primaryGuarantor: string
   primaryGuarantorPhone: string
   secondaryGuarantor: string
   secondaryGuarantorPhone: string
 }
 
-type FileProp = {
-  name: string
-  type: string
-  size: number
+const empty: FormData = {
+  name: '', email: '', phone: '', gender: '', dateOfBirth: '',
+  ghanaCardNumber: '', location: '', status: 'active',
+  commissionType: 'percentage', commissionRate: '10',
+  primaryGuarantor: '', primaryGuarantorPhone: '',
+  secondaryGuarantor: '', secondaryGuarantorPhone: ''
 }
 
-// Styled Dropzone Component
-const Dropzone = styled(AppReactDropzone)<BoxProps>(({ theme }) => ({
-  '& .dropzone': {
-    minHeight: 'unset',
-    padding: theme.spacing(6),
-    [theme.breakpoints.down('sm')]: {
-      paddingInline: theme.spacing(5)
-    },
-    '&+.MuiList-root .MuiListItem-root .file-name': {
-      fontWeight: theme.typography.body1.fontWeight
-    }
-  }
-}))
-
-// Vars
-const initialData: FormValidateType = {
-  title: '',
-  name: '',
-  gender: '',
-  dateOfBirth: '',
-  ghanaCardNumber: '',
-  userType: 'Agent',
-  location: '',
-  ussdPhone: '',
-  primaryGuarantor: '',
-  primaryGuarantorPhone: '',
-  secondaryGuarantor: '',
-  secondaryGuarantorPhone: ''
+interface Props {
+  open: boolean
+  handleClose: () => void
+  editAgent?: AgentType | null
+  onSuccess: () => void
 }
 
-const AddAgentDrawer = (props: Props) => {
-  // Props
-  const { open, handleClose, agentData, setData } = props
+const AddAgentDrawer = ({ open, handleClose, editAgent, onSuccess }: Props) => {
+  const [formData, setFormData] = useState<FormData>(empty)
+  const [errors, setErrors]     = useState<Partial<Record<keyof FormData, string>>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
 
-  // States
-  const [formData, setFormData] = useState<FormValidateType>(initialData)
-  const [errors, setErrors] = useState<Partial<Record<keyof FormValidateType, boolean>>>({})
-  const [files, setFiles] = useState<File[]>([])
-  const [fileError, setFileError] = useState(false)
-
-  // Hooks
-  const { getRootProps, getInputProps } = useDropzone({
-    onDrop: (acceptedFiles: File[]) => {
-      setFiles(acceptedFiles.map((file: File) => Object.assign(file)))
-      setFileError(false)
-    }
-  })
-
-  // const [fileError, setFileError] = useState(false)
-
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormValidateType, boolean>> = {}
-
-    const requiredFields: (keyof FormValidateType)[] = [
-      'name',
-      'gender',
-      'userType',
-      'ussdPhone',
-      'primaryGuarantor',
-      'primaryGuarantorPhone'
-    ]
-
-    requiredFields.forEach(field => {
-      if (!formData[field] || formData[field].trim() === '') {
-        newErrors[field] = true
-      }
-    })
-
-    // Validate file upload
-    if (files.length === 0) {
-      setFileError(true)
+  useEffect(() => {
+    if (editAgent) {
+      setFormData({
+        name: editAgent.name || '',
+        email: editAgent.email || '',
+        phone: editAgent.phone || '',
+        gender: editAgent.gender || '',
+        dateOfBirth: editAgent.dateOfBirth?.slice(0, 10) || '',
+        ghanaCardNumber: editAgent.ghanaCardNumber || '',
+        location: editAgent.location || '',
+        status: editAgent.status || 'active',
+        commissionType: editAgent.commissionType || 'percentage',
+        commissionRate: String(editAgent.commissionRate ?? '10'),
+        primaryGuarantor: editAgent.primaryGuarantor || '',
+        primaryGuarantorPhone: editAgent.primaryGuarantorPhone || '',
+        secondaryGuarantor: editAgent.secondaryGuarantor || '',
+        secondaryGuarantorPhone: editAgent.secondaryGuarantorPhone || ''
+      })
     } else {
-      setFileError(false)
+      setFormData(empty)
     }
-
-    setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0 && files.length > 0
-  }
-
-  const handleInputChange = (field: keyof FormValidateType, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: false }))
-    }
-  }
-
-  const renderFilePreview = (file: FileProp) => {
-    if (file.type.startsWith('image')) {
-      return <img width={38} height={38} alt={file.name} src={URL.createObjectURL(file as any)} />
-    } else {
-      return <i className='ri-file-text-line' />
-    }
-  }
-
-  const handleRemoveFile = (file: FileProp) => {
-    const uploadedFiles = files
-    const filtered = uploadedFiles.filter((i: FileProp) => i.name !== file.name)
-
-    setFiles([...filtered])
-  }
-
-  const fileList = files.map((file: FileProp) => (
-    <ListItem key={file.name} className='pis-4 plb-3'>
-      <div className='file-details'>
-        <div className='file-preview'>{renderFilePreview(file)}</div>
-        <div>
-          <Typography className='file-name font-medium' color='text.primary'>
-            {file.name}
-          </Typography>
-          <Typography className='file-size' variant='body2'>
-            {Math.round(file.size / 100) / 10 > 1000
-              ? `${(Math.round(file.size / 100) / 10000).toFixed(1)} mb`
-              : `${(Math.round(file.size / 100) / 10).toFixed(1)} kb`}
-          </Typography>
-        </div>
-      </div>
-      <IconButton onClick={() => handleRemoveFile(file)} size='small'>
-        <i className='ri-close-line text-xl' />
-      </IconButton>
-    </ListItem>
-  ))
-
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!validateForm()) {
-      return
-    }
-
-    const data = formData
-
-    const newAgent: AgentType = {
-      id: (agentData?.length && agentData?.length + 1) || 1,
-      name: data.name,
-      phoneNumber: data.ussdPhone,
-      customersAssigned: 0,
-      status: 'active',
-      userType: 'agent',
-      registrationDate: new Date().toISOString().slice(0, 19).replace('T', ' ')
-    }
-
-    setData([...(agentData ?? []), newAgent])
-    handleClose()
-    setFormData(initialData)
     setErrors({})
-    setFiles([])
+    setServerError(null)
+  }, [editAgent, open])
+
+  const set = (field: keyof FormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }))
+  }
+
+  const validate = (): boolean => {
+    const newErrors: Partial<Record<keyof FormData, string>> = {}
+    if (!formData.name.trim())  newErrors.name  = 'Required'
+    if (!formData.phone.trim()) newErrors.phone = 'Required'
+    if (!formData.commissionRate || Number(formData.commissionRate) <= 0)
+      newErrors.commissionRate = 'Must be greater than 0'
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+    setSubmitting(true)
+    setServerError(null)
+    try {
+      const payload: CreateAgentPayload = {
+        name: formData.name.trim(),
+        email: formData.email.trim() || undefined,
+        phone: formData.phone.trim(),
+        gender: formData.gender || undefined,
+        dateOfBirth: formData.dateOfBirth || undefined,
+        ghanaCardNumber: formData.ghanaCardNumber.trim() || undefined,
+        location: formData.location.trim() || undefined,
+        status: formData.status as any,
+        commissionType: formData.commissionType as any,
+        commissionRate: Number(formData.commissionRate),
+        primaryGuarantor: formData.primaryGuarantor.trim() || undefined,
+        primaryGuarantorPhone: formData.primaryGuarantorPhone.trim() || undefined,
+        secondaryGuarantor: formData.secondaryGuarantor.trim() || undefined,
+        secondaryGuarantorPhone: formData.secondaryGuarantorPhone.trim() || undefined
+      }
+      if (editAgent) {
+        await updateAgent(editAgent.id, payload)
+      } else {
+        await createAgent(payload)
+      }
+      onSuccess()
+      handleClose()
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : 'Failed to save agent')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleReset = () => {
     handleClose()
-    setFormData(initialData)
+    setFormData(empty)
     setErrors({})
-    setFiles([])
-    setFileError(false)
+    setServerError(null)
   }
 
   return (
@@ -226,232 +147,172 @@ return Object.keys(newErrors).length === 0 && files.length > 0
       variant='temporary'
       onClose={handleReset}
       ModalProps={{ keepMounted: true }}
-      sx={{ '& .MuiDrawer-paper': { width: { xs: '100%', sm: 600, md: 700 } } }}
+      sx={{ '& .MuiDrawer-paper': { width: { xs: '100%', sm: 600 } } }}
     >
       <div className='flex items-center justify-between pli-5 plb-4'>
-        <Typography variant='h5'>Add Members</Typography>
-        <Typography variant='body2' color='text.secondary' className='hidden sm:block'>
-          All fields marked * are compulsory
-        </Typography>
+        <Typography variant='h5'>{editAgent ? 'Edit Agent' : 'Add Agent'}</Typography>
         <IconButton size='small' onClick={handleReset}>
           <i className='ri-close-line text-2xl' />
         </IconButton>
       </div>
       <Divider />
-      <div className='overflow-y-auto p-5' style={{ maxHeight: 'calc(100vh - 80px)' }}>
-        <form onSubmit={onSubmit} className='flex flex-col gap-5'>
+      <div className='overflow-y-auto p-5'>
+        <form onSubmit={handleSubmit} className='flex flex-col gap-5'>
+          {serverError && (
+            <Typography color='error' variant='body2'>{serverError}</Typography>
+          )}
           <Grid container spacing={4}>
-            {/* Left Column */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth>
-                <InputLabel id='title-select'>Title</InputLabel>
-                <Select
-                  label='Title'
-                  value={formData.title}
-                  onChange={e => handleInputChange('title', e.target.value)}
-                  labelId='title-select'
-                >
-                  <MenuItem value='Mr'>Mr</MenuItem>
-                  <MenuItem value='Mrs'>Mrs</MenuItem>
-                  <MenuItem value='Miss'>Miss</MenuItem>
-                  <MenuItem value='Dr'>Dr</MenuItem>
-                  <MenuItem value='Prof'>Prof</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
 
+            {/* Name */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth
-                label='Name *'
-                placeholder='Enter name'
-                value={formData.name}
-                onChange={e => handleInputChange('name', e.target.value)}
-                error={Boolean(errors.name)}
-                helperText={errors.name ? 'This field is required.' : ''}
+                fullWidth label='Name *' placeholder='Full name'
+                value={formData.name} onChange={e => set('name', e.target.value)}
+                error={!!errors.name} helperText={errors.name}
               />
             </Grid>
 
+            {/* Phone */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={Boolean(errors.gender)}>
-                <InputLabel id='gender-select'>Gender *</InputLabel>
-                <Select
-                  label='Gender *'
-                  value={formData.gender}
-                  onChange={e => handleInputChange('gender', e.target.value)}
-                  labelId='gender-select'
-                >
+              <TextField
+                fullWidth label='Phone *' placeholder='e.g. 0244123456'
+                value={formData.phone} onChange={e => set('phone', e.target.value)}
+                error={!!errors.phone} helperText={errors.phone}
+              />
+            </Grid>
+
+            {/* Email */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth label='Email' type='email' placeholder='agent@email.com'
+                value={formData.email} onChange={e => set('email', e.target.value)}
+              />
+            </Grid>
+
+            {/* Gender */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth>
+                <InputLabel>Gender</InputLabel>
+                <Select label='Gender' value={formData.gender} onChange={e => set('gender', e.target.value)}>
                   <MenuItem value='Male'>Male</MenuItem>
                   <MenuItem value='Female'>Female</MenuItem>
                 </Select>
-                {errors.gender && <FormHelperText error>This field is required.</FormHelperText>}
               </FormControl>
             </Grid>
 
+            {/* Date of Birth */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth
-                type='date'
-                label='Date of Birth'
-                value={formData.dateOfBirth}
-                onChange={e => handleInputChange('dateOfBirth', e.target.value)}
-                InputLabelProps={{ shrink: true }}
+                fullWidth type='date' label='Date of Birth'
+                value={formData.dateOfBirth} onChange={e => set('dateOfBirth', e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
               />
             </Grid>
 
+            {/* Ghana Card */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
-                fullWidth
-                label='Ghana Card Number'
-                placeholder='Ghana Card Number'
-                value={formData.ghanaCardNumber}
-                onChange={e => handleInputChange('ghanaCardNumber', e.target.value)}
+                fullWidth label='Ghana Card Number'
+                value={formData.ghanaCardNumber} onChange={e => set('ghanaCardNumber', e.target.value)}
               />
             </Grid>
 
+            {/* Location */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={Boolean(errors.userType)}>
-                <InputLabel id='user-type-select'>User Type *</InputLabel>
-                <Select
-                  label='User Type *'
-                  value={formData.userType}
-                  onChange={e => handleInputChange('userType', e.target.value)}
-                  labelId='user-type-select'
-                >
-                  <MenuItem value='Agent'>Agent</MenuItem>
-                  <MenuItem value='Customer'>Customer</MenuItem>
+              <TextField
+                fullWidth label='Location' placeholder='e.g. Accra, East Legon'
+                value={formData.location} onChange={e => set('location', e.target.value)}
+              />
+            </Grid>
+
+            {/* Status */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select label='Status' value={formData.status} onChange={e => set('status', e.target.value)}>
+                  <MenuItem value='active'>Active</MenuItem>
+                  <MenuItem value='inactive'>Inactive</MenuItem>
+                  <MenuItem value='suspended'>Suspended</MenuItem>
                 </Select>
-                {errors.userType && <FormHelperText error>This field is required.</FormHelperText>}
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label='Location'
-                placeholder='Location'
-                value={formData.location}
-                onChange={e => handleInputChange('location', e.target.value)}
-              />
-            </Grid>
-
-            {/* Right Column */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label='USSD Phone *'
-                placeholder='USSD Phone'
-                value={formData.ussdPhone}
-                onChange={e => handleInputChange('ussdPhone', e.target.value)}
-                error={Boolean(errors.ussdPhone)}
-                helperText={errors.ussdPhone ? 'This field is required.' : ''}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label='Primary Guarantor *'
-                placeholder='Primary Guarantor'
-                value={formData.primaryGuarantor}
-                onChange={e => handleInputChange('primaryGuarantor', e.target.value)}
-                error={Boolean(errors.primaryGuarantor)}
-                helperText={errors.primaryGuarantor ? 'This field is required.' : ''}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label='Primary Guarantor Phone Number *'
-                placeholder='Primary Guarantor Phone Number'
-                value={formData.primaryGuarantorPhone}
-                onChange={e => handleInputChange('primaryGuarantorPhone', e.target.value)}
-                error={Boolean(errors.primaryGuarantorPhone)}
-                helperText={errors.primaryGuarantorPhone ? 'This field is required.' : ''}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label='Secondary Guarantor'
-                placeholder='Secondary Guarantor'
-                value={formData.secondaryGuarantor}
-                onChange={e => handleInputChange('secondaryGuarantor', e.target.value)}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label='Secondary Guarantor Phone Number'
-                placeholder='Secondary Guarantor Phone Number'
-                value={formData.secondaryGuarantorPhone}
-                onChange={e => handleInputChange('secondaryGuarantorPhone', e.target.value)}
-              />
-            </Grid>
-
-            {/* File Upload Section */}
+            {/* Commission section */}
             <Grid size={{ xs: 12 }}>
-              <div className='flex items-center justify-between mb-2'>
-                <Typography variant='body2'>
-                  Choose Picture * <span className='text-error'>*</span>
-                </Typography>
-                <Button
-                  variant='outlined'
-                  size='small'
-                  onClick={e => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    const input = document.createElement('input')
+              <Typography variant='subtitle2' color='text.secondary' className='font-medium'>
+                Commission Settings
+              </Typography>
+            </Grid>
 
-                    input.type = 'file'
+            {/* Commission Type */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth>
+                <InputLabel>Commission Type</InputLabel>
+                <Select label='Commission Type' value={formData.commissionType} onChange={e => set('commissionType', e.target.value)}>
+                  <MenuItem value='percentage'>Percentage of rent</MenuItem>
+                  <MenuItem value='fixed'>Fixed amount</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
 
-                    input.onchange = (event: Event) => {
-                      const target = event.target as HTMLInputElement
+            {/* Commission Rate */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                type='number'
+                label={formData.commissionType === 'percentage' ? 'Commission Rate (%)' : 'Commission Amount'}
+                value={formData.commissionRate}
+                onChange={e => set('commissionRate', e.target.value)}
+                error={!!errors.commissionRate}
+                helperText={errors.commissionRate || (formData.commissionType === 'percentage' ? 'Standard Ghana rate: 10%' : 'Fixed fee per deal')}
+                slotProps={{
+                  input: {
+                    endAdornment: <InputAdornment position='end'>
+                      {formData.commissionType === 'percentage' ? '%' : 'GHS'}
+                    </InputAdornment>
+                  }
+                }}
+              />
+            </Grid>
 
-                      if (target.files && target.files.length > 0) {
-                        const fileArray = Array.from(target.files)
+            {/* Guarantors */}
+            <Grid size={{ xs: 12 }}>
+              <Typography variant='subtitle2' color='text.secondary' className='font-medium'>
+                Guarantors
+              </Typography>
+            </Grid>
 
-                        setFiles(fileArray.map((file: File) => Object.assign(file)))
-                        setFileError(false)
-                      }
-                    }
-
-                    input.click()
-                  }}
-                >
-                  Browse
-                </Button>
-              </div>
-              <Dropzone>
-                <div {...getRootProps({ className: 'dropzone' })}>
-                  <input {...getInputProps()} />
-                  <div className='flex items-center flex-col gap-2 text-center'>
-                    <CustomAvatar variant='rounded' skin='light' color='secondary'>
-                      <i className='ri-upload-cloud-2-line text-2xl' />
-                    </CustomAvatar>
-                    <Typography variant='body1' color='text.secondary'>
-                      Drag and drop a file here or click
-                    </Typography>
-                  </div>
-                </div>
-                {files.length > 0 && <List>{fileList}</List>}
-              </Dropzone>
-              {fileError && (
-                <FormHelperText error className='mt-1'>
-                  This field is required.
-                </FormHelperText>
-              )}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth label='Primary Guarantor'
+                value={formData.primaryGuarantor} onChange={e => set('primaryGuarantor', e.target.value)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth label='Primary Guarantor Phone'
+                value={formData.primaryGuarantorPhone} onChange={e => set('primaryGuarantorPhone', e.target.value)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth label='Secondary Guarantor'
+                value={formData.secondaryGuarantor} onChange={e => set('secondaryGuarantor', e.target.value)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth label='Secondary Guarantor Phone'
+                value={formData.secondaryGuarantorPhone} onChange={e => set('secondaryGuarantorPhone', e.target.value)}
+              />
             </Grid>
           </Grid>
 
-          <div className='flex items-center gap-4 mts-4'>
-            <Button variant='contained' type='submit' color='primary' fullWidth>
-              Submit
+          <div className='flex items-center gap-4 mt-4'>
+            <Button variant='contained' type='submit' disabled={submitting} fullWidth>
+              {submitting ? 'Saving…' : editAgent ? 'Update Agent' : 'Add Agent'}
             </Button>
-            <Button variant='outlined' color='error' type='reset' onClick={handleReset} fullWidth>
+            <Button variant='outlined' color='error' onClick={handleReset} fullWidth>
               Cancel
             </Button>
           </div>

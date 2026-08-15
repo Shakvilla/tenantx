@@ -1,12 +1,14 @@
 'use client'
 
 // React Imports
-import { useMemo } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
 import Typography from '@mui/material/Typography'
-import { styled, useTheme } from '@mui/material/styles'
+import { styled } from '@mui/material/styles'
+
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
 
 // Type Imports
 type PageBannerProps = {
@@ -76,8 +78,7 @@ const IconWrapper = styled('div')(({ theme }) => ({
   backdropFilter: 'blur(10px)',
   flexShrink: 0,
   [theme.breakpoints.down('sm')]: {
-    width: '80px',
-    height: '80px'
+    display: 'none'
   }
 }))
 
@@ -90,8 +91,7 @@ const ImageWrapper = styled('div')(({ theme }) => ({
   height: '200px',
   position: 'relative',
   [theme.breakpoints.down('sm')]: {
-    width: '150px',
-    height: '150px'
+    display: 'none'
   },
   '& img': {
     width: '100%',
@@ -102,7 +102,6 @@ const ImageWrapper = styled('div')(({ theme }) => ({
 
 const PageBanner = ({ title, description, icon = 'ri-rocket-line', image }: PageBannerProps) => {
   // Hooks
-  const theme = useTheme()
 
   return (
     <StyledBanner>
@@ -117,7 +116,7 @@ const PageBanner = ({ title, description, icon = 'ri-rocket-line', image }: Page
         </TextWrapper>
         {image ? (
           <ImageWrapper>
-            <img src={image} alt={title} />
+            <img src={ikUrl(image, IK_CARD)} alt={title} />
           </ImageWrapper>
         ) : (
           <IconWrapper>

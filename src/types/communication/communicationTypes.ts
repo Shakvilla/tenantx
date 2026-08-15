@@ -1,5 +1,5 @@
 export type CommunicationType = {
-  id: number
+  id: string
   subject: string
   from: string
   fromAvatar?: string
@@ -9,8 +9,10 @@ export type CommunicationType = {
   date: string
   type: 'email' | 'sms' | 'notification' | 'message'
   status: 'sent' | 'delivered' | 'read' | 'failed'
+  propertyId?: string
   propertyName?: string
+  unitId?: string
   unitNo?: string
+  occupantId?: string
   tenantName?: string
 }
-

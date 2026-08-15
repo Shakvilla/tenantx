@@ -5,6 +5,7 @@
 // Component Imports
 import PageBanner from '@components/banner/PageBanner'
 import PaymentSettingsContent from '@/views/settings/payment/PaymentSettingsContent'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 const PaymentSettingsPage = () => {
   return (
@@ -14,7 +15,12 @@ const PaymentSettingsPage = () => {
         description='Configure payment gateways, methods, tax, and currency settings'
         icon='ri-bank-card-line'
       />
-      <PaymentSettingsContent />
+      <FeatureGate
+        feature='RENT_COLLECTION'
+        lockedMessage='Payment gateway configuration is available on the Pro plan. Upgrade to collect rent via Mobile Money.'
+      >
+        <PaymentSettingsContent />
+      </FeatureGate>
     </>
   )
 }

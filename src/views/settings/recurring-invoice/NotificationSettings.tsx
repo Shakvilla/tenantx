@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -14,6 +14,11 @@ import Divider from '@mui/material/Divider'
 import TextField from '@mui/material/TextField'
 import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
+import Snackbar from '@mui/material/Snackbar'
+import Alert from '@mui/material/Alert'
+
+// API Imports
+import { recurringInvoiceSettingsApi } from '@/lib/api/settings'
 
 const NotificationSettings = () => {
   // States
@@ -21,15 +26,51 @@ const NotificationSettings = () => {
   const [sendReminder, setSendReminder] = useState(true)
   const [reminderDays, setReminderDays] = useState('3')
   const [sendOnGeneration, setSendOnGeneration] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Saving notification settings', {
-      autoSend,
-      sendReminder,
-      reminderDays,
-      sendOnGeneration
-    })
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  })
+
+  useEffect(() => {
+    recurringInvoiceSettingsApi.get().then(settings => {
+      const n = settings.notifications as any
+      if (!n) return
+      if (n.autoSend !== undefined) setAutoSend(n.autoSend)
+      if (n.sendReminder !== undefined) setSendReminder(n.sendReminder)
+      if (n.reminderDays !== undefined) setReminderDays(String(n.reminderDays))
+      if (n.sendOnGeneration !== undefined) setSendOnGeneration(n.sendOnGeneration)
+    }).catch(console.error)
+  }, [])
+
+  const handleSave = async () => {
+    setLoading(true)
+
+    try {
+      await recurringInvoiceSettingsApi.update({
+        notifications: {
+          autoSend,
+          sendReminder,
+          reminderDays: parseInt(reminderDays, 10),
+          sendOnGeneration,
+          sendReminderBefore: parseInt(reminderDays, 10),
+          sendOverdueNotice: false,
+          overdueDays: 0
+        } as any
+      })
+      setSnackbar({ open: true, message: 'Notification settings saved successfully', severity: 'success' })
+    } catch (error) {
+      console.error('Error saving notification settings:', error)
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to save notification settings',
+        severity: 'error'
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -98,11 +139,21 @@ const NotificationSettings = () => {
         )}
 
         <div className='flex justify-end'>
-          <Button variant='contained' color='primary' onClick={handleSave}>
-            Save Settings
+          <Button variant='contained' color='primary' onClick={handleSave} disabled={loading}>
+            {loading ? 'Saving...' : 'Save Settings'}
           </Button>
         </div>
       </CardContent>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Card>
   )
 }

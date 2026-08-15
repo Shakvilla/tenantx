@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 
 // Next Imports
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -25,6 +26,9 @@ import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
+import Alert from '@mui/material/Alert'
+import Skeleton from '@mui/material/Skeleton'
+import CircularProgress from '@mui/material/CircularProgress'
 import type { TextFieldProps } from '@mui/material/TextField'
 
 // Third-party Imports
@@ -42,8 +46,11 @@ import {
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
+// API Imports
+import { getInvoices, updateInvoiceStatus, deleteInvoice, exportInvoicesCsv, type Invoice } from '@/lib/api/invoices'
+
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
 import AddInvoiceDialog from './AddInvoiceDialog'
 
@@ -53,15 +60,20 @@ import { getInitials } from '@/utils/getInitials'
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
-// Helper function to format dates consistently
 const formatDate = (dateString: string): string => {
+  if (!dateString) return '-'
   const date = new Date(dateString)
   const day = String(date.getDate()).padStart(2, '0')
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const year = date.getFullYear()
 
-  
-return `${day}/${month}/${year}`
+  return `${day}/${month}/${year}`
+}
+
+const formatCurrency = (amount: number, currency = 'GHS'): string => {
+  const symbol = currency === 'GHS' ? '₵' : currency
+
+  return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 declare module '@tanstack/table-core' {
@@ -73,38 +85,35 @@ declare module '@tanstack/table-core' {
   }
 }
 
-type Invoice = {
-  id: number
-  invoiceNumber: string
-  tenantName: string
-  tenantEmail: string
-  tenantAvatar?: string
-  propertyName: string
-  unitName: string
-  amount: string
-  issuedDate: string
-  dueDate: string
-  status: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
-  balance: string
+type InvoiceWithAction = Invoice & { action?: string }
+
+type StatusConfig = {
+
+  /** Shown to the user. Colour and icon alone are not readable — see the STATUS column. */
+  label: string
+  icon: string
+  color: 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'
 }
 
-type InvoiceWithAction = Invoice & {
-  action?: string
+const invoiceStatusObj: Record<string, StatusConfig> = {
+  PAID: { label: 'Paid', color: 'success', icon: 'ri-checkbox-circle-line' },
+  PARTIAL: { label: 'Partial', color: 'primary', icon: 'ri-pie-chart-2-line' },
+  PENDING: { label: 'Pending', color: 'warning', icon: 'ri-time-line' },
+  OVERDUE: { label: 'Overdue', color: 'error', icon: 'ri-error-warning-line' },
+  DRAFT: { label: 'Draft', color: 'info', icon: 'ri-file-edit-line' },
+  CANCELLED: { label: 'Cancelled', color: 'secondary', icon: 'ri-close-circle-line' }
 }
 
-type InvoiceStatusObj = {
-  [key: string]: {
-    icon: string
-    color: 'success' | 'warning' | 'error' | 'info' | 'primary' | 'secondary'
-  }
-}
+/** Falls back to the raw status rather than showing nothing for a value we do not know. */
+const statusConfigFor = (status: string): StatusConfig =>
+  invoiceStatusObj[status] ?? { label: status || 'Unknown', color: 'secondary', icon: 'ri-question-line' }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 const DebouncedInput = ({
@@ -134,151 +143,149 @@ const DebouncedInput = ({
   return <TextField {...props} value={value} onChange={e => setValue(e.target.value)} size='small' />
 }
 
-// Vars
-const invoiceStatusObj: InvoiceStatusObj = {
-  paid: { color: 'success', icon: 'ri-checkbox-circle-line' },
-  pending: { color: 'warning', icon: 'ri-time-line' },
-  overdue: { color: 'error', icon: 'ri-error-warning-line' },
-  draft: { color: 'info', icon: 'ri-file-edit-line' },
-  cancelled: { color: 'secondary', icon: 'ri-close-circle-line' }
-}
-
-// Sample data
-const sampleInvoices: Invoice[] = [
-  {
-    id: 1,
-    invoiceNumber: 'INV-2024-001',
-    tenantName: 'John Doe',
-    tenantEmail: 'john.doe@example.com',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyName: 'Xorla House',
-    unitName: 'Unit 101',
-    amount: '₵1,450',
-    issuedDate: '2024-07-01',
-    dueDate: '2024-07-15',
-    status: 'paid',
-    balance: '₵0'
-  },
-  {
-    id: 2,
-    invoiceNumber: 'INV-2024-002',
-    tenantName: 'Jane Smith',
-    tenantEmail: 'jane.smith@example.com',
-    tenantAvatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-    propertyName: 'Xorla House',
-    unitName: 'Unit 102',
-    amount: '₵1,500',
-    issuedDate: '2024-07-01',
-    dueDate: '2024-07-15',
-    status: 'pending',
-    balance: '₵1,500'
-  },
-  {
-    id: 3,
-    invoiceNumber: 'INV-2024-003',
-    tenantName: 'Mike Johnson',
-    tenantEmail: 'mike.johnson@example.com',
-    propertyName: 'Xorla House',
-    unitName: 'Unit 201',
-    amount: '₵2,400',
-    issuedDate: '2024-06-25',
-    dueDate: '2024-07-10',
-    status: 'overdue',
-    balance: '₵2,400'
-  },
-  {
-    id: 4,
-    invoiceNumber: 'INV-2024-004',
-    tenantName: 'Sarah Williams',
-    tenantEmail: 'sarah.williams@example.com',
-    propertyName: 'Sunset Apartments',
-    unitName: 'Unit 301',
-    amount: '₵1,800',
-    issuedDate: '2024-07-05',
-    dueDate: '2024-07-20',
-    status: 'paid',
-    balance: '₵0'
-  },
-  {
-    id: 5,
-    invoiceNumber: 'INV-2024-005',
-    tenantName: 'David Brown',
-    tenantEmail: 'david.brown@example.com',
-    propertyName: 'Xorla House',
-    unitName: 'Unit 202',
-    amount: '₵1,300',
-    issuedDate: '2024-07-01',
-    dueDate: '2024-07-15',
-    status: 'draft',
-    balance: '₵1,300'
+const getAvailableStatuses = (current: string): string[] => {
+  switch (current) {
+    case 'DRAFT':
+      return ['PENDING', 'CANCELLED']
+    case 'PENDING':
+      return ['PAID', 'OVERDUE', 'CANCELLED']
+    case 'OVERDUE':
+      return ['PAID', 'CANCELLED']
+    case 'PARTIAL':
+      return ['CANCELLED']
+    default:
+      return []
   }
-]
+}
 
 const columnHelper = createColumnHelper<InvoiceWithAction>()
 
 const InvoicesListTable = () => {
-  // States
-  const [status, setStatus] = useState<string>('')
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [statusFilter, setStatusFilter] = useState<string>('')
   const [rowSelection, setRowSelection] = useState({})
-  const [data, setData] = useState(sampleInvoices)
+  const [data, setData] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
+
+  // Status update dialog
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
-  const [newStatus, setNewStatus] = useState<Invoice['status']>('pending')
-  const [addInvoiceOpen, setAddInvoiceOpen] = useState(false)
-  const [editInvoiceOpen, setEditInvoiceOpen] = useState(false)
-  const [selectedInvoiceForEdit, setSelectedInvoiceForEdit] = useState<Invoice | null>(null)
+  const [newStatus, setNewStatus] = useState<string>('PENDING')
+  const [updating, setUpdating] = useState(false)
 
-  // Get available status options based on current status
-  const getAvailableStatuses = useCallback((currentStatus: Invoice['status']): Invoice['status'][] => {
-    switch (currentStatus) {
-      case 'draft':
-        return ['pending', 'cancelled']
-      case 'pending':
-        return ['paid', 'overdue', 'cancelled']
-      case 'overdue':
-        return ['paid', 'cancelled']
-      case 'paid':
-        return ['cancelled']
-      case 'cancelled':
-        return [] // Final state, cannot be updated
-      default:
-        return []
+  // Add/Edit dialog
+  const [addInvoiceOpen, setAddInvoiceOpen] = useState(false)
+  const [editInvoice, setEditInvoice] = useState<Invoice | null>(null)
+
+  // Export state
+  const [exporting, setExporting] = useState(false)
+
+  // Prefill carried over from the onboarding wizard's "Create first invoice" action
+  const [invoicePrefill, setInvoicePrefill] = useState<
+    { propertyId?: string; unitId?: string; occupantId?: string; amount?: string } | undefined
+  >(undefined)
+
+  // Auto-open the Add Invoice dialog when arriving via the topbar "+ Create" menu (?create=1),
+  // optionally carrying tenant/property/unit/rent context from the onboarding wizard.
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      const occupantId = searchParams.get('occupantId') ?? undefined
+      const propertyId = searchParams.get('propertyId') ?? undefined
+      const unitId = searchParams.get('unitId') ?? undefined
+      const amount = searchParams.get('amount') ?? undefined
+
+      if (occupantId || propertyId || unitId || amount) {
+        setInvoicePrefill({ propertyId, unitId, occupantId, amount })
+      }
+
+      setAddInvoiceOpen(true)
+      router.replace('/billing/invoices')
+    }
+  }, [searchParams, router])
+
+  const fetchInvoices = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+
+    try {
+      const result = await getInvoices(statusFilter ? { status: statusFilter } : undefined)
+
+      setData(Array.isArray(result) ? result : [])
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to load invoices')
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter])
+
+  useEffect(() => {
+    fetchInvoices()
+  }, [fetchInvoices])
+
+  const handleEditClick = useCallback((invoice: Invoice) => {
+    const available = getAvailableStatuses(invoice.status)
+
+    if (available.length > 0) {
+      setSelectedInvoice(invoice)
+      setNewStatus(available[0])
+      setUpdateDialogOpen(true)
     }
   }, [])
 
-  // Handle edit click
-  const handleEditClick = useCallback(
-    (invoice: Invoice) => {
-      setSelectedInvoice(invoice)
-      const availableStatuses = getAvailableStatuses(invoice.status)
+  const handleStatusUpdate = async () => {
+    if (!selectedInvoice) return
+    setUpdating(true)
 
-      if (availableStatuses.length > 0) {
-        setNewStatus(availableStatuses[0])
-        setUpdateDialogOpen(true)
-      }
-    },
-    [getAvailableStatuses]
-  )
+    try {
+      const updated = await updateInvoiceStatus(selectedInvoice.id, newStatus)
 
-  // Handle status update
-  const handleStatusUpdate = () => {
-    if (selectedInvoice) {
-      setData(
-        data.map(invoice =>
-          invoice.id === selectedInvoice.id
-            ? {
-                ...invoice,
-                status: newStatus,
-                balance: newStatus === 'paid' ? '₵0' : invoice.amount
-              }
-            : invoice
-        )
-      )
+      setData(prev => prev.map(inv => (inv.id === updated.id ? updated : inv)))
       setUpdateDialogOpen(false)
       setSelectedInvoice(null)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to update status')
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleSaved = (saved: Invoice) => {
+    setData(prev => {
+      const idx = prev.findIndex(i => i.id === saved.id)
+
+      if (idx >= 0) {
+        const next = [...prev]
+
+        next[idx] = saved
+
+        return next
+      }
+
+      return [saved, ...prev]
+    })
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteInvoice(id)
+      setData(prev => prev.filter(inv => inv.id !== id))
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to delete invoice')
+    }
+  }
+
+  const handleExport = async () => {
+    setExporting(true)
+
+    try {
+      await exportInvoicesCsv()
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to export invoices')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -313,33 +320,45 @@ const InvoicesListTable = () => {
       columnHelper.accessor('status', {
         header: 'STATUS',
         cell: ({ row }) => {
-          const availableStatuses = getAvailableStatuses(row.original.status)
-          const canEdit = availableStatuses.length > 0
+          const cfg = statusConfigFor(row.original.status)
+          const available = getAvailableStatuses(row.original.status)
 
           return (
             <div className='flex items-center gap-2'>
+              {/*
+                * The label is rendered, not just the icon. This was an icon-only
+                * avatar with the status hidden in the tooltip below, on the one
+                * column that says whether you have been paid: nothing to read at
+                * a glance, nothing for a screen reader, and no tooltip at all on
+                * a touch device. Draft/Pending/Partial are also near-
+                * indistinguishable by colour.
+                *
+                * The tooltip stays for balance and due date, which are genuinely
+                * supplementary — losing them to a hover is acceptable in a way
+                * that losing the status is not.
+                */}
               <Tooltip
                 title={
                   <div>
                     <Typography variant='body2' component='span' className='text-inherit'>
-                      {row.original.status}
+                      Balance: {formatCurrency(row.original.balance, row.original.currency)}
                     </Typography>
                     <br />
                     <Typography variant='body2' component='span' className='text-inherit'>
-                      Balance: {row.original.balance}
-                    </Typography>
-                    <br />
-                    <Typography variant='body2' component='span' className='text-inherit'>
-                      Due Date: {formatDate(row.original.dueDate)}
+                      Due: {formatDate(row.original.dueDate)}
                     </Typography>
                   </div>
                 }
               >
-                <CustomAvatar skin='light' color={invoiceStatusObj[row.original.status].color} size={28}>
-                  <i className={classnames('text-base', invoiceStatusObj[row.original.status].icon)} />
-                </CustomAvatar>
+                <Chip
+                  size='small'
+                  variant='tonal'
+                  color={cfg.color}
+                  label={cfg.label}
+                  icon={<i className={classnames('text-base', cfg.icon)} />}
+                />
               </Tooltip>
-              {canEdit && (
+              {available.length > 0 && (
                 <IconButton size='small' onClick={() => handleEditClick(row.original)} className='text-primary'>
                   <i className='ri-edit-line text-lg' />
                 </IconButton>
@@ -348,22 +367,18 @@ const InvoicesListTable = () => {
           )
         }
       }),
-      columnHelper.accessor('tenantName', {
+      columnHelper.accessor('occupantName', {
         header: 'TENANT',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            {row.original.tenantAvatar ? (
-              <CustomAvatar src={row.original.tenantAvatar} skin='light' size={34} />
-            ) : (
-              <CustomAvatar skin='light' size={34}>
-                {getInitials(row.original.tenantName)}
-              </CustomAvatar>
-            )}
+            <CustomAvatar skin='light' size={34}>
+              {getInitials(row.original.occupantName ?? 'N A')}
+            </CustomAvatar>
             <div className='flex flex-col'>
               <Typography className='font-medium' color='text.primary'>
-                {row.original.tenantName}
+                {row.original.occupantName ?? '-'}
               </Typography>
-              <Typography variant='body2'>{row.original.tenantEmail}</Typography>
+              <Typography variant='body2'>{row.original.occupantEmail ?? ''}</Typography>
             </div>
           </div>
         )
@@ -373,15 +388,17 @@ const InvoicesListTable = () => {
         cell: ({ row }) => (
           <div className='flex flex-col'>
             <Typography className='font-medium' color='text.primary'>
-              {row.original.propertyName}
+              {row.original.propertyName ?? '-'}
             </Typography>
-            <Typography variant='body2'>{row.original.unitName}</Typography>
+            <Typography variant='body2'>{row.original.unitNo ?? ''}</Typography>
           </div>
         )
       }),
       columnHelper.accessor('amount', {
         header: 'AMOUNT',
-        cell: ({ row }) => <Typography className='font-medium'>{row.original.amount}</Typography>
+        cell: ({ row }) => (
+          <Typography className='font-medium'>{formatCurrency(row.original.amount, row.original.currency)}</Typography>
+        )
       }),
       columnHelper.accessor('issuedDate', {
         header: 'ISSUED DATE',
@@ -393,21 +410,20 @@ const InvoicesListTable = () => {
       }),
       columnHelper.accessor('balance', {
         header: 'BALANCE',
-        cell: ({ row }) => {
-          return row.original.balance === '₵0' ? (
+        cell: ({ row }) =>
+          row.original.balance === 0 ? (
             <Chip variant='tonal' label='Paid' color='success' size='small' />
           ) : (
             <Typography color='text.primary' className='font-medium'>
-              {row.original.balance}
+              {formatCurrency(row.original.balance, row.original.currency)}
             </Typography>
           )
-        }
       }),
       columnHelper.display({
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -416,23 +432,22 @@ const InvoicesListTable = () => {
                 href: `/billing/invoices/${row.original.id}`
               },
               {
-                text: 'Download',
-                icon: 'ri-download-line',
-                menuItemProps: {
-                  onClick: () => {
-                    // Handle download
-                    console.log('Download invoice', row.original.id)
-                  }
-                }
-              },
-              {
                 text: 'Edit',
                 icon: 'ri-pencil-line',
                 menuItemProps: {
                   onClick: () => {
-                    setSelectedInvoiceForEdit(row.original)
-                    setEditInvoiceOpen(true)
+                    setEditInvoice(row.original)
+                    setInvoicePrefill(undefined)
+                    setAddInvoiceOpen(true)
                   }
+                }
+              },
+              {
+                text: 'Delete',
+                icon: 'ri-delete-bin-line',
+                menuItemProps: {
+                  onClick: () => handleDelete(row.original.id),
+                  sx: { color: 'error.main' }
                 }
               }
             ]}
@@ -441,31 +456,15 @@ const InvoicesListTable = () => {
         enableSorting: false
       })
     ],
-    [getAvailableStatuses, handleEditClick]
+    [handleEditClick]
   )
 
-  // Filter by status
-  const filteredData = useMemo(() => {
-    if (!status) return data
-    
-return data.filter(invoice => invoice.status === status)
-  }, [status, data])
-
   const table = useReactTable({
-    data: filteredData as Invoice[],
+    data,
     columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
+    filterFns: { fuzzy: fuzzyFilter },
+    state: { rowSelection, globalFilter },
+    initialState: { pagination: { pageSize: 10 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -476,84 +475,36 @@ return data.filter(invoice => invoice.status === status)
     getPaginationRowModel: getPaginationRowModel()
   })
 
-  // Sample properties, units, and tenants data (in a real app, these would come from API)
-  const properties = useMemo(
-    () => [
-      { id: 1, name: 'Xorla House' },
-      { id: 2, name: 'Sunset Apartments' }
-    ],
-    []
-  )
-
-  const units = useMemo(
-    () => [
-      { id: '1', unitNumber: 'Unit 101', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '2', unitNumber: 'Unit 102', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '3', unitNumber: 'Unit 201', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '4', unitNumber: 'Unit 202', propertyId: '1', propertyName: 'Xorla House' },
-      { id: '5', unitNumber: 'Unit 301', propertyId: '2', propertyName: 'Sunset Apartments' },
-      { id: '6', unitNumber: 'Unit 401', propertyId: '2', propertyName: 'Sunset Apartments' }
-    ],
-    []
-  )
-
-  const tenants = useMemo(
-    () => [
-      {
-        id: 1,
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        roomNo: 'Unit 101',
-        propertyName: 'Xorla House',
-        avatar:
-          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-      },
-      {
-        id: 2,
-        name: 'Jane Smith',
-        email: 'jane.smith@example.com',
-        roomNo: 'Unit 102',
-        propertyName: 'Xorla House',
-        avatar:
-          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-      },
-      {
-        id: 3,
-        name: 'Mike Johnson',
-        email: 'mike.johnson@example.com',
-        roomNo: 'Unit 201',
-        propertyName: 'Xorla House'
-      },
-      {
-        id: 4,
-        name: 'Sarah Williams',
-        email: 'sarah.williams@example.com',
-        roomNo: 'Unit 301',
-        propertyName: 'Sunset Apartments'
-      },
-      {
-        id: 5,
-        name: 'David Brown',
-        email: 'david.brown@example.com',
-        roomNo: 'Unit 202',
-        propertyName: 'Xorla House'
-      }
-    ],
-    []
-  )
-
   return (
     <>
       <Card>
         <CardContent className='flex justify-between flex-col sm:flex-row gap-4 flex-wrap items-start sm:items-center'>
-          <Button
-            variant='contained'
-            startIcon={<i className='ri-add-line' />}
-            className='max-sm:is-full'
-            onClick={() => setAddInvoiceOpen(true)}
-          >
-            Create Invoice
-          </Button>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='contained'
+              startIcon={<i className='ri-add-line' />}
+              className='max-sm:is-full'
+              onClick={() => {
+                setEditInvoice(null)
+                setInvoicePrefill(undefined)
+                setAddInvoiceOpen(true)
+              }}
+            >
+              Create Invoice
+            </Button>
+            <IconButton onClick={fetchInvoices} title='Refresh'>
+              <i className='ri-refresh-line' />
+            </IconButton>
+            <Button
+              variant='outlined'
+              size='small'
+              startIcon={exporting ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              {exporting ? 'Exporting…' : 'Export'}
+            </Button>
+          </div>
           <div className='flex items-center flex-col sm:flex-row max-sm:is-full gap-4'>
             <DebouncedInput
               value={globalFilter ?? ''}
@@ -566,74 +517,88 @@ return data.filter(invoice => invoice.status === status)
               <Select
                 fullWidth
                 id='select-status'
-                value={status}
-                onChange={e => setStatus(e.target.value)}
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
                 label='Invoice Status'
                 labelId='status-select'
               >
                 <MenuItem value=''>All Status</MenuItem>
-                <MenuItem value='paid'>Paid</MenuItem>
-                <MenuItem value='pending'>Pending</MenuItem>
-                <MenuItem value='overdue'>Overdue</MenuItem>
-                <MenuItem value='draft'>Draft</MenuItem>
-                <MenuItem value='cancelled'>Cancelled</MenuItem>
+                <MenuItem value='PAID'>Paid</MenuItem>
+                <MenuItem value='PARTIAL'>Partial</MenuItem>
+                <MenuItem value='PENDING'>Pending</MenuItem>
+                <MenuItem value='OVERDUE'>Overdue</MenuItem>
+                <MenuItem value='DRAFT'>Draft</MenuItem>
+                <MenuItem value='CANCELLED'>Cancelled</MenuItem>
               </Select>
             </FormControl>
           </div>
         </CardContent>
-        <div className='overflow-x-auto'>
-          <table className={tableStyles.table}>
-            <thead>
-              {table.getHeaderGroups().map(headerGroup => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map(header => (
-                    <th key={header.id}>
-                      {header.isPlaceholder ? null : (
-                        <div
-                          className={classnames({
-                            'flex items-center': header.column.getIsSorted(),
-                            'cursor-pointer select-none': header.column.getCanSort()
-                          })}
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          {{
-                            asc: <i className='ri-arrow-up-s-line text-xl' />,
-                            desc: <i className='ri-arrow-down-s-line text-xl' />
-                          }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                        </div>
-                      )}
-                    </th>
-                  ))}
-                </tr>
+
+        {error && (
+          <CardContent>
+            <Alert severity='error' onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          </CardContent>
+        )}
+
+        <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
+          {loading ? (
+            <div className='p-4 flex flex-col gap-3'>
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} variant='text' height={48} />
               ))}
-            </thead>
-            {table.getFilteredRowModel().rows.length === 0 ? (
-              <tbody>
-                <tr>
-                  <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                    No data available
-                  </td>
-                </tr>
-              </tbody>
-            ) : (
-              <tbody>
-                {table
-                  .getRowModel()
-                  .rows.slice(0, table.getState().pagination.pageSize)
-                  .map(row => {
-                    return (
-                      <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                        {row.getVisibleCells().map(cell => (
-                          <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                        ))}
-                      </tr>
-                    )
-                  })}
-              </tbody>
-            )}
-          </table>
+            </div>
+          ) : (
+            <table className={tableStyles.table}>
+              <thead>
+                {table.getHeaderGroups().map(headerGroup => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map(header => (
+                      <th key={header.id}>
+                        {header.isPlaceholder ? null : (
+                          <div
+                            className={classnames({
+                              'flex items-center': header.column.getIsSorted(),
+                              'cursor-pointer select-none': header.column.getCanSort()
+                            })}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {{
+                              asc: <i className='ri-arrow-up-s-line text-xl' />,
+                              desc: <i className='ri-arrow-down-s-line text-xl' />
+                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                          </div>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
+              </thead>
+              {table.getFilteredRowModel().rows.length === 0 ? (
+                <tbody>
+                  <tr>
+                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
+                      No invoices found
+                    </td>
+                  </tr>
+                </tbody>
+              ) : (
+                <tbody>
+                  {table.getRowModel().rows.map(row => (
+                    <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              )}
+            </table>
+          )}
         </div>
+
         <TablePagination
           rowsPerPageOptions={[10, 25, 50]}
           component='div'
@@ -641,9 +606,7 @@ return data.filter(invoice => invoice.status === status)
           count={table.getFilteredRowModel().rows.length}
           rowsPerPage={table.getState().pagination.pageSize}
           page={table.getState().pagination.pageIndex}
-          onPageChange={(_, page) => {
-            table.setPageIndex(page)
-          }}
+          onPageChange={(_, page) => table.setPageIndex(page)}
           onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
         />
       </Card>
@@ -665,30 +628,31 @@ return data.filter(invoice => invoice.status === status)
               <Typography variant='body2' color='text.secondary' component='span'>
                 Current Status:
               </Typography>
-              <Chip
-                variant='tonal'
-                label={selectedInvoice?.status}
-                size='small'
-                color={selectedInvoice ? invoiceStatusObj[selectedInvoice.status].color : 'default'}
-                className='capitalize'
-              />
+              {selectedInvoice && (
+                <Chip
+                  variant='tonal'
+                  label={statusConfigFor(selectedInvoice.status).label}
+                  size='small'
+                  color={statusConfigFor(selectedInvoice.status).color}
+                />
+              )}
             </div>
             <FormControl fullWidth>
               <InputLabel id='status-update-label'>New Status</InputLabel>
               <Select
                 labelId='status-update-label'
                 value={newStatus}
-                onChange={e => setNewStatus(e.target.value as Invoice['status'])}
+                onChange={e => setNewStatus(e.target.value)}
                 label='New Status'
               >
                 {selectedInvoice &&
-                  getAvailableStatuses(selectedInvoice.status).map(status => (
-                    <MenuItem key={status} value={status}>
+                  getAvailableStatuses(selectedInvoice.status).map(s => (
+                    <MenuItem key={s} value={s}>
                       <div className='flex items-center gap-2'>
-                        <CustomAvatar skin='light' color={invoiceStatusObj[status].color} size={20}>
-                          <i className={classnames('text-sm', invoiceStatusObj[status].icon)} />
+                        <CustomAvatar skin='light' color={invoiceStatusObj[s]?.color ?? 'secondary'} size={20}>
+                          <i className={classnames('text-sm', invoiceStatusObj[s]?.icon)} />
                         </CustomAvatar>
-                        <span className='capitalize'>{status}</span>
+                        <span className='capitalize'>{s.toLowerCase()}</span>
                       </div>
                     </MenuItem>
                   ))}
@@ -697,57 +661,32 @@ return data.filter(invoice => invoice.status === status)
           </div>
         </DialogContent>
         <DialogActions className='gap-2 pbs-4'>
-          <Button variant='outlined' color='secondary' onClick={() => setUpdateDialogOpen(false)}>
+          <Button variant='outlined' color='secondary' onClick={() => setUpdateDialogOpen(false)} disabled={updating}>
             Cancel
           </Button>
-          <Button variant='contained' color='primary' onClick={handleStatusUpdate}>
-            Update Status
+          <Button
+            variant='contained'
+            color='primary'
+            onClick={handleStatusUpdate}
+            disabled={updating}
+            startIcon={updating ? <CircularProgress size={16} color='inherit' /> : undefined}
+          >
+            {updating ? 'Updating…' : 'Update Status'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Add Invoice Dialog */}
+      {/* Add/Edit Invoice Dialog */}
       <AddInvoiceDialog
         open={addInvoiceOpen}
-        handleClose={() => setAddInvoiceOpen(false)}
-        properties={properties}
-        units={units}
-        tenants={tenants}
-        invoicesData={data}
-        setData={setData}
-        mode='add'
-      />
-
-      {/* Edit Invoice Dialog */}
-      <AddInvoiceDialog
-        open={editInvoiceOpen}
         handleClose={() => {
-          setEditInvoiceOpen(false)
-          setSelectedInvoiceForEdit(null)
+          setAddInvoiceOpen(false)
+          setEditInvoice(null)
+          setInvoicePrefill(undefined)
         }}
-        properties={properties}
-        units={units}
-        tenants={tenants}
-        invoicesData={data}
-        setData={setData}
-        mode='edit'
-        editData={
-          selectedInvoiceForEdit
-            ? {
-                id: selectedInvoiceForEdit.id,
-                invoiceNumber: selectedInvoiceForEdit.invoiceNumber,
-                tenantName: selectedInvoiceForEdit.tenantName,
-                tenantEmail: selectedInvoiceForEdit.tenantEmail,
-                propertyName: selectedInvoiceForEdit.propertyName,
-                unitName: selectedInvoiceForEdit.unitName,
-                amount: selectedInvoiceForEdit.amount,
-                issuedDate: selectedInvoiceForEdit.issuedDate,
-                dueDate: selectedInvoiceForEdit.dueDate,
-                status: selectedInvoiceForEdit.status,
-                balance: selectedInvoiceForEdit.balance
-              }
-            : null
-        }
+        editInvoice={editInvoice}
+        onSaved={handleSaved}
+        prefill={invoicePrefill}
       />
     </>
   )

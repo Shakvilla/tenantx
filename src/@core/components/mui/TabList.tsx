@@ -61,9 +61,23 @@ const TabList = styled(MuiTabList)<CustomTabListProps>(({ color, theme, pill, or
 
 const CustomTabList = (props: CustomTabListProps) => {
   // Props
-  const { color = 'primary', ...rest } = props
+  const {
+    color = 'primary',
+    variant = 'scrollable',
+    scrollButtons = 'auto',
+    allowScrollButtonsMobile = true,
+    ...rest
+  } = props
 
-  return <TabList color={color} {...rest} />
+  return (
+    <TabList
+      color={color}
+      variant={variant}
+      scrollButtons={scrollButtons}
+      allowScrollButtonsMobile={allowScrollButtonsMobile}
+      {...rest}
+    />
+  )
 }
 
 export default CustomTabList

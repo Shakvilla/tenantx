@@ -124,15 +124,14 @@ export const UpdatePropertySchema = CreatePropertySchema.partial()
  * Property query schema for list endpoints.
  */
 export const PropertyQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  size: z.coerce.number().int().min(1).max(100).default(50),
+  sort: z.string().default('id,asc'),
+  cursor: z.string().optional(),
   search: z.string().optional(),
   status: PropertyStatusEnum.optional(),
   type: PropertyTypeEnum.optional(),
   region: z.string().optional(),
   district: z.string().optional(),
-  sort: z.string().default('created_at'),
-  order: z.enum(['asc', 'desc']).default('desc'),
 })
 
 // Export types

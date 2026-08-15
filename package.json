@@ -13,11 +13,12 @@
     "build:icons": "tsx src/assets/iconify-icons/bundle-icons-css.ts",
     "postinstall": "npm run build:icons",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "type-check": "tsc --noEmit",
-    "preinstall": "node preinstall.js"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/cache": "11.14.0",
@@ -30,6 +31,9 @@
     "@scalar/api-reference-react": "^0.8.15",
     "@tanstack/match-sorter-utils": "8.19.4",
     "@tanstack/react-table": "8.20.6",
+    "@tiptap/extension-placeholder": "^3.26.1",
+    "@tiptap/react": "^3.26.1",
+    "@tiptap/starter-kit": "^3.26.1",
     "@types/xlsx": "^0.0.36",
     "ajv": "^8.17.1",
     "apexcharts": "3.49.0",
@@ -55,6 +59,7 @@
     "@iconify/tools": "4.1.1",
     "@iconify/types": "2.0.0",
     "@iconify/utils": "2.2.1",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
     "@types/node": "^22.10.2",

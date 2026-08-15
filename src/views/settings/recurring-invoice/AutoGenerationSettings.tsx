@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -18,20 +18,58 @@ import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
+import Snackbar from '@mui/material/Snackbar'
+import Alert from '@mui/material/Alert'
+
+// API Imports
+import { recurringInvoiceSettingsApi } from '@/lib/api/settings'
 
 const AutoGenerationSettings = () => {
   // States
   const [autoGenerate, setAutoGenerate] = useState(true)
   const [generationDay, setGenerationDay] = useState('1')
   const [advanceDays, setAdvanceDays] = useState('7')
+  const [loading, setLoading] = useState(false)
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Saving auto generation settings', {
-      autoGenerate,
-      generationDay,
-      advanceDays
-    })
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success'
+  })
+
+  useEffect(() => {
+    recurringInvoiceSettingsApi.get().then(settings => {
+      const ag = settings.autoGeneration
+      if (!ag) return
+      setAutoGenerate(ag.enabled ?? true)
+      setGenerationDay(String(ag.generateOnDay || '1'))
+      setAdvanceDays(String(ag.daysBeforeDue || '7'))
+    }).catch(console.error)
+  }, [])
+
+  const handleSave = async () => {
+    setLoading(true)
+
+    try {
+      await recurringInvoiceSettingsApi.update({
+        autoGeneration: {
+          enabled: autoGenerate,
+          generateOnDay: generationDay === 'last' ? 0 : parseInt(generationDay, 10),
+          daysBeforeDue: parseInt(advanceDays, 10),
+          autoSend: false
+        }
+      })
+      setSnackbar({ open: true, message: 'Auto generation settings saved successfully', severity: 'success' })
+    } catch (error) {
+      console.error('Error saving auto generation settings:', error)
+      setSnackbar({
+        open: true,
+        message: error instanceof Error ? error.message : 'Failed to save auto generation settings',
+        severity: 'error'
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -92,14 +130,23 @@ const AutoGenerationSettings = () => {
         )}
 
         <div className='flex justify-end'>
-          <Button variant='contained' color='primary' onClick={handleSave}>
-            Save Settings
+          <Button variant='contained' color='primary' onClick={handleSave} disabled={loading}>
+            {loading ? 'Saving...' : 'Save Settings'}
           </Button>
         </div>
       </CardContent>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Card>
   )
 }
 
 export default AutoGenerationSettings
-

@@ -18,8 +18,12 @@ import CardContent from '@mui/material/CardContent'
 import Divider from '@mui/material/Divider'
 import Chip from '@mui/material/Chip'
 
+// API Imports
+import { createCommunication } from '@/lib/api/communications'
+
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -31,8 +35,7 @@ type ReplyDialogProps = {
   open: boolean
   setOpen: (open: boolean) => void
   communication: CommunicationType | null
-  communicationData?: CommunicationType[]
-  setData: (data: CommunicationType[]) => void
+  onSuccess: () => void
 }
 
 type FormDataType = {
@@ -46,12 +49,11 @@ const initialData: FormDataType = {
   message: ''
 }
 
-const ReplyDialog = ({ open, setOpen, communication, communicationData, setData }: ReplyDialogProps) => {
-  // States
+const ReplyDialog = ({ open, setOpen, communication, onSuccess }: ReplyDialogProps) => {
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+  const [submitting, setSubmitting] = useState(false)
 
-  // Reset form when dialog opens/closes or communication changes
   useEffect(() => {
     if (open && communication) {
       const replySubject = communication.subject.startsWith('Re:')
@@ -92,33 +94,29 @@ const ReplyDialog = ({ open, setOpen, communication, communicationData, setData 
 return Object.keys(newErrors).length === 0
   }
 
-  // Handle submit
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm() || !communication) return
-
-    const today = new Date()
-
-    const newCommunication: CommunicationType = {
-      id: (communicationData?.length || 0) + 1,
-      subject: formData.subject,
-      from: 'Property Manager',
-      fromAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3',
-      to: communication.from,
-      toAvatar: communication.fromAvatar,
-      message: formData.message,
-      date: today.toISOString().split('T')[0],
-      type: communication.type === 'email' ? 'email' : 'message',
-      status: 'sent',
-      propertyName: communication.propertyName,
-      unitNo: communication.unitNo,
-      tenantName: communication.from
+    setSubmitting(true)
+    try {
+      await createCommunication({
+        subject: formData.subject,
+        toName: communication.from,
+        message: formData.message,
+        type: communication.type === 'email' ? 'email' : 'message',
+        propertyId: communication.propertyId,
+        propertyName: communication.propertyName,
+        unitId: communication.unitId,
+        unitNo: communication.unitNo,
+        occupantId: communication.occupantId,
+        occupantName: communication.tenantName
+      })
+      onSuccess()
+      handleClose()
+    } catch (err) {
+      console.error('Failed to send reply:', err)
+    } finally {
+      setSubmitting(false)
     }
-
-    if (communicationData) {
-      setData([newCommunication, ...communicationData])
-    }
-
-    handleClose()
   }
 
   // Handle reset
@@ -229,10 +227,13 @@ return Object.keys(newErrors).length === 0
         </Grid>
       </DialogContent>
       <DialogActions className='gap-2 pbs-4'>
-        <Button variant='outlined' color='secondary' onClick={handleClose}>
+        <Button variant='outlined' color='secondary' onClick={handleClose} disabled={submitting}>
           Cancel
         </Button>
-        <Button variant='contained' color='primary' onClick={handleSubmit} startIcon={<i className='ri-send-plane-line' />}>
+        <Button
+          variant='contained' color='primary' onClick={handleSubmit} disabled={submitting}
+          startIcon={submitting ? <CircularProgress size={16} /> : <i className='ri-send-plane-line' />}
+        >
           Send Reply
         </Button>
       </DialogActions>

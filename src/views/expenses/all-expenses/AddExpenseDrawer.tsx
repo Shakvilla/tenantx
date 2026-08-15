@@ -18,454 +18,408 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 import InputAdornment from '@mui/material/InputAdornment'
+import Alert from '@mui/material/Alert'
+import CircularProgress from '@mui/material/CircularProgress'
+import Skeleton from '@mui/material/Skeleton'
+
+// API Imports
+import { createExpense, updateExpense, getExpenseConfigs, type Expense, type ExpenseConfig } from '@/lib/api/expenses'
+import { getProperties } from '@/lib/api/properties'
+import { getAllUnits } from '@/lib/api/units'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 // Type Imports
 import type { ExpenseType } from '@/types/expenses/expenseTypes'
 
-type Property = {
-  id: number | string
-  name: string
-}
-
-type Unit = {
-  id: number | string
-  unitNumber: string
-  propertyId: string
-  propertyName: string
-}
-
-type ExpenseEditData = {
-  id?: number
-  expenseName?: string
-  propertyId?: string
-  unitId?: string
-  date?: string
-  responsibility?: string
-  amount?: string
-  image?: string
-  description?: string
-}
-
 type Props = {
   open: boolean
   handleClose: () => void
-  expenseData?: ExpenseType[]
-  setData: (data: ExpenseType[]) => void
-  editData?: ExpenseEditData | null
-  mode?: 'add' | 'edit'
+  editExpense?: ExpenseType | null
+  onSaved: (expense: ExpenseType) => void
 }
 
 type FormDataType = {
-  expenseName: string
+  expenseConfigId: string   // '' means "Other / manual"
+  item: string              // freehand — used when expenseConfigId is 'other'
   propertyId: string
   unitId: string
   date: string
   responsibility: string
+  status: string
   amount: string
-  image: File | null
   description: string
 }
 
-// Vars
 const initialData: FormDataType = {
-  expenseName: '',
+  expenseConfigId: '',
+  item: '',
   propertyId: '',
   unitId: '',
-  date: '',
+  date: new Date().toISOString().split('T')[0],
   responsibility: '',
+  status: 'UNPAID',
   amount: '',
-  image: null,
   description: ''
 }
 
-// Sample properties and units data
-const sampleProperties: Property[] = [
-  { id: 1, name: 'A living room with mexican mansion blue' },
-  { id: 2, name: 'Rendering of a modern villa' },
-  { id: 3, name: 'Beautiful modern style luxury home exterior sunset' },
-  { id: 4, name: 'A house with a lot of windows and a lot of plants' },
-  { id: 5, name: 'Design of a modern house as mansion blue couch' },
-  { id: 6, name: 'Depending on the location and design' }
-]
+function apiToForm(expense: ExpenseType): FormDataType {
+  return {
+    expenseConfigId: expense.expenseConfigId ?? '',
+    item: expense.item,
+    propertyId: expense.propertyId ?? '',
+    unitId: expense.unitId ?? '',
+    date: expense.date,
+    responsibility: expense.responsibility ?? '',
+    status: expense.status ?? 'UNPAID',
+    amount: expense.amount.toString(),
+    description: expense.description ?? ''
+  }
+}
 
-const sampleUnits: Unit[] = [
-  { id: 1, unitNumber: 'Unit no 1', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
-  { id: 2, unitNumber: 'Unit no 2', propertyId: '3', propertyName: 'Beautiful modern style luxury home exterior sunset' },
-  { id: 3, unitNumber: 'Unit no 3', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
-  { id: 4, unitNumber: 'Unit no 4', propertyId: '4', propertyName: 'A house with a lot of windows and a lot of plants' },
-  { id: 5, unitNumber: 'Unit no 5', propertyId: '2', propertyName: 'Rendering of a modern villa' },
-  { id: 6, unitNumber: 'Unit no 6', propertyId: '2', propertyName: 'Rendering of a modern villa' },
-  { id: 7, unitNumber: 'Unit no 7', propertyId: '3', propertyName: 'Beautiful modern style luxury home exterior sunset' },
-  { id: 8, unitNumber: 'Unit no 8', propertyId: '6', propertyName: 'Depending on the location and design' },
-  { id: 9, unitNumber: 'Unit no 9', propertyId: '1', propertyName: 'A living room with mexican mansion blue' },
-  { id: 10, unitNumber: 'Unit no 10', propertyId: '4', propertyName: 'A house with a lot of windows and a lot of plants' },
-  { id: 11, unitNumber: 'Unit no 11', propertyId: '5', propertyName: 'Design of a modern house as mansion blue couch' },
-  { id: 12, unitNumber: 'Unit no 12', propertyId: '6', propertyName: 'Depending on the location and design' }
-]
+function mapApiExpense(exp: Expense): ExpenseType {
+  return {
+    id: exp.id,
+    item: exp.item,
+    amount: exp.amount,
+    date: exp.date,
+    description: exp.description,
+    propertyId: exp.propertyId,
+    propertyName: exp.propertyName,
+    unitId: exp.unitId,
+    unitNo: exp.unitNo,
+    expenseConfigId: exp.expenseConfigId,
+    responsibility: exp.responsibility,
+    status: exp.status,
+    currency: exp.currency,
+    imageUrl: exp.imageUrl,
+    createdAt: exp.createdAt,
+    updatedAt: exp.updatedAt
+  }
+}
 
-const AddExpenseDrawer = (props: Props) => {
-  // Props
-  const { open, handleClose, expenseData, setData, editData, mode = 'add' } = props
+// Sentinel value for "I want to type manually"
+const OTHER = 'other'
 
-  // States
+const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) => {
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
-  // Get initial form data based on mode
-  const getInitialFormData = (): FormDataType => {
-    if (mode === 'edit' && editData) {
-      // Find property and unit IDs from editData
-      const property = editData.propertyId
-        ? sampleProperties.find(p => p.id.toString() === editData.propertyId)
-        : null
+  // Reference data
+  const [expenseConfigs, setExpenseConfigs] = useState<ExpenseConfig[]>([])
+  const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
+  const [allUnits, setAllUnits] = useState<{ id: string; unitNumber: string; propertyId: string }[]>([])
+  const [loadingRefs, setLoadingRefs] = useState(false)
 
-      const unit = editData.unitId
-        ? sampleUnits.find(u => u.id.toString() === editData.unitId)
-        : null
+  const isEdit = Boolean(editExpense)
 
-      return {
-        expenseName: editData.expenseName || '',
-        propertyId: property?.id.toString() || editData.propertyId || '',
-        unitId: unit?.id.toString() || editData.unitId || '',
-        date: editData.date || '',
-        responsibility: editData.responsibility || '',
-        amount: editData.amount || '',
-        image: null, // File input, will use preview for existing image
-        description: editData.description || ''
-      }
-    }
+  // The dropdown value: config id, 'other', or ''
+  const configSelectValue = formData.expenseConfigId
+    ? formData.expenseConfigId
+    : formData.item
+      ? OTHER   // edit mode with a manual item but no config
+      : ''
 
-    
-return initialData
-  }
+  const showManualItem = configSelectValue === OTHER
 
-  // Reset form when dialog opens/closes or editData changes
+  // Load reference data when drawer opens
+  useEffect(() => {
+    if (!open) return
+    const tenantId = getStoredTenantId()
+    if (!tenantId) return
+
+    setLoadingRefs(true)
+    Promise.all([
+      getExpenseConfigs(true),          // active configs only
+      getProperties(tenantId, { size: 200 }),
+      getAllUnits(tenantId, { size: 500 })
+    ])
+      .then(([configs, propRes, unitRes]) => {
+        setExpenseConfigs(Array.isArray(configs) ? configs : [])
+        setProperties((propRes.data ?? []).map((p: any) => ({ id: p.id, name: p.name })))
+        setAllUnits((unitRes.data ?? []).map((u: any) => ({ id: u.id, unitNumber: u.unitNo, propertyId: u.propertyId })))
+      })
+      .catch(() => {})
+      .finally(() => setLoadingRefs(false))
+  }, [open])
+
+  // Reset form when drawer opens
   useEffect(() => {
     if (open) {
-      const newFormData = getInitialFormData()
-
-      setFormData(newFormData)
+      setFormData(editExpense ? apiToForm(editExpense) : initialData)
       setErrors({})
-      
-      // Set default date to today if in add mode
-      if (mode === 'add') {
-        const today = new Date()
-        const formattedDate = `${today.getDate()} ${today.toLocaleString('en-US', { month: 'long' })} ${today.getFullYear()}`
-
-        setFormData(prev => ({ ...prev, date: formattedDate }))
-      }
-      
-      // Set image preview if editing and image exists
-      if (mode === 'edit' && editData?.image) {
-        setImagePreview(editData.image)
-      } else {
-        setImagePreview(null)
-      }
+      setApiError(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editData, mode])
+  }, [open, editExpense])
 
-  // Filter units based on selected property
-  const filteredUnits = useMemo(() => {
-    if (!formData.propertyId) return []
-    
-return sampleUnits.filter(unit => unit.propertyId === formData.propertyId)
-  }, [formData.propertyId])
+  // Filter units by selected property
+  const filteredUnits = useMemo(
+    () => (formData.propertyId ? allUnits.filter(u => u.propertyId === formData.propertyId) : []),
+    [formData.propertyId, allUnits]
+  )
 
   // Reset unit when property changes
   useEffect(() => {
-    if (formData.propertyId) {
-      setFormData(prev => ({ ...prev, unitId: '' }))
-    }
+    setFormData(prev => ({ ...prev, unitId: '' }))
   }, [formData.propertyId])
 
-  const validateForm = (): boolean => {
-    const newErrors: Partial<Record<keyof FormDataType, boolean>> = {}
-
-    const requiredFields: (keyof FormDataType)[] = [
-      'expenseName',
-      'propertyId',
-      'unitId',
-      'date',
-      'responsibility',
-      'amount',
-      'description'
-    ]
-
-    requiredFields.forEach(field => {
-      if (!formData[field] || (typeof formData[field] === 'string' && formData[field].trim() === '')) {
-        newErrors[field] = true
-      }
-    })
-
-    // Validate amount is a valid number
-    if (formData.amount && isNaN(parseFloat(formData.amount))) {
-      newErrors.amount = true
+  const handleConfigChange = (value: string) => {
+    if (value === OTHER) {
+      // Clear config link, let user type manually
+      setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
+    } else if (value === '') {
+      setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
+    } else {
+      // Auto-fill item name from selected config
+      const config = expenseConfigs.find(c => c.id === value)
+      setFormData(prev => ({ ...prev, expenseConfigId: value, item: config?.item ?? '' }))
     }
-
-    // Validate image is selected (only required in add mode, or if no existing image in edit mode)
-    if (mode === 'add' && !formData.image) {
-      newErrors.image = true
-    } else if (mode === 'edit' && !formData.image && !imagePreview) {
-      newErrors.image = true
-    }
-
-    setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+    if (errors.expenseConfigId) setErrors(prev => ({ ...prev, expenseConfigId: false }))
+    if (errors.item) setErrors(prev => ({ ...prev, item: false }))
   }
 
-  const handleInputChange = (field: keyof FormDataType, value: string | File | null) => {
+  const handleChange = (field: keyof FormDataType, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: false }))
-    }
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }))
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const validate = (): boolean => {
+    const e: Partial<Record<keyof FormDataType, boolean>> = {}
 
-    if (file) {
-      setFormData(prev => ({ ...prev, image: file }))
-      const reader = new FileReader()
+    // Must have either a config selection or a manual item name
+    if (!formData.expenseConfigId && !formData.item.trim()) e.expenseConfigId = true
+    if (!formData.date) e.date = true
+    if (!formData.amount || isNaN(parseFloat(formData.amount))) e.amount = true
 
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string)
-      }
-
-      reader.readAsDataURL(file)
-
-      if (errors.image) {
-        setErrors(prev => ({ ...prev, image: false }))
-      }
-    }
+    setErrors(e)
+    return Object.keys(e).length === 0
   }
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const dateValue = e.target.value
-
-    if (dateValue) {
-      const date = new Date(dateValue)
-      const formattedDate = `${date.getDate()} ${date.toLocaleString('en-US', { month: 'long' })} ${date.getFullYear()}`
-
-      handleInputChange('date', formattedDate)
-    }
-  }
-
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validate()) return
 
-    if (!validateForm()) {
-      return
+    setSubmitting(true)
+    setApiError(null)
+
+    try {
+      const payload = {
+        item: formData.item.trim(),
+        expenseConfigId: formData.expenseConfigId || undefined,
+        propertyId: formData.propertyId || undefined,
+        unitId: formData.unitId || undefined,
+        date: formData.date,
+        amount: parseFloat(formData.amount),
+        responsibility: formData.responsibility || undefined,
+        status: formData.status || 'UNPAID',
+        description: formData.description || undefined
+      }
+
+      let saved: Expense
+      if (isEdit && editExpense) {
+        saved = await updateExpense(editExpense.id, payload)
+      } else {
+        saved = await createExpense(payload)
+      }
+
+      const propName = properties.find(p => p.id === saved.propertyId)?.name ?? null
+      const unitNum = allUnits.find(u => u.id === saved.unitId)?.unitNumber ?? null
+
+      onSaved({ ...mapApiExpense(saved), propertyName: propName, unitNo: unitNum })
+      handleClose()
+    } catch (err: any) {
+      setApiError(err?.message ?? 'Failed to save expense')
+    } finally {
+      setSubmitting(false)
     }
-
-    // Get selected property and unit names
-    const selectedProperty = sampleProperties.find(p => p.id.toString() === formData.propertyId)
-    const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId)
-
-    const newExpense: ExpenseType = {
-      id: (expenseData?.length && expenseData?.length + 1) || 1,
-      item: formData.expenseName,
-      amount: parseFloat(formData.amount),
-      date: formData.date,
-      comment: formData.description,
-      propertyName: selectedProperty?.name || '',
-      propertyImage: imagePreview || '',
-      unitNo: selectedUnit?.unitNumber || '',
-      responsibility: formData.responsibility as 'Owner' | 'Tenant'
-    }
-
-    setData([...(expenseData ?? []), newExpense])
-    handleClose()
-    setFormData(initialData)
-    setErrors({})
-    setImagePreview(null)
   }
 
   const handleReset = () => {
     handleClose()
     setFormData(initialData)
     setErrors({})
-    setImagePreview(null)
-  }
-
-  // Convert formatted date back to input format for date picker
-  const getDateInputValue = () => {
-    if (!formData.date) return ''
-
-    try {
-      const parts = formData.date.split(' ')
-
-      const monthNames = [
-        'January',
-        'February',
-        'March',
-        'April',
-        'May',
-        'June',
-        'July',
-        'August',
-        'September',
-        'October',
-        'November',
-        'December'
-      ]
-
-      const month = monthNames.indexOf(parts[1])
-      const day = parseInt(parts[0])
-      const year = parseInt(parts[2])
-
-      if (month !== -1 && day && year) {
-        const date = new Date(year, month, day)
-
-        
-return date.toISOString().split('T')[0]
-      }
-    } catch {
-      // If parsing fails, return empty
-    }
-
-    
-return ''
+    setApiError(null)
   }
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleReset}
-      maxWidth='md'
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 2
-        }
-      }}
-    >
+    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
       <DialogTitle className='flex items-center justify-between pbe-4'>
-        <span className='font-medium'>{mode === 'edit' ? 'Edit Expense' : 'Create New Expense'}</span>
+        <Typography variant='h6' component='span' className='font-medium'>
+          {isEdit ? 'Edit Expense' : 'Create New Expense'}
+        </Typography>
         <IconButton size='small' onClick={handleReset} sx={{ color: 'warning.main' }}>
           <i className='ri-close-line text-2xl' />
         </IconButton>
       </DialogTitle>
+
       <DialogContent>
+        {apiError && <Alert severity='error' className='mbe-4'>{apiError}</Alert>}
+
         <form onSubmit={onSubmit} className='flex flex-col gap-5'>
-          <Grid container spacing={4}>
+          <Grid container spacing={4} className='mbs-1'>
+
+            {/* Expense Item (config dropdown) */}
             <Grid size={{ xs: 12 }}>
-              <TextField
-                fullWidth
-                size='small'
-                label='Expense Name *'
-                placeholder='Name here'
-                value={formData.expenseName}
-                onChange={e => handleInputChange('expenseName', e.target.value)}
-                error={Boolean(errors.expenseName)}
-                helperText={errors.expenseName ? 'This field is required.' : ''}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={Boolean(errors.propertyId)} size='small'>
-                <InputLabel id='property-label'>Property Name *</InputLabel>
-                <Select
-                  labelId='property-label'
-                  label='Property Name *'
-                  value={formData.propertyId}
-                  onChange={e => handleInputChange('propertyId', e.target.value)}
-                >
-                  <MenuItem value=''>Select Property</MenuItem>
-                  {sampleProperties.map(property => (
-                    <MenuItem key={property.id} value={property.id.toString()}>
-                      {property.name}
+              {loadingRefs ? (
+                <Skeleton variant='rectangular' height={40} />
+              ) : (
+                <FormControl fullWidth size='small' error={Boolean(errors.expenseConfigId)}>
+                  <InputLabel id='config-label'>Expense Item *</InputLabel>
+                  <Select
+                    labelId='config-label'
+                    label='Expense Item *'
+                    value={configSelectValue}
+                    onChange={e => handleConfigChange(e.target.value)}
+                  >
+                    <MenuItem value=''>Select an item</MenuItem>
+                    {expenseConfigs.map(c => (
+                      <MenuItem key={c.id} value={c.id}>
+                        <div className='flex flex-col'>
+                          <span>{c.item}</span>
+                          {c.category && (
+                            <Typography variant='caption' color='text.secondary'>
+                              {c.category.charAt(0) + c.category.slice(1).toLowerCase()}
+                            </Typography>
+                          )}
+                        </div>
+                      </MenuItem>
+                    ))}
+                    <MenuItem value={OTHER}>
+                      <em>Other (type manually)</em>
                     </MenuItem>
-                  ))}
-                </Select>
-                {errors.propertyId && (
-                  <Typography variant='caption' color='error' className='mts-1'>
-                    This field is required.
-                  </Typography>
-                )}
-              </FormControl>
+                  </Select>
+                  {errors.expenseConfigId && (
+                    <Typography variant='caption' color='error' className='mts-1 mli-3'>
+                      Please select an expense item.
+                    </Typography>
+                  )}
+                </FormControl>
+              )}
             </Grid>
 
+            {/* Manual item name — only shown when "Other" is selected */}
+            {showManualItem && (
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  size='small'
+                  label='Expense Name *'
+                  placeholder='e.g. Security Deposit'
+                  value={formData.item}
+                  onChange={e => handleChange('item', e.target.value)}
+                  error={Boolean(errors.item)}
+                  helperText={errors.item ? 'This field is required.' : ''}
+                  autoFocus
+                />
+              </Grid>
+            )}
+
+            {/* Property */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={Boolean(errors.unitId)} size='small' disabled={!formData.propertyId}>
-                <InputLabel id='unit-label'>Select Unit *</InputLabel>
-                <Select
-                  labelId='unit-label'
-                  label='Select Unit *'
-                  value={formData.unitId}
-                  onChange={e => handleInputChange('unitId', e.target.value)}
-                >
-                  <MenuItem value=''>Select Unit</MenuItem>
-                  {filteredUnits.map(unit => (
-                    <MenuItem key={unit.id} value={unit.id.toString()}>
-                      {unit.unitNumber}
-                    </MenuItem>
-                  ))}
-                </Select>
-                {errors.unitId && (
-                  <Typography variant='caption' color='error' className='mts-1'>
-                    This field is required.
-                  </Typography>
-                )}
-              </FormControl>
+              {loadingRefs ? (
+                <Skeleton variant='rectangular' height={40} />
+              ) : (
+                <FormControl fullWidth size='small'>
+                  <InputLabel id='property-label'>Property</InputLabel>
+                  <Select
+                    labelId='property-label'
+                    label='Property'
+                    value={formData.propertyId}
+                    onChange={e => handleChange('propertyId', e.target.value)}
+                  >
+                    <MenuItem value=''>All Properties</MenuItem>
+                    {properties.map(p => (
+                      <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
             </Grid>
 
+            {/* Unit */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              {loadingRefs ? (
+                <Skeleton variant='rectangular' height={40} />
+              ) : (
+                <FormControl fullWidth size='small' disabled={!formData.propertyId}>
+                  <InputLabel id='unit-label'>Unit</InputLabel>
+                  <Select
+                    labelId='unit-label'
+                    label='Unit'
+                    value={formData.unitId}
+                    onChange={e => handleChange('unitId', e.target.value)}
+                  >
+                    <MenuItem value=''>All Units</MenuItem>
+                    {filteredUnits.map(u => (
+                      <MenuItem key={u.id} value={u.id}>{u.unitNumber}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
+            </Grid>
+
+            {/* Date */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 size='small'
                 type='date'
                 label='Date *'
-                value={getDateInputValue()}
-                onChange={handleDateChange}
+                value={formData.date}
+                onChange={e => handleChange('date', e.target.value)}
                 InputLabelProps={{ shrink: true }}
                 error={Boolean(errors.date)}
                 helperText={errors.date ? 'This field is required.' : ''}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position='end'>
-                      <i className='ri-calendar-line' />
-                    </InputAdornment>
-                  )
-                }}
               />
             </Grid>
 
+            {/* Responsibility */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth error={Boolean(errors.responsibility)} size='small'>
-                <InputLabel id='responsibility-label'>Responsibility *</InputLabel>
+              <FormControl fullWidth size='small'>
+                <InputLabel id='responsibility-label'>Responsibility</InputLabel>
                 <Select
                   labelId='responsibility-label'
-                  label='Responsibility *'
+                  label='Responsibility'
                   value={formData.responsibility}
-                  onChange={e => handleInputChange('responsibility', e.target.value)}
+                  onChange={e => handleChange('responsibility', e.target.value)}
                 >
-                  <MenuItem value=''>Select Responsibility</MenuItem>
-                  <MenuItem value='Owner'>Owner</MenuItem>
-                  <MenuItem value='Tenant'>Tenant</MenuItem>
+                  <MenuItem value=''>None</MenuItem>
+                  <MenuItem value='OWNER'>Owner</MenuItem>
+                  <MenuItem value='TENANT'>Tenant</MenuItem>
                 </Select>
-                {errors.responsibility && (
-                  <Typography variant='caption' color='error' className='mts-1'>
-                    This field is required.
-                  </Typography>
-                )}
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12 }}>
+            {/* Status */}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <FormControl fullWidth size='small'>
+                <InputLabel id='status-label'>Status</InputLabel>
+                <Select
+                  labelId='status-label'
+                  label='Status'
+                  value={formData.status}
+                  onChange={e => handleChange('status', e.target.value)}
+                >
+                  <MenuItem value='UNPAID'>Unpaid</MenuItem>
+                  <MenuItem value='PAID'>Paid</MenuItem>
+                  <MenuItem value='PENDING'>Pending</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Amount */}
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 size='small'
                 label='Amount *'
-                placeholder='₵00.00'
+                placeholder='0.00'
                 value={formData.amount}
-                onChange={e => handleInputChange('amount', e.target.value)}
+                onChange={e => handleChange('amount', e.target.value)}
                 type='number'
                 error={Boolean(errors.amount)}
-                helperText={errors.amount ? 'This field is required and must be a valid number.' : ''}
+                helperText={errors.amount ? 'Enter a valid amount.' : ''}
                 slotProps={{
                   input: {
                     startAdornment: <InputAdornment position='start'>₵</InputAdornment>
@@ -474,51 +428,36 @@ return ''
               />
             </Grid>
 
-            <Grid size={{ xs: 12 }}>
-              <div className='flex flex-col gap-2'>
-                <Typography variant='body2' className='font-medium'>
-                  Image *
-                </Typography>
-                <div className='flex items-center gap-3'>
-                  <Button variant='outlined' component='label' size='small'>
-                    Choose File
-                    <input type='file' hidden accept='image/*' onChange={handleFileChange} />
-                  </Button>
-                  <Typography variant='body2' color='text.secondary'>
-                    {formData.image ? formData.image.name : 'No file'}
-                  </Typography>
-                </div>
-                {imagePreview && (
-                  <img src={imagePreview} alt='Preview' className='max-w-[200px] max-h-[200px] object-cover rounded' />
-                )}
-                {errors.image && (
-                  <Typography variant='caption' color='error'>
-                    This field is required.
-                  </Typography>
-                )}
-              </div>
-            </Grid>
-
+            {/* Description */}
             <Grid size={{ xs: 12 }}>
               <TextField
                 fullWidth
                 size='small'
-                label='Description *'
+                label='Description'
                 placeholder='Write here'
                 value={formData.description}
-                onChange={e => handleInputChange('description', e.target.value)}
+                onChange={e => handleChange('description', e.target.value)}
                 multiline
                 rows={4}
-                error={Boolean(errors.description)}
-                helperText={errors.description ? 'This field is required.' : ''}
               />
             </Grid>
+
           </Grid>
         </form>
       </DialogContent>
+
       <DialogActions className='p-5'>
-        <Button variant='contained' color='primary' onClick={onSubmit} endIcon={<i className='ri-arrow-right-line' />}>
-          Save Now
+        <Button variant='outlined' onClick={handleReset} disabled={submitting}>
+          Cancel
+        </Button>
+        <Button
+          variant='contained'
+          color='primary'
+          onClick={onSubmit}
+          disabled={submitting}
+          startIcon={submitting ? <CircularProgress size={16} color='inherit' /> : <i className='ri-save-line' />}
+        >
+          {submitting ? 'Saving…' : 'Save'}
         </Button>
       </DialogActions>
     </Dialog>

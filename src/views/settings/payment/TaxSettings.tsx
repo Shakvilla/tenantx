@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -28,8 +28,8 @@ import Alert from '@mui/material/Alert'
 
 import type { TaxDisplayOption } from '@/types/settings/paymentTypes'
 
-// Utils Imports
-import { paymentSettingsApi } from '@/utils/settings/api'
+// API Imports
+import { paymentSettingsApi } from '@/lib/api/settings'
 
 // MUI Imports
 
@@ -48,6 +48,19 @@ const TaxSettings = () => {
     message: '',
     severity: 'success'
   })
+
+  useEffect(() => {
+    paymentSettingsApi.get().then(settings => {
+      const t = settings.tax
+      if (!t) return
+      setTaxEnabled(t.enabled ?? true)
+      setDefaultTaxRate(String(t.defaultTaxRate ?? '12.5'))
+      setTaxIdNumber(t.taxIdNumber || '')
+      if (t.displayOption) setDisplayOption(t.displayOption)
+      setVatEnabled(t.vatEnabled ?? true)
+      setGstEnabled(t.gstEnabled ?? false)
+    }).catch(console.error)
+  }, [])
 
   const handleSave = async () => {
     setLoading(true)

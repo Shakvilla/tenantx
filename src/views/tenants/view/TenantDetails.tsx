@@ -51,6 +51,8 @@ type TenantData = {
   propertyImage?: string
   propertyAddress?: string
   unitName?: string
+  unitId?: string
+  propertyId?: string
   securityDeposit?: string
   lateFee?: string
   rentType?: string
@@ -70,7 +72,7 @@ const TenantDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tena
   const tabContentList: { [key: string]: ReactElement } = {
     profile: <ProfileInformationTab tenantData={tenantData} />,
     home: <HomeDetailsTab tenantData={tenantData} />,
-    payment: <PaymentHistoryTab />,
+    payment: <PaymentHistoryTab occupantId={tenantId} />,
     documentation: <DocumentationTab />
   }
 

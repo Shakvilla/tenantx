@@ -18,10 +18,29 @@ type PropertyData = {
   condition: string
   description: string
   price: string
-  bedroom: number
-  bathroom: number
-  rooms: number
+  bedrooms: string
+  bathrooms: string
+  rooms: string
 }
+
+/**
+ * Renders a value that may not have been captured.
+ *
+ * These four figures are all optional on a property, and three of them are
+ * blank on every property created before the form asked for them. "Not set"
+ * says which, where a bare dash or a hard-coded "N/A" reads as a system
+ * failure.
+ */
+const Figure = ({ value, variant }: { value: string; variant: 'h5' | 'h6' }) =>
+  value ? (
+    <Typography variant={variant} className={variant === 'h5' ? 'font-semibold' : 'font-medium'} color='text.primary'>
+      {value}
+    </Typography>
+  ) : (
+    <Typography variant={variant === 'h5' ? 'body1' : 'body2'} color='text.disabled'>
+      Not set
+    </Typography>
+  )
 
 const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => {
   if (!propertyData) {
@@ -30,14 +49,7 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
 
   return (
     <Card>
-      <CardHeader
-        title='Property Information'
-        action={
-          <Typography component='a' color='primary.main' className='font-medium cursor-pointer'>
-            Edit
-          </Typography>
-        }
-      />
+      <CardHeader title='Property Information' />
       <Divider />
       <CardContent>
         <Grid container spacing={4}>
@@ -61,12 +73,13 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <div className='flex flex-col gap-1'>
+              {/* "Price" on a rental property reads as rent. This figure is the
+                  landlord's own valuation of the asset (properties.current_value),
+                  so name it that. */}
               <Typography variant='caption' color='text.secondary'>
-                Price
+                Estimated Value
               </Typography>
-              <Typography variant='h5' className='font-semibold' color='text.primary'>
-                {propertyData.price}
-              </Typography>
+              <Figure value={propertyData.price} variant='h5' />
             </div>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -74,9 +87,7 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
               <Typography variant='caption' color='text.secondary'>
                 Bedrooms
               </Typography>
-              <Typography variant='h6' className='font-medium' color='text.primary'>
-                {propertyData.bedroom}
-              </Typography>
+              <Figure value={propertyData.bedrooms} variant='h6' />
             </div>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -84,9 +95,7 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
               <Typography variant='caption' color='text.secondary'>
                 Bathrooms
               </Typography>
-              <Typography variant='h6' className='font-medium' color='text.primary'>
-                {propertyData.bathroom}
-              </Typography>
+              <Figure value={propertyData.bathrooms} variant='h6' />
             </div>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -94,9 +103,7 @@ const PropertyInfoCard = ({ propertyData }: { propertyData?: PropertyData }) => 
               <Typography variant='caption' color='text.secondary'>
                 Rooms
               </Typography>
-              <Typography variant='h6' className='font-medium' color='text.primary'>
-                {propertyData.rooms}
-              </Typography>
+              <Figure value={propertyData.rooms} variant='h6' />
             </div>
           </Grid>
           {propertyData.description && (

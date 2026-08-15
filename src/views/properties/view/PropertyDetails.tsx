@@ -17,19 +17,26 @@ type PropertyData = {
   stock: boolean
   address: string
   price: string
-  bedroom: number
-  bathroom: number
-  rooms: number
-  facilities: string[]
+  bedrooms: string
+  bathrooms: string
+  rooms: string
   condition: string
   region: string
   district: string
   city: string
   gpsCode: string
   description: string
+
+  // The counts above are display strings; these are what the edit dialog maps
+  // back onto its Select options.
+  rawBedrooms?: number
+  rawBathrooms?: number
+  rawRooms?: number
   images: string[]
+  imageFileIds?: string[]
   thumbnailIndex: number
   amenities: Record<string, boolean>
+  status?: string
 }
 
 const PropertyDetails = ({

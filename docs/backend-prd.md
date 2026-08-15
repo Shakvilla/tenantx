@@ -2,8 +2,8 @@
 
 ## TenantX - Multi-Tenant Property Management SaaS
 
-**Version:** 1.0.0  
-**Last Updated:** 2024  
+**Version:** 2.0.0  
+**Last Updated:** January 2026  
 **Status:** Draft
 
 ---
@@ -25,13 +25,23 @@ This PRD defines the requirements for building a decoupled, scalable backend API
 
 ### 1.3 Technology Stack
 
-- **Runtime**: Node.js with TypeScript
-- **Framework**: Next.js 15 (App Router) for API routes
-- **Database**: Supabase (PostgreSQL) with Row Level Security
-- **Authentication**: Supabase Auth with JWT tokens
-- **Storage**: Supabase Storage for documents and files
-- **Real-time**: Supabase Realtime for live updates
-- **Background Jobs**: Supabase Edge Functions + pg_cron
+#### Backend
+- **Language**: Java 21 (LTS)
+- **Framework**: Spring Boot 3.x with Spring Security
+- **Database**: PostgreSQL 16+
+- **ORM**: Spring Data JPA / Hibernate
+- **Authentication**: JWT tokens with Spring Security
+- **Authorization**: Role-based access with tenant isolation
+- **Storage**: AWS S3 / MinIO for documents and files
+- **Caching**: Redis for session and query caching
+- **Background Jobs**: Spring Scheduler + Quartz
+- **API Documentation**: OpenAPI 3.0 / Swagger UI
+- **Build Tool**: Maven / Gradle
+
+#### Frontend (Existing)
+- **Framework**: Next.js 15 (App Router)
+- **HTTP Client**: Axios
+- **State Management**: React Context
 
 ---
 
@@ -72,13 +82,19 @@ This PRD defines the requirements for building a decoupled, scalable backend API
          │  - RLS Enforcement         │
          └────────────┬───────────────┘
                       │
-         ┌────────────▼───────────────┐
-         │   Supabase (PostgreSQL)    │
-         │  - Shared Schema           │
-         │  - Row Level Security      │
-         │  - Realtime                │
-         │  - Storage                 │
-         └────────────────────────────┘
+          ┌────────────▼───────────────┐
+          │   PostgreSQL Database      │
+          │  - Shared Schema           │
+          │  - Tenant Isolation        │
+          │  - Optimized Indexes       │
+          └────────────────────────────┘
+                      │
+          ┌───────────┴────────────────┐
+          │                            │
+     ┌────▼────┐                 ┌─────▼────┐
+     │  Redis  │                 │ S3/MinIO │
+     │ Caching │                 │ Storage  │
+     └─────────┘                 └──────────┘
 ```
 
 ### 2.2 API Design Principles
@@ -96,9 +112,9 @@ This PRD defines the requirements for building a decoupled, scalable backend API
 #### 2.3.1 Tenant Isolation Strategy
 
 - **Shared Database Schema**: Single PostgreSQL database with `tenant_id` column in all tenant-scoped tables
-- **Row Level Security (RLS)**: Database-level policies enforce tenant isolation
-- **Application-Level Filtering**: All queries explicitly filter by `tenant_id`
-- **Tenant Context**: Set via middleware using `current_setting('app.current_tenant_id')`
+- **Application-Level Filtering**: All queries explicitly filter by `tenant_id` via JPA Specifications/QueryDSL
+- **Tenant Context**: Set via Spring `ThreadLocal` context in request interceptor
+- **Repository Pattern**: Base repository enforces tenant filtering on all queries
 
 #### 2.3.2 Tenant Resolution
 
@@ -112,7 +128,7 @@ Tenants can be resolved from:
 #### 2.3.3 Tenant Context Flow
 
 ```
-Request → Middleware → Extract Tenant ID → Verify Access → Set Context → Service Layer → Database (RLS)
+Request → Filter/Interceptor → Extract Tenant ID → Verify Access → Set ThreadLocal Context → Service Layer → Repository (Tenant Filter)
 ```
 
 ---
@@ -128,18 +144,19 @@ API (Route Handlers): /api/v1/{resource}
 
 ### 3.2 Authentication
 
-#### 3.2.1 Web Authentication (Server Actions)
+#### 3.2.1 Authentication Flow
 
-- **Method**: Cookie-based authentication via `@supabase/ssr`
-- **Session**: Managed by Supabase Auth
-- **Refresh**: Automatic session refresh in middleware
+- **Method**: JWT Bearer Token authentication
+- **Token Issuer**: Spring Security with `jjwt` library
+- **Token Contains**: `userId`, `tenantId`, `role`, `permissions`
+- **Token Expiry**: Access token (15 min), Refresh token (7 days)
 
-#### 3.2.2 API Authentication (Route Handlers)
+#### 3.2.2 Request Authentication
 
-- **Method**: Bearer Token authentication
 - **Header**: `Authorization: Bearer <jwt_token>`
-- **Token Source**: Supabase Auth JWT tokens
-- **Validation**: Verify token and extract `tenant_id` from claims
+- **Validation**: JWT signature verification + claims extraction
+- **Tenant Resolution**: From JWT `tenant_id` claim or `X-Tenant-ID` header
+- **User Context**: Stored in Spring `SecurityContextHolder`
 
 ### 3.3 Standard Response Format
 
@@ -992,6 +1009,273 @@ interface Customer {
 
 ---
 
+### 4.14 Landlords Module (Property Owners)
+
+#### 4.14.1 Data Model
+
+```typescript
+interface Landlord {
+  id: string
+  tenant_id: string
+  
+  // Type
+  type: 'individual' | 'business'
+  
+  // Personal Information (for individuals)
+  firstName?: string
+  lastName?: string
+  
+  // Business Information (for businesses)
+  businessName?: string
+  registrationNumber?: string
+  taxId?: string
+  
+  // Contact Information
+  email: string
+  phone: string
+  alternatePhone?: string
+  
+  // Address
+  address?: LandlordAddress
+  
+  // Identification
+  idType?: 'ghana_card' | 'passport' | 'drivers_license' | 'voter_id'
+  idNumber?: string
+  idExpiryDate?: Date
+  
+  // Bank Account (for disbursements)
+  bankAccount?: LandlordBankAccount
+  
+  // Mobile Money (Ghana-specific)
+  mobileMoneyProvider?: 'mtn' | 'vodafone' | 'airteltigo'
+  mobileMoneyNumber?: string
+  
+  // Status
+  status: 'active' | 'inactive' | 'pending' | 'suspended'
+  
+  // Commission/Fee Settings
+  commissionRate?: number  // Percentage taken by property manager
+  commissionType?: 'percentage' | 'fixed'
+  
+  // Documents
+  documents?: Document[]
+  avatar?: string
+  
+  // Statistics (computed)
+  totalProperties?: number
+  totalUnits?: number
+  totalEarnings?: number
+  
+  // Notes
+  notes?: string
+  
+  // Metadata
+  metadata?: Record<string, unknown>
+  
+  createdAt: Date
+  updatedAt: Date
+}
+
+interface LandlordAddress {
+  street: string
+  city: string
+  region: string  // Ghana region
+  district?: string
+  gpsCode?: string  // Ghana GPS address code
+  country: string
+}
+
+interface LandlordBankAccount {
+  bankName: string
+  bankCode?: string
+  accountNumber: string
+  accountName: string
+  branchName?: string
+  swiftCode?: string
+}
+
+interface LandlordPropertyAssignment {
+  id: string
+  tenant_id: string
+  landlordId: string
+  propertyId: string
+  
+  // Assignment details
+  ownershipType: 'full' | 'partial'
+  ownershipPercentage?: number  // For partial ownership
+  
+  // Revenue sharing
+  revenueSharePercentage: number  // Landlord's share of property income
+  
+  // Assignment period
+  startDate: Date
+  endDate?: Date
+  
+  // Status
+  status: 'active' | 'inactive' | 'pending'
+  
+  // Agreement
+  agreementDocumentId?: string
+  
+  createdAt: Date
+  updatedAt: Date
+}
+
+interface LandlordEarning {
+  id: string
+  tenant_id: string
+  landlordId: string
+  propertyId?: string
+  
+  // Period
+  periodStart: Date
+  periodEnd: Date
+  
+  // Amounts
+  grossAmount: number
+  commissionAmount: number
+  netAmount: number
+  currency: string
+  
+  // Payment
+  status: 'pending' | 'processing' | 'paid' | 'failed'
+  paidAt?: Date
+  paymentMethod?: 'bank_transfer' | 'mobile_money' | 'cheque' | 'cash'
+  transactionReference?: string
+  
+  // Details
+  breakdown?: {
+    rentIncome: number
+    otherIncome: number
+    expenses: number
+    maintenanceCosts: number
+  }
+  
+  createdAt: Date
+}
+
+interface LandlordStatement {
+  id: string
+  tenant_id: string
+  landlordId: string
+  
+  // Period
+  statementNumber: string  // Unique: STM-001
+  periodStart: Date
+  periodEnd: Date
+  
+  // Summary
+  openingBalance: number
+  totalIncome: number
+  totalDeductions: number
+  closingBalance: number
+  currency: string
+  
+  // Line items
+  items: LandlordStatementItem[]
+  
+  // Status
+  status: 'draft' | 'sent' | 'viewed'
+  sentAt?: Date
+  viewedAt?: Date
+  
+  // Document
+  documentUrl?: string
+  
+  createdAt: Date
+}
+
+interface LandlordStatementItem {
+  id: string
+  date: Date
+  description: string
+  type: 'income' | 'expense' | 'commission' | 'payout' | 'adjustment'
+  propertyId?: string
+  propertyName?: string
+  amount: number
+  balance: number
+}
+```
+
+#### 4.14.2 Endpoints
+
+**Landlords:**
+
+- **GET** `/api/v1/landlords` - List landlords (paginated, filtered)
+  - Query Params: `page`, `pageSize`, `search`, `status`, `type`, `sort`
+  - Response: `{ success: true, data: Landlord[], meta: { pagination } }`
+
+- **GET** `/api/v1/landlords/:id` - Get landlord by ID
+  - Response: `{ success: true, data: Landlord }`
+
+- **POST** `/api/v1/landlords` - Create new landlord
+  - Request Body: `CreateLandlordRequest`
+  - Response: `{ success: true, data: Landlord }`
+
+- **PUT** `/api/v1/landlords/:id` - Update landlord (full update)
+  - Request Body: `UpdateLandlordRequest`
+  - Response: `{ success: true, data: Landlord }`
+
+- **PATCH** `/api/v1/landlords/:id` - Partial update landlord
+  - Request Body: `Partial<UpdateLandlordRequest>`
+  - Response: `{ success: true, data: Landlord }`
+
+- **DELETE** `/api/v1/landlords/:id` - Soft delete landlord
+  - Response: `{ success: true, data: null }`
+
+- **GET** `/api/v1/landlords/stats` - Get landlord statistics
+  - Response: `{ success: true, data: { total, active, inactive, pending, totalProperties } }`
+
+**Property Assignments:**
+
+- **GET** `/api/v1/landlords/:id/properties` - Get landlord's properties
+  - Query Params: `page`, `pageSize`, `status`
+  - Response: `{ success: true, data: LandlordPropertyAssignment[], meta: { pagination } }`
+
+- **POST** `/api/v1/landlords/:id/properties` - Assign property to landlord
+  - Request Body: `{ propertyId, ownershipType, ownershipPercentage?, revenueSharePercentage, startDate, agreementDocumentId? }`
+  - Response: `{ success: true, data: LandlordPropertyAssignment }`
+
+- **PUT** `/api/v1/landlords/:id/properties/:propertyId` - Update property assignment
+  - Request Body: `UpdatePropertyAssignmentRequest`
+  - Response: `{ success: true, data: LandlordPropertyAssignment }`
+
+- **DELETE** `/api/v1/landlords/:id/properties/:propertyId` - Unassign property from landlord
+  - Response: `{ success: true, data: null }`
+
+**Earnings & Statements:**
+
+- **GET** `/api/v1/landlords/:id/earnings` - Get landlord earnings
+  - Query Params: `startDate`, `endDate`, `propertyId`, `status`
+  - Response: `{ success: true, data: LandlordEarning[], meta: { pagination, summary } }`
+
+- **POST** `/api/v1/landlords/:id/earnings/calculate` - Calculate earnings for period
+  - Request Body: `{ periodStart, periodEnd, propertyIds? }`
+  - Response: `{ success: true, data: LandlordEarning }`
+
+- **POST** `/api/v1/landlords/:id/earnings/:earningId/payout` - Process payout
+  - Request Body: `{ paymentMethod, reference? }`
+  - Response: `{ success: true, data: LandlordEarning }`
+
+- **GET** `/api/v1/landlords/:id/statements` - Get landlord statements
+  - Query Params: `page`, `pageSize`, `year`
+  - Response: `{ success: true, data: LandlordStatement[], meta: { pagination } }`
+
+- **POST** `/api/v1/landlords/:id/statements` - Generate statement
+  - Request Body: `{ periodStart, periodEnd }`
+  - Response: `{ success: true, data: LandlordStatement }`
+
+- **GET** `/api/v1/landlords/:id/statements/:statementId` - Get statement details
+  - Response: `{ success: true, data: LandlordStatement }`
+
+- **GET** `/api/v1/landlords/:id/statements/:statementId/download` - Download statement PDF
+  - Response: PDF file
+
+- **POST** `/api/v1/landlords/:id/statements/:statementId/send` - Send statement via email
+  - Response: `{ success: true, data: { sent: true } }`
+
+---
+
 ## 5. Database Schema
 
 ### 5.1 Core Tables
@@ -1012,42 +1296,59 @@ CREATE TABLE tenants (
 
 #### Users
 
-```sql
-CREATE TABLE users (
-  id UUID PRIMARY KEY REFERENCES auth.users(id),
-  tenant_id UUID REFERENCES tenants(id),
-  email TEXT NOT NULL,
-  name TEXT NOT NULL,
-  role TEXT DEFAULT 'user',
-  status TEXT DEFAULT 'active',
-  avatar_url TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+```java
+@Entity
+@Table(name = "users")
+public class User extends BaseEntity {
+    @Column(nullable = false)
+    private UUID tenantId;
+    
+    @Column(nullable = false, unique = true)
+    private String email;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    @Column(nullable = false)
+    private String passwordHash;
+    
+    @Enumerated(EnumType.STRING)
+    private UserRole role = UserRole.USER;
+    
+    @Enumerated(EnumType.STRING)
+    private UserStatus status = UserStatus.ACTIVE;
+    
+    private String avatarUrl;
+}
 ```
 
-#### Tenant Scoped Tables Pattern
+All tenant-scoped entities extend `TenantScopedEntity`:
 
-All tenant-scoped tables follow this pattern:
+```java
+@MappedSuperclass
+public abstract class TenantScopedEntity extends BaseEntity {
+    @Column(name = "tenant_id", nullable = false)
+    private UUID tenantId;
+    
+    @PrePersist
+    public void prePersist() {
+        if (tenantId == null) {
+            tenantId = TenantContext.getCurrentTenantId();
+        }
+        super.prePersist();
+    }
+}
 
-```sql
-CREATE TABLE {resource} (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  -- resource-specific fields
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Composite index for tenant-scoped queries
-CREATE INDEX idx_{resource}_tenant_id ON {resource}(tenant_id, created_at DESC);
-
--- RLS Policy
-ALTER TABLE {resource} ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "{resource}_tenant_isolation"
-  ON {resource} FOR ALL
-  USING (tenant_id = current_setting('app.current_tenant_id')::uuid);
+// Base repository with tenant filtering
+public interface TenantScopedRepository<T extends TenantScopedEntity> extends JpaRepository<T, UUID> {
+    
+    @Query("SELECT e FROM #{#entityName} e WHERE e.tenantId = :tenantId")
+    List<T> findAllByTenantId(@Param("tenantId") UUID tenantId);
+    
+    default List<T> findAllForCurrentTenant() {
+        return findAllByTenantId(TenantContext.getCurrentTenantId());
+    }
+}
 ```
 
 ### 5.2 Key Tables
@@ -1069,6 +1370,10 @@ CREATE POLICY "{resource}_tenant_isolation"
 15. **subscription_plans** - Subscription plans
 16. **subscriptions** - Active subscriptions
 17. **settings** - JSONB column for tenant settings
+18. **landlords** - Property owners (individuals/businesses)
+19. **landlord_property_assignments** - Landlord-to-property relationships
+20. **landlord_earnings** - Landlord income/payout records
+21. **landlord_statements** - Periodic financial statements for landlords
 
 ### 5.3 Indexes Strategy
 
@@ -1097,10 +1402,10 @@ CREATE POLICY "{resource}_tenant_isolation"
 
 ### 6.3 Data Security
 
-- Row Level Security (RLS) on all tenant-scoped tables
-- Encryption at rest (Supabase default)
+- Application-level tenant isolation via repository pattern
+- Encryption at rest (PostgreSQL TDE or disk encryption)
 - Encryption in transit (HTTPS/TLS)
-- Sensitive data encryption (payment info, PII)
+- Sensitive data encryption (BCrypt for passwords, AES for payment info)
 
 ### 6.4 API Security
 
@@ -1243,9 +1548,9 @@ CREATE POLICY "{resource}_tenant_isolation"
 
 ### 11.1 Environment Setup
 
-- **Development**: Local Supabase instance
-- **Staging**: Staging Supabase project
-- **Production**: Production Supabase project
+- **Development**: Local PostgreSQL + Redis via Docker Compose
+- **Staging**: Kubernetes cluster or Cloud Run
+- **Production**: Managed PostgreSQL (AWS RDS / GCP Cloud SQL) + Redis
 
 ### 11.2 CI/CD Pipeline
 
@@ -1263,9 +1568,10 @@ CREATE POLICY "{resource}_tenant_isolation"
 
 ### 11.4 Backup & Recovery
 
-- Automated database backups (Supabase default)
-- Point-in-time recovery
+- Automated database backups (managed PostgreSQL feature)
+- Point-in-time recovery (PITR)
 - Disaster recovery plan
+- Database replication for high availability
 
 ---
 
@@ -1324,96 +1630,118 @@ CREATE POLICY "{resource}_tenant_isolation"
 
 ## 14. Implementation Guidelines
 
-### 14.1 Code Organization
+### 14.1 Code Organization (Spring Boot)
 
 ```
-src/
-├── app/
-│   └── api/
-│       └── v1/
-│           ├── tenants/
-│           ├── properties/
-│           ├── agreements/
-│           └── ...
-├── services/
-│   ├── tenant-service.ts
-│   ├── property-service.ts
+com.tenantx.api/
+├── config/
+│   ├── SecurityConfig.java
+│   ├── JpaConfig.java
+│   └── RedisConfig.java
+├── controller/
+│   ├── AuthController.java
+│   ├── TenantController.java
+│   ├── PropertyController.java
 │   └── ...
-├── repositories/
-│   ├── tenant-repository.ts
+├── service/
+│   ├── AuthService.java
+│   ├── TenantService.java
 │   └── ...
-├── lib/
-│   ├── supabase.ts
-│   ├── errors.ts
-│   └── validation.ts
-├── types/
+├── repository/
+│   ├── TenantRepository.java
+│   ├── PropertyRepository.java
 │   └── ...
-└── utils/
+├── entity/
+│   ├── BaseEntity.java
+│   ├── TenantScopedEntity.java
+│   ├── Tenant.java
+│   ├── Property.java
+│   └── ...
+├── dto/
+│   ├── request/
+│   └── response/
+├── security/
+│   ├── JwtTokenProvider.java
+│   ├── TenantContext.java
+│   └── TenantFilter.java
+├── exception/
+│   ├── GlobalExceptionHandler.java
+│   └── BusinessException.java
+└── util/
     └── ...
 ```
 
 ### 14.2 Service Layer Pattern
 
-```typescript
-// services/tenant-service.ts
-export async function createTenant(
-  supabase: SupabaseClient,
-  tenantId: string,
-  payload: CreateTenantPayload
-): Promise<Tenant> {
-  // Validate input
-  const validated = CreateTenantSchema.parse(payload)
-
-  // Business logic
-  // ...
-
-  // Call repository
-  return tenantRepository.create(supabase, tenantId, validated)
+```java
+@Service
+@RequiredArgsConstructor
+public class TenantService {
+    private final TenantRepository tenantRepository;
+    private final TenantMapper mapper;
+    
+    @Transactional
+    public TenantResponse createTenant(CreateTenantRequest request) {
+        // Validate input (handled by @Valid in controller)
+        
+        // Business logic
+        Tenant tenant = mapper.toEntity(request);
+        tenant.setTenantId(TenantContext.getCurrentTenantId());
+        
+        // Save via repository
+        Tenant saved = tenantRepository.save(tenant);
+        return mapper.toResponse(saved);
+    }
 }
 ```
 
 ### 14.3 Repository Pattern
 
-```typescript
-// repositories/tenant-repository.ts
-export async function create(supabase: SupabaseClient, tenantId: string, data: CreateTenantPayload): Promise<Tenant> {
-  const { data: tenant, error } = await supabase
-    .from('tenant_records')
-    .insert({ ...data, tenant_id: tenantId })
-    .select()
-    .single()
-
-  if (error) throw new AppError(error.message, 500)
-  return tenant
+```java
+@Repository
+public interface TenantRepository extends TenantScopedRepository<Tenant> {
+    
+    Optional<Tenant> findByIdAndTenantId(UUID id, UUID tenantId);
+    
+    @Query("SELECT t FROM Tenant t WHERE t.tenantId = :tenantId AND t.status = :status")
+    Page<Tenant> findByStatus(@Param("tenantId") UUID tenantId, 
+                              @Param("status") TenantStatus status, 
+                              Pageable pageable);
+    
+    @Query("SELECT t FROM Tenant t WHERE t.tenantId = :tenantId AND " +
+           "(LOWER(t.firstName) LIKE %:search% OR LOWER(t.lastName) LIKE %:search%)")
+    Page<Tenant> searchByName(@Param("tenantId") UUID tenantId, 
+                              @Param("search") String search, 
+                              Pageable pageable);
 }
 ```
 
-### 14.4 API Route Handler Pattern
+### 14.4 Controller Pattern
 
-```typescript
-// app/api/v1/tenants/route.ts
-export async function POST(request: Request) {
-  try {
-    // Authenticate
-    const { user, tenantId } = await authenticateRequest(request)
-
-    // Get client
-    const supabase = await getRouteHandlerClient(request)
-
-    // Parse body
-    const body = await request.json()
-
-    // Validate
-    const validated = CreateTenantSchema.parse(body)
-
-    // Call service
-    const tenant = await tenantService.create(supabase, tenantId, validated)
-
-    // Return response
-    return NextResponse.json({ success: true, data: tenant }, { status: 201 })
-  } catch (error) {
-    return handleError(error)
-  }
+```java
+@RestController
+@RequestMapping("/api/v1/tenants")
+@RequiredArgsConstructor
+public class TenantController {
+    private final TenantService tenantService;
+    
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<TenantResponse> createTenant(
+            @Valid @RequestBody CreateTenantRequest request) {
+        TenantResponse tenant = tenantService.createTenant(request);
+        return ApiResponse.success(tenant);
+    }
+    
+    @GetMapping
+    public ApiResponse<Page<TenantResponse>> listTenants(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status) {
+        Page<TenantResponse> tenants = tenantService.listTenants(page, size, search, status);
+        return ApiResponse.success(tenants);
+    }
 }
 ```
 
@@ -1552,6 +1880,28 @@ export async function POST(request: Request) {
 - `GET /api/v1/subscriptions`
 - `POST /api/v1/subscriptions`
 
+### Landlords
+
+- `GET /api/v1/landlords`
+- `GET /api/v1/landlords/:id`
+- `POST /api/v1/landlords`
+- `PUT /api/v1/landlords/:id`
+- `PATCH /api/v1/landlords/:id`
+- `DELETE /api/v1/landlords/:id`
+- `GET /api/v1/landlords/stats`
+- `GET /api/v1/landlords/:id/properties`
+- `POST /api/v1/landlords/:id/properties`
+- `PUT /api/v1/landlords/:id/properties/:propertyId`
+- `DELETE /api/v1/landlords/:id/properties/:propertyId`
+- `GET /api/v1/landlords/:id/earnings`
+- `POST /api/v1/landlords/:id/earnings/calculate`
+- `POST /api/v1/landlords/:id/earnings/:earningId/payout`
+- `GET /api/v1/landlords/:id/statements`
+- `POST /api/v1/landlords/:id/statements`
+- `GET /api/v1/landlords/:id/statements/:statementId`
+- `GET /api/v1/landlords/:id/statements/:statementId/download`
+- `POST /api/v1/landlords/:id/statements/:statementId/send`
+
 ---
 
 ## Appendix B: Data Models Reference
@@ -1564,7 +1914,9 @@ See individual module sections for detailed data models.
 
 **Version History:**
 
-- v1.0.0 (2024): Initial PRD draft
+- v2.1.0 (February 2026): Added Landlords (Property Owners) Module
+- v2.0.0 (January 2026): Updated for Spring Boot + PostgreSQL backend
+- v1.0.0 (2024): Initial PRD draft (Supabase)
 
 **Reviewers:**
 

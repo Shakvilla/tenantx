@@ -19,6 +19,7 @@ type Props = {
   allUnits: number
   occupiedUnits: number
   vacantUnits: number
+  reservedUnits: number
   maintenanceUnits: number
 }
 
@@ -27,10 +28,20 @@ type StatsDataType = {
   value: string
   icon: string
   desc: string
-  iconColor: 'primary' | 'success' | 'info' | 'error'
+  iconColor: 'primary' | 'success' | 'info' | 'warning' | 'error'
 }
 
-const UnitsStatsCard = ({ allUnits, occupiedUnits, vacantUnits, maintenanceUnits }: Props) => {
+/**
+ * Every status a unit can hold, so the tiles add up to All Units.
+ *
+ * Reserved was in none of them: a unit sits there from the moment an agreement
+ * is signed until the tenant moves in, which can be weeks, and during that time
+ * it vanished from this row entirely — a landlord with four units and three
+ * signed tenancies read "All 4 · Occupied 0 · Vacant 1 · Maintenance 0" and had
+ * no way to find the other three. The same omission was fixed on the dashboard;
+ * this screen kept it.
+ */
+const UnitsStatsCard = ({ allUnits, occupiedUnits, vacantUnits, reservedUnits, maintenanceUnits }: Props) => {
   // Hooks
   const isBelowMdScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
   const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
@@ -58,6 +69,13 @@ const UnitsStatsCard = ({ allUnits, occupiedUnits, vacantUnits, maintenanceUnits
       iconColor: 'info'
     },
     {
+      title: 'Reserved Units',
+      value: reservedUnits.toString(),
+      icon: 'ri-calendar-check-line',
+      desc: 'Awaiting move-in',
+      iconColor: 'warning'
+    },
+    {
       title: 'Maintenance Units',
       value: maintenanceUnits.toString(),
       icon: 'ri-error-warning-line',
@@ -66,41 +84,44 @@ const UnitsStatsCard = ({ allUnits, occupiedUnits, vacantUnits, maintenanceUnits
     }
   ]
 
+  // The separators were written for exactly four tiles on one row — a right
+  // border on all but the last — which with five leaves one hanging at the end
+  // of the first row. Deriving the row width keeps them right at any count.
+  const perRow = isSmallScreen ? 1 : isBelowMdScreen ? 2 : 3
+  const lastRowStart = data.length - (data.length % perRow || perRow)
+
   return (
     <Card className='mbs-6'>
       <CardContent>
         <Grid container spacing={6}>
-          {data.map((item, index) => (
-            <Grid
-              size={{ xs: 12, sm: 6, md: 3 }}
-              key={index}
-              className={classnames({
-                '[&:nth-of-type(odd)>div]:pie-6 [&:nth-of-type(odd)>div]:border-ie': isBelowMdScreen && !isSmallScreen,
-                '[&:not(:last-child)>div]:pie-6 [&:not(:last-child)>div]:border-ie': !isBelowMdScreen
-              })}
-            >
-              <div className='flex flex-col gap-1'>
-                <div className='flex justify-between'>
-                  <div className='flex flex-col gap-1'>
-                    <Typography>{item.title}</Typography>
-                    <Typography variant='h4'>{item.value}</Typography>
+          {data.map((item, index) => {
+            const endsRow = (index + 1) % perRow === 0
+            const inLastRow = index >= lastRowStart
+
+            return (
+              <Grid
+                size={{ xs: 12, sm: 6, md: 4 }}
+                key={index}
+                className={classnames({
+                  '[&>div]:pie-6 [&>div]:border-ie': !endsRow && index !== data.length - 1
+                })}
+              >
+                <div className='flex flex-col gap-1'>
+                  <div className='flex justify-between'>
+                    <div className='flex flex-col gap-1'>
+                      <Typography>{item.title}</Typography>
+                      <Typography variant='h4'>{item.value}</Typography>
+                    </div>
+                    <CustomAvatar variant='rounded' skin='light' color={item.iconColor} size={44}>
+                      <i className={classnames(item.icon, 'text-[28px]')} />
+                    </CustomAvatar>
                   </div>
-                  <CustomAvatar variant='rounded' skin='light' color={item.iconColor} size={44}>
-                    <i className={classnames(item.icon, 'text-[28px]')} />
-                  </CustomAvatar>
+                  <Typography>{item.desc}</Typography>
                 </div>
-                <Typography>{item.desc}</Typography>
-              </div>
-              {isBelowMdScreen && !isSmallScreen && index < data.length - 2 && (
-                <Divider
-                  className={classnames('mbs-6', {
-                    'mie-6': index % 2 === 0
-                  })}
-                />
-              )}
-              {isSmallScreen && index < data.length - 1 && <Divider className='mbs-6' />}
-            </Grid>
-          ))}
+                {!inLastRow && <Divider className={classnames('mbs-6', { 'mie-6': !endsRow })} />}
+              </Grid>
+            )
+          })}
         </Grid>
       </CardContent>
     </Card>

@@ -6,7 +6,9 @@
  * Property address structure
  */
 export interface PropertyAddress {
-  street: string
+  /** Optional both ways: the backend puts no validation on it, and many
+   *  Ghanaian properties are identified by locality and GPS code alone. */
+  street?: string
   city: string
   state?: string
   zip?: string
@@ -18,46 +20,53 @@ export interface PropertyAddress {
  */
 export interface Property {
   id: string
-  tenant_id: string
+  tenantId: string
   name: string
   description?: string | null
   address: PropertyAddress
-  
+
   // Location (Ghana-specific)
   region?: string | null
   district?: string | null
-  gps_code?: string | null
-  
+  gpsCode?: string | null
+
   // Classification
   type: 'residential' | 'commercial' | 'mixed' | 'house' | 'apartment'
   ownership: 'own' | 'lease'
   condition?: 'new' | 'good' | 'fair' | 'poor' | null
-  
+
   // Features
   bedrooms?: number | null
   bathrooms?: number | null
   rooms?: number | null
   amenities?: string[] | null
-  
+
   // Unit counts
-  total_units: number
-  occupied_units: number
-  
+  totalUnits: number
+  occupiedUnits: number
+
   // Status
   status: 'active' | 'inactive' | 'maintenance'
-  
+
   // Media
   images?: string[] | null
-  thumbnail_index?: number | null
-  
+  imageFileIds?: string[] | null
+  thumbnailIndex?: number | null
+
   // Financial
-  purchase_price?: number | null
-  current_value?: number | null
+  purchasePrice?: number | null
+  currentValue?: number | null
   currency?: string | null
-  
+
+  // Documents
+  documents?: string[] | null
+
+  // Arbitrary metadata from backend
+  metadata?: Record<string, string> | null
+
   // Timestamps
-  created_at: string
-  updated_at: string
+  createdAt: string
+  updatedAt: string | null
 }
 
 /**
@@ -67,8 +76,22 @@ export interface PropertyStats {
   total: number
   active: number
   inactive: number
+
+  /** Units under maintenance (the API calls these `damagedUnits`). */
   maintenance: number
+
+  /** Units awaiting move-in: an agreement exists but has not been activated. */
+  reservedUnits: number
+
+  vacantUnits: number
+
+  /**
+   * Every unit, whatever its status. occupied + vacant + maintenance + reserved —
+   * these four are the whole of `Unit.status` and this must stay their sum, or
+   * units disappear from the landlord's totals.
+   */
   totalUnits: number
+
   occupiedUnits: number
   occupancyRate: number
 }
@@ -78,42 +101,51 @@ export interface PropertyStats {
  */
 export interface Unit {
   id: string
-  tenant_id: string
-  property_id: string
-  unit_no: string
+  tenantId: string
+  propertyId: string
+  unitNo: string
   floor?: number | null
-  
+
   // Type
   type: 'studio' | '1br' | '2br' | '3br' | '4br+' | 'commercial' | 'office' | 'retail'
-  
+
   // Size & features
-  size_sqft?: number | null
+  sizeSqft?: number | null
   bedrooms?: number | null
   bathrooms?: number | null
   amenities?: string[] | null
-  
+
   // Financial
   rent: number
   deposit?: number | null
   currency?: string | null
-  
+
   // Status
   status: 'available' | 'occupied' | 'maintenance' | 'reserved'
-  
-  // Tenant
-  tenant_record_id?: string | null
-  
+
+  // Occupant / Tenant
+  occupantId?: string | null
+  tenantRecordId?: string | null
+
   // Media
   images?: string[] | null
-  
+  imageFileIds?: string[] | null
+
+  // Meta
+  features?: Record<string, any> | null
+  metadata?: Record<string, any> | null
+
   // Timestamps
-  created_at: string
-  updated_at: string
-  
-  // Joined data
+  createdAt: string
+  updatedAt: string | null
+
+  // Flattened from backend
+  propertyName?: string | null
+
+  // Joined data (legacy — prefer propertyName above)
   property?: {
     id: string
-    name: string
+    propertyName: string
   }
 }
 
@@ -136,6 +168,7 @@ export interface CreatePropertyPayload {
   rooms?: number
   amenities?: string[]
   images?: string[]
+  imageFileIds?: string[]
   thumbnailIndex?: number
   purchasePrice?: number
   currentValue?: number
@@ -158,5 +191,8 @@ export interface CreateUnitPayload {
   status?: Unit['status']
   amenities?: string[]
   images?: string[]
+  imageFileIds?: string[]
+  features?: Record<string, any>
+  metadata?: Record<string, any>
   tenantRecordId?: string
 }

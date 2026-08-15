@@ -31,6 +31,9 @@ export const menuButtonStyles = (props: MenuButtonStylesProps) => {
     display: 'flex',
     alignItems: 'center',
     minBlockSize: '30px',
+    '@media (max-width: 599.95px)': {
+      minBlockSize: '48px'
+    },
     textDecoration: 'none',
     color: 'inherit',
     boxSizing: 'border-box',

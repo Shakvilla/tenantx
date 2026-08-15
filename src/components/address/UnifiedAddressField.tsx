@@ -1,0 +1,690 @@
+'use client'
+
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+
+import Autocomplete from '@mui/material/Autocomplete'
+import Box from '@mui/material/Box'
+import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
+import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
+import TextField from '@mui/material/TextField'
+import Tooltip from '@mui/material/Tooltip'
+import Typography from '@mui/material/Typography'
+
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
+import { reverseResolve, searchPlaces, type PlaceSuggestion, type ReverseResolved } from '@/lib/api/places'
+import type { PostcodeDistrict } from '@/lib/api/reference'
+import { parseGhanaPostCode } from '@/lib/ghanaPostCode'
+import { decodePrefix, loadPostcodeTable, type DecodedAddress } from '@/lib/postcodeTable'
+import type { CapturedPosition } from '@/components/address/UnifiedAddressField.types'
+import { formatMetres } from '@/components/address/accuracy'
+
+const MIN_QUERY_LENGTH = 3
+const SEARCH_DEBOUNCE_MS = 400
+
+/** Long enough for a cold GPS lock, short enough not to look hung. */
+const GEO_TIMEOUT_MS = 15_000
+
+/**
+ * GeolocationPositionError codes, by their spec-stable numbers rather than the
+ * constants on the error instance. Those constants are only present when the
+ * object really is a GeolocationPositionError; a polyfill or a bare `{ code }`
+ * delivers undefined, every comparison falls through, and the landlord gets
+ * "try again in a moment" when the real answer was "allow location access" —
+ * advice that can never work.
+ */
+const PERMISSION_DENIED = 1
+const TIMED_OUT = 3
+
+/**
+ * One list, three sources. Picking any row is the same gesture, so the
+ * landlord does not have to know which machinery produced the answer.
+ */
+export type AddressRow =
+  | { kind: 'location'; resolved: ReverseResolved | null; position: CapturedPosition }
+  | { kind: 'place'; place: PlaceSuggestion }
+  | { kind: 'manual' }
+
+/**
+ * How long after typing stops before a code-shaped input becomes a chip.
+ *
+ * Not per keystroke: the parser deliberately accepts 6-9 digits so that it
+ * matches the backend rule for rule, which means an intermediate typing state
+ * can match a code the landlord has not finished. Waiting for a pause, and
+ * letting a later keystroke replace the chip, makes an early commit
+ * self-correcting rather than sticky.
+ */
+export const CODE_COMMIT_DEBOUNCE_MS = 400
+
+/**
+ * The digit count of a canonical Ghana Post digital address: XX-NNN-NNNN.
+ *
+ * It comes from the shape the parser itself normalises to —
+ * `digits.slice(0, 3)` then `digits.slice(3)` — which only produces that shape
+ * for seven. The parser's 6-9 range is wider on purpose, so the client agrees
+ * with the backend's own permissiveness rule for rule and no code is accepted
+ * here that would be rejected on save. Wider does not mean eight or nine digits
+ * is a real address, and this is the number to reason about when asking whether
+ * a code is FINISHED.
+ */
+const CANONICAL_CODE_DIGITS = 7
+
+/**
+ * The digit run of a normalised code.
+ *
+ * Not a blanket strip of non-digits: the prefix is `[A-Z][A-Z0-9]`, so its
+ * second character can itself be a digit (G1-184-7915), and counting it would
+ * make a complete code look over-long.
+ */
+const digitCount = (normalised: string) => normalised.slice(3).replace(/-/g, '').length
+
+type Props = {
+  gpsCode: string
+  onGpsCodeChange: (code: string) => void
+
+  /**
+   * The decoded district, or null when the prefix maps to nothing. Null
+   * matters as much as a hit: a landlord correcting GD-184-7915 to GL-100-0001
+   * must not be left with Adentan standing under a warning that says we do not
+   * know the district.
+   */
+  onDecoded: (decoded: DecodedAddress | null) => void
+
+  onPlaceSelected: (place: PlaceSuggestion) => void
+  onManual: () => void
+  onUnavailable?: () => void
+
+  /**
+   * Fires as soon as a fix arrives, because the coordinates are worth keeping
+   * whatever the landlord does next.
+   */
+  onPositionCaptured: (position: CapturedPosition) => void
+
+  /**
+   * Fires only when the resolved-location row is chosen.
+   *
+   * The position the row describes travels with it. The caller already
+   * received it from `onPositionCaptured` when the fix arrived, but by the time
+   * the row is picked something else may have replaced the coordinates — a
+   * search pick applies the geocoded place's. Handing the position back here
+   * lets the caller re-assert it in the same breath as the address, so a saved
+   * address and the coordinates underneath it can never describe two different
+   * places.
+   */
+  onLocationPicked: (resolved: ReverseResolved, position: CapturedPosition) => void
+
+  /** The whole control is dead: no typing, no code, no pin. */
+  disabled?: boolean
+
+  /**
+   * Caption under the field. Defaults to describing the control as optional,
+   * which is true where region and district are not required to save.
+   *
+   * It is NOT true everywhere: the first-run wizard cannot submit without a
+   * region and district, and this control is the only thing that sets them —
+   * so a caller in that position must say so rather than inherit a caption that
+   * tells the landlord they can skip the one field standing between them and a
+   * working button.
+   */
+  helperText?: string
+
+  /**
+   * Every row that would fill region and district is off — no search request
+   * is made, no place rows are offered, and a capture offers no resolved
+   * location row either. The code and the pin still work.
+   *
+   * This is the edit-mode case, and it is deliberately NOT `disabled`.
+   * `UpdatePropertyRequest` cannot save a hand-picked region/district, which
+   * is why the search is suppressed, but it does carry `gpsCode` and the
+   * coordinates — so disabling the whole field would leave a landlord able to
+   * delete a digital address with the chip's × and unable to type one back,
+   * a control that can only destroy.
+   *
+   * The location row goes with the search for the same reason it exists:
+   * picking one fills region, district and city, and on edit the payload
+   * sources region and district from `editData` while still sending `city`.
+   * Offering the row would save the capture's locality under the property's
+   * OLD district. The pin itself stays live because the position and its
+   * accuracy ARE saved on edit — it is only the resolved ADDRESS that edit
+   * mode cannot accept.
+   */
+  searchDisabled?: boolean
+
+  size?: 'small' | 'medium'
+}
+
+/**
+ * One field for the whole address question.
+ *
+ * A landlord has one of three things: an address they can name, a Ghana Post
+ * GPS code, or the ability to stand at the property. Asking them to choose
+ * between three inputs first makes our problem theirs, so the field decides
+ * from what they type and the dropdown carries every candidate.
+ */
+const UnifiedAddressField = ({
+  gpsCode,
+  onGpsCodeChange,
+  onDecoded,
+  onPlaceSelected,
+  onManual,
+  onUnavailable,
+  onPositionCaptured,
+  onLocationPicked,
+  disabled,
+  helperText = 'Optional — a Ghana Post GPS code fills in the region and district.',
+  searchDisabled,
+  size = 'small'
+}: Props) => {
+  const { ref } = useReferenceData()
+
+  const [input, setInput] = useState('')
+  const [table, setTable] = useState<PostcodeDistrict[] | null>(null)
+  const [unknownPrefix, setUnknownPrefix] = useState(false)
+
+  const [options, setOptions] = useState<PlaceSuggestion[]>([])
+  const [loading, setLoading] = useState(false)
+  const [unavailable, setUnavailable] = useState(false)
+  const requestId = useRef(0)
+
+  const [supported, setSupported] = useState(false)
+  const [capturing, setCapturing] = useState(false)
+  const [locationRow, setLocationRow] = useState<Extract<AddressRow, { kind: 'location' }> | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+
+  // Read on the client only: `navigator` does not exist while the server
+  // renders, and assuming support would render a button that throws on click.
+  useEffect(() => {
+    setSupported(typeof navigator !== 'undefined' && Boolean(navigator.geolocation))
+  }, [])
+
+  const capture = () => {
+    setCapturing(true)
+    setLocationError(null)
+
+    // Tapping the pin is the landlord turning to a different way of answering
+    // the question. Whatever a commit set aside is no longer the string they
+    // are in the middle of typing, and nothing else clears it: a pin tap fires
+    // no input event, so without this the seed would sit there across the whole
+    // capture and fold itself into the next digit typed afterwards.
+    committedCode.current = null
+
+    navigator.geolocation.getCurrentPosition(
+      async geo => {
+        const position: CapturedPosition = {
+          latitude: geo.coords.latitude,
+          longitude: geo.coords.longitude,
+          accuracyMetres: geo.coords.accuracy
+        }
+
+        setCapturing(false)
+
+        // The coordinates are worth keeping whatever happens next: the
+        // capture succeeded, and the accuracy travels with it so the record
+        // says how far to trust it. This half of the pin survives
+        // `searchDisabled` — the position is saved on edit.
+        onPositionCaptured(position)
+
+        // The other half does not. Turning the fix into an address fills the
+        // two fields edit mode cannot save, so there is no row to offer — and
+        // no reason to spend a request on a free community service resolving
+        // one. See `searchDisabled`.
+        if (searchDisabled) return
+
+        const resolved = await reverseResolve(position.latitude, position.longitude)
+
+        setLocationRow({ kind: 'location', resolved, position })
+        setOpen(true)
+      },
+      failure => {
+        setCapturing(false)
+        setLocationRow(null)
+
+        setLocationError(
+          failure.code === PERMISSION_DENIED
+            ? 'Location is blocked. Allow it in your browser, then try again.'
+            : failure.code === TIMED_OUT
+              ? 'That took too long. Being outdoors usually helps — try again.'
+              : "Your device couldn't get a location right now. Try again in a moment."
+        )
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: GEO_TIMEOUT_MS,
+
+        // A cached fix from another part of town, presented as "your current
+        // location", is wrong in a way nothing on screen would reveal.
+        maximumAge: 0
+      }
+    )
+  }
+
+  // The decode is one-shot per distinct code. Re-deriving on every render
+  // would silently undo a district the landlord corrected by hand afterwards.
+  const decodedFor = useRef<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadPostcodeTable()
+      .then(rows => !cancelled && setTable(rows))
+
+      // The field still accepts and stores a code without the table; it just
+      // cannot fill anything from it. Degrading to "type it and pick your
+      // district" beats blocking the form on a reference fetch.
+      .catch(() => !cancelled && setTable([]))
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  /**
+   * An UNFINISHED code a commit just took out of the box, held only until the
+   * next thing the landlord does.
+   *
+   * Committing blanks the input so the chip is not doubled by the text that
+   * produced it. That is fine for a finished code and wrong for an unfinished
+   * one: the parser accepts 6-9 digits, so a pause between the 6th and the 7th
+   * commits GD-184-791 and empties the box, and the next keystroke lands alone
+   * as "5" — which parses as nothing. The chip would then be a truncated code
+   * the landlord cannot correct by carrying on typing, i.e. sticky, when the
+   * whole reason the commit is debounced rather than per-keystroke is that it
+   * is supposed to be self-correcting.
+   *
+   * Two things keep that recovery from reaching past the case it is for. It is
+   * only ever set for a code short of `CANONICAL_CODE_DIGITS` (see commitCode),
+   * and it is dropped by anything that ends the string being typed: another
+   * input event, a blur, a pin tap, a pick, or removing the chip.
+   */
+  const committedCode = useRef<string | null>(null)
+
+  const commitCode = (normalised: string) => {
+    onGpsCodeChange(normalised)
+
+    // Only a SHORT commit is worth remembering, and that is the whole
+    // discriminator. Fewer than seven digits IS the truncation the seed exists
+    // to recover from — the landlord paused mid-code. Seven is canonical, so
+    // the code is finished and a digit typed next is a new thing being typed,
+    // not a continuation. Eight and nine only exist because the parser matches
+    // the backend's permissiveness; folding further digits onto an already
+    // over-long code was never right either.
+    committedCode.current = digitCount(normalised) < CANONICAL_CODE_DIGITS ? normalised : null
+
+    setInput('')
+  }
+
+  /**
+   * Puts a just-committed code back in front of the keystroke that continues
+   * it, so the whole string re-parses and REPLACES the chip.
+   *
+   * The seed is only used when the box is empty (a commit blanked it), the
+   * keystroke is not itself a clear, and the two together still parse as one
+   * code. That last condition is what tells a continuation from a fresh start
+   * without guessing: a code always begins with a letter and is only ever
+   * extended by a digit, so `GD-184-791` + `5` parses and `GD-184-7915` + `G`
+   * does not.
+   */
+  const handleInputChange = (next: string) => {
+    const seed = committedCode.current
+
+    committedCode.current = null
+
+    if (seed && next && input === '' && parseGhanaPostCode(seed + next)) {
+      setInput(seed + next)
+
+      return
+    }
+
+    setInput(next)
+  }
+
+  useEffect(() => {
+    const parsed = parseGhanaPostCode(input)
+
+    if (!parsed) return
+
+    const timer = setTimeout(() => commitCode(parsed.normalised), CODE_COMMIT_DEBOUNCE_MS)
+
+    return () => clearTimeout(timer)
+
+    // commitCode closes over stable callback props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input])
+
+  useEffect(() => {
+    const parsed = parseGhanaPostCode(gpsCode)
+
+    if (!parsed) {
+      decodedFor.current = null
+      setUnknownPrefix(false)
+
+      return
+    }
+
+    if (!table || decodedFor.current === parsed.normalised) return
+
+    decodedFor.current = parsed.normalised
+
+    const decoded = decodePrefix(table, parsed.prefix)
+
+    setUnknownPrefix(!decoded)
+    onDecoded(decoded)
+
+    // onDecoded is a callback prop; callers pass a stable handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gpsCode, table])
+
+  useEffect(() => {
+    // Bump on every effect run — not only when a request is dispatched. A
+    // query change, the field clearing, or a disabled/unavailable flip must
+    // all invalidate anything already in flight, otherwise a slow response for
+    // a query the user has since erased can land late and repopulate stale
+    // suggestions.
+    const id = ++requestId.current
+
+    if (unavailable || disabled || searchDisabled) {
+      setLoading(false)
+      setOptions([])
+
+      return
+    }
+
+    const trimmed = input.trim()
+
+    // Code-shaped text is not an address query.
+    if (parseGhanaPostCode(trimmed) || trimmed.length < MIN_QUERY_LENGTH) {
+      setOptions([])
+      setLoading(false)
+
+      return
+    }
+
+    const timer = setTimeout(async () => {
+      setLoading(true)
+
+      const result = await searchPlaces(trimmed)
+
+      if (id !== requestId.current) return
+
+      setLoading(false)
+
+      if (result.status === 'unavailable') {
+        setUnavailable(true)
+        setOptions([])
+        onUnavailable?.()
+
+        return
+      }
+
+      setOptions(result.suggestions)
+    }, SEARCH_DEBOUNCE_MS)
+
+    return () => clearTimeout(timer)
+
+    // onUnavailable is a callback prop; callers pass a stable handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, unavailable, disabled, searchDisabled])
+
+  /** "Ayawaso West Municipal, Greater Accra" — the slugs resolved to labels. */
+  const describeWhere = (option: PlaceSuggestion) => {
+    const region = ref.regions.find(r => r.value === option.region)
+    const district = region?.districts?.find(d => d.value === option.district)
+
+    // Falls back to the slug rather than showing nothing: a missing label
+    // should still disambiguate two rows.
+    return [district?.label ?? option.district, region?.label ?? option.region].filter(Boolean).join(', ')
+  }
+
+  // `capture` already declines to build a row under `searchDisabled`; this is
+  // the same rule stated where the list is assembled, so a row captured before
+  // the flag flipped cannot outlive it.
+  const rows: AddressRow[] = [
+    ...(locationRow && !searchDisabled ? [locationRow] : []),
+    ...options.map(place => ({ kind: 'place' as const, place })),
+    { kind: 'manual' as const }
+  ]
+
+  const pick = (row: AddressRow | null) => {
+    if (!row) return
+
+    // The box is being emptied by the pick, not by a commit. There is no
+    // half-typed code to carry on from.
+    committedCode.current = null
+    setInput('')
+
+    // Whatever was picked, the captured row is spent. It describes one
+    // position, and picking a SEARCH result replaces the coordinates with the
+    // geocoded place's — so a row left standing would go on offering an
+    // address for a position the form no longer holds. Accepting it later saved
+    // the capture's district and city against the searched place's
+    // latitude/longitude: wrong in a way that looks deliberate.
+    setLocationRow(null)
+
+    if (row.kind === 'place') onPlaceSelected(row.place)
+    if (row.kind === 'manual') onManual()
+
+    if (row.kind === 'location') {
+      // A capture that resolved to nothing still leaves the coordinates,
+      // which were saved when the fix arrived. There is simply no address to
+      // apply.
+      if (row.resolved) onLocationPicked(row.resolved, row.position)
+    }
+  }
+
+  /**
+   * Removing the chip clears the code and nothing else — deliberately not
+   * onDecoded(null), which would take the region and district with it.
+   */
+  const removeCode = () => {
+    decodedFor.current = null
+
+    // The landlord has just thrown this code away. Left standing it would be
+    // seeded back into the box by the next digit they type and re-committed,
+    // undoing the deletion.
+    committedCode.current = null
+
+    setUnknownPrefix(false)
+    onGpsCodeChange('')
+  }
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      const parsed = parseGhanaPostCode(input)
+
+      if (parsed) {
+        event.preventDefault()
+        commitCode(parsed.normalised)
+      }
+
+      return
+    }
+
+    if (event.key === 'Backspace' && input === '' && gpsCode) removeCode()
+  }
+
+  return (
+    <>
+      <Autocomplete
+        fullWidth
+        disabled={disabled}
+        options={rows}
+        filterOptions={x => x}
+        inputValue={input}
+        onInputChange={(_, next) => handleInputChange(next)}
+        value={null}
+        onChange={(_, row) => pick(row)}
+        open={open}
+        onOpen={() => setOpen(true)}
+        onClose={() => setOpen(false)}
+        getOptionLabel={row =>
+          row.kind === 'place' ? row.place.label : row.kind === 'manual' ? 'Enter the address manually' : ''
+        }
+        renderOption={(props, row) => {
+          const { key, ...rest } = props as typeof props & { key: string }
+
+          if (row.kind === 'manual') {
+            return (
+              <li key='manual' {...rest}>
+                <Typography variant='body2' color='primary'>
+                  <i className='ri-pencil-line mie-2' />
+                  Enter the address manually
+                </Typography>
+              </li>
+            )
+          }
+
+          if (row.kind === 'place') {
+            const where = describeWhere(row.place)
+
+            return (
+              <li
+                key={`${row.place.placeId ?? ''}|${row.place.region}|${row.place.district}|${row.place.city}`}
+                {...rest}
+              >
+                <Box>
+                  <Typography variant='body2'>{row.place.label}</Typography>
+                  {where && (
+                    <Typography variant='caption' color='text.secondary'>
+                      {where}
+                    </Typography>
+                  )}
+                </Box>
+              </li>
+            )
+          }
+
+          const { resolved, position } = row
+
+          // The fix's own accuracy is stated in every branch, never rounded
+          // away or hidden: a landlord accepting an unconfident row still
+          // needs to know the phone's own reading was ±3 km, and a
+          // saved-but-unnamed capture is not exempt just because it has no
+          // place name to sit next to.
+          const accuracy = `±${formatMetres(position.accuracyMetres)}`
+
+          const detail = resolved
+            ? resolved.confident
+              ? `${resolved.districtLabel} · ${accuracy}`
+              : `nearest we know · ${formatMetres(resolved.distanceMetres)} away · ${accuracy}`
+            : 'no nearby place we know'
+
+          return (
+            <li key='location' {...rest}>
+              <Box>
+                <Typography variant='body2'>
+                  <i className='ri-crosshair-line mie-2' />
+                  {resolved ? resolved.city : `Location captured · ${accuracy}`}
+                </Typography>
+                <Typography variant='caption' color={resolved?.confident === false ? 'warning.main' : 'text.secondary'}>
+                  {detail}
+                </Typography>
+              </Box>
+            </li>
+          )
+        }}
+        renderInput={params => (
+          <TextField
+            {...params}
+            size={size}
+            label='Address'
+            placeholder='Search an address, or enter a GPS code'
+            onKeyDown={handleKeyDown}
+
+            // Leaving the field ends the string the landlord was typing. Like
+            // a pin tap, a blur fires no input event, so nothing else would
+            // clear the seed — it would sit there indefinitely and fold itself
+            // into whatever digit was typed on returning, however much later.
+            // React's onBlur bubbles through the component tree, so this
+            // catches the input's own blur without displacing MUI's handler on
+            // it (which owns clearOnBlur).
+            onBlur={() => {
+              committedCode.current = null
+            }}
+            helperText={helperText}
+            InputProps={{
+              ...params.InputProps,
+              startAdornment: (
+                <>
+                  <InputAdornment position='start'>
+                    <i className='ri-map-pin-line' />
+                  </InputAdornment>
+                  {gpsCode && (
+                    <Chip
+                      size='small'
+                      label={gpsCode}
+                      // No × at all when the whole field is dead. MUI keeps a
+                      // chip's delete button live regardless of the input's
+                      // disabled state, which would leave a control that can
+                      // only destroy: remove the code, and no way to type it
+                      // back.
+                      onDelete={disabled ? undefined : removeCode}
+                      deleteIcon={
+
+                        // MUI's default delete icon is aria-hidden with no
+                        // accessible name — a mouse-only affordance, on the
+                        // theory that keyboard/AT users delete via Backspace
+                        // on the focused chip instead. That leaves no name
+                        // for a screen reader user driving by touch/click, so
+                        // this overrides it with a real one rather than
+                        // leaving the "x" unlabelled.
+                        <IconButton size='small' aria-label='Remove address code' sx={{ p: 0 }}>
+                          <i className='ri-close-line' />
+                        </IconButton>
+                      }
+                    />
+                  )}
+                  {params.InputProps.startAdornment}
+                </>
+              ),
+              endAdornment: (
+                <>
+                  {loading ? <CircularProgress size={16} /> : null}
+                  {supported && (
+                    <Tooltip title='Use my current location'>
+                      <span>
+                        <IconButton
+                          size='small'
+                          aria-label='Use my current location'
+                          disabled={disabled || capturing}
+                          onClick={capture}
+                        >
+                          {capturing ? <CircularProgress size={16} /> : <i className='ri-crosshair-line' />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
+                  {params.InputProps.endAdornment}
+                </>
+              )
+            }}
+          />
+        )}
+      />
+
+      {/* A cold GPS lock can take fifteen seconds. role="status" carries an
+          implicit aria-live="polite", so the wait is announced rather than
+          being a spinner a screen-reader user cannot see. */}
+      {capturing && (
+        <Typography role='status' variant='caption' color='text.secondary' className='mts-1 block'>
+          Finding you…
+        </Typography>
+      )}
+
+      {locationError && (
+        <Typography variant='caption' color='error' className='mts-1 block'>
+          {locationError}
+        </Typography>
+      )}
+
+      {unknownPrefix && (
+        <Typography variant='caption' color='warning.main' className='mts-1 block'>
+          Code saved. We don&apos;t recognise this prefix — please choose the region and district below.
+        </Typography>
+      )}
+    </>
+  )
+}
+
+export default UnifiedAddressField

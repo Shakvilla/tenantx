@@ -18,7 +18,7 @@ import type { ApexOptions } from 'apexcharts'
 // Component Imports
 import AppReactApexCharts from '@/libs/styles/AppReactApexCharts'
 
-const StyledCard = styled(Card)(({ theme }) => ({
+const StyledCard = styled(Card)(({ theme: _theme }) => ({
   position: 'relative',
   overflow: 'hidden',
   '&::before': {

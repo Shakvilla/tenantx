@@ -17,6 +17,7 @@ import TablePagination from '@mui/material/TablePagination'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import Avatar from '@mui/material/Avatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -37,19 +38,26 @@ import type { RankingInfo } from '@tanstack/match-sorter-utils'
 import type { Unit } from '@/types/property'
 
 // API Imports
-import { getAllUnits, deleteUnit } from '@/lib/api/units'
-import { getProperties } from '@/lib/api/properties'
+import { getAllUnits, deleteUnit, exportUnitsCsv } from '@/lib/api/units'
+import { getProperties, getPropertyStats } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
+import { tablePaginationCount } from '@/lib/api/pagination'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import UnitsStatsCard from './UnitsStatsCard'
-import CustomAvatar from '@core/components/mui/Avatar'
+
 import AddUnitDialog from './AddUnitDialog'
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+import { UnitCapGate } from '@/components/subscription/UnitCapGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -75,8 +83,8 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 // Vars
@@ -90,6 +98,8 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 const columnHelper = createColumnHelper<UnitWithExtras>()
 
 const UnitsListTable = () => {
+  const { refresh: refreshSubscription } = useSubscription()
+
   // States
   const [data, setData] = useState<UnitWithExtras[]>([])
   const [properties, setProperties] = useState<PropertyOption[]>([])
@@ -107,47 +117,81 @@ const UnitsListTable = () => {
   const [editUnitOpen, setEditUnitOpen] = useState(false)
   const [deleteUnitOpen, setDeleteUnitOpen] = useState(false)
   const [selectedUnit, setSelectedUnit] = useState<UnitWithExtras | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  // Cursor-based pagination state
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+  const [cursorHistory, setCursorHistory] = useState<string[]>([])
 
   // Fetch available units
-  const fetchUnits = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  const fetchUnits = useCallback(
+    async (cursorOverride?: string | null) => {
+      try {
+        const tenantId = getStoredTenantId()
 
-      const response = await getAllUnits({
-        page: page + 1,
-        pageSize,
-        propertyId: property || undefined,
-      })
+        if (!tenantId) return
 
-      // Handle response with defensive checks
-      const responseData = response?.data || []
-      
-      // Transform data for display
-      const transformedData: UnitWithExtras[] = responseData.map(unit => ({
-        ...unit,
-        propertyName: unit.property?.name || 'Unknown Property',
-        formattedRent: `₵${unit.rent.toLocaleString()}`,
-        formattedSize: unit.size_sqft ? `${unit.size_sqft.toLocaleString()} sqft` : '-'
-      }))
+        setLoading(true)
+        setError(null)
 
-      setData(transformedData)
-      setTotal(response?.pagination?.total || 0)
-    } catch (err) {
-      console.error('Failed to load units:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load units')
-      setData([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, pageSize, property])
+        const response = await getAllUnits(tenantId, {
+          size: pageSize,
+          sort: 'id,asc',
+          cursor: cursorOverride ?? undefined,
+          propertyId: property || undefined,
+          status: status || undefined,
+          bedrooms: bedroom ? Number(bedroom) : undefined,
+          bathrooms: bathroom ? Number(bathroom) : undefined
+        })
+
+        if (!response.success) {
+          setError(response.error?.message || 'Failed to load units')
+          setData([])
+          setTotal(0)
+
+          return
+        }
+
+        // Handle response with defensive checks
+        const responseData = response?.data || []
+
+        // Transform data for display
+        const transformedData: UnitWithExtras[] = responseData.map(unit => ({
+          ...unit,
+          propertyName: unit.propertyName || unit.property?.propertyName || 'Unknown Property',
+          formattedRent: `₵${unit.rent.toLocaleString()}`,
+          formattedSize: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-'
+        }))
+
+        // console.log('response data =>', transformedData)
+
+        setData(transformedData)
+        setTotal(response?.meta?.pagination?.total || responseData.length || 0)
+        setCursor(response?.meta?.pagination?.cursor ?? null)
+        setHasNext(response?.meta?.pagination?.hasNext ?? false)
+      } catch (err) {
+        // console.error('Failed to load units:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load units')
+        setData([])
+        setTotal(0)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [pageSize, property, status, bedroom, bathroom]
+  )
 
   // Fetch properties for filter
   const fetchProperties = useCallback(async () => {
     try {
-      const response = await getProperties({ pageSize: 100 })
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      const response = await getProperties(tenantId, { size: 100 })
       const responseData = response?.data || []
+
       setProperties(responseData.map(p => ({ id: p.id, name: p.name })))
     } catch (err) {
       console.error('Failed to fetch properties:', err)
@@ -156,7 +200,10 @@ const UnitsListTable = () => {
 
   // Load data on mount
   useEffect(() => {
-    fetchUnits()
+    setCursor(null)
+    setCursorHistory([])
+    setPage(0)
+    fetchUnits(null)
   }, [fetchUnits])
 
   useEffect(() => {
@@ -168,52 +215,103 @@ const UnitsListTable = () => {
     if (!selectedUnit) return
 
     try {
-      await deleteUnit(selectedUnit.id)
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      await deleteUnit(tenantId, selectedUnit.id)
       await fetchUnits()
       setSelectedUnit(null)
       setDeleteUnitOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete unit')
+      // Rethrow so ConfirmationDialog can report the real outcome — a delete the
+      // server refused must not be announced as a success.
+      throw err instanceof Error ? err : new Error('Failed to delete unit')
     }
   }
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    return {
-      allUnits: total,
-      occupiedUnits: data.filter(u => u.status === 'occupied').length,
-      vacantUnits: data.filter(u => u.status === 'available').length,
-      maintenanceUnits: data.filter(u => u.status === 'maintenance').length
+  // Handle export
+  const handleExport = async () => {
+    setExporting(true)
+
+    try {
+      await exportUnitsCsv()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export units')
+    } finally {
+      setExporting(false)
     }
-  }, [data, total])
+  }
 
-  // Filter data locally for bedrooms/bathrooms
-  const filteredData = useMemo(() => {
-    let filtered = data
+  /**
+   * Portfolio-wide counts, from the same endpoint the dashboard uses.
+   *
+   * These were counted from `data` — the page currently on screen — while
+   * All Units came from the server's `total`. So a landlord with 25 units read
+   * "All Units 25" beside an Occupied and Vacant that only described the ten
+   * rows in front of them, and the three numbers changed every time they paged.
+   * Reserved was not counted anywhere at all, on any page.
+   */
+  const [stats, setStats] = useState({
+    allUnits: 0,
+    occupiedUnits: 0,
+    vacantUnits: 0,
+    reservedUnits: 0,
+    maintenanceUnits: 0
+  })
 
-    if (status) {
-      filtered = filtered.filter(u => u.status === status)
-    }
+  useEffect(() => {
+    const tenantId = getStoredTenantId()
 
-    if (bedroom) {
-      filtered = filtered.filter(u => u.bedrooms === Number(bedroom))
-    }
+    if (!tenantId) return
 
-    if (bathroom) {
-      filtered = filtered.filter(u => u.bathrooms === Number(bathroom))
-    }
+    getPropertyStats(tenantId)
+      .then(res => {
+        if (!res.success || !res.data) return
 
-    return filtered
-  }, [data, status, bedroom, bathroom])
+        setStats({
+          allUnits: res.data.totalUnits,
+          occupiedUnits: res.data.occupiedUnits,
+          vacantUnits: res.data.vacantUnits,
+          reservedUnits: res.data.reservedUnits,
+          maintenanceUnits: res.data.maintenance
+        })
+      })
+      .catch(() => {
+        // Leave the tiles at zero rather than showing a page-local count that
+        // contradicts the list beneath it.
+      })
+  }, [total])
+
+  // status/bedrooms/bathrooms filters are now applied server-side (see fetchUnits),
+  // so the fetched page already reflects the selected filters — no client-side
+  // re-filtering needed here (that would only ever see the current page).
+  const filteredData = data
 
   const columns = useMemo<ColumnDef<UnitWithExtras, any>[]>(
     () => [
-      columnHelper.accessor('unit_no', {
+      columnHelper.accessor('unitNo', {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
-          <Typography color='text.primary' className='font-medium'>
-            {row.original.unit_no}
-          </Typography>
+          <div className='flex items-center gap-3'>
+            <Avatar
+              variant='rounded'
+              sx={{ width: 34, height: 34 }}
+              src={ikUrl(row.original.images?.[0], IK_THUMB) || undefined}
+            >
+              <i className='ri-home-3-line text-base' />
+            </Avatar>
+            <div className='flex flex-col'>
+              <Typography color='text.primary' className='font-medium'>
+                {row.original.unitNo}
+              </Typography>
+              {row.original.type && (
+                <Typography variant='caption' color='text.secondary' className='capitalize'>
+                  {row.original.type}
+                </Typography>
+              )}
+            </div>
+          </div>
         )
       }),
       columnHelper.accessor('propertyName', {
@@ -260,7 +358,7 @@ const UnitsListTable = () => {
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -326,6 +424,7 @@ const UnitsListTable = () => {
         allUnits={stats.allUnits}
         occupiedUnits={stats.occupiedUnits}
         vacantUnits={stats.vacantUnits}
+        reservedUnits={stats.reservedUnits}
         maintenanceUnits={stats.maintenanceUnits}
       />
       <Card className='mbs-6'>
@@ -333,14 +432,10 @@ const UnitsListTable = () => {
           title='Units List'
           action={
             <div className='flex items-center gap-2'>
-              <Button 
-                size='small' 
-                startIcon={<i className='ri-refresh-line' />}
-                onClick={() => fetchUnits()}
-              >
+              <Button size='small' startIcon={<i className='ri-refresh-line' />} onClick={() => fetchUnits()}>
                 Refresh
               </Button>
-              <OptionMenu options={['Share', 'Export']} />
+              <RowActions options={['Share', 'Export']} />
             </div>
           }
         />
@@ -419,18 +514,16 @@ const UnitsListTable = () => {
             </div>
             <Divider />
 
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search units...'
-                  value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
+            <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
+              <TextField
+                size='small'
+                placeholder='Search units...'
+                value={globalFilter}
+                onChange={e => setGlobalFilter(e.target.value)}
+                className='w-full sm:min-w-[200px]'
+              />
 
-              <div className='flex items-center gap-2 ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'
@@ -445,24 +538,32 @@ const UnitsListTable = () => {
                   <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
                 </TextField>
-                <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
-                  Export
-                </Button>
                 <Button
-                  variant='contained'
-                  color='primary'
+                  variant='outlined'
                   size='small'
-                  startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddUnitOpen(true)}
+                  startIcon={exporting ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+                  onClick={handleExport}
+                  disabled={exporting}
                 >
-                  Add Unit
+                  {exporting ? 'Exporting…' : 'Export'}
                 </Button>
+                <UnitCapGate>
+                  <Button
+                    variant='contained'
+                    color='primary'
+                    size='small'
+                    startIcon={<i className='ri-add-line' />}
+                    onClick={() => setAddUnitOpen(true)}
+                  >
+                    Add Unit
+                  </Button>
+                </UnitCapGate>
               </div>
             </div>
           </Box>
 
           {/* Table */}
-          <div className='overflow-x-auto'>
+          <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             {loading ? (
               <Box className='flex justify-center items-center py-10'>
                 <CircularProgress />
@@ -522,16 +623,32 @@ const UnitsListTable = () => {
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={total}
+            count={tablePaginationCount(total)}
             rowsPerPage={pageSize}
             page={page}
             SelectProps={{
               inputProps: { 'aria-label': 'rows per page' }
             }}
-            onPageChange={(_, newPage) => setPage(newPage)}
+            onPageChange={(_, newPage) => {
+              if (newPage > page && hasNext && cursor) {
+                setCursorHistory(prev => [...prev, cursor])
+                fetchUnits(cursor)
+                setPage(newPage)
+              } else if (newPage < page) {
+                const newHistory = [...cursorHistory]
+                const prevCursor = newHistory.pop() ?? null
+
+                setCursorHistory(newHistory)
+                fetchUnits(prevCursor === cursorHistory[0] ? null : prevCursor)
+                setPage(newPage)
+              }
+            }}
             onRowsPerPageChange={e => {
               setPageSize(Number(e.target.value))
               setPage(0)
+              setCursor(null)
+              setCursorHistory([])
+              fetchUnits(null)
             }}
           />
         </CardContent>
@@ -541,6 +658,7 @@ const UnitsListTable = () => {
         handleClose={() => {
           setAddUnitOpen(false)
           fetchUnits()
+          refreshSubscription()
         }}
         properties={properties}
         unitsData={data}
@@ -562,18 +680,20 @@ const UnitsListTable = () => {
           selectedUnit
             ? {
                 id: selectedUnit.id,
-                unitNumber: selectedUnit.unit_no,
-                propertyId: selectedUnit.property_id,
+                unitNumber: selectedUnit.unitNo,
+                propertyId: selectedUnit.propertyId,
                 propertyName: selectedUnit.propertyName,
-                status: selectedUnit.status === 'available' 
-                  ? 'vacant' 
-                  : selectedUnit.status === 'reserved' 
-                    ? 'vacant' 
-                    : selectedUnit.status as 'occupied' | 'maintenance' | 'vacant',
-                rent: selectedUnit.formattedRent,
+                status: selectedUnit.status,
+                rent: selectedUnit.rent?.toString() || '',
                 bedrooms: selectedUnit.bedrooms || 0,
                 bathrooms: selectedUnit.bathrooms || 0,
-                size: selectedUnit.formattedSize,
+                size: selectedUnit.sizeSqft?.toString() || '',
+                floor: (selectedUnit as any).floor,
+                type: selectedUnit.type,
+                images: selectedUnit.images || [],
+                imageFileIds: selectedUnit.imageFileIds || [],
+                features: (selectedUnit as any).features,
+                metadata: (selectedUnit as any).metadata,
                 tenantName: null
               }
             : null

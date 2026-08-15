@@ -6,6 +6,8 @@ import { VerticalNavProvider } from '@menu/contexts/verticalNavContext'
 import { SettingsProvider } from '@core/contexts/settingsContext'
 import ThemeProvider from '@components/theme'
 import { AuthProviderWrapper } from '@components/AuthProviderWrapper'
+import { AdminAuthProviderWrapper } from '@components/AdminAuthProviderWrapper'
+import { SubscriptionProviderWrapper } from '@components/SubscriptionProviderWrapper'
 
 // Util Imports
 import { getMode, getSettingsFromCookie, getSystemMode } from '@core/utils/serverHelpers'
@@ -27,9 +29,13 @@ const Providers = async (props: Props) => {
     <VerticalNavProvider>
       <SettingsProvider settingsCookie={settingsCookie} mode={mode}>
         <ThemeProvider direction={direction} systemMode={systemMode}>
-          <AuthProviderWrapper>
-            {children}
-          </AuthProviderWrapper>
+          <AdminAuthProviderWrapper>
+            <AuthProviderWrapper>
+              <SubscriptionProviderWrapper>
+                {children}
+              </SubscriptionProviderWrapper>
+            </AuthProviderWrapper>
+          </AdminAuthProviderWrapper>
         </ThemeProvider>
       </SettingsProvider>
     </VerticalNavProvider>

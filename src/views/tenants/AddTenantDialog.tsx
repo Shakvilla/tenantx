@@ -26,8 +26,15 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 
 // API Imports
-import { createTenant, updateTenant, uploadTenantImage, type CreateTenantPayload, type UpdateTenantPayload } from '@/lib/api/tenants'
+import {
+  createTenant,
+  updateTenant,
+  uploadTenantImage,
+  type CreateTenantPayload,
+  type UpdateTenantPayload
+} from '@/lib/api/tenants'
 import { getAllUnits } from '@/lib/api/units'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 import type { Unit } from '@/types/property'
 
@@ -35,7 +42,6 @@ type Property = {
   id: number | string
   name: string
 }
-
 
 type TenantEditData = {
   id?: string | number
@@ -68,45 +74,6 @@ type TenantEditData = {
   leaseStartDate?: string
   leaseEndDate?: string
   avatar?: string
-  ghanaCardFront?: string
-  ghanaCardBack?: string
-}
-
-type Tenant = {
-  id: number | string
-  name: string
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  occupation: string
-  age: number
-  familyMembers: number
-  password: string
-  roomNo: string
-  propertyName: string
-  propertyId: string
-  numberOfUnits: number
-  status: 'active' | 'inactive'
-  avatar?: string
-  previousAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  permanentAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  leaseStartDate?: string
-  leaseEndDate?: string
-  ghanaCardFront?: string
-  ghanaCardBack?: string
 }
 
 type Props = {
@@ -149,8 +116,6 @@ type FormDataType = {
   leaseStartDate: string
   leaseEndDate: string
   tenantPicture: File | null
-  ghanaCardFront: File | null
-  ghanaCardBack: File | null
 }
 
 const initialData: FormDataType = {
@@ -182,8 +147,6 @@ const initialData: FormDataType = {
   leaseStartDate: '',
   leaseEndDate: '',
   tenantPicture: null,
-  ghanaCardFront: null,
-  ghanaCardBack: null
 }
 
 const AddTenantDialog = ({
@@ -191,8 +154,8 @@ const AddTenantDialog = ({
   handleClose,
   properties,
   units,
-  tenantsData,
-  setData,
+  tenantsData: _tenantsData,
+  setData: _setData,
   editData,
   mode = 'add'
 }: Props) => {
@@ -205,43 +168,53 @@ const AddTenantDialog = ({
 
   const [previewImages, setPreviewImages] = useState<{
     tenantPicture: string | null
-    ghanaCardFront: string | null
-    ghanaCardBack: string | null
   }>({
     tenantPicture: null,
-    ghanaCardFront: null,
-    ghanaCardBack: null
   })
 
   // Dynamic units state - fetched based on selected property
-  const [availableUnits, setAvailableUnits] = useState<Array<{ id: string; unit_no: string }>>([])
+  const [availableUnits, setAvailableUnits] = useState<Array<{ id: string; unitNo: string }>>([])
   const [isLoadingUnits, setIsLoadingUnits] = useState(false)
 
   // Refs for file inputs
   const tenantPictureRef = useRef<HTMLInputElement>(null)
-  const ghanaCardFrontRef = useRef<HTMLInputElement>(null)
-  const ghanaCardBackRef = useRef<HTMLInputElement>(null)
 
   // Fetch available units when property is selected
   const fetchUnitsForProperty = useCallback(async (propertyId: string) => {
     if (!propertyId) {
       setAvailableUnits([])
+
+      return
+    }
+
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      console.error('No tenant ID found')
+
       return
     }
 
     setIsLoadingUnits(true)
+
     try {
-      const response = await getAllUnits({ 
-        propertyId, 
+      const response = await getAllUnits(tenantId, {
+        propertyId,
         status: 'available',
-        pageSize: 100 
+        size: 100
       })
-      
+
+      if (!response.success && response.error) {
+        throw new Error(response.error.message || 'Failed to fetch units')
+      }
+
       if (response?.data) {
-        setAvailableUnits(response.data.map(u => ({ 
-          id: u.id, 
-          unit_no: u.unit_no 
-        })))
+        setAvailableUnits(
+          response.data.map(u => ({
+            id: u.id,
+            unitNo: u.unitNo
+          }))
+        )
       }
     } catch (err) {
       console.error('Failed to fetch units:', err)
@@ -262,22 +235,20 @@ const AddTenantDialog = ({
 
   // Get filtered units based on selected property - memoized to prevent infinite re-renders
   // Falls back to passed units prop if available, otherwise uses dynamically fetched units
-  const filteredUnits = useMemo(
-    () => {
-      // Use dynamically fetched available units
-      if (availableUnits.length > 0) {
-        return availableUnits.map(u => ({
-          id: u.id,
-          unit_no: u.unit_no,
-          property_id: formData.propertyId,
-          propertyName: ''
-        }))
-      }
-      // Fallback to prop-based units
-      return units.filter((unit: Unit) => unit.property_id === formData.propertyId)
-    },
-    [availableUnits, units, formData.propertyId]
-  )
+  const filteredUnits = useMemo(() => {
+    // Use dynamically fetched available units
+    if (availableUnits.length > 0) {
+      return availableUnits.map(u => ({
+        id: u.id,
+        unitNo: u.unitNo,
+        propertyId: formData.propertyId,
+        propertyName: ''
+      }))
+    }
+
+    // Fallback to prop-based units
+    return units.filter((unit: Unit) => unit.propertyId === formData.propertyId)
+  }, [availableUnits, units, formData.propertyId])
 
   // Get initial form data based on mode
   const getInitialFormData = (): FormDataType => {
@@ -285,8 +256,8 @@ const AddTenantDialog = ({
       // Find unit by unitId or by roomNo
       const unit = editData.unitId
         ? units.find(u => u.id.toString() === editData.unitId)
-        : units.find((u: Unit) => u.property_id === editData.propertyId && u.unit_no === editData.roomNo)
-      
+        : units.find((u: Unit) => u.propertyId === editData.propertyId && u.unitNo === editData.roomNo)
+
       // Merge address objects to ensure all fields are present
       // Always merge with initialData to ensure all fields exist
       const previousAddress = {
@@ -304,7 +275,7 @@ const AddTenantDialog = ({
         zipCode: editData.permanentAddress?.zipCode ?? initialData.permanentAddress.zipCode,
         address: editData.permanentAddress?.address ?? initialData.permanentAddress.address
       }
-      
+
       return {
         firstName: editData.firstName || '',
         lastName: editData.lastName || '',
@@ -314,7 +285,7 @@ const AddTenantDialog = ({
         age: editData.age?.toString() || '',
         familyMembers: editData.familyMembers?.toString() || '',
         password: editData.password || '',
-        unitNo: unit?.unit_no || '',
+        unitNo: unit?.unitNo || '',
         previousAddress,
         permanentAddress,
         propertyId: editData.propertyId || '',
@@ -322,13 +293,10 @@ const AddTenantDialog = ({
         leaseStartDate: editData.leaseStartDate || '',
         leaseEndDate: editData.leaseEndDate || '',
         tenantPicture: null,
-        ghanaCardFront: null,
-        ghanaCardBack: null
       }
     }
 
-    
-return initialData
+    return initialData
   }
 
   // Reset form when dialog opens/closes or editData changes
@@ -341,8 +309,6 @@ return initialData
       setExpanded('tenant-info')
       setPreviewImages({
         tenantPicture: editData?.avatar || null,
-        ghanaCardFront: editData?.ghanaCardFront || null,
-        ghanaCardBack: editData?.ghanaCardBack || null
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,14 +325,15 @@ return initialData
   // Update unitNo when unitId changes
   useEffect(() => {
     if (formData.unitId) {
-      const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId);
-      if (selectedUnit && selectedUnit.unit_no !== formData.unitNo) {
-        setFormData(prev => ({ ...prev, unitNo: selectedUnit.unit_no }));
+      const selectedUnit = filteredUnits.find(u => u.id.toString() === formData.unitId)
+
+      if (selectedUnit && selectedUnit.unitNo !== formData.unitNo) {
+        setFormData(prev => ({ ...prev, unitNo: selectedUnit.unitNo }))
       }
     } else if (formData.unitNo !== '') {
-      setFormData(prev => ({ ...prev, unitNo: '' }));
+      setFormData(prev => ({ ...prev, unitNo: '' }))
     }
-  }, [formData.unitId, filteredUnits, formData.unitNo]);
+  }, [formData.unitId, filteredUnits, formData.unitNo])
 
   // Cleanup preview URLs
   useEffect(() => {
@@ -375,13 +342,6 @@ return initialData
         URL.revokeObjectURL(previewImages.tenantPicture)
       }
 
-      if (previewImages.ghanaCardFront && previewImages.ghanaCardFront.startsWith('blob:')) {
-        URL.revokeObjectURL(previewImages.ghanaCardFront)
-      }
-
-      if (previewImages.ghanaCardBack && previewImages.ghanaCardBack.startsWith('blob:')) {
-        URL.revokeObjectURL(previewImages.ghanaCardBack)
-      }
     }
   }, [previewImages])
 
@@ -397,11 +357,7 @@ return initialData
     }
   }
 
-  const handleAddressChange = (
-    type: 'previousAddress' | 'permanentAddress',
-    field: string,
-    value: string
-  ) => {
+  const handleAddressChange = (type: 'previousAddress' | 'permanentAddress', field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
       [type]: {
@@ -411,7 +367,7 @@ return initialData
     }))
   }
 
-  const handleFileChange = (type: 'tenantPicture' | 'ghanaCardFront' | 'ghanaCardBack', file: File | null) => {
+  const handleFileChange = (type: 'tenantPicture', file: File | null) => {
     setFormData(prev => ({ ...prev, [type]: file }))
 
     if (file) {
@@ -447,12 +403,20 @@ return initialData
     }
 
     setErrors(newErrors)
-    
-return Object.keys(newErrors).length === 0
+
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async () => {
     if (!validateForm()) {
+      return
+    }
+
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) {
+      setApiError('No tenant ID found')
+
       return
     }
 
@@ -471,55 +435,27 @@ return Object.keys(newErrors).length === 0
       if (formData.tenantPicture) {
         try {
           const uploadResult = await uploadTenantImage(
+            tenantId,
             formData.tenantPicture,
             propertyName,
             tenantFullName,
             'avatar'
           )
+
           avatarUrl = uploadResult.data?.url
         } catch (uploadErr) {
           console.error('Failed to upload avatar:', uploadErr)
+
           // Continue without avatar if upload fails
-        }
-      }
-
-      // Upload Ghana card front if provided (for future use)
-      if (formData.ghanaCardFront) {
-        try {
-          await uploadTenantImage(
-            formData.ghanaCardFront,
-            propertyName,
-            tenantFullName,
-            'ghanaCardFront'
-          )
-        } catch (uploadErr) {
-          console.error('Failed to upload Ghana card front:', uploadErr)
-        }
-      }
-
-      // Upload Ghana card back if provided (for future use)
-      if (formData.ghanaCardBack) {
-        try {
-          await uploadTenantImage(
-            formData.ghanaCardBack,
-            propertyName,
-            tenantFullName,
-            'ghanaCardBack'
-          )
-        } catch (uploadErr) {
-          console.error('Failed to upload Ghana card back:', uploadErr)
         }
       }
 
       if (mode === 'add') {
         // Build API payload
         // Convert date inputs (YYYY-MM-DD) to ISO datetime format
-        const moveInDate = formData.leaseStartDate 
-          ? new Date(formData.leaseStartDate).toISOString() 
-          : undefined
-        const moveOutDate = formData.leaseEndDate 
-          ? new Date(formData.leaseEndDate).toISOString() 
-          : undefined
+        const _moveInDate = formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined
+
+        const _moveOutDate = formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined
 
         const payload: CreateTenantPayload = {
           firstName: formData.firstName,
@@ -530,10 +466,11 @@ return Object.keys(newErrors).length === 0
           status: 'active', // Default to active
           propertyId: formData.propertyId || undefined,
           unitId: formData.unitId || undefined,
-          unitNo: selectedUnit?.unit_no || undefined,
+          unitNo: selectedUnit?.unitNo || undefined,
           moveInDate: formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined,
           moveOutDate: formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined,
           avatar: avatarUrl,
+
           // Add metadata fields
           metadata: {
             occupation: formData.occupation,
@@ -556,8 +493,8 @@ return Object.keys(newErrors).length === 0
           }
         }
 
-        const response = await createTenant(payload)
-        
+        const response = await createTenant(tenantId, payload)
+
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to create tenant')
         }
@@ -566,12 +503,9 @@ return Object.keys(newErrors).length === 0
       } else if (mode === 'edit' && editData?.id) {
         // Build update payload
         // Convert date inputs (YYYY-MM-DD) to ISO datetime format
-        const moveInDate = formData.leaseStartDate 
-          ? new Date(formData.leaseStartDate).toISOString() 
-          : undefined
-        const moveOutDate = formData.leaseEndDate 
-          ? new Date(formData.leaseEndDate).toISOString() 
-          : undefined
+        const moveInDate = formData.leaseStartDate ? new Date(formData.leaseStartDate).toISOString() : undefined
+
+        const moveOutDate = formData.leaseEndDate ? new Date(formData.leaseEndDate).toISOString() : undefined
 
         const payload: UpdateTenantPayload = {
           firstName: formData.firstName,
@@ -580,14 +514,14 @@ return Object.keys(newErrors).length === 0
           phone: formData.phone,
           propertyId: formData.propertyId || undefined,
           unitId: formData.unitId || undefined,
-          unitNo: selectedUnit?.unit_no || undefined,
+          unitNo: selectedUnit?.unitNo || undefined,
           moveInDate,
           moveOutDate,
-          avatar: avatarUrl,
+          avatar: avatarUrl
         }
 
-        const response = await updateTenant(editData.id.toString(), payload)
-        
+        const response = await updateTenant(tenantId, editData.id.toString(), payload)
+
         if (!response.success) {
           throw new Error(response.error?.message || 'Failed to update tenant')
         }
@@ -598,7 +532,7 @@ return Object.keys(newErrors).length === 0
       handleClose()
       setFormData(initialData)
       setErrors({})
-      setPreviewImages({ tenantPicture: null, ghanaCardFront: null, ghanaCardBack: null })
+      setPreviewImages({ tenantPicture: null })
     } catch (error) {
       // console.error('Failed to save tenant:', error)
       setApiError(error instanceof Error ? error.message : 'Failed to save tenant')
@@ -611,7 +545,7 @@ return Object.keys(newErrors).length === 0
     handleClose()
     setFormData(initialData)
     setErrors({})
-    setPreviewImages({ tenantPicture: null, ghanaCardFront: null, ghanaCardBack: null })
+    setPreviewImages({ tenantPicture: null })
   }
 
   return (
@@ -760,7 +694,6 @@ return Object.keys(newErrors).length === 0
 
                       handleFileChange('tenantPicture', file)
 
-
                       // Reset input to allow selecting the same file again
                       if (e.target) {
                         e.target.value = ''
@@ -808,150 +741,6 @@ return Object.keys(newErrors).length === 0
                     )}
                     {!previewImages.tenantPicture && (
                       <Typography variant='body2' color='text.secondary'>
-                        No file chosen
-                      </Typography>
-                    )}
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant='body2' className='font-medium mbe-2'>
-                    Ghana Card - Front <span className='text-error'>*</span>
-                  </Typography>
-                  <input
-                    ref={ghanaCardFrontRef}
-                    type='file'
-                    accept='image/*'
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files?.[0] || null
-
-                      handleFileChange('ghanaCardFront', file)
-
-                      if (e.target) {
-                        e.target.value = ''
-                      }
-                    }}
-                  />
-                  <Box className='flex flex-col gap-2'>
-                    {previewImages.ghanaCardFront ? (
-                      <>
-                        <Box
-                          className='border rounded p-2 cursor-pointer hover:bg-actionHover transition-colors'
-                          onClick={() => ghanaCardFrontRef.current?.click()}
-                        >
-                          <img
-                            src={previewImages.ghanaCardFront}
-                            alt='Ghana Card Front'
-                            style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 4 }}
-                          />
-                        </Box>
-                        <Box className='flex gap-2'>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            onClick={() => ghanaCardFrontRef.current?.click()}
-                            startIcon={<i className='ri-edit-line' />}
-                            fullWidth
-                          >
-                            Change
-                          </Button>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            color='error'
-                            onClick={() => handleFileChange('ghanaCardFront', null)}
-                            startIcon={<i className='ri-delete-bin-line' />}
-                            fullWidth
-                          >
-                            Remove
-                          </Button>
-                        </Box>
-                      </>
-                    ) : (
-                      <Button
-                        variant='outlined'
-                        size='small'
-                        onClick={() => ghanaCardFrontRef.current?.click()}
-                        startIcon={<i className='ri-file-upload-line' />}
-                        fullWidth
-                      >
-                        Choose File
-                      </Button>
-                    )}
-                    {!previewImages.ghanaCardFront && (
-                      <Typography variant='body2' color='text.secondary' className='text-center'>
-                        No file chosen
-                      </Typography>
-                    )}
-                  </Box>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant='body2' className='font-medium mbe-2'>
-                    Ghana Card - Back <span className='text-error'>*</span>
-                  </Typography>
-                  <input
-                    ref={ghanaCardBackRef}
-                    type='file'
-                    accept='image/*'
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const file = e.target.files?.[0] || null
-
-                      handleFileChange('ghanaCardBack', file)
-
-                      if (e.target) {
-                        e.target.value = ''
-                      }
-                    }}
-                  />
-                  <Box className='flex flex-col gap-2'>
-                    {previewImages.ghanaCardBack ? (
-                      <>
-                        <Box
-                          className='border rounded p-2 cursor-pointer hover:bg-actionHover transition-colors'
-                          onClick={() => ghanaCardBackRef.current?.click()}
-                        >
-                          <img
-                            src={previewImages.ghanaCardBack}
-                            alt='Ghana Card Back'
-                            style={{ width: '100%', maxHeight: 150, objectFit: 'contain', borderRadius: 4 }}
-                          />
-                        </Box>
-                        <Box className='flex gap-2'>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            onClick={() => ghanaCardBackRef.current?.click()}
-                            startIcon={<i className='ri-edit-line' />}
-                            fullWidth
-                          >
-                            Change
-                          </Button>
-                          <Button
-                            variant='outlined'
-                            size='small'
-                            color='error'
-                            onClick={() => handleFileChange('ghanaCardBack', null)}
-                            startIcon={<i className='ri-delete-bin-line' />}
-                            fullWidth
-                          >
-                            Remove
-                          </Button>
-                        </Box>
-                      </>
-                    ) : (
-                      <Button
-                        variant='outlined'
-                        size='small'
-                        onClick={() => ghanaCardBackRef.current?.click()}
-                        startIcon={<i className='ri-file-upload-line' />}
-                        fullWidth
-                      >
-                        Choose File
-                      </Button>
-                    )}
-                    {!previewImages.ghanaCardBack && (
-                      <Typography variant='body2' color='text.secondary' className='text-center'>
                         No file chosen
                       </Typography>
                     )}
@@ -1134,10 +923,13 @@ return Object.keys(newErrors).length === 0
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth error={Boolean(errors.unitId)} size='small' disabled={!formData.propertyId || isLoadingUnits}>
-                    <InputLabel id='unit-label'>
-                      {isLoadingUnits ? 'Loading units...' : 'Unit Name'}
-                    </InputLabel>
+                  <FormControl
+                    fullWidth
+                    error={Boolean(errors.unitId)}
+                    size='small'
+                    disabled={!formData.propertyId || isLoadingUnits}
+                  >
+                    <InputLabel id='unit-label'>{isLoadingUnits ? 'Loading units...' : 'Unit Name'}</InputLabel>
                     <Select
                       size='small'
                       labelId='unit-label'
@@ -1147,11 +939,15 @@ return Object.keys(newErrors).length === 0
                       endAdornment={isLoadingUnits ? <CircularProgress size={20} sx={{ mr: 3 }} /> : null}
                     >
                       <MenuItem value=''>
-                        {isLoadingUnits ? 'Loading...' : (filteredUnits.length === 0 ? 'No available units' : 'Select Unit')}
+                        {isLoadingUnits
+                          ? 'Loading...'
+                          : filteredUnits.length === 0
+                            ? 'No available units'
+                            : 'Select Unit'}
                       </MenuItem>
                       {filteredUnits.map(unit => (
                         <MenuItem key={unit.id} value={unit.id}>
-                          {unit.unit_no}
+                          {unit.unitNo}
                         </MenuItem>
                       ))}
                     </Select>
@@ -1199,14 +995,14 @@ return Object.keys(newErrors).length === 0
         <Button variant='outlined' color='secondary' onClick={handleReset} disabled={isSaving}>
           Cancel
         </Button>
-        <Button 
-          variant='contained' 
-          color='primary' 
+        <Button
+          variant='contained'
+          color='primary'
           onClick={handleSubmit}
           disabled={isSaving}
           startIcon={isSaving ? <CircularProgress size={16} color='inherit' /> : null}
         >
-          {isSaving ? 'Saving...' : (mode === 'edit' ? 'Update' : 'Save Now')}
+          {isSaving ? 'Saving...' : mode === 'edit' ? 'Update' : 'Save Now'}
         </Button>
       </DialogActions>
     </Dialog>

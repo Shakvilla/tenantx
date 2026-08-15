@@ -12,50 +12,90 @@ import Typography from '@mui/material/Typography'
 
 // Type Imports
 import type { ThemeColor } from '@core/types'
+import type { Unit, Property } from '@/types/property'
 
 // Component Imports
 import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import AddUnitDialog from '../AddUnitDialog'
 
-type UnitData = {
+type UnitViewData = {
   id: string
   unitNumber: string
   propertyName: string
   propertyId: string
   tenantName: string | null
-  status: 'occupied' | 'vacant' | 'maintenance'
+  status: 'occupied' | 'vacant' | 'maintenance' | 'available' | 'reserved'
   rent: string
+  rentPeriod: string
   bedrooms: number
   bathrooms: number
   size: string
+  floor: number | null
+  type: string
+  images: string[]
+  amenities: string[]
+  metadata: Record<string, any>
+  features: Record<string, any>
 }
 
-// Sample properties for edit dialog
-const sampleProperties = [
-  { id: 1, name: 'Xorla House' },
-  { id: 2, name: 'Sunset Apartments' },
-  { id: 3, name: 'Green Valley' },
-  { id: 4, name: 'Ocean View' },
-  { id: 5, name: 'Mountain Heights' }
-]
+// API Imports
+import { deleteUnit } from '@/lib/api/units'
+import { getStoredTenantId } from '@/lib/api/storage'
 
 const UnitDetailHeader = ({
   unitData,
-  unitId
+  unitId,
+  properties = []
 }: {
-  unitData?: UnitData
+  unitData?: UnitViewData
   unitId: string
+  properties?: Property[]
 }) => {
   // States
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const router = useRouter()
 
   // Vars
   const statusColor: Record<string, ThemeColor> = {
     occupied: 'success',
     vacant: 'warning',
-    maintenance: 'error'
+    available: 'warning',
+    maintenance: 'error',
+    reserved: 'info'
+  }
+
+  // Handle unit deletion
+  const handleDeleteConfirm = async () => {
+    try {
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) {
+        console.error('Tenant ID not found')
+
+        return
+      }
+
+      setIsDeleting(true)
+
+      await deleteUnit(tenantId, unitId)
+
+      setDeleteDialogOpen(false)
+
+      // Redirect back to units list or property details
+      router.push('/properties/units')
+    } catch (error) {
+      console.error('Failed to delete unit:', error)
+
+      // Rethrow: ConfirmationDialog awaits this and shows the server's own
+      // reason. The alert this replaces threw that reason away and said "Please
+      // try again" — advice that cannot work when the delete was refused
+      // because the unit still has an active occupant.
+      throw error instanceof Error ? error : new Error('Failed to delete unit')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   // Prepare edit data
@@ -70,6 +110,12 @@ const UnitDetailHeader = ({
         bedrooms: unitData.bedrooms,
         bathrooms: unitData.bathrooms,
         size: unitData.size,
+        floor: unitData.floor,
+        type: unitData.type,
+        images: unitData.images,
+        amenities: unitData.amenities,
+        metadata: unitData.metadata,
+        features: unitData.features,
         tenantName: unitData.tenantName
       }
     : null
@@ -117,7 +163,7 @@ const UnitDetailHeader = ({
       <AddUnitDialog
         open={editDialogOpen}
         handleClose={() => setEditDialogOpen(false)}
-        properties={sampleProperties}
+        properties={properties}
         editData={editData}
         mode='edit'
         unitsData={[]}
@@ -127,11 +173,7 @@ const UnitDetailHeader = ({
         open={deleteDialogOpen}
         setOpen={setDeleteDialogOpen}
         type='delete-unit'
-        onConfirm={() => {
-          // TODO: Implement API call to delete unit
-          // For now, just navigate back to units list
-          router.push('/properties/units')
-        }}
+        onConfirm={handleDeleteConfirm}
       />
     </>
   )

@@ -12,7 +12,7 @@ import type { ThemeColor } from '@core/types'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 
 type KPIItem = {
   label: string
@@ -48,7 +48,7 @@ const CustomersOverviewCard = ({ title, summary, kpis }: CustomersOverviewCardPr
     <StyledCard className='bs-full'>
       <CardHeader
         title={title}
-        action={<OptionMenu options={['Refresh', 'Export', 'Share']} />}
+        action={<RowActions options={['Refresh', 'Export', 'Share']} />}
       />
       <CardContent className='flex flex-col gap-4 p-4'>
         {/* Summary Section */}

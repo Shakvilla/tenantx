@@ -3,12 +3,13 @@
 'use client'
 
 // React Imports
-import { useState, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 
 // MUI Imports
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Component Imports
 import DateRangeFilter from '@/components/reports/DateRangeFilter'
@@ -16,114 +17,137 @@ import ReportSummaryCards from '@/components/reports/ReportSummaryCards'
 import ExportButtons from '@/components/reports/ExportButtons'
 import { LineChart, BarChart, DonutChart } from '@/components/reports/ReportCharts'
 
+// API Imports
+import { getInvoiceStats, getInvoices, type InvoiceStats, type Invoice } from '@/lib/api/invoices'
+
 // Type Imports
-import type { DateRange, EarningsReportData, ReportSummary } from '@/types/reports/reportTypes'
+import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
+
+// Util Imports
+import { toApiDateParams } from '@/utils/reports/dateUtils'
 
 type Props = {
   dateRange: DateRange
   onDateRangeChange: (dateRange: DateRange) => void
 }
 
+/** Group a list of items by month, summing a numeric field. Returns sorted [{date, value}] */
+function groupByMonth<T>(
+  items: T[],
+  getDate: (item: T) => string,
+  getValue: (item: T) => number
+): { date: string; value: number }[] {
+  const map: Record<string, { display: string; value: number }> = {}
+
+  items.forEach(item => {
+    const d = new Date(getDate(item))
+
+    if (isNaN(d.getTime())) return
+    const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const display = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+
+    if (!map[sortKey]) map[sortKey] = { display, value: 0 }
+    map[sortKey].value += getValue(item)
+  })
+
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, { display, value }]) => ({ date: display, value }))
+}
+
 const EarningsReport = ({ dateRange, onDateRangeChange }: Props) => {
   const contentRef = useRef<HTMLDivElement>(null)
 
-  // Mock data - replace with actual API call
-  const reportData: EarningsReportData = useMemo(() => {
-    const trends = []
-    const startDate = dateRange.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const endDate = dateRange.endDate || new Date()
+  const [stats, setStats] = useState<InvoiceStats | null>(null)
+  const [invoices, setInvoices] = useState<Invoice[]>([])
+  const [loading, setLoading] = useState(true)
 
-    // Ensure valid date range
-    if (startDate && endDate && startDate <= endDate) {
-      const currentDate = new Date(startDate)
-      let iterationCount = 0
-      const maxIterations = 100
+  useEffect(() => {
+    setLoading(true)
+    const { startDate, endDate } = toApiDateParams(dateRange, 'date')
 
-      while (currentDate <= endDate && iterationCount < maxIterations) {
-        trends.push({
-          date: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          value: Math.floor(Math.random() * 10000) + 5000
-        })
-        currentDate.setDate(currentDate.getDate() + 7)
-        iterationCount++
-      }
-    }
-
-    // Ensure we have at least some data
-    if (trends.length === 0) {
-      trends.push({
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        value: 10000
+    Promise.all([getInvoiceStats(), getInvoices({ startDate, endDate })])
+      .then(([s, inv]) => {
+        setStats(s)
+        setInvoices(inv)
       })
-    }
-
-    return {
-      totalRevenue: 450000,
-      paidRevenue: 380000,
-      pendingRevenue: 70000,
-      averageRevenue: 8500,
-      trends,
-      byProperty: [
-        { label: 'Property A', value: 150000 },
-        { label: 'Property B', value: 120000 },
-        { label: 'Property C', value: 100000 },
-        { label: 'Property D', value: 80000 }
-      ],
-      paymentStatus: [
-        { label: 'Paid', value: 380000 },
-        { label: 'Pending', value: 50000 },
-        { label: 'Overdue', value: 20000 }
-      ]
-    }
+      .catch(console.error)
+      .finally(() => setLoading(false))
   }, [dateRange])
 
-  const summaries: ReportSummary[] = useMemo(
-    () => [
-      {
-        label: 'Total Revenue',
-        value: `₵${reportData.totalRevenue.toLocaleString()}`,
-        change: 12.5,
-        changeType: 'increase',
-        icon: 'ri-money-dollar-circle-line',
-        color: 'success'
-      },
-      {
-        label: 'Paid Revenue',
-        value: `₵${reportData.paidRevenue.toLocaleString()}`,
-        change: 8.3,
-        changeType: 'increase',
-        icon: 'ri-checkbox-circle-line',
-        color: 'success'
-      },
-      {
-        label: 'Pending Revenue',
-        value: `₵${reportData.pendingRevenue.toLocaleString()}`,
-        change: -5.2,
-        changeType: 'decrease',
-        icon: 'ri-time-line',
-        color: 'warning'
-      },
-      {
-        label: 'Average Revenue',
-        value: `₵${reportData.averageRevenue.toLocaleString()}`,
-        change: 4.1,
-        changeType: 'increase',
-        icon: 'ri-bar-chart-line',
-        color: 'info'
-      }
-    ],
-    [reportData]
+  // Revenue trend: amount per month
+  const trends = useMemo(
+    () => groupByMonth(invoices, inv => inv.issuedDate, inv => inv.amount),
+    [invoices]
   )
 
-  const tableData = useMemo(
-    () => [
-      { name: 'Total Revenue', value: `₵${reportData.totalRevenue.toLocaleString()}` },
-      { name: 'Paid Revenue', value: `₵${reportData.paidRevenue.toLocaleString()}` },
-      { name: 'Pending Revenue', value: `₵${reportData.pendingRevenue.toLocaleString()}` },
-      { name: 'Average Revenue', value: `₵${reportData.averageRevenue.toLocaleString()}` }
-    ],
-    [reportData]
-  )
+  // Revenue by property
+  const byProperty = useMemo(() => {
+    const map: Record<string, number> = {}
+
+    invoices.forEach(inv => {
+      const name = inv.propertyName || 'Unknown'
+
+      map[name] = (map[name] || 0) + inv.amount
+    })
+
+    return Object.entries(map)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8)
+  }, [invoices])
+
+  // Payment status donut — from stats (all-time counts)
+  const paymentStatus = useMemo(() => {
+    if (!stats) return []
+
+    return [
+      { label: 'Paid', value: stats.paid },
+      { label: 'Pending', value: stats.pending },
+      { label: 'Overdue', value: stats.overdue },
+      { label: 'Draft', value: stats.draft },
+      { label: 'Cancelled', value: stats.cancelled }
+    ].filter(s => s.value > 0)
+  }, [stats])
+
+  const totalRevenue = stats?.totalAmount ?? 0
+  const paidRevenue = stats?.paidAmount ?? 0
+  const pendingRevenue = stats?.outstandingAmount ?? 0
+  const averageRevenue = stats && stats.total > 0 ? Math.round(totalRevenue / stats.total) : 0
+
+  const summaries: ReportSummary[] = [
+    {
+      label: 'Total Revenue',
+      value: `₵${totalRevenue.toLocaleString()}`,
+      icon: 'ri-money-dollar-circle-line',
+      color: 'success'
+    },
+    {
+      label: 'Paid Revenue',
+      value: `₵${paidRevenue.toLocaleString()}`,
+      icon: 'ri-checkbox-circle-line',
+      color: 'success'
+    },
+    {
+      label: 'Outstanding',
+      value: `₵${pendingRevenue.toLocaleString()}`,
+      icon: 'ri-time-line',
+      color: 'warning'
+    },
+    {
+      label: 'Avg per Invoice',
+      value: `₵${averageRevenue.toLocaleString()}`,
+      icon: 'ri-bar-chart-line',
+      color: 'info'
+    }
+  ]
+
+  const tableData = [
+    { name: 'Total Revenue', value: `₵${totalRevenue.toLocaleString()}` },
+    { name: 'Paid Revenue', value: `₵${paidRevenue.toLocaleString()}` },
+    { name: 'Outstanding', value: `₵${pendingRevenue.toLocaleString()}` },
+    { name: 'Avg per Invoice', value: `₵${averageRevenue.toLocaleString()}` }
+  ]
 
   return (
     <Box ref={contentRef} className='flex flex-col gap-6'>
@@ -134,27 +158,34 @@ const EarningsReport = ({ dateRange, onDateRangeChange }: Props) => {
 
       <DateRangeFilter dateRange={dateRange} onDateRangeChange={onDateRangeChange} />
 
-      <ReportSummaryCards summaries={summaries} />
+      {loading ? (
+        <Box className='flex justify-center py-10'>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          <ReportSummaryCards summaries={summaries} />
 
-      <Grid container spacing={4}>
-        <Grid size={{ xs: 12, md: 8 }}>
-          <LineChart
-            title='Revenue Trends'
-            data={reportData.trends}
-            dataKey='Revenue'
-            color='success'
-          />
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <DonutChart title='Payment Status' data={reportData.paymentStatus} />
-        </Grid>
-        <Grid size={{ xs: 12 }}>
-          <BarChart title='Revenue by Property' data={reportData.byProperty} color='success' />
-        </Grid>
-      </Grid>
+          <Grid container spacing={4}>
+            <Grid size={{ xs: 12, md: 8 }}>
+              <LineChart
+                title='Revenue Trends'
+                data={trends}
+                dataKey='Revenue'
+                color='success'
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <DonutChart title='Payment Status' data={paymentStatus} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <BarChart title='Revenue by Property' data={byProperty} color='success' />
+            </Grid>
+          </Grid>
+        </>
+      )}
     </Box>
   )
 }
 
 export default EarningsReport
-

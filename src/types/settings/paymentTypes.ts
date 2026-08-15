@@ -14,9 +14,8 @@ export type CurrencySymbolPosition = 'before' | 'after'
 
 export interface ReddeConfig {
   apiKey: string
-  merchantId: string
-  merchantToken: string
-  webhookUrl: string
+  appId: string       // App ID given by Wigal / Redde portal
+  nickname: string    // displayed on customer MoMo prompt
   enabled: boolean
   mode: GatewayMode
   priority: number
@@ -65,6 +64,8 @@ export interface CurrencySettings {
   supportedCurrencies: string[]
   symbolPosition: CurrencySymbolPosition
   decimalPlaces: number
+  /** USD → GHS exchange rate (e.g. 15.5 means 1 USD = 15.5 GHS) */
+  usdToGhsRate?: number
 }
 
 export interface PaymentSettings {

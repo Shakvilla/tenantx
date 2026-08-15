@@ -50,24 +50,11 @@ return NextResponse.json(
     )
   }
 
-  // Handle Supabase errors
-  if (isSupabaseError(error)) {
-    const statusCode = getSupabaseErrorStatusCode(error)
-
-    
-return NextResponse.json(
-      {
-        success: false,
-        data: null,
-        error: {
-          code: ErrorCode.DATABASE_ERROR,
-          message: error.message || 'Database operation failed',
-          details: error.details || undefined,
-        },
-      },
-      { status: statusCode }
-    )
-  }
+  // A Supabase branch used to sit here, left behind after the SDK was dropped.
+  // Its type guard matched any object with a `message`, i.e. every Error, so it
+  // ran instead of the generic handler below — labelling everything
+  // DATABASE_ERROR and returning error.message verbatim in production, which
+  // the generic branch deliberately withholds outside development.
 
   // Handle generic errors
   if (error instanceof Error) {
@@ -100,35 +87,3 @@ return NextResponse.json(
   )
 }
 
-/**
- * Type guard for Supabase errors.
- */
-function isSupabaseError(error: unknown): error is { 
-  message: string
-  details?: string
-  code?: string 
-} {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error
-  )
-}
-
-/**
- * Maps Supabase error codes to HTTP status codes.
- */
-function getSupabaseErrorStatusCode(error: { code?: string }): number {
-  switch (error.code) {
-    case 'PGRST116': // Not found
-      return 404
-    case 'PGRST301': // Unique violation
-      return 409
-    case '23505': // PostgreSQL unique violation
-      return 409
-    case '42501': // RLS policy violation
-      return 403
-    default:
-      return 500
-  }
-}

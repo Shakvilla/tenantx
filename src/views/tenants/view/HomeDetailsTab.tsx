@@ -10,6 +10,13 @@ import Box from '@mui/material/Box'
 import CardMedia from '@mui/material/CardMedia'
 import InputAdornment from '@mui/material/InputAdornment'
 
+// Component Imports
+import AdvanceRentSection from './AdvanceRentSection'
+import CautionFeeSection from './CautionFeeSection'
+
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 type TenantData = {
   id: string
   name: string
@@ -21,6 +28,8 @@ type TenantData = {
   propertyImage?: string
   propertyAddress?: string
   unitName?: string
+  unitId?: string
+  propertyId?: string
   securityDeposit?: string
   lateFee?: string
   rentType?: string
@@ -34,15 +43,32 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
       {/* Property Image Section */}
       <Grid size={{ xs: 12, md: 7 }}>
         <Card elevation={0}>
-          <CardMedia
-            component='img'
-            image={
-              tenantData?.propertyImage ||
-              'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2350&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'
-            }
-            alt={tenantData?.propertyName || 'Property'}
-            sx={{ height: 500, objectFit: 'cover' }}
-          />
+          {tenantData?.propertyImage ? (
+            <CardMedia
+              component='img'
+              image={ikUrl(tenantData.propertyImage, IK_CARD)}
+              alt={tenantData?.propertyName || 'Property'}
+              sx={{ height: 500, objectFit: 'cover' }}
+            />
+          ) : (
+            <Box
+              sx={{
+                height: 500,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 1,
+                bgcolor: 'action.hover',
+                color: 'text.disabled'
+              }}
+            >
+              <i className='ri-home-4-line' style={{ fontSize: '3rem' }} />
+              <Typography variant='body2' color='text.disabled'>
+                No property image
+              </Typography>
+            </Box>
+          )}
         </Card>
       </Grid>
 
@@ -86,7 +112,7 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
                 />
                 <TextField
                   size='small'
-                  label='Tenant'
+                  label='Resident'
                   value={tenantData?.name || '-'}
                   InputProps={{
                     readOnly: true
@@ -158,6 +184,28 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
           </CardContent>
         </Card>
       </Grid>
+
+      {/* Advance Rent Section */}
+      {tenantData?.id && (
+        <Grid size={{ xs: 12 }}>
+          <AdvanceRentSection
+            occupantId={tenantData.id}
+            unitId={tenantData.unitId}
+            propertyId={tenantData.propertyId}
+          />
+        </Grid>
+      )}
+
+      {/* Caution Fee (Security Deposit) Section */}
+      {tenantData?.id && (
+        <Grid size={{ xs: 12 }}>
+          <CautionFeeSection
+            occupantId={tenantData.id}
+            unitId={tenantData.unitId}
+            propertyId={tenantData.propertyId}
+          />
+        </Grid>
+      )}
     </Grid>
   )
 }

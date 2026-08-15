@@ -20,6 +20,9 @@ type Props = {
   occupiedUnits: number
   vacantUnits: number
   damagedUnits: number
+
+  /** Agreement signed, tenant not yet moved in. Counted in none of the other three. */
+  reservedUnits: number
 }
 
 type StatsDataType = {
@@ -29,7 +32,13 @@ type StatsDataType = {
   desc: string
 }
 
-const PropertiesStatsCard = ({ allProperties, occupiedUnits, vacantUnits, damagedUnits }: Props) => {
+const PropertiesStatsCard = ({
+  allProperties,
+  occupiedUnits,
+  vacantUnits,
+  damagedUnits,
+  reservedUnits
+}: Props) => {
   // Hooks
   const isBelowMdScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
   const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
@@ -54,6 +63,12 @@ const PropertiesStatsCard = ({ allProperties, occupiedUnits, vacantUnits, damage
       desc: 'Available for rent'
     },
     {
+      title: 'Reserved Units',
+      value: reservedUnits.toString(),
+      icon: 'ri-calendar-check-line',
+      desc: 'Awaiting move-in'
+    },
+    {
       title: 'Damaged Units',
       value: damagedUnits.toString(),
       icon: 'ri-error-warning-line',
@@ -67,7 +82,9 @@ const PropertiesStatsCard = ({ allProperties, occupiedUnits, vacantUnits, damage
         <Grid container spacing={6}>
           {data.map((item, index) => (
             <Grid
-              size={{ xs: 12, sm: 6, md: 3 }}
+              // 2.4 = 12/5. Five tiles across on desktop rather than four plus a
+              // stranded fifth on its own row.
+              size={{ xs: 12, sm: 6, md: 2.4 }}
               key={index}
               className={classnames({
                 '[&:nth-of-type(odd)>div]:pie-6 [&:nth-of-type(odd)>div]:border-ie': isBelowMdScreen && !isSmallScreen,

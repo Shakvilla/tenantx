@@ -3,6 +3,9 @@
 // React Imports
 import { useState, useMemo, useEffect, useCallback } from 'react'
 
+// Next Imports
+import { useSearchParams, useRouter } from 'next/navigation'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -11,7 +14,7 @@ import Divider from '@mui/material/Divider'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import Switch from '@mui/material/Switch'
+
 import MenuItem from '@mui/material/MenuItem'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
@@ -19,6 +22,9 @@ import Checkbox from '@mui/material/Checkbox'
 import Avatar from '@mui/material/Avatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+
+import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -40,10 +46,15 @@ import type { ThemeColor } from '@core/types'
 import type { Property, PropertyStats } from '@/types/property'
 
 // API Imports
-import { getProperties, getPropertyStats, deleteProperty } from '@/lib/api/properties'
+import { getProperties, getPropertyStats, deleteProperty, exportPropertiesCsv } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
+import { tablePaginationCount } from '@/lib/api/pagination'
+
+// Context Imports
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import PropertiesStatsCard from './PropertiesStatsCard'
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -52,6 +63,9 @@ import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -77,8 +91,8 @@ const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
 // Vars
@@ -93,21 +107,31 @@ const propertyTypeObj: PropertyTypeObj = {
 const columnHelper = createColumnHelper<PropertyWithAction>()
 
 const PropertiesListTable = () => {
+  const { ref } = useReferenceData()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
   // States
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState<Property[]>([])
+
   const [stats, setStats] = useState<PropertyStats>({
     total: 0,
     active: 0,
     inactive: 0,
     maintenance: 0,
+    reservedUnits: 0,
+    vacantUnits: 0,
     totalUnits: 0,
     occupiedUnits: 0,
     occupancyRate: 0
   })
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [activeSearch, setActiveSearch] = useState('')
   const [propertyType, setPropertyType] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [bedroom, setBedroom] = useState('')
@@ -119,38 +143,71 @@ const PropertiesListTable = () => {
   const [editPropertyOpen, setEditPropertyOpen] = useState(false)
   const [deletePropertyOpen, setDeletePropertyOpen] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  // Cursor-based pagination state
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+
+  // Keep a history of cursors so we can go "back"
+  const [cursorHistory, setCursorHistory] = useState<string[]>([])
+
+  // Auto-open the Add Property dialog when arriving via the topbar "+ Create" menu (?create=1)
+  useEffect(() => {
+    if (searchParams.get('create') === '1') {
+      setAddPropertyOpen(true)
+      router.replace('/properties')
+    }
+  }, [searchParams, router])
 
   // Fetch properties
-  const fetchProperties = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  const fetchProperties = useCallback(
+    async (cursorOverride?: string | null) => {
+      try {
+        const tenantId = getStoredTenantId()
 
-      const response = await getProperties({
-        page: page + 1,
-        pageSize,
-        search: globalFilter || undefined,
-        type: propertyType || undefined,
-        status: statusFilter || undefined,
-      })
+        if (!tenantId) return
 
-      // Handle response with defensive checks
-      setData(response?.data || [])
-      setTotal(response?.pagination?.total || 0)
-    } catch (err) {
-      console.error('Failed to load properties:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load properties')
-      setData([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [page, pageSize, globalFilter, propertyType, statusFilter])
+        setLoading(true)
+        setError(null)
+
+        const response = await getProperties(tenantId, {
+          size: pageSize,
+          sort: 'id,asc',
+          cursor: cursorOverride ?? undefined,
+          search: activeSearch || undefined,
+          type: propertyType || undefined,
+          status: statusFilter || undefined
+        })
+
+        // console.log('properties', response)
+
+        // Handle response with defensive checks
+        setData(response?.data || [])
+        setTotal(response?.meta?.pagination?.total || response?.data?.length || 0)
+        setCursor(response?.meta?.pagination?.cursor ?? null)
+        setHasNext(response?.meta?.pagination?.hasNext ?? false)
+      } catch (err) {
+        // console.error('Failed to load properties:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load properties')
+        setData([])
+        setTotal(0)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [pageSize, activeSearch, propertyType, statusFilter]
+  )
 
   // Fetch stats
   const fetchStats = useCallback(async () => {
     try {
-      const response = await getPropertyStats()
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      const response = await getPropertyStats(tenantId)
+
       if (response.data) {
         setStats(response.data)
       }
@@ -161,25 +218,63 @@ const PropertiesListTable = () => {
 
   // Load data on mount and when filters change
   useEffect(() => {
-    fetchProperties()
+    // Reset cursor state when filters change
+    setCursor(null)
+    setCursorHistory([])
+    setPage(0)
+    fetchProperties(null)
   }, [fetchProperties])
 
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
 
+  const handleSearch = useCallback(() => {
+    setActiveSearch(searchQuery)
+    setPage(0)
+    setCursor(null)
+    setCursorHistory([])
+    fetchProperties(null)
+  }, [searchQuery, fetchProperties])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+  }
+
   // Handle delete
   const handleDelete = async () => {
     if (!selectedProperty) return
 
     try {
-      await deleteProperty(selectedProperty.id)
+      const tenantId = getStoredTenantId()
+
+      if (!tenantId) return
+
+      await deleteProperty(tenantId, selectedProperty.id)
       await fetchProperties()
       await fetchStats()
       setSelectedProperty(null)
       setDeletePropertyOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete property')
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it here is what let the dialog announce "Property deleted
+      // successfully" for a delete the server had refused.
+      throw err instanceof Error ? err : new Error('Failed to delete property')
+    }
+  }
+
+  // Handle export
+  const handleExport = async () => {
+    setExporting(true)
+
+    try {
+      await exportPropertiesCsv()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export properties')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -215,10 +310,10 @@ const PropertiesListTable = () => {
         header: 'PROPERTY NAME',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar 
-              variant='rounded' 
-              sx={{ width: 30, height: 30 }} 
-              src={row.original.images?.[row.original.thumbnail_index ?? 0]} 
+            <Avatar
+              variant='rounded'
+              sx={{ width: 30, height: 30 }}
+              src={ikUrl(row.original.images?.[row.original.thumbnailIndex ?? 0], IK_THUMB)}
             />
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>
@@ -235,18 +330,20 @@ const PropertiesListTable = () => {
         header: 'PROPERTY TYPE',
         cell: ({ row }) => {
           const typeKey = row.original.type?.toLowerCase() || 'residential'
+
           const propertyTypeConfig = propertyTypeObj[typeKey] || {
             icon: 'ri-building-line',
             color: 'secondary' as ThemeColor
           }
 
-          
-return (
+          return (
             <div className='flex items-center gap-3'>
               <CustomAvatar skin='light' color={propertyTypeConfig.color} size={30}>
                 <i className={classnames(propertyTypeConfig.icon, 'text-lg')} />
               </CustomAvatar>
-              <Typography color='text.primary' className='capitalize'>{row.original.type}</Typography>
+              <Typography color='text.primary' className='capitalize'>
+                {row.original.type}
+              </Typography>
             </div>
           )
         }
@@ -261,8 +358,8 @@ return (
           }
 
           return (
-            <Typography 
-              variant='body2' 
+            <Typography
+              variant='body2'
               className='capitalize'
               color={`${statusColors[row.original.status] || 'secondary'}.main`}
             >
@@ -273,17 +370,16 @@ return (
       }),
       columnHelper.accessor('address', {
         header: 'ADDRESS',
-        cell: ({ row }) => (
-          <Typography>
-            {row.original.gps_code || row.original.address?.street || '-'}
-          </Typography>
-        )
+        // Street first: it is the actual address now that the form collects
+        // one. The GPS code stays as the fallback because plenty of Ghanaian
+        // properties are identified by it alone and have no street name.
+        cell: ({ row }) => <Typography>{row.original.address?.street || row.original.gpsCode || '-'}</Typography>
       }),
-      columnHelper.accessor('total_units', {
+      columnHelper.accessor('totalUnits', {
         header: 'UNITS',
         cell: ({ row }) => (
           <Typography>
-            {row.original.occupied_units}/{row.original.total_units}
+            {row.original.occupiedUnits}/{row.original.totalUnits}
           </Typography>
         )
       }),
@@ -299,7 +395,7 @@ return (
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
               {
@@ -345,6 +441,7 @@ return (
       rowSelection,
       globalFilter
     },
+    manualFiltering: true,
     manualPagination: true,
     pageCount: Math.ceil(total / pageSize),
     enableRowSelection: true,
@@ -367,16 +464,20 @@ return (
       <PropertiesStatsCard
         allProperties={stats.total}
         occupiedUnits={stats.occupiedUnits}
-        vacantUnits={stats.totalUnits - stats.occupiedUnits}
+        // The API reports this directly. It used to be derived as
+        // totalUnits - occupiedUnits, which quietly counted every non-occupied
+        // unit as vacant — including ones under maintenance or awaiting move-in.
+        vacantUnits={stats.vacantUnits}
         damagedUnits={stats.maintenance}
+        reservedUnits={stats.reservedUnits}
       />
       <Card className='mbs-6'>
         <CardHeader
           title='Properties List'
           action={
             <div className='flex items-center gap-2'>
-              <Button 
-                size='small' 
+              <Button
+                size='small'
                 startIcon={<i className='ri-refresh-line' />}
                 onClick={() => {
                   fetchProperties()
@@ -385,7 +486,7 @@ return (
               >
                 Refresh
               </Button>
-              <OptionMenu options={['Share', 'Export']} />
+              <RowActions options={['Share', 'Export']} />
             </div>
           }
         />
@@ -411,11 +512,9 @@ return (
                 sx={{ minWidth: 180 }}
               >
                 <MenuItem value=''>All Types</MenuItem>
-                <MenuItem value='house'>House</MenuItem>
-                <MenuItem value='apartment'>Apartment</MenuItem>
-                <MenuItem value='residential'>Residential</MenuItem>
-                <MenuItem value='commercial'>Commercial</MenuItem>
-                <MenuItem value='mixed'>Mixed</MenuItem>
+                {ref.propertyTypes.map(pt => (
+                  <MenuItem key={pt.value} value={pt.value}>{pt.label}</MenuItem>
+                ))}
               </TextField>
               <TextField
                 select
@@ -429,9 +528,9 @@ return (
                 sx={{ minWidth: 150 }}
               >
                 <MenuItem value=''>All Status</MenuItem>
-                <MenuItem value='active'>Active</MenuItem>
-                <MenuItem value='inactive'>Inactive</MenuItem>
-                <MenuItem value='maintenance'>Maintenance</MenuItem>
+                {ref.propertyStatuses.map(s => (
+                  <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
+                ))}
               </TextField>
               <TextField
                 select
@@ -466,21 +565,28 @@ return (
             </div>
             <Divider />
 
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search properties...'
-                  value={globalFilter}
-                  onChange={e => {
-                    setGlobalFilter(e.target.value)
-                    setPage(0)
+            <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
+              <TextField
+                size='small'
+                placeholder='Search properties...'
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className='w-full sm:min-w-[200px]'
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position='end'>
+                          <IconButton size='small' onClick={handleSearch} edge='end'>
+                            <i className='ri-search-line' />
+                          </IconButton>
+                        </InputAdornment>
+                      )
+                    }
                   }}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
+              />
 
-              <div className='flex items-center gap-2 ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'
@@ -495,8 +601,14 @@ return (
                   <MenuItem value={25}>25</MenuItem>
                   <MenuItem value={50}>50</MenuItem>
                 </TextField>
-                <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
-                  Export
+                <Button
+                  variant='outlined'
+                  size='small'
+                  startIcon={exporting ? <CircularProgress size={14} /> : <i className='ri-upload-2-line' />}
+                  onClick={handleExport}
+                  disabled={exporting}
+                >
+                  {exporting ? 'Exporting…' : 'Export'}
                 </Button>
                 <Button
                   variant='contained'
@@ -512,7 +624,7 @@ return (
           </Box>
 
           {/* Table */}
-          <div className='overflow-x-auto'>
+          <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             {loading ? (
               <Box className='flex justify-center items-center py-10'>
                 <CircularProgress />
@@ -572,16 +684,34 @@ return (
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={total}
+            count={tablePaginationCount(total)}
             rowsPerPage={pageSize}
             page={page}
             SelectProps={{
               inputProps: { 'aria-label': 'rows per page' }
             }}
-            onPageChange={(_, newPage) => setPage(newPage)}
+            onPageChange={(_, newPage) => {
+              if (newPage > page && hasNext && cursor) {
+                // Going forward
+                setCursorHistory(prev => [...prev, cursor])
+                fetchProperties(cursor)
+                setPage(newPage)
+              } else if (newPage < page) {
+                // Going backward
+                const newHistory = [...cursorHistory]
+                const prevCursor = newHistory.pop() ?? null
+
+                setCursorHistory(newHistory)
+                fetchProperties(prevCursor === cursorHistory[0] ? null : prevCursor)
+                setPage(newPage)
+              }
+            }}
             onRowsPerPageChange={e => {
               setPageSize(Number(e.target.value))
               setPage(0)
+              setCursor(null)
+              setCursorHistory([])
+              fetchProperties(null)
             }}
           />
         </CardContent>
@@ -613,22 +743,37 @@ return (
             ? {
                 id: selectedProperty.id,
                 name: selectedProperty.name,
+                status: selectedProperty.status,
                 type: selectedProperty.type,
                 region: selectedProperty.region || '',
                 district: selectedProperty.district || '',
                 city: selectedProperty.address?.city || '',
-                gpsCode: selectedProperty.gps_code || '',
+                street: selectedProperty.address?.street || '',
+                zip: selectedProperty.address?.zip || '',
+                gpsCode: selectedProperty.gpsCode || '',
                 description: selectedProperty.description || '',
                 bedrooms: selectedProperty.bedrooms || 0,
                 bathrooms: selectedProperty.bathrooms || 0,
                 rooms: selectedProperty.rooms || 0,
                 condition: selectedProperty.condition || '',
+                totalUnits: selectedProperty.totalUnits,
+                occupiedUnits: selectedProperty.occupiedUnits,
+                purchasePrice: selectedProperty.purchasePrice || undefined,
+                currentValue: selectedProperty.currentValue || undefined,
+                currency: selectedProperty.currency || 'GHS',
+                ownership: selectedProperty.ownership,
                 amenities: selectedProperty.amenities?.reduce((acc, amenity) => {
                   acc[amenity] = true
+
                   return acc
                 }, {} as Record<string, boolean>),
                 images: selectedProperty.images || [],
-                thumbnailIndex: selectedProperty.thumbnail_index
+
+                // Paired positionally with `images`. Without it the dialog
+                // re-submits the URLs while dropping their file ids, which both
+                // breaks the pairing and orphans the files on ImageKit.
+                imageFileIds: selectedProperty.imageFileIds || [],
+                thumbnailIndex: selectedProperty.thumbnailIndex
               }
             : null
         }

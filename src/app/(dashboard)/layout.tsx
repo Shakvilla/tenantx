@@ -18,6 +18,16 @@ import VerticalFooter from '@components/layout/vertical/Footer'
 import HorizontalFooter from '@components/layout/horizontal/Footer'
 import Customizer from '@core/components/customizer'
 import ScrollToTop from '@core/components/scroll-to-top'
+import AnnouncementBanner from '@components/banner/AnnouncementBanner'
+import SubscriptionWarningBanner from '@components/banner/SubscriptionWarningBanner'
+import SmsCreditWarningBanner from '@components/banner/SmsCreditWarningBanner'
+import ImpersonationBanner from '@components/banner/ImpersonationBanner'
+import ResumeOnboardingBanner from '@components/banner/ResumeOnboardingBanner'
+import OnboardingWizard from '@views/onboarding/OnboardingWizard'
+import OnboardTenantWizard from '@views/onboarding/OnboardTenantWizard'
+import { ReferenceDataProvider } from '@/contexts/ReferenceDataContext'
+import { PlatformBrandingProvider } from '@/contexts/PlatformBrandingContext'
+import BrandingThemeBridge from '@components/theme/BrandingThemeBridge'
 
 // Util Imports
 import { getMode, getSystemMode } from '@core/utils/serverHelpers'
@@ -32,6 +42,16 @@ const Layout = async (props: ChildrenType) => {
 
   return (
     <Providers direction={direction}>
+      <ReferenceDataProvider>
+      <PlatformBrandingProvider>
+      <BrandingThemeBridge />
+      <ImpersonationBanner />
+      <AnnouncementBanner />
+      <ResumeOnboardingBanner />
+      <OnboardingWizard />
+      <OnboardTenantWizard />
+      <SubscriptionWarningBanner />
+      <SmsCreditWarningBanner />
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={
@@ -51,6 +71,8 @@ const Layout = async (props: ChildrenType) => {
         </Button>
       </ScrollToTop>
       <Customizer dir={direction} />
+      </PlatformBrandingProvider>
+      </ReferenceDataProvider>
     </Providers>
   )
 }

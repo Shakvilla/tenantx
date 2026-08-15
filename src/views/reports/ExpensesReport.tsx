@@ -3,12 +3,13 @@
 'use client'
 
 // React Imports
-import { useState, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 
 // MUI Imports
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
+import CircularProgress from '@mui/material/CircularProgress'
 
 // Component Imports
 import DateRangeFilter from '@/components/reports/DateRangeFilter'
@@ -16,117 +17,145 @@ import ReportSummaryCards from '@/components/reports/ReportSummaryCards'
 import ExportButtons from '@/components/reports/ExportButtons'
 import { LineChart, BarChart, DonutChart } from '@/components/reports/ReportCharts'
 
+// API Imports
+import { getExpenses, getExpenseConfigs, type Expense, type ExpenseConfig } from '@/lib/api/expenses'
+
 // Type Imports
-import type { DateRange, ExpensesReportData, ReportSummary } from '@/types/reports/reportTypes'
+import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
+
+// Util Imports
+import { toApiDateParams } from '@/utils/reports/dateUtils'
 
 type Props = {
   dateRange: DateRange
   onDateRangeChange: (dateRange: DateRange) => void
 }
 
+/** Group items by month, summing a numeric field. Returns sorted [{date, value}] */
+function groupByMonth<T>(
+  items: T[],
+  getDate: (item: T) => string,
+  getValue: (item: T) => number
+): { date: string; value: number }[] {
+  const map: Record<string, { display: string; value: number }> = {}
+
+  items.forEach(item => {
+    const d = new Date(getDate(item))
+
+    if (isNaN(d.getTime())) return
+    const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const display = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+
+    if (!map[sortKey]) map[sortKey] = { display, value: 0 }
+    map[sortKey].value += getValue(item)
+  })
+
+  return Object.entries(map)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, { display, value }]) => ({ date: display, value }))
+}
+
 const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
   const contentRef = useRef<HTMLDivElement>(null)
 
-  // Mock data - replace with actual API call
-  const reportData: ExpensesReportData = useMemo(() => {
-    const trends = []
-    const startDate = dateRange.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    const endDate = dateRange.endDate || new Date()
+  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [configs, setConfigs] = useState<ExpenseConfig[]>([])
+  const [loading, setLoading] = useState(true)
 
-    // Ensure valid date range
-    if (startDate && endDate && startDate <= endDate) {
-      const currentDate = new Date(startDate)
-      let iterationCount = 0
-      const maxIterations = 100
+  useEffect(() => {
+    setLoading(true)
+    const { startDate, endDate } = toApiDateParams(dateRange, 'date')
 
-      while (currentDate <= endDate && iterationCount < maxIterations) {
-        trends.push({
-          date: currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          value: Math.floor(Math.random() * 5000) + 2000
-        })
-        currentDate.setDate(currentDate.getDate() + 7)
-        iterationCount++
-      }
-    }
-
-    // Ensure we have at least some data
-    if (trends.length === 0) {
-      trends.push({
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        value: 5000
+    // Both the summary tiles and the charts are derived from the same date-filtered
+    // expense list, so they stay consistent when the range changes (the /stats endpoint
+    // is all-time only, which previously made the tiles ignore the filter).
+    Promise.all([getExpenses({ startDate, endDate }), getExpenseConfigs(false)])
+      .then(([exp, cfg]) => {
+        setExpenses(exp)
+        setConfigs(cfg)
       })
-    }
-
-    return {
-      totalExpenses: 125000,
-      paidExpenses: 98000,
-      unpaidExpenses: 27000,
-      averageExpense: 2500,
-      trends,
-      byCategory: [
-        { label: 'Maintenance', value: 45000 },
-        { label: 'Utilities', value: 35000 },
-        { label: 'Insurance', value: 25000 },
-        { label: 'Other', value: 20000 }
-      ],
-      monthlyComparison: [
-        { label: 'Jan', value: 12000 },
-        { label: 'Feb', value: 15000 },
-        { label: 'Mar', value: 18000 },
-        { label: 'Apr', value: 14000 },
-        { label: 'May', value: 16000 },
-        { label: 'Jun', value: 20000 }
-      ]
-    }
+      .catch(console.error)
+      .finally(() => setLoading(false))
   }, [dateRange])
 
-  const summaries: ReportSummary[] = useMemo(
-    () => [
-      {
-        label: 'Total Expenses',
-        value: `₵${reportData.totalExpenses.toLocaleString()}`,
-        change: 8.5,
-        changeType: 'increase',
-        icon: 'ri-money-dollar-circle-line',
-        color: 'error'
-      },
-      {
-        label: 'Paid Expenses',
-        value: `₵${reportData.paidExpenses.toLocaleString()}`,
-        change: 5.2,
-        changeType: 'increase',
-        icon: 'ri-checkbox-circle-line',
-        color: 'success'
-      },
-      {
-        label: 'Unpaid Expenses',
-        value: `₵${reportData.unpaidExpenses.toLocaleString()}`,
-        change: -3.1,
-        changeType: 'decrease',
-        icon: 'ri-close-circle-line',
-        color: 'warning'
-      },
-      {
-        label: 'Average Expense',
-        value: `₵${reportData.averageExpense.toLocaleString()}`,
-        change: 2.3,
-        changeType: 'increase',
-        icon: 'ri-bar-chart-line',
-        color: 'info'
-      }
-    ],
-    [reportData]
+  // Expense trend: amount per month
+  const trends = useMemo(
+    () => groupByMonth(expenses, exp => exp.date, exp => exp.amount),
+    [expenses]
   )
 
-  const tableData = useMemo(
-    () => [
-      { name: 'Total Expenses', value: `₵${reportData.totalExpenses.toLocaleString()}` },
-      { name: 'Paid Expenses', value: `₵${reportData.paidExpenses.toLocaleString()}` },
-      { name: 'Unpaid Expenses', value: `₵${reportData.unpaidExpenses.toLocaleString()}` },
-      { name: 'Average Expense', value: `₵${reportData.averageExpense.toLocaleString()}` }
-    ],
-    [reportData]
+  // Monthly comparison bar chart (same data as trends — bar view). BarChart expects
+  // { label, value }, while groupByMonth (shared with the line chart) returns
+  // { date, value }; map the field across rather than renaming groupByMonth's output,
+  // since LineChart's own prop type is `{ date, value }[]` and already matches it.
+  const monthlyComparison = useMemo(() => trends.map(t => ({ label: t.date, value: t.value })), [trends])
+
+  // By category: group by the expense item's configured category (Administrative /
+  // Occupancy / Maintenance / Utilities / Other), not the item name.
+  const byCategory = useMemo(() => {
+    const categoryByConfigId: Record<string, string> = {}
+    configs.forEach(c => { if (c.category) categoryByConfigId[c.id] = c.category })
+
+    const map: Record<string, number> = {}
+
+    expenses.forEach(exp => {
+      const category = (exp.expenseConfigId && categoryByConfigId[exp.expenseConfigId]) || 'Other'
+      const label = category.charAt(0) + category.slice(1).toLowerCase()
+
+      map[label] = (map[label] || 0) + exp.amount
+    })
+
+    return Object.entries(map)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6)
+  }, [expenses, configs])
+
+  // Summary tiles are computed from the same date-filtered list as the charts.
+  const totalExpenses = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses])
+  const paidExpenses = useMemo(
+    () => expenses.filter(e => e.status === 'PAID').reduce((s, e) => s + e.amount, 0),
+    [expenses]
   )
+  const unpaidExpenses = useMemo(
+    () => expenses.filter(e => e.status === 'UNPAID').reduce((s, e) => s + e.amount, 0),
+    [expenses]
+  )
+  const averageExpense = expenses.length > 0 ? Math.round(totalExpenses / expenses.length) : 0
+
+  const summaries: ReportSummary[] = [
+    {
+      label: 'Total Expenses',
+      value: `₵${totalExpenses.toLocaleString()}`,
+      icon: 'ri-money-dollar-circle-line',
+      color: 'error'
+    },
+    {
+      label: 'Paid Expenses',
+      value: `₵${paidExpenses.toLocaleString()}`,
+      icon: 'ri-checkbox-circle-line',
+      color: 'success'
+    },
+    {
+      label: 'Unpaid Expenses',
+      value: `₵${unpaidExpenses.toLocaleString()}`,
+      icon: 'ri-close-circle-line',
+      color: 'warning'
+    },
+    {
+      label: 'Avg per Expense',
+      value: `₵${averageExpense.toLocaleString()}`,
+      icon: 'ri-bar-chart-line',
+      color: 'info'
+    }
+  ]
+
+  const tableData = [
+    { name: 'Total Expenses', value: `₵${totalExpenses.toLocaleString()}` },
+    { name: 'Paid Expenses', value: `₵${paidExpenses.toLocaleString()}` },
+    { name: 'Unpaid Expenses', value: `₵${unpaidExpenses.toLocaleString()}` },
+    { name: 'Avg per Expense', value: `₵${averageExpense.toLocaleString()}` }
+  ]
 
   return (
     <Box ref={contentRef} className='flex flex-col gap-6'>
@@ -137,27 +166,34 @@ const ExpensesReport = ({ dateRange, onDateRangeChange }: Props) => {
 
       <DateRangeFilter dateRange={dateRange} onDateRangeChange={onDateRangeChange} />
 
-      <ReportSummaryCards summaries={summaries} />
+      {loading ? (
+        <Box className='flex justify-center py-10'>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          <ReportSummaryCards summaries={summaries} />
 
-      <Grid container spacing={4}>
-        <Grid size={{ xs: 12, md: 8 }}>
-          <LineChart
-            title='Expense Trends'
-            data={reportData.trends}
-            dataKey='Amount'
-            color='error'
-          />
-        </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <DonutChart title='Expenses by Category' data={reportData.byCategory} />
-        </Grid>
-        <Grid size={{ xs: 12 }}>
-          <BarChart title='Monthly Comparison' data={reportData.monthlyComparison} color='error' />
-        </Grid>
-      </Grid>
+          <Grid container spacing={4}>
+            <Grid size={{ xs: 12, md: 8 }}>
+              <LineChart
+                title='Expense Trends'
+                data={trends}
+                dataKey='Amount'
+                color='error'
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <DonutChart title='Expenses by Type' data={byCategory} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <BarChart title='Monthly Comparison' data={monthlyComparison} color='error' />
+            </Grid>
+          </Grid>
+        </>
+      )}
     </Box>
   )
 }
 
 export default ExpensesReport
-

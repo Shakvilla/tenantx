@@ -24,14 +24,9 @@ const passwordSchema = z
 export const RegisterSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: passwordSchema,
-  name: z.string().min(1, 'Name is required').max(100),
-  phone: z.string().max(20).optional(),
-  tenantName: z.string().min(1).max(100).optional(),
-  inviteCode: z.string().optional(),
-}).refine(
-  (data) => data.tenantName || data.inviteCode,
-  { message: 'Either tenantName or inviteCode is required' }
-)
+  fullName: z.string().min(1, 'Full name is required').max(100),
+  companyName: z.string().min(1, 'Company name is required').max(100),
+})
 
 /**
  * Schema for user registration when joining existing tenant.
@@ -62,21 +57,37 @@ export const LoginSchema = z.object({
 // =============================================================================
 
 /**
- * Schema for forgot password request.
+ * Schema for forgot password initiation (Step 1).
  */
 export const ForgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
 })
 
 /**
- * Schema for password reset.
+ * Schema for forgot password OTP send (Step 2).
+ */
+export const ForgotPasswordSendOtpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  channel: z.enum(['EMAIL', 'SMS'], { message: 'Channel must be EMAIL or SMS' }),
+})
+
+/**
+ * Schema for forgot password OTP verification (Step 3).
+ */
+export const ForgotPasswordVerifyOtpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  otp: z.string().min(4, 'OTP must be at least 4 characters').max(8, 'OTP must be at most 8 characters'),
+})
+
+/**
+ * Schema for password reset (Step 4).
  */
 export const ResetPasswordSchema = z.object({
-  token: z.string().min(1, 'Reset token is required'),
-  password: passwordSchema,
+  resetToken: z.string().min(1, 'Reset token is required'),
+  newPassword: passwordSchema,
   confirmPassword: z.string(),
 }).refine(
-  (data) => data.password === data.confirmPassword,
+  (data) => data.newPassword === data.confirmPassword,
   { message: 'Passwords do not match', path: ['confirmPassword'] }
 )
 
@@ -113,6 +124,8 @@ export type RegisterPayload = z.infer<typeof RegisterSchema>
 export type RegisterWithInvitePayload = z.infer<typeof RegisterWithInviteSchema>
 export type LoginPayload = z.infer<typeof LoginSchema>
 export type ForgotPasswordPayload = z.infer<typeof ForgotPasswordSchema>
+export type ForgotPasswordSendOtpPayload = z.infer<typeof ForgotPasswordSendOtpSchema>
+export type ForgotPasswordVerifyOtpPayload = z.infer<typeof ForgotPasswordVerifyOtpSchema>
 export type ResetPasswordPayload = z.infer<typeof ResetPasswordSchema>
 export type UpdateProfilePayload = z.infer<typeof UpdateProfileSchema>
 export type ChangePasswordPayload = z.infer<typeof ChangePasswordSchema>

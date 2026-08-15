@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -19,12 +19,11 @@ import MenuItem from '@mui/material/MenuItem'
 import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 import Avatar from '@mui/material/Avatar'
-import IconButton from '@mui/material/IconButton'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 
-// Utils Imports
-import { companySettingsApi } from '@/utils/settings/api'
+// API Imports
+import { companySettingsApi, contactSettingsApi, CONTACT_PHONE_PATTERN } from '@/lib/api/settings'
 
 const COUNTRIES = [
   { code: 'GH', name: 'Ghana' },
@@ -53,6 +52,12 @@ const BasicInformationSettings = () => {
   const [zipCode, setZipCode] = useState('')
   const [country, setCountry] = useState('GH')
   const [phone, setPhone] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+
+  // What the backend actually stored, normalised — "024 123 4567" comes back
+  // as "+233241234567". Shown so the landlord can see the number their tenants
+  // will dial, which is not always the string they typed.
+  const [storedPhone, setStoredPhone] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [website, setWebsite] = useState('')
   const [timezone, setTimezone] = useState('Africa/Accra')
@@ -64,6 +69,55 @@ const BasicInformationSettings = () => {
     message: '',
     severity: 'success'
   })
+
+  useEffect(() => {
+    // Parallel, not sequential — the two are independent reads.
+    Promise.all([
+      companySettingsApi.get().catch(error => {
+        console.error(error)
+
+        return null
+      }),
+      contactSettingsApi.get().catch(error => {
+        console.error(error)
+
+        return null
+      })
+    ]).then(([settings, contact]) => {
+      const b = settings ? (settings as any).basic : null
+
+      // The signup name is the fallback, not the override: a landlord who has
+      // saved a different trading name here keeps it. Before this, the required
+      // Company Name field opened blank for everyone who had never saved — it
+      // hydrates only from the settings blob, which does not exist until the
+      // first save, while the answer had been sitting in `tenants.name` since
+      // the day they signed up.
+      const signupName = contact?.companyName || ''
+
+      if (b) {
+        setCompanyName(b.companyName || signupName)
+        setStreet(b.address?.street || '')
+        setCity(b.address?.city || '')
+        setState(b.address?.state || '')
+        setZipCode(b.address?.zipCode || '')
+        setCountry(b.address?.country || 'GH')
+        setEmail(b.email || '')
+        setWebsite(b.website || '')
+        setTimezone(b.timezone || 'Africa/Accra')
+        if (b.logo) setLogo(b.logo)
+      } else if (signupName) {
+        setCompanyName(signupName)
+      }
+
+      // The published number is the typed column, not the settings blob. Fall
+      // back to the blob's old `phone` only when nothing is published yet: this
+      // field used to write there, and nothing ever read it, so a landlord who
+      // filled it in before deserves to see their value and publish it with one
+      // save rather than find the field mysteriously empty.
+      setStoredPhone(contact?.contactPhone ?? null)
+      setPhone(contact?.contactPhone || b?.phone || '')
+    })
+  }, [])
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -80,20 +134,37 @@ const BasicInformationSettings = () => {
   }
 
   const handleSave = async () => {
+    // Caught here rather than at the API so the landlord gets an inline error
+    // on the field instead of a red toast with a server message.
+    if (!CONTACT_PHONE_PATTERN.test(phone)) {
+      setPhoneError('Enter 7–16 digits, optionally starting with + (e.g. 024 123 4567)')
+
+      return
+    }
+
+    setPhoneError('')
     setLoading(true)
 
     try {
       const basicInfo = {
         companyName,
         address: { street, city, state, zipCode, country },
-        phone,
         email,
         website,
         timezone,
         logo: logo || undefined
       }
 
-      await companySettingsApi.update({ basic: basicInfo })
+      // Two stores, deliberately: the phone is a typed column because occupants
+      // read it, everything else is the schemaless company blob.
+      const [, contact] = await Promise.all([
+        companySettingsApi.update({ basic: basicInfo }),
+        contactSettingsApi.update(phone)
+      ])
+
+      setStoredPhone(contact.contactPhone)
+      if (contact.contactPhone) setPhone(contact.contactPhone)
+
       setSnackbar({ open: true, message: 'Company basic information saved successfully', severity: 'success' })
     } catch (error) {
       console.error('Error saving company basic information:', error)
@@ -183,8 +254,17 @@ const BasicInformationSettings = () => {
               size='small'
               label='Phone Number'
               value={phone}
-              onChange={e => setPhone(e.target.value)}
-              helperText='Primary contact phone number'
+              onChange={e => {
+                setPhone(e.target.value)
+                if (phoneError) setPhoneError('')
+              }}
+              error={Boolean(phoneError)}
+              helperText={
+                phoneError ||
+                (storedPhone
+                  ? `Tenants can call and message you on ${storedPhone} from the mobile app.`
+                  : 'Tenants will be able to call and message you from the mobile app. Leave blank to keep it hidden.')
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>

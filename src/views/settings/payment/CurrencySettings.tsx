@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -28,8 +28,8 @@ import Alert from '@mui/material/Alert'
 
 import type { CurrencySymbolPosition } from '@/types/settings/paymentTypes'
 
-// Utils Imports
-import { paymentSettingsApi } from '@/utils/settings/api'
+// API Imports
+import { paymentSettingsApi } from '@/lib/api/settings'
 
 // MUI Imports
 
@@ -47,6 +47,7 @@ const CurrencySettings = () => {
   const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['GHS', 'USD'])
   const [symbolPosition, setSymbolPosition] = useState<CurrencySymbolPosition>('before')
   const [decimalPlaces, setDecimalPlaces] = useState(2)
+  const [usdToGhsRate, setUsdToGhsRate] = useState<number>(15)
   const [loading, setLoading] = useState(false)
 
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -54,6 +55,18 @@ const CurrencySettings = () => {
     message: '',
     severity: 'success'
   })
+
+  useEffect(() => {
+    paymentSettingsApi.get().then(settings => {
+      const c = settings.currency
+      if (!c) return
+      if (c.defaultCurrency) setDefaultCurrency(c.defaultCurrency)
+      if (c.supportedCurrencies?.length) setSupportedCurrencies(c.supportedCurrencies)
+      if (c.symbolPosition) setSymbolPosition(c.symbolPosition)
+      if (c.decimalPlaces !== undefined) setDecimalPlaces(c.decimalPlaces)
+      if (c.usdToGhsRate)   setUsdToGhsRate(c.usdToGhsRate)
+    }).catch(console.error)
+  }, [])
 
   const handleCurrencyToggle = (currencyCode: string) => {
     setSupportedCurrencies(prev =>
@@ -69,7 +82,8 @@ const CurrencySettings = () => {
         defaultCurrency,
         supportedCurrencies,
         symbolPosition,
-        decimalPlaces
+        decimalPlaces,
+        usdToGhsRate,
       }
 
       await paymentSettingsApi.update({ currency: currencySettings })
@@ -132,6 +146,18 @@ const CurrencySettings = () => {
                   inputProps: { min: 0, max: 4 }
                 }
               }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              size='small'
+              type='number'
+              label='USD → GHS Exchange Rate'
+              value={usdToGhsRate}
+              onChange={e => setUsdToGhsRate(Number(e.target.value))}
+              helperText='e.g. 15.5 means 1 USD = 15.5 GHS. Used for dual-currency display.'
+              slotProps={{ input: { inputProps: { min: 1, step: 0.01 } } }}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>

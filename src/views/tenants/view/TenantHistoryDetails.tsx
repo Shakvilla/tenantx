@@ -42,7 +42,7 @@ const TenantHistoryDetails = ({ tenantData, tenantId }: { tenantData?: TenantDat
   // Tab content list
   const tabContentList: { [key: string]: ReactElement } = {
     activity: <ActivityTimelineTab tenantId={tenantId} />,
-    payment: <PaymentHistoryTab />
+    payment: <PaymentHistoryTab occupantId={tenantId} />
   }
 
   return (

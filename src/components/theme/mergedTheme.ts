@@ -18,9 +18,9 @@ import type { SystemMode } from '@core/types'
 import coreTheme from '@core/theme'
 
 // Custom Font Families
-// Neo Sans Std - for headings and sub-headings
+// Bricolage Grotesque - for headings and sub-headings (loaded via next/font/google in layout.tsx)
 // Proxima Nova Rg - for body text
-const headingFontFamily = "'Neo Sans Std', sans-serif"
+const headingFontFamily = "var(--font-bricolage-grotesque), sans-serif"
 const bodyFontFamily = "'Proxima Nova Rg', sans-serif"
 
 const mergedTheme = (settings: Settings, mode: SystemMode, direction: Theme['direction']) => {

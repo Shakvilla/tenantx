@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -17,6 +17,8 @@ import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import Avatar from '@mui/material/Avatar'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -33,13 +35,19 @@ import {
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
+// API Imports
+import { getOccupants } from '@/lib/api/occupants'
+import type { OccupantRecord } from '@/lib/api/occupants'
+import { getStoredTenantId } from '@/lib/api/storage'
+
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import PageBanner from '@components/banner/PageBanner'
 import CustomAvatar from '@core/components/mui/Avatar'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
+import { calculateLeasePeriod } from '@/utils/math'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
@@ -54,226 +62,98 @@ declare module '@tanstack/table-core' {
 }
 
 type Tenant = {
-  id: number
+  id: string          // UUID
   name: string
-  firstName?: string
-  lastName?: string
   email: string
   phone: string
-  occupation?: string
-  age?: number
-  familyMembers?: number
-  password?: string
   roomNo: string
   propertyName: string
-  propertyId?: string
   numberOfUnits: number
-  costPerMonth?: string
   leasePeriod?: string
-  totalAmount?: string
-  status: 'active' | 'inactive'
+  moveInDate?: string
+  moveOutDate?: string
+  status: 'active' | 'inactive' | 'pending'
   avatar?: string
-  previousAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  permanentAddress?: {
-    country: string
-    state: string
-    city: string
-    zipCode: string
-    address: string
-  }
-  leaseStartDate?: string
-  leaseEndDate?: string
-  ghanaCardFront?: string
-  ghanaCardBack?: string
 }
 
-type TenantWithAction = Tenant & {
-  action?: string
-}
+type TenantWithAction = Tenant & { action?: string }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
 
   addMeta({ itemRank })
-  
-return itemRank.passed
+
+  return itemRank.passed
 }
 
-// Sample data - includes both active and inactive tenants
-const sampleTenants: Tenant[] = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    phone: '+233 24 123 4567',
-    roomNo: 'Unit 101',
-    propertyName: 'Xorla House',
+function mapRecord(r: OccupantRecord): Tenant {
+  return {
+    id: r.id,
+    name: `${r.firstName} ${r.lastName}`,
+    email: r.email,
+    phone: r.phone,
+    roomNo: r.unitNo || '-',
+    propertyName: r.propertyName || r.property?.name || '-',
     numberOfUnits: 1,
-    costPerMonth: '₵1,200',
-    leasePeriod: '12 months',
-    totalAmount: '₵14,400',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 2,
-    name: 'Jane Smith',
-    email: 'jane.smith@example.com',
-    phone: '+233 24 234 5678',
-    roomNo: 'Unit 102',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,500',
-    leasePeriod: '6 months',
-    totalAmount: '₵9,000',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 3,
-    name: 'Mike Johnson',
-    email: 'mike.johnson@example.com',
-    phone: '+233 24 345 6789',
-    roomNo: 'Unit 201',
-    propertyName: 'Xorla House',
-    numberOfUnits: 2,
-    costPerMonth: '₵2,400',
-    leasePeriod: '24 months',
-    totalAmount: '₵57,600',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 4,
-    name: 'Sarah Williams',
-    email: 'sarah.williams@example.com',
-    phone: '+233 24 456 7890',
-    roomNo: 'Unit 301',
-    propertyName: 'Sunset Apartments',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,800',
-    leasePeriod: '12 months',
-    totalAmount: '₵21,600',
-    status: 'active',
-    avatar:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 5,
-    name: 'David Brown',
-    email: 'david.brown@example.com',
-    phone: '+233 24 567 8901',
-    roomNo: 'Unit 202',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,300',
-    leasePeriod: '6 months',
-    totalAmount: '₵7,800',
-    status: 'inactive',
-    avatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 6,
-    name: 'Emily Davis',
-    email: 'emily.davis@example.com',
-    phone: '+233 24 678 9012',
-    roomNo: 'Unit 103',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,100',
-    leasePeriod: '12 months',
-    totalAmount: '₵13,200',
-    status: 'inactive',
-    avatar:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 7,
-    name: 'Robert Wilson',
-    email: 'robert.wilson@example.com',
-    phone: '+233 24 789 0123',
-    roomNo: 'Unit 302',
-    propertyName: 'Sunset Apartments',
-    numberOfUnits: 1,
-    costPerMonth: '₵2,000',
-    leasePeriod: '6 months',
-    totalAmount: '₵12,000',
-    status: 'inactive',
-    avatar:
-      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
-  },
-  {
-    id: 8,
-    name: 'Lisa Anderson',
-    email: 'lisa.anderson@example.com',
-    phone: '+233 24 890 1234',
-    roomNo: 'Unit 203',
-    propertyName: 'Xorla House',
-    numberOfUnits: 1,
-    costPerMonth: '₵1,400',
-    leasePeriod: '12 months',
-    totalAmount: '₵16,800',
-    status: 'inactive',
-    avatar:
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=1000&auto=format&fit=crop&ixlib=rb-4.0.3'
+    leasePeriod: calculateLeasePeriod(r.moveInDate, r.moveOutDate),
+    moveInDate: r.moveInDate || undefined,
+    moveOutDate: r.moveOutDate || undefined,
+    status: r.status,
+    avatar: r.avatar || undefined,
   }
-]
+}
 
 const columnHelper = createColumnHelper<TenantWithAction>()
 
 const TenantsHistoryTable = () => {
-  // States
+  const [data, setData]           = useState<Tenant[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState<string | null>(null)
   const [rowSelection, setRowSelection] = useState({})
-  const [data] = useState(sampleTenants)
   const [globalFilter, setGlobalFilter] = useState('')
-  const [status, setStatus] = useState('')
-  const [property, setProperty] = useState('')
-  const [unit, setUnit] = useState('')
+  const [propertyFilter, setPropertyFilter] = useState('')
+  const [unitFilter, setUnitFilter] = useState('')
 
-  // Get unique properties for filter
-  const uniqueProperties = useMemo(() => {
-    const properties = Array.from(new Set(data.map(t => t.propertyName)))
+  useEffect(() => {
+    const tenantId = getStoredTenantId()
 
-    
-return properties
-  }, [data])
+    if (!tenantId) {
+      setError('No tenant session found. Please log in again.')
+      setLoading(false)
+      return
+    }
 
-  // Get unique units for filter
-  const uniqueUnits = useMemo(() => {
-    const units = Array.from(new Set(data.map(t => t.roomNo)))
+    // History = former (inactive) occupants only
+    getOccupants(tenantId, { size: 200, status: 'inactive' })
+      .then(res => {
+        if (!res.success || !res.data) {
+          setError(res.error?.message ?? 'Failed to load occupant history')
+          return
+        }
+        setData(res.data.map(mapRecord))
+      })
+      .catch(err => setError(err?.message ?? 'Failed to load occupant history'))
+      .finally(() => setLoading(false))
+  }, [])
 
-    
-return units
-  }, [data])
+  // Derive filter options from live data
+  const uniqueProperties = useMemo(
+    () => Array.from(new Set(data.map(t => t.propertyName).filter(p => p !== '-'))),
+    [data]
+  )
+  const uniqueUnits = useMemo(
+    () => Array.from(new Set(data.map(t => t.roomNo).filter(u => u !== '-'))),
+    [data]
+  )
 
-  // Filter data
   const filteredData = useMemo(() => {
     let filtered = data
 
-    if (status) {
-      filtered = filtered.filter(t => t.status === status)
-    }
-
-    if (property) {
-      filtered = filtered.filter(t => t.propertyName === property)
-    }
-
-    if (unit) {
-      filtered = filtered.filter(t => t.roomNo === unit)
-    }
+    if (propertyFilter) filtered = filtered.filter(t => t.propertyName === propertyFilter)
+    if (unitFilter)     filtered = filtered.filter(t => t.roomNo === unitFilter)
 
     return filtered
-  }, [data, status, property, unit])
+  }, [data, propertyFilter, unitFilter])
 
   const columns = useMemo<ColumnDef<TenantWithAction, any>[]>(
     () => [
@@ -286,7 +166,9 @@ return units
             onChange={table.getToggleAllRowsSelectedHandler()}
           />
         ),
-        cell: ({ row }) => <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+        cell: ({ row }) => (
+          <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+        )
       }),
       columnHelper.accessor('name', {
         header: 'TENANT',
@@ -315,28 +197,28 @@ return units
         cell: ({ row }) => <Typography>{row.original.phone}</Typography>
       }),
       columnHelper.accessor('roomNo', {
-        header: 'ROOM NO',
+        header: 'UNIT',
         cell: ({ row }) => <Typography>{row.original.roomNo}</Typography>
       }),
       columnHelper.accessor('propertyName', {
         header: 'PROPERTY',
         cell: ({ row }) => <Typography>{row.original.propertyName}</Typography>
       }),
-      columnHelper.accessor('numberOfUnits', {
-        header: 'UNITS',
-        cell: ({ row }) => <Typography>{row.original.numberOfUnits}</Typography>
-      }),
-      columnHelper.accessor('costPerMonth', {
-        header: 'COST/MONTH',
-        cell: ({ row }) => (
-          <Typography color='text.primary' className='font-medium'>
-            {row.original.costPerMonth || '-'}
-          </Typography>
-        )
-      }),
       columnHelper.accessor('leasePeriod', {
         header: 'LEASE PERIOD',
         cell: ({ row }) => <Typography>{row.original.leasePeriod || '-'}</Typography>
+      }),
+      columnHelper.accessor('moveOutDate', {
+        header: 'VACATED',
+        cell: ({ row }) => (
+          <Typography>
+            {row.original.moveOutDate
+              ? new Date(row.original.moveOutDate).toLocaleDateString('en-GB', {
+                  day: 'numeric', month: 'short', year: 'numeric'
+                })
+              : '-'}
+          </Typography>
+        )
       }),
       columnHelper.accessor('status', {
         header: 'STATUS',
@@ -345,7 +227,13 @@ return units
             variant='tonal'
             label={row.original.status}
             size='small'
-            color={row.original.status === 'active' ? 'success' : 'warning'}
+            color={
+              row.original.status === 'active'
+                ? 'success'
+                : row.original.status === 'pending'
+                ? 'warning'
+                : 'default'
+            }
             className='capitalize'
           />
         )
@@ -354,14 +242,9 @@ return units
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
-              // {
-              //   text: 'View Details',
-              //   icon: 'ri-eye-line',
-              //   href: `/tenants/${row.original.id}`
-              // },
               {
                 text: 'View History',
                 icon: 'ri-time-line',
@@ -378,18 +261,9 @@ return units
   const table = useReactTable({
     data: filteredData,
     columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
+    filterFns: { fuzzy: fuzzyFilter },
+    state: { rowSelection, globalFilter },
+    initialState: { pagination: { pageSize: 10 } },
     enableRowSelection: true,
     globalFilterFn: fuzzyFilter,
     onRowSelectionChange: setRowSelection,
@@ -404,78 +278,58 @@ return units
     <>
       <PageBanner
         title='Tenants History'
-        description='View all tenants - both active and past tenants'
+        description='All former (past) occupants across your properties'
         icon='ri-history-line'
       />
       <Card className='mbs-6'>
         <CardHeader
-          title='All Tenants'
+          title='All Occupants'
           action={
             <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Export']} />
+              <RowActions options={['Refresh', 'Export']} />
             </div>
           }
         />
         <CardContent className='flex flex-col gap-4'>
-          {/* Filters Section */}
+          {/* Filters */}
           <Box className='flex flex-col gap-4 p-4 rounded-lg'>
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 items-center gap-2'>
+            <div className='grid grid-cols-1 md:grid-cols-2 items-center gap-2'>
               <TextField
                 select
                 size='small'
                 label='Select Property'
-                value={property}
-                onChange={e => setProperty(e.target.value)}
+                value={propertyFilter}
+                onChange={e => setPropertyFilter(e.target.value)}
                 sx={{ minWidth: 180 }}
               >
                 <MenuItem value=''>All Properties</MenuItem>
                 {uniqueProperties.map(prop => (
-                  <MenuItem key={prop} value={prop}>
-                    {prop}
-                  </MenuItem>
+                  <MenuItem key={prop} value={prop}>{prop}</MenuItem>
                 ))}
               </TextField>
               <TextField
                 select
                 size='small'
                 label='Select Unit'
-                value={unit}
-                onChange={e => setUnit(e.target.value)}
+                value={unitFilter}
+                onChange={e => setUnitFilter(e.target.value)}
                 sx={{ minWidth: 150 }}
               >
                 <MenuItem value=''>All Units</MenuItem>
-                {uniqueUnits.map(unitOption => (
-                  <MenuItem key={unitOption} value={unitOption}>
-                    {unitOption}
-                  </MenuItem>
+                {uniqueUnits.map(u => (
+                  <MenuItem key={u} value={u}>{u}</MenuItem>
                 ))}
-              </TextField>
-              <TextField
-                select
-                size='small'
-                label='Status'
-                value={status}
-                onChange={e => setStatus(e.target.value)}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value=''>All Status</MenuItem>
-                <MenuItem value='active'>Active</MenuItem>
-                <MenuItem value='inactive'>Inactive</MenuItem>
               </TextField>
             </div>
             <Divider />
-
             <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search'
-                  value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
-
+              <TextField
+                size='small'
+                placeholder='Search'
+                value={globalFilter}
+                onChange={e => setGlobalFilter(e.target.value)}
+                className='flex-1 min-w-[200px]'
+              />
               <div className='flex items-center gap-2 ml-auto'>
                 <TextField
                   select
@@ -495,75 +349,85 @@ return units
             </div>
           </Box>
 
-          {/* Table */}
-          <div className='overflow-x-auto'>
-            <table className={tableStyles.table}>
-              <thead>
-                {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map(header => (
-                      <th key={header.id}>
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={classnames({
-                              'flex items-center': header.column.getIsSorted(),
-                              'cursor-pointer select-none': header.column.getCanSort()
-                            })}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <i className='ri-arrow-up-s-line text-xl' />,
-                              desc: <i className='ri-arrow-down-s-line text-xl' />
-                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                          </div>
-                        )}
-                      </th>
+          {/* Loading / Error / Table */}
+          {loading ? (
+            <Box className='flex justify-center items-center' sx={{ minHeight: 200 }}>
+              <CircularProgress />
+            </Box>
+          ) : error ? (
+            <Alert severity='error' action={
+              <Button color='inherit' size='small' onClick={() => window.location.reload()}>Retry</Button>
+            }>
+              {error}
+            </Alert>
+          ) : (
+            <>
+              <div className='overflow-x-auto'>
+                <table className={tableStyles.table}>
+                  <thead>
+                    {table.getHeaderGroups().map(headerGroup => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map(header => (
+                          <th key={header.id}>
+                            {header.isPlaceholder ? null : (
+                              <div
+                                className={classnames({
+                                  'flex items-center': header.column.getIsSorted(),
+                                  'cursor-pointer select-none': header.column.getCanSort()
+                                })}
+                                onClick={header.column.getToggleSortingHandler()}
+                              >
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                {{
+                                  asc: <i className='ri-arrow-up-s-line text-xl' />,
+                                  desc: <i className='ri-arrow-down-s-line text-xl' />
+                                }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                              </div>
+                            )}
+                          </th>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
-                <tbody>
-                  <tr>
-                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No tenants found
-                    </td>
-                  </tr>
-                </tbody>
-              ) : (
-                <tbody>
-                  {table
-                    .getRowModel()
-                    .rows.slice(0, table.getState().pagination.pageSize)
-                    .map(row => {
-                      return (
-                        <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                          {row.getVisibleCells().map(cell => (
-                            <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                </tbody>
-              )}
-            </table>
-          </div>
-          <TablePagination
-            rowsPerPageOptions={[10, 25, 50]}
-            component='div'
-            className='border-bs'
-            count={table.getFilteredRowModel().rows.length}
-            rowsPerPage={table.getState().pagination.pageSize}
-            page={table.getState().pagination.pageIndex}
-            SelectProps={{
-              inputProps: { 'aria-label': 'rows per page' }
-            }}
-            onPageChange={(_, page) => {
-              table.setPageIndex(page)
-            }}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
-          />
+                  </thead>
+                  {table.getFilteredRowModel().rows.length === 0 ? (
+                    <tbody>
+                      <tr>
+                        <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
+                          No occupants found
+                        </td>
+                      </tr>
+                    </tbody>
+                  ) : (
+                    <tbody>
+                      {table
+                        .getRowModel()
+                        .rows.slice(0, table.getState().pagination.pageSize)
+                        .map(row => (
+                          <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
+                            {row.getVisibleCells().map(cell => (
+                              <td key={cell.id}>
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                    </tbody>
+                  )}
+                </table>
+              </div>
+              <TablePagination
+                rowsPerPageOptions={[10, 25, 50]}
+                component='div'
+                className='border-bs'
+                count={table.getFilteredRowModel().rows.length}
+                rowsPerPage={table.getState().pagination.pageSize}
+                page={table.getState().pagination.pageIndex}
+                SelectProps={{ inputProps: { 'aria-label': 'rows per page' } }}
+                onPageChange={(_, page) => table.setPageIndex(page)}
+                onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
+              />
+            </>
+          )}
         </CardContent>
       </Card>
     </>

@@ -21,6 +21,9 @@ import CardContent from '@mui/material/CardContent'
 // Type Imports
 import type { DocumentType } from '@/types/documents/documentTypes'
 
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_CARD } from '@/lib/imagekit'
+
 type RejectDocumentDialogProps = {
   open: boolean
   setOpen: (open: boolean) => void
@@ -81,7 +84,7 @@ return
               <Box className='relative'>
                 <Avatar
                   variant='rounded'
-                  src={documentData.documentImage}
+                  src={ikUrl(documentData.documentImage, IK_CARD)}
                   alt={documentData.documentType}
                   sx={{
                     width: '100%',

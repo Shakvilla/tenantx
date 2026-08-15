@@ -1,642 +1,1017 @@
-// Documentation: /docs/subscription-plans/subscription-plans-module.md
-
 'use client'
 
-// React Imports
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
-// MUI Imports
-import Card from '@mui/material/Card'
-import CardHeader from '@mui/material/CardHeader'
-import CardContent from '@mui/material/CardContent'
-import Button from '@mui/material/Button'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-import MenuItem from '@mui/material/MenuItem'
 import Box from '@mui/material/Box'
-import TablePagination from '@mui/material/TablePagination'
-import Checkbox from '@mui/material/Checkbox'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import CardActions from '@mui/material/CardActions'
+import Typography from '@mui/material/Typography'
+import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
+import LinearProgress from '@mui/material/LinearProgress'
+import Grid from '@mui/material/Grid'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogContentText from '@mui/material/DialogContentText'
+import DialogActions from '@mui/material/DialogActions'
+import TextField from '@mui/material/TextField'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
+import Snackbar from '@mui/material/Snackbar'
+import Table from '@mui/material/Table'
+import TableHead from '@mui/material/TableHead'
+import TableBody from '@mui/material/TableBody'
+import TableRow from '@mui/material/TableRow'
+import TableCell from '@mui/material/TableCell'
+import Skeleton from '@mui/material/Skeleton'
+import InputAdornment from '@mui/material/InputAdornment'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 
-// Third-party Imports
-import classnames from 'classnames'
-import { rankItem } from '@tanstack/match-sorter-utils'
+import { walletApi } from '@/lib/api/wallet'
+import { canPayFromWallet } from '@/utils/canPayFromWallet'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel
-} from '@tanstack/react-table'
-import type { ColumnDef, FilterFn } from '@tanstack/react-table'
-import type { RankingInfo } from '@tanstack/match-sorter-utils'
+  getAvailablePlans,
+  initiateUpgrade,
+  scheduleDowngrade,
+  cancelSubscription,
+  getMyInvoices,
+  retryMyInvoice,
+  payInvoiceFromWallet,
+  verifySubscriptionPayment,
+  getManualPaymentDetails,
+  type SubscriptionPlanPublicDto,
+  type SubscriptionInvoiceDto,
+  type ManualPaymentDetails,
+} from '@/lib/api/subscription-client'
 
-// Component Imports
-import OptionMenu from '@core/components/option-menu'
-import PageBanner from '@components/banner/PageBanner'
-import SubscriptionPlansStatsCard from './SubscriptionPlansStatsCard'
-import AddSubscriptionPlanDialog from './AddSubscriptionPlanDialog'
-import ViewSubscriptionPlanDialog from './ViewSubscriptionPlanDialog'
-import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-// Type Imports
-import type {
-  SubscriptionPlan,
-  SubscriptionPlanWithAction,
-  PlanTier,
-  PlanStatus,
-  BillingCycle
-} from '@/types/subscription-plans/subscriptionPlanTypes'
-
-// Style Imports
-import tableStyles from '@core/styles/table.module.css'
-
-declare module '@tanstack/table-core' {
-  interface FilterFns {
-    fuzzy: FilterFn<unknown>
-  }
-  interface FilterMeta {
-    itemRank: RankingInfo
-  }
+const PLAN_ORDER: Record<string, number> = { FREE: 0, BASIC: 1, PRO: 2 }
+const PLAN_COLOR: Record<string, 'default' | 'primary' | 'success'> = {
+  FREE: 'default', BASIC: 'primary', PRO: 'success',
 }
 
-const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
-  const itemRank = rankItem(row.getValue(columnId), value)
-
-  addMeta({ itemRank })
-  
-return itemRank.passed
+function formatGHS(amount: number) {
+  return 'GH₵ ' + Number(amount).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const columnHelper = createColumnHelper<SubscriptionPlanWithAction>()
+function formatDate(iso: string | null) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('en-GH', { year: 'numeric', month: 'short', day: 'numeric' })
+}
 
-// Sample data
-const samplePlans: SubscriptionPlan[] = [
-  {
-    id: 1,
-    name: 'Free Plan',
-    tier: 'free',
-    description: 'Perfect for getting started',
-    status: 'active',
-    price: '0',
-    currency: '₵',
-    billingCycle: 'monthly',
-    trialPeriod: 0,
-    maxProperties: 0,
-    maxTenants: 0,
-    maxUnits: 0,
-    maxDocuments: 5,
-    maxUsers: 1,
-    features: ['Basic dashboard', 'Limited support', '5 documents'],
-    isPopular: false
-  },
-  {
-    id: 2,
-    name: 'Basic Plan',
-    tier: 'basic',
-    description: 'Ideal for small property managers',
-    status: 'active',
-    price: '29',
-    currency: '₵',
-    billingCycle: 'monthly',
-    trialPeriod: 14,
-    maxProperties: 5,
-    maxTenants: 20,
-    maxUnits: 15,
-    maxDocuments: 100,
-    maxUsers: 2,
-    features: ['Up to 5 properties', '20 tenants', '15 units', '100 documents', '2 users', 'Email support'],
-    isPopular: false
-  },
-  {
-    id: 3,
-    name: 'Pro Plan',
-    tier: 'pro',
-    description: 'Best for growing businesses',
-    status: 'active',
-    price: '99',
-    currency: '₵',
-    billingCycle: 'monthly',
-    trialPeriod: 14,
-    maxProperties: 25,
-    maxTenants: 100,
-    maxUnits: 75,
-    maxDocuments: 500,
-    maxUsers: 5,
-    features: [
-      'Up to 25 properties',
-      '100 tenants',
-      '75 units',
-      '500 documents',
-      '5 users',
-      'Priority support',
-      'Advanced reports',
-      'API access'
-    ],
-    isPopular: true
-  },
-  {
-    id: 4,
-    name: 'Enterprise Plan',
-    tier: 'enterprise',
-    description: 'For large organizations',
-    status: 'active',
-    price: '299',
-    currency: '₵',
-    billingCycle: 'monthly',
-    trialPeriod: 30,
-    maxProperties: -1, // unlimited
-    maxTenants: -1,
-    maxUnits: -1,
-    maxDocuments: -1,
-    maxUsers: -1,
-    features: [
-      'Unlimited properties',
-      'Unlimited tenants',
-      'Unlimited units',
-      'Unlimited documents',
-      'Unlimited users',
-      '24/7 priority support',
-      'Custom integrations',
-      'Dedicated account manager',
-      'SLA guarantee'
-    ],
-    isPopular: false
-  }
-]
+function statusChipColor(status: string): 'success' | 'warning' | 'error' | 'default' {
+  if (status === 'PAID') return 'success'
+  if (status === 'PENDING') return 'warning'
+  if (status === 'FAILED') return 'error'
+  return 'default'
+}
 
-const SubscriptionPlansListTable = () => {
-  // States
-  const [data, setData] = useState<SubscriptionPlan[]>(samplePlans)
-  const [globalFilter, setGlobalFilter] = useState('')
-  const [rowSelection, setRowSelection] = useState({})
-  const [status, setStatus] = useState<PlanStatus | ''>('')
-  const [tier, setTier] = useState<PlanTier | ''>('')
-  const [billingCycle, setBillingCycle] = useState<BillingCycle | ''>('')
-  const [addPlanOpen, setAddPlanOpen] = useState(false)
-  const [editPlanOpen, setEditPlanOpen] = useState(false)
-  const [viewPlanOpen, setViewPlanOpen] = useState(false)
-  const [deletePlanOpen, setDeletePlanOpen] = useState(false)
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null)
+// ---------------------------------------------------------------------------
+// Current plan card
+// ---------------------------------------------------------------------------
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    const activePlans = data.filter(p => p.status === 'active').length
+function CurrentPlanCard() {
+  const { subscription, isLoading, refresh } = useSubscription()
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-    // Mock subscription counts (in real app, these would come from API)
-    const totalSubscriptions = 45
-    const activeSubscriptions = 38
-
-    const monthlyRevenue = data
-      .filter(p => p.status === 'active' && p.tier !== 'free')
-      .reduce((sum, p) => {
-        const price = parseFloat(p.price) || 0
-
-        
-return sum + price * 10 // Mock: assume 10 subscriptions per paid plan
-      }, 0)
-
-    return {
-      totalPlans: data.length,
-      activePlans,
-      totalSubscriptions,
-      activeSubscriptions,
-      monthlyRecurringRevenue: `₵${monthlyRevenue.toLocaleString()}`
+  async function handleCancel() {
+    setCancelling(true)
+    setError(null)
+    try {
+      await cancelSubscription()
+      await refresh()
+      setCancelOpen(false)
+    } catch {
+      setError('Failed to cancel. Please try again.')
+    } finally {
+      setCancelling(false)
     }
-  }, [data])
-
-  const handleDeletePlan = (planId: number) => {
-    setData(data.filter(p => p.id !== planId))
-    setDeletePlanOpen(false)
-    setSelectedPlan(null)
   }
 
-  const handleEditPlan = (plan: SubscriptionPlan) => {
-    setSelectedPlan(plan)
-    setEditPlanOpen(true)
+  if (isLoading || !subscription) {
+    return (
+      <Card variant='outlined' sx={{ mb: 3 }}>
+        <CardContent>
+          <Skeleton width='40%' height={32} />
+          <Skeleton width='60%' height={20} sx={{ mt: 1 }} />
+          <Skeleton variant='rectangular' height={8} sx={{ mt: 2, borderRadius: 1 }} />
+        </CardContent>
+      </Card>
+    )
   }
 
-  const handleViewPlan = (plan: SubscriptionPlan) => {
-    setSelectedPlan(plan)
-    setViewPlanOpen(true)
-  }
-
-  const handleToggleStatus = (plan: SubscriptionPlan) => {
-    setData(data.map(p => (p.id === plan.id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p)))
-  }
-
-  // Filter data
-  const filteredData = useMemo(() => {
-    let filtered = data
-
-    if (status) {
-      filtered = filtered.filter(p => p.status === status)
-    }
-
-    if (tier) {
-      filtered = filtered.filter(p => p.tier === tier)
-    }
-
-    if (billingCycle) {
-      filtered = filtered.filter(p => p.billingCycle === billingCycle)
-    }
-
-    return filtered
-  }, [data, status, tier, billingCycle])
-
-  const columns = useMemo<ColumnDef<SubscriptionPlanWithAction, any>[]>(
-    () => [
-      columnHelper.display({
-        id: 'select',
-        header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllRowsSelected()}
-            indeterminate={table.getIsSomeRowsSelected()}
-            onChange={table.getToggleAllRowsSelectedHandler()}
-          />
-        ),
-        cell: ({ row }) => <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
-      }),
-      columnHelper.accessor('name', {
-        header: 'PLAN NAME',
-        cell: ({ row }) => (
-          <div className='flex flex-col'>
-            <Typography color='text.primary' className='font-medium'>
-              {row.original.name}
-            </Typography>
-            {row.original.isPopular && (
-              <Chip variant='tonal' label='Popular' size='small' color='primary' className='w-fit mts-1' />
-            )}
-          </div>
-        )
-      }),
-      columnHelper.accessor('tier', {
-        header: 'TIER',
-        cell: ({ row }) => {
-          const tierColors: Record<PlanTier, 'primary' | 'success' | 'warning' | 'info'> = {
-            free: 'info',
-            basic: 'primary',
-            pro: 'success',
-            enterprise: 'warning'
-          }
-
-          
-return (
-            <Chip
-              variant='tonal'
-              label={row.original.tier}
-              size='small'
-              color={tierColors[row.original.tier]}
-              className='capitalize'
-            />
-          )
-        }
-      }),
-      columnHelper.accessor('price', {
-        header: 'PRICE',
-        cell: ({ row }) => (
-          <Typography color='text.primary' className='font-medium'>
-            {row.original.price === '0' ? 'Free' : `${row.original.currency}${row.original.price}`}
-            <Typography component='span' variant='body2' color='text.secondary' className='ml-1'>
-              /
-              {row.original.billingCycle === 'monthly'
-                ? 'mo'
-                : row.original.billingCycle === 'quarterly'
-                  ? 'qtr'
-                  : 'yr'}
-            </Typography>
-          </Typography>
-        )
-      }),
-      columnHelper.accessor('billingCycle', {
-        header: 'BILLING CYCLE',
-        cell: ({ row }) => <Typography className='capitalize'>{row.original.billingCycle}</Typography>
-      }),
-      columnHelper.accessor('status', {
-        header: 'STATUS',
-        cell: ({ row }) => {
-          const statusColors: Record<PlanStatus, 'success' | 'warning' | 'error'> = {
-            active: 'success',
-            inactive: 'warning',
-            archived: 'error'
-          }
-
-          
-return (
-            <Chip
-              variant='tonal'
-              label={row.original.status}
-              size='small'
-              color={statusColors[row.original.status]}
-              className='capitalize'
-            />
-          )
-        }
-      }),
-      columnHelper.accessor('features', {
-        header: 'FEATURES',
-        cell: ({ row }) => <Typography color='text.secondary'>{row.original.features.length} features</Typography>
-      }),
-      columnHelper.display({
-        id: 'actions',
-        header: 'ACTIONS',
-        cell: ({ row }) => (
-          <OptionMenu
-            iconButtonProps={{ size: 'small' }}
-            options={[
-              {
-                text: 'View',
-                icon: 'ri-eye-line',
-                menuItemProps: {
-                  onClick: () => handleViewPlan(row.original)
-                }
-              },
-              {
-                text: 'Edit',
-                icon: 'ri-pencil-line',
-                menuItemProps: {
-                  onClick: () => handleEditPlan(row.original)
-                }
-              },
-              {
-                text: row.original.status === 'active' ? 'Deactivate' : 'Activate',
-                icon: row.original.status === 'active' ? 'ri-pause-circle-line' : 'ri-play-circle-line',
-                menuItemProps: {
-                  onClick: () => handleToggleStatus(row.original)
-                }
-              },
-              {
-                text: 'Delete',
-                icon: 'ri-delete-bin-line',
-                menuItemProps: {
-                  onClick: () => {
-                    setSelectedPlan(row.original)
-                    setDeletePlanOpen(true)
-                  }
-                }
-              }
-            ]}
-          />
-        )
-      })
-    ],
-    []
-  )
-
-  const table = useReactTable({
-    data: filteredData,
-    columns,
-    filterFns: {
-      fuzzy: fuzzyFilter
-    },
-    state: {
-      rowSelection,
-      globalFilter
-    },
-    initialState: {
-      pagination: {
-        pageSize: 10
-      }
-    },
-    enableRowSelection: true,
-    globalFilterFn: fuzzyFilter,
-    onRowSelectionChange: setRowSelection,
-    getCoreRowModel: getCoreRowModel(),
-    onGlobalFilterChange: setGlobalFilter,
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel()
-  })
+  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, transactionFeePct, currentPeriodEnd, pendingDowngradePlan } = subscription
+  const isFree = plan === 'FREE'
+  const unitProgress = unitCap ? Math.min((unitCount / unitCap) * 100, 100) : 0
+  const atCap = unitCap !== null && unitCount >= unitCap
 
   return (
     <>
-      <PageBanner
-        title='Subscription Plans'
-        description='Manage subscription plans and pricing tiers'
-        icon='ri-vip-crown-line'
-      />
-      <SubscriptionPlansStatsCard
-        totalPlans={stats.totalPlans}
-        activePlans={stats.activePlans}
-        totalSubscriptions={stats.totalSubscriptions}
-        activeSubscriptions={stats.activeSubscriptions}
-        monthlyRecurringRevenue={stats.monthlyRecurringRevenue}
-      />
-      <Card className='mbs-6'>
-        <CardHeader
-          title='Plans List'
-          action={
-            <div className='flex items-center gap-2'>
-              <OptionMenu options={['Refresh', 'Share']} />
-            </div>
-          }
-        />
-        <CardContent className='flex flex-col gap-4'>
-          {/* Filters Section */}
-          <Box className='flex flex-col gap-4 p-4 rounded-lg'>
-            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 items-center gap-2'>
-              <TextField
-                select
-                size='small'
-                label='Status'
-                value={status}
-                onChange={e => setStatus(e.target.value as PlanStatus | '')}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value=''>All Status</MenuItem>
-                <MenuItem value='active'>Active</MenuItem>
-                <MenuItem value='inactive'>Inactive</MenuItem>
-                <MenuItem value='archived'>Archived</MenuItem>
-              </TextField>
-              <TextField
-                select
-                size='small'
-                label='Tier'
-                value={tier}
-                onChange={e => setTier(e.target.value as PlanTier | '')}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value=''>All Tiers</MenuItem>
-                <MenuItem value='free'>Free</MenuItem>
-                <MenuItem value='basic'>Basic</MenuItem>
-                <MenuItem value='pro'>Pro</MenuItem>
-                <MenuItem value='enterprise'>Enterprise</MenuItem>
-              </TextField>
-              <TextField
-                select
-                size='small'
-                label='Billing Cycle'
-                value={billingCycle}
-                onChange={e => setBillingCycle(e.target.value as BillingCycle | '')}
-                sx={{ minWidth: 150 }}
-              >
-                <MenuItem value=''>All Cycles</MenuItem>
-                <MenuItem value='monthly'>Monthly</MenuItem>
-                <MenuItem value='quarterly'>Quarterly</MenuItem>
-                <MenuItem value='yearly'>Yearly</MenuItem>
-              </TextField>
-            </div>
-            <Divider />
-
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
+      <Card variant='outlined' sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography variant='h6' fontWeight={700}>Current Plan</Typography>
+                <Chip label={displayName} color={PLAN_COLOR[plan] ?? 'default'} size='small' />
+                <Chip
+                  label={status}
                   size='small'
-                  placeholder='Search'
-                  value={globalFilter}
-                  onChange={e => setGlobalFilter(e.target.value)}
-                  className='flex-1 min-w-[200px]'
+                  color={status === 'ACTIVE' ? 'success' : status === 'PAST_DUE' ? 'error' : 'default'}
+                  variant='outlined'
                 />
-              </div>
-
-              <div className='flex items-center gap-2 ml-auto'>
-                <TextField
-                  select
-                  size='small'
-                  value={table.getState().pagination.pageSize}
-                  onChange={e => table.setPageSize(Number(e.target.value))}
-                  sx={{ minWidth: 100 }}
-                >
-                  <MenuItem value={10}>10</MenuItem>
-                  <MenuItem value={25}>25</MenuItem>
-                  <MenuItem value={50}>50</MenuItem>
-                </TextField>
-                <Button variant='outlined' size='small' startIcon={<i className='ri-upload-2-line' />}>
-                  Export
-                </Button>
-                <Button
-                  variant='contained'
-                  color='primary'
-                  size='small'
-                  startIcon={<i className='ri-add-line' />}
-                  onClick={() => setAddPlanOpen(true)}
-                >
-                  Add Plan
-                </Button>
-              </div>
-            </div>
+              </Box>
+              {!isFree && pricePerUnit > 0 && (
+                <Typography variant='body2' color='text.secondary'>
+                  {formatGHS(pricePerUnit)} / unit / month
+                  {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
+                </Typography>
+              )}
+              {transactionFeePct != null && (
+                <Typography variant='caption' color='text.secondary'>
+                  {(Number(transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
+                </Typography>
+              )}
+            </Box>
+            {!isFree && !pendingDowngradePlan && (
+              <Button size='small' color='error' variant='outlined' onClick={() => setCancelOpen(true)}>
+                Cancel plan
+              </Button>
+            )}
           </Box>
 
-          {/* Table */}
-          <div className='overflow-x-auto'>
-            <table className={tableStyles.table}>
-              <thead>
-                {table.getHeaderGroups().map(headerGroup => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map(header => (
-                      <th key={header.id}>
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={classnames({
-                              'flex items-center': header.column.getIsSorted(),
-                              'cursor-pointer select-none': header.column.getCanSort()
-                            })}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <i className='ri-arrow-up-s-line text-xl' />,
-                              desc: <i className='ri-arrow-down-s-line text-xl' />
-                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                          </div>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              {table.getFilteredRowModel().rows.length === 0 ? (
-                <tbody>
-                  <tr>
-                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                      No data available
-                    </td>
-                  </tr>
-                </tbody>
-              ) : (
-                <tbody>
-                  {table
-                    .getRowModel()
-                    .rows.slice(0, table.getState().pagination.pageSize)
-                    .map(row => {
-                      return (
-                        <tr key={row.id} className={classnames({ selected: row.getIsSelected() })}>
-                          {row.getVisibleCells().map(cell => (
-                            <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                </tbody>
-              )}
-            </table>
-          </div>
-          <TablePagination
-            rowsPerPageOptions={[10, 25, 50]}
-            component='div'
-            className='border-bs'
-            count={table.getFilteredRowModel().rows.length}
-            rowsPerPage={table.getState().pagination.pageSize}
-            page={table.getState().pagination.pageIndex}
-            SelectProps={{
-              inputProps: { 'aria-label': 'rows per page' }
-            }}
-            onPageChange={(_, page) => {
-              table.setPageIndex(page)
-            }}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
-          />
+          {pendingDowngradePlan && (
+            <Alert severity='info' sx={{ mb: 2 }} icon={<i className='ri-information-line' />}>
+              Your plan will switch to <strong>{pendingDowngradePlan}</strong> at end of billing period
+              {currentPeriodEnd && ' (' + formatDate(currentPeriodEnd) + ')'}. Full access retained until then.
+            </Alert>
+          )}
+
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography variant='caption' color='text.secondary'>Units used</Typography>
+              <Typography variant='caption' fontWeight={600} color={atCap ? 'error.main' : 'text.primary'}>
+                {unitCount} / {unitCap !== null ? unitCap : '∞'}
+              </Typography>
+            </Box>
+            {unitCap !== null && (
+              <LinearProgress
+                variant='determinate'
+                value={unitProgress}
+                color={atCap ? 'error' : unitProgress > 80 ? 'warning' : 'primary'}
+                sx={{ height: 8, borderRadius: 4 }}
+              />
+            )}
+            {atCap && (
+              <Typography variant='caption' color='error.main' sx={{ mt: 0.5, display: 'block' }}>
+                Unit limit reached. Upgrade to add more units.
+              </Typography>
+            )}
+          </Box>
         </CardContent>
       </Card>
 
-      {/* Add Plan Dialog */}
-      <AddSubscriptionPlanDialog
-        open={addPlanOpen}
-        handleClose={() => setAddPlanOpen(false)}
-        plansData={data}
-        setData={setData}
-        mode='add'
-      />
-
-      {/* Edit Plan Dialog */}
-      <AddSubscriptionPlanDialog
-        open={editPlanOpen}
-        handleClose={() => {
-          setEditPlanOpen(false)
-          setSelectedPlan(null)
-        }}
-        plansData={data}
-        setData={setData}
-        editData={selectedPlan}
-        mode='edit'
-      />
-
-      {/* View Plan Dialog */}
-      <ViewSubscriptionPlanDialog
-        open={viewPlanOpen}
-        handleClose={() => {
-          setViewPlanOpen(false)
-          setSelectedPlan(null)
-        }}
-        plan={selectedPlan}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmationDialog
-        open={deletePlanOpen}
-        setOpen={setDeletePlanOpen}
-        type='delete-tenant'
-        onConfirm={() => {
-          if (selectedPlan) {
-            handleDeletePlan(selectedPlan.id)
-          }
-        }}
-      />
+      <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} maxWidth='xs' fullWidth>
+        <DialogTitle>Cancel subscription?</DialogTitle>
+        <DialogContent>
+          {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
+          <DialogContentText>
+            Your {displayName} plan remains active until {formatDate(currentPeriodEnd)}. After that your account switches to Free. No data will be deleted.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCancelOpen(false)} disabled={cancelling}>Keep plan</Button>
+          <Button
+            variant='contained'
+            color='error'
+            onClick={handleCancel}
+            disabled={cancelling}
+            startIcon={cancelling ? <CircularProgress size={14} /> : undefined}
+          >
+            {cancelling ? 'Cancelling…' : 'Yes, cancel'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   )
 }
 
-export default SubscriptionPlansListTable
+// ---------------------------------------------------------------------------
+// Upgrade dialog
+// ---------------------------------------------------------------------------
+
+interface UpgradeDialogProps {
+  plan: SubscriptionPlanPublicDto | null
+  plans: SubscriptionPlanPublicDto[]
+  open: boolean
+  onClose: () => void
+  onSuccess: () => void
+}
+
+function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogProps) {
+  const { subscription } = useSubscription()
+
+  const freePlan      = plans.find(p => p.name === 'FREE')
+  const freeCap       = freePlan?.freeUnitCap ?? 0
+  const existingUnits = subscription?.unitCount ?? 0
+
+  const [totalUnits, setTotalUnits] = useState(Math.max(freeCap + 1, existingUnits))
+  const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'ANNUAL'>('MONTHLY')
+  const [paymentMethod, setPaymentMethod] = useState<'MOMO' | 'CARD' | 'MANUAL' | 'WALLET'>('MOMO')
+  const [mobileNumber, setMobileNumber] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [verifying, setVerifying] = useState(false)
+  const [invoiceId, setInvoiceId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [manualDetails, setManualDetails] = useState<ManualPaymentDetails | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
+
+  // Reset on close
+  useEffect(() => {
+    if (!open) {
+      setTotalUnits(Math.max(freeCap + 1, existingUnits))
+      setBillingCycle('MONTHLY')
+      setPaymentMethod('MOMO')
+      setMobileNumber('')
+      setError(null)
+      setPending(false)
+      setVerifying(false)
+      setInvoiceId(null)
+    }
+  }, [open, freeCap, existingUnits])
+
+  // Load wallet balance when the dialog opens (for the Wallet payment option)
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    walletApi.getWallet()
+      .then(w => { if (!cancelled) setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0) })
+      .catch(() => { if (!cancelled) setWalletBalance(0) })
+    return () => { cancelled = true }
+  }, [open])
+
+  // Lazily fetch bank details the first time MANUAL is selected
+  useEffect(() => {
+    if (paymentMethod === 'MANUAL' && !manualDetails) {
+      getManualPaymentDetails().then(setManualDetails).catch(() => {})
+    }
+  }, [paymentMethod, manualDetails])
+
+  // Poll for confirmation — applies to MOMO (webhook) and MANUAL (admin confirms) alike.
+  // CARD redirects to Paystack checkout instead, so it never reaches this polling state.
+  useEffect(() => {
+    if (!pending || !plan) return
+    const interval = setInterval(async () => {
+      try {
+        const { getMySubscription } = await import('@/lib/api/subscription-client')
+        const sub = await getMySubscription()
+        if (sub.plan === plan.name) {
+          clearInterval(interval)
+          setPending(false)
+          onSuccess()
+          onClose()
+        }
+      } catch { /* keep polling */ }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [pending, plan, onSuccess, onClose])
+
+  if (!plan) return null
+
+  const discount       = plan.annualDiscountPct ?? 0
+  const hasAnnual      = discount > 0
+  const billableUnits  = Math.max(0, totalUnits - freeCap)
+  const unitCost       = billableUnits * plan.pricePerUnit
+  const annualTotal    = unitCost * 12 * (1 - discount)
+  const annualSavings  = unitCost * 12 - annualTotal
+  const dueToday       = billingCycle === 'ANNUAL' ? annualTotal : unitCost
+
+  async function handlePay() {
+    if (!plan || totalUnits < 1) return
+    if (paymentMethod === 'MOMO' && !mobileNumber.trim()) return
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await initiateUpgrade({
+        targetPlan: plan.name,
+        unitCount: totalUnits,
+        billingCycle,
+        paymentMethod,
+        ...(paymentMethod === 'MOMO' ? { mobileNumber: mobileNumber.trim() } : {}),
+      })
+      if (paymentMethod === 'CARD' && result.redirectUrl) {
+        // Full-page redirect to Paystack checkout — plan activates via webhook once paid,
+        // and the tenant lands back here per the callback_url the backend configured.
+        window.location.href = result.redirectUrl
+        return
+      }
+      if (paymentMethod === 'WALLET') {
+        // Backend paid + activated synchronously (status PAID) — no polling needed.
+        onSuccess()
+        onClose()
+        return
+      }
+      setInvoiceId(result.invoiceId)
+      setPending(true)
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg ?? 'Payment initiation failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const walletOk = walletBalance !== null && canPayFromWallet(walletBalance, dueToday)
+  const canPay = totalUnits >= 1
+    && (paymentMethod === 'MOMO' ? !!mobileNumber.trim() : true)
+    && (paymentMethod === 'WALLET' ? walletOk : true)
+
+  return (
+    <Dialog open={open} onClose={pending ? undefined : onClose} maxWidth='sm' fullWidth>
+      <DialogTitle>Upgrade to {plan.displayName}</DialogTitle>
+      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
+        {error && <Alert severity='error'>{error}</Alert>}
+
+        {pending ? (
+          <Box sx={{ textAlign: 'center', py: 3 }}>
+            {paymentMethod === 'MANUAL' ? (
+              <>
+                <i className='ri-bank-line' style={{ fontSize: '2.5rem', color: 'var(--mui-palette-primary-main)' }} />
+                <Typography variant='body1' fontWeight={600} sx={{ mt: 1 }}>Awaiting your bank transfer</Typography>
+                <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
+                  Transfer <strong>{formatGHS(dueToday)}</strong> using the details below, then wait for an
+                  admin to confirm the payment. This page updates automatically once confirmed.
+                </Typography>
+                {manualDetails && (
+                  <Card variant='outlined' sx={{ textAlign: 'left', maxWidth: 360, mx: 'auto' }}>
+                    <CardContent sx={{ py: '12px !important' }}>
+                      {([
+                        ['Bank', manualDetails.bank_name],
+                        ['Account Name', manualDetails.account_name],
+                        ['Account Number', manualDetails.account_number],
+                        ['Branch', manualDetails.branch],
+                      ] as [string, string | undefined][])
+                        .filter(([, value]) => !!value)
+                        .map(([label, value]) => (
+                          <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                            <Typography variant='caption' color='text.secondary'>{label}</Typography>
+                            <Typography variant='caption' fontWeight={600}>{value}</Typography>
+                          </Box>
+                        ))}
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <>
+                <CircularProgress sx={{ mb: 2 }} />
+                <Typography variant='body1' fontWeight={600}>Payment prompt sent to your phone</Typography>
+                <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
+                  Approve the payment of <strong>{formatGHS(dueToday)}</strong> in your mobile money app.
+                  This page updates automatically once confirmed.
+                </Typography>
+                {invoiceId && (
+                  <Button
+                    variant='outlined'
+                    size='small'
+                    sx={{ mt: 2.5 }}
+                    disabled={verifying}
+                    startIcon={verifying ? <CircularProgress size={14} /> : <i className='ri-shield-check-line' />}
+                    onClick={async () => {
+                      setVerifying(true)
+                      setError(null)
+                      try {
+                        const { verifySubscriptionPayment } = await import('@/lib/api/subscription-client')
+                        const res = await verifySubscriptionPayment(invoiceId)
+                        if (res.confirmed) {
+                          setPending(false)
+                          onSuccess()
+                          onClose()
+                        } else {
+                          setPending(false)
+                          setError('Payment not yet confirmed by the gateway. Please approve the MoMo prompt first, then try verifying again.')
+                        }
+                      } catch {
+                        setError('Verification failed. Please try again.')
+                      } finally {
+                        setVerifying(false)
+                      }
+                    }}
+                  >
+                    {verifying ? 'Verifying…' : "I've paid — verify now"}
+                  </Button>
+                )}
+              </>
+            )}
+          </Box>
+        ) : (
+          <>
+            {/* Total units */}
+            <Box>
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
+                How many total units do you want to license?
+              </Typography>
+              <TextField
+                type='number'
+                value={totalUnits}
+                onChange={e => setTotalUnits(Math.max(1, parseInt(e.target.value) || 1))}
+                size='small'
+                fullWidth
+                slotProps={{ input: { inputProps: { min: 1 } } }}
+                helperText={
+                  freeCap > 0
+                    ? `Your first ${freeCap} unit${freeCap !== 1 ? 's' : ''} are free — you're only charged for units above ${freeCap}`
+                    : 'Enter the total number of units you need'
+                }
+              />
+            </Box>
+
+            {/* Billing period — only shown if backend provides a discount */}
+            {hasAnnual && (
+              <Box>
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
+                  Billing period
+                </Typography>
+                <ToggleButtonGroup
+                  value={billingCycle}
+                  exclusive
+                  onChange={(_, val) => { if (val) setBillingCycle(val) }}
+                  size='small'
+                  fullWidth
+                >
+                  <ToggleButton value='MONTHLY' sx={{ flex: 1 }}>Monthly</ToggleButton>
+                  <ToggleButton value='ANNUAL' sx={{ flex: 1, gap: 1 }}>
+                    Annual
+                    <Chip
+                      label={`${Math.round(discount * 100)}% off`}
+                      size='small'
+                      color='success'
+                      sx={{ height: 18, fontSize: '0.65rem', pointerEvents: 'none' }}
+                    />
+                  </ToggleButton>
+                </ToggleButtonGroup>
+                {billingCycle === 'ANNUAL' && (
+                  <Typography variant='caption' color='success.main' sx={{ mt: 0.5, display: 'block' }}>
+                    You save {formatGHS(annualSavings)} vs 12 monthly payments
+                  </Typography>
+                )}
+              </Box>
+            )}
+
+            {/* Invoice breakdown */}
+            <Card variant='outlined'>
+              <CardContent sx={{ py: '12px !important' }}>
+                {[
+                  ...(freeCap > 0
+                    ? [['Free units (first ' + freeCap + ')', freeCap + ' unit' + (freeCap !== 1 ? 's' : '') + ' — no charge']]
+                    : []),
+                  ['Paid units', billableUnits + (freeCap > 0 ? ' (' + totalUnits + ' total − ' + freeCap + ' free)' : '')],
+                  ['Rate',       formatGHS(plan.pricePerUnit) + ' / unit / mo'],
+                  ...(plan.transactionFeePct
+                    ? [['Transaction fee', (Number(plan.transactionFeePct) * 100).toFixed(1) + '% on collected rent']]
+                    : []),
+                  billingCycle === 'ANNUAL' ? ['Billing period', '12 months'] : ['Billing period', '1 month'],
+                  ...(billingCycle === 'ANNUAL' && hasAnnual
+                    ? [['Annual discount (' + Math.round(discount * 100) + '% off)', '−' + formatGHS(annualSavings)]]
+                    : []),
+                ].map(([label, value]) => (
+                  <Box key={label} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant='body2' color='text.secondary'>{label}</Typography>
+                    <Typography
+                      variant='body2'
+                      color={
+                        label.startsWith('Free units')        ? 'success.main' :
+                        label.startsWith('Annual discount')   ? 'success.main' :
+                        'text.primary'
+                      }
+                    >
+                      {value}
+                    </Typography>
+                  </Box>
+                ))}
+                <Divider sx={{ my: 1 }} />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Typography variant='body2' fontWeight={700}>Due today</Typography>
+                  <Typography variant='body2' fontWeight={700} color='primary.main'>{formatGHS(dueToday)}</Typography>
+                </Box>
+                {billingCycle === 'ANNUAL' && (
+                  <Typography variant='caption' color='text.secondary' sx={{ mt: 0.5, display: 'block', textAlign: 'right' }}>
+                    ≈ {formatGHS(annualTotal / 12)} effective / mo
+                  </Typography>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Payment method */}
+            <Box>
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 0.75 }}>
+                Payment method
+              </Typography>
+              <ToggleButtonGroup
+                value={paymentMethod}
+                exclusive
+                onChange={(_, val) => { if (val) setPaymentMethod(val) }}
+                size='small'
+                fullWidth
+              >
+                <ToggleButton value='MOMO' sx={{ flex: 1, gap: 0.75 }}>
+                  <i className='ri-phone-line' />
+                  Mobile Money
+                </ToggleButton>
+                <ToggleButton value='CARD' sx={{ flex: 1, gap: 0.75 }}>
+                  <i className='ri-bank-card-line' />
+                  Card
+                </ToggleButton>
+                <ToggleButton value='MANUAL' sx={{ flex: 1, gap: 0.75 }}>
+                  <i className='ri-bank-line' />
+                  Bank Transfer
+                </ToggleButton>
+                <ToggleButton
+                  value='WALLET'
+                  disabled={walletBalance === null || !canPayFromWallet(walletBalance, dueToday)}
+                  sx={{ flex: 1, gap: 0.75 }}
+                >
+                  <i className='ri-wallet-3-line' />
+                  Wallet
+                </ToggleButton>
+              </ToggleButtonGroup>
+              {walletBalance !== null && (
+                <Typography
+                  variant='caption'
+                  sx={{ display: 'block', mt: 0.75 }}
+                  color={canPayFromWallet(walletBalance, dueToday) ? 'text.secondary' : 'error.main'}
+                >
+                  Wallet balance: {formatGHS(walletBalance)}
+                  {!canPayFromWallet(walletBalance, dueToday) && ' — top up to pay from wallet'}
+                </Typography>
+              )}
+            </Box>
+
+            {/* MoMo input */}
+            {paymentMethod === 'MOMO' && (
+              <TextField
+                label='Mobile Money Number'
+                placeholder='e.g. 0241234567'
+                value={mobileNumber}
+                onChange={e => setMobileNumber(e.target.value)}
+                fullWidth
+                size='small'
+                helperText='A payment prompt will be sent to this number'
+                slotProps={{ input: { startAdornment: <InputAdornment position='start'>+233</InputAdornment> } }}
+              />
+            )}
+
+            {/* Card notice */}
+            {paymentMethod === 'CARD' && (
+              <Alert severity='info' icon={<i className='ri-bank-card-line' />}>
+                You'll be redirected to a secure checkout page to enter your card details.
+              </Alert>
+            )}
+
+            {/* Manual bank transfer notice */}
+            {paymentMethod === 'MANUAL' && (
+              <Alert severity='info' icon={<i className='ri-bank-line' />}>
+                Bank details will be shown after you click Pay. Your plan activates once an admin
+                confirms the transfer — this can take longer than instant payment methods.
+              </Alert>
+            )}
+          </>
+        )}
+      </DialogContent>
+      {!pending && (
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button
+            variant='contained'
+            onClick={handlePay}
+            disabled={loading || !canPay}
+            startIcon={loading ? <CircularProgress size={14} /> : <i className='ri-secure-payment-line' />}
+          >
+            {loading ? 'Initiating…' : 'Pay ' + formatGHS(dueToday)}
+          </Button>
+        </DialogActions>
+      )}
+    </Dialog>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Plan comparison card
+// ---------------------------------------------------------------------------
+
+function PlanCard({
+  plan,
+  currentPlanName,
+  unitCount,
+  onUpgrade,
+  onDowngrade,
+}: {
+  plan: SubscriptionPlanPublicDto
+  currentPlanName: string
+  /** The tenant's current active units, used to tell them before they click. */
+  unitCount: number
+  onUpgrade: (p: SubscriptionPlanPublicDto) => void
+  onDowngrade: (p: SubscriptionPlanPublicDto) => void
+}) {
+  const isCurrent = plan.name === currentPlanName
+  const isHigher  = PLAN_ORDER[plan.name] > PLAN_ORDER[currentPlanName]
+  const isLower   = PLAN_ORDER[plan.name] < PLAN_ORDER[currentPlanName]
+  const isPro     = plan.name === 'PRO'
+
+  // The server refuses a downgrade that would leave the landlord above the
+  // target plan's cap. Saying so on the card is the difference between a
+  // decision and an error message: a null cap means unlimited.
+  const excessUnits = plan.freeUnitCap != null ? unitCount - plan.freeUnitCap : 0
+  const wontFit     = isLower && excessUnits > 0
+
+  return (
+    <Card
+      variant='outlined'
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        borderColor: isCurrent ? 'primary.main' : isPro ? 'success.main' : 'divider',
+        borderWidth: isCurrent || isPro ? 2 : 1,
+      }}
+    >
+      {isPro && !isCurrent && (
+        <Box sx={{ position: 'absolute', top: -1, right: 16 }}>
+          <Chip label='Recommended' size='small' color='success' sx={{ borderRadius: '0 0 6px 6px', height: 22, fontSize: '0.7rem' }} />
+        </Box>
+      )}
+      {isCurrent && (
+        <Box sx={{ position: 'absolute', top: -1, left: 16 }}>
+          <Chip label='Current plan' size='small' color='primary' sx={{ borderRadius: '0 0 6px 6px', height: 22, fontSize: '0.7rem' }} />
+        </Box>
+      )}
+
+      <CardContent sx={{ flex: 1 }}>
+        <Typography variant='subtitle1' fontWeight={700} sx={{ mb: 1, mt: isCurrent || isPro ? 1.5 : 0 }}>
+          {plan.displayName}
+        </Typography>
+
+        <Box sx={{ mb: 2 }}>
+          {plan.pricePerUnit === 0 ? (
+            <Typography variant='h4' fontWeight={800}>Free</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+              <Typography variant='caption' color='text.secondary' sx={{ alignSelf: 'flex-start', mt: 1 }}>GH₵</Typography>
+              <Typography variant='h4' fontWeight={800}>{plan.pricePerUnit}</Typography>
+              <Typography variant='caption' color='text.secondary'>/unit/mo</Typography>
+            </Box>
+          )}
+          {plan.freeUnitCap && (
+            <Typography variant='caption' color='text.secondary'>Up to {plan.freeUnitCap} units</Typography>
+          )}
+          {plan.transactionFeePct != null && (
+            <Typography variant='caption' color='text.secondary'>
+              {(Number(plan.transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
+            </Typography>
+          )}
+        </Box>
+
+        <Divider sx={{ mb: 1.5 }} />
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+          {Object.entries(plan.features)
+            .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+            .map(([key, info]) => (
+              <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <i
+                  className={info.enabled ? 'ri-check-line' : 'ri-close-line'}
+                  style={{
+                    fontSize: '1rem',
+                    color: info.enabled ? 'var(--mui-palette-success-main)' : 'var(--mui-palette-text-disabled)',
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography variant='body2' color={info.enabled ? 'text.primary' : 'text.disabled'}>
+                  {info.label}
+                </Typography>
+              </Box>
+            ))}
+        </Box>
+      </CardContent>
+
+      <CardActions sx={{ px: 2, pb: 2, pt: 0 }}>
+        {isCurrent ? (
+          <Button fullWidth disabled variant='outlined'>Current plan</Button>
+        ) : isHigher ? (
+          <Button fullWidth variant='contained' onClick={() => onUpgrade(plan)}
+            startIcon={<i className='ri-arrow-up-circle-line' />}>
+            Upgrade to {plan.displayName}
+          </Button>
+        ) : isLower ? (
+          <Box sx={{ width: '100%' }}>
+            <Button
+              fullWidth
+              variant='outlined'
+              color='inherit'
+              disabled={wontFit}
+              onClick={() => onDowngrade(plan)}
+            >
+              Downgrade to {plan.displayName}
+            </Button>
+            {wontFit && (
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 1 }}>
+                You have {unitCount} units and this plan allows {plan.freeUnitCap}. Remove{' '}
+                {excessUnits} unit{excessUnits === 1 ? '' : 's'} to switch.
+              </Typography>
+            )}
+          </Box>
+        ) : null}
+      </CardActions>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Invoice table
+// ---------------------------------------------------------------------------
+
+function InvoiceTable() {
+  const [invoices, setInvoices]     = useState<SubscriptionInvoiceDto[]>([])
+  const [loading, setLoading]       = useState(true)
+  const [retrying, setRetrying]     = useState<string | null>(null)
+  const [retryError, setRetryError] = useState<string | null>(null)
+  const [verifying, setVerifying]   = useState<Record<string, boolean>>({})
+  const [payingId, setPayingId]     = useState<string | null>(null)
+  const [walletBalance, setWalletBalance] = useState<number | null>(null)
+
+  const fetchInvoices = useCallback(() => {
+    setLoading(true)
+    getMyInvoices().then(data => setInvoices(Array.isArray(data) ? data : [])).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => { fetchInvoices() }, [fetchInvoices])
+
+  useEffect(() => {
+    let cancelled = false
+    walletApi.getWallet()
+      .then(w => { if (!cancelled) setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0) })
+      .catch(() => { if (!cancelled) setWalletBalance(0) })
+    return () => { cancelled = true }
+  }, [])
+
+  async function handleRetry(invoiceId: string) {
+    setRetrying(invoiceId)
+    setRetryError(null)
+    try {
+      await retryMyInvoice(invoiceId)
+      fetchInvoices()
+    } catch {
+      setRetryError('Retry failed. Please try again.')
+    } finally {
+      setRetrying(null)
+    }
+  }
+
+  async function handleVerify(invoiceId: string) {
+    setVerifying(v => ({ ...v, [invoiceId]: true }))
+    setRetryError(null)
+    try {
+      const { confirmed } = await verifySubscriptionPayment(invoiceId)
+      if (confirmed) {
+        fetchInvoices()
+      } else {
+        setRetryError('Payment not yet confirmed by the gateway. Approve the MoMo prompt first, then try again.')
+      }
+    } catch (err: any) {
+      setRetryError(err?.response?.data?.message ?? 'Verification failed. Please try again.')
+    } finally {
+      setVerifying(v => ({ ...v, [invoiceId]: false }))
+    }
+  }
+
+  async function handlePayFromWallet(invoiceId: string) {
+    setPayingId(invoiceId)
+    setRetryError(null)
+    try {
+      await payInvoiceFromWallet(invoiceId)
+      fetchInvoices()
+      // Refresh the cached balance so any other PENDING row re-gates against the post-debit amount.
+      walletApi.getWallet()
+        .then(w => setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0))
+        .catch(() => {})
+    } catch (err: any) {
+      setRetryError(err?.response?.data?.message ?? 'Wallet payment failed. Please try again.')
+    } finally {
+      setPayingId(null)
+    }
+  }
+
+  const hasAction = invoices.some(inv => inv.status === 'FAILED' || inv.status === 'PENDING')
+
+  if (loading) return <Skeleton variant='rectangular' height={120} sx={{ borderRadius: 1 }} />
+  if (invoices.length === 0) return (
+    <Typography variant='body2' color='text.secondary' sx={{ py: 2 }}>No billing history yet.</Typography>
+  )
+
+  return (
+    <>
+      {retryError && (
+        <Alert severity='error' sx={{ mb: 2 }} onClose={() => setRetryError(null)}>{retryError}</Alert>
+      )}
+      <Table size='small'>
+        <TableHead>
+          <TableRow>
+            <TableCell>Period</TableCell>
+            <TableCell>Type</TableCell>
+            <TableCell align='right'>Units</TableCell>
+            <TableCell align='right'>Amount</TableCell>
+            <TableCell>Status</TableCell>
+            <TableCell>Date</TableCell>
+            {hasAction && <TableCell />}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {invoices.map(inv => (
+            <TableRow key={inv.id} hover>
+              <TableCell>
+                <Typography variant='caption'>{formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}</Typography>
+              </TableCell>
+              <TableCell><Chip label={inv.invoiceType} size='small' variant='outlined' /></TableCell>
+              <TableCell align='right'>{inv.unitCount}</TableCell>
+              <TableCell align='right'>
+                <Typography variant='caption' fontWeight={600}>{formatGHS(inv.totalAmount)}</Typography>
+              </TableCell>
+              <TableCell><Chip label={inv.status} size='small' color={statusChipColor(inv.status)} /></TableCell>
+              <TableCell>
+                <Typography variant='caption' color='text.secondary'>{formatDate(inv.paidAt ?? inv.createdAt)}</Typography>
+              </TableCell>
+              {hasAction && (
+                <TableCell align='right' sx={{ minWidth: 110 }}>
+                  {inv.status === 'FAILED' && (
+                    <Button
+                      size='small'
+                      variant='contained'
+                      color='error'
+                      disabled={retrying === inv.id}
+                      onClick={() => handleRetry(inv.id)}
+                      startIcon={retrying === inv.id ? <CircularProgress size={12} color='inherit' /> : <i className='ri-refresh-line' />}
+                    >
+                      {retrying === inv.id ? 'Retrying…' : 'Pay Now'}
+                    </Button>
+                  )}
+                  {inv.status === 'PENDING' && (
+                    <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <Button
+                        size='small'
+                        variant='outlined'
+                        disabled={!!verifying[inv.id]}
+                        onClick={() => handleVerify(inv.id)}
+                        startIcon={verifying[inv.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
+                      >
+                        {verifying[inv.id] ? 'Checking…' : 'Verify'}
+                      </Button>
+                      <Button
+                        size='small'
+                        variant='outlined'
+                        color='primary'
+                        disabled={payingId === inv.id || walletBalance === null || !canPayFromWallet(walletBalance, inv.totalAmount)}
+                        onClick={() => handlePayFromWallet(inv.id)}
+                        startIcon={payingId === inv.id ? <CircularProgress size={12} /> : <i className='ri-wallet-3-line' />}
+                      >
+                        {payingId === inv.id ? 'Paying…' : 'Pay from wallet'}
+                      </Button>
+                    </Box>
+                  )}
+                </TableCell>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main view
+// ---------------------------------------------------------------------------
+
+export default function SubscriptionPlansListTable() {
+  const { subscription, refresh, isLoading } = useSubscription()
+  const [plans, setPlans]           = useState<SubscriptionPlanPublicDto[]>([])
+  const [plansLoading, setPlansLoading] = useState(true)
+  const [upgradeTarget, setUpgradeTarget] = useState<SubscriptionPlanPublicDto | null>(null)
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    getAvailablePlans()
+      .then(data => {
+        data.sort((a, b) => (PLAN_ORDER[a.name] ?? 99) - (PLAN_ORDER[b.name] ?? 99))
+        setPlans(data)
+      })
+      .catch(() => {})
+      .finally(() => setPlansLoading(false))
+  }, [])
+
+  const handleUpgradeSuccess = useCallback(async () => {
+    await refresh()
+    setSuccessMsg('Plan upgraded! Your new features are now active.')
+  }, [refresh])
+
+  async function handleDowngrade(plan: SubscriptionPlanPublicDto) {
+    try {
+      await scheduleDowngrade(plan.name)
+      await refresh()
+      setSuccessMsg('Downgrade to ' + plan.displayName + ' scheduled for end of billing period.')
+    } catch (err: any) {
+      // This was `catch { /* silent */ }`. The card below disables the button
+      // when the units will not fit, but a stale count — units added in another
+      // tab, or by a colleague — still reaches the server, and the server's
+      // refusal names exactly how many units to remove. Swallowing it left the
+      // landlord pressing a button that did nothing and said nothing.
+      setErrorMsg(
+        err?.response?.data?.message ??
+        err?.message ??
+        'Could not schedule the downgrade. Please try again.'
+      )
+    }
+  }
+
+  const currentPlan = subscription?.plan ?? 'FREE'
+
+  return (
+    <Box>
+      <CurrentPlanCard />
+
+      <Typography variant='h6' fontWeight={700} sx={{ mb: 2 }}>Choose a plan</Typography>
+
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        {plansLoading || isLoading ? (
+          [0, 1, 2].map(i => (
+            <Grid item xs={12} md={4} key={i}>
+              <Card variant='outlined'>
+                <CardContent>
+                  <Skeleton width='50%' height={28} sx={{ mb: 1 }} />
+                  <Skeleton width='40%' height={48} sx={{ mb: 2 }} />
+                  <Skeleton variant='rectangular' height={160} sx={{ borderRadius: 1 }} />
+                </CardContent>
+              </Card>
+            </Grid>
+          ))
+        ) : plans.map(plan => (
+          <Grid item xs={12} md={4} key={plan.id}>
+            <PlanCard
+              plan={plan}
+              currentPlanName={currentPlan}
+              unitCount={subscription?.unitCount ?? 0}
+              onUpgrade={setUpgradeTarget}
+              onDowngrade={handleDowngrade}
+            />
+          </Grid>
+        ))}
+      </Grid>
+
+      <Typography variant='h6' fontWeight={700} sx={{ mb: 2 }}>Billing History</Typography>
+      <Card variant='outlined'>
+        <CardContent><InvoiceTable /></CardContent>
+      </Card>
+
+      <UpgradeDialog
+        plan={upgradeTarget}
+        plans={plans}
+        open={upgradeTarget !== null}
+        onClose={() => setUpgradeTarget(null)}
+        onSuccess={handleUpgradeSuccess}
+      />
+
+      <Snackbar
+        open={successMsg !== null}
+        autoHideDuration={5000}
+        onClose={() => setSuccessMsg(null)}
+        message={successMsg}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+
+      <Snackbar
+        open={errorMsg !== null}
+        // Longer than the success toast: this one asks the landlord to do
+        // something, and it names a number they need to read.
+        autoHideDuration={10000}
+        onClose={() => setErrorMsg(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity='error' onClose={() => setErrorMsg(null)} variant='filled'>
+          {errorMsg}
+        </Alert>
+      </Snackbar>
+    </Box>
+  )
+}

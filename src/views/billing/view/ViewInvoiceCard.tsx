@@ -11,55 +11,42 @@ import Divider from '@mui/material/Divider'
 import Logo from '@components/layout/shared/Logo'
 import CustomAvatar from '@core/components/mui/Avatar'
 
+// API Imports
+import type { Invoice } from '@/lib/api/invoices'
+
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
-// Helper function to format dates consistently
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString)
   const day = String(date.getDate()).padStart(2, '0')
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const year = date.getFullYear()
 
-  
-return `${day}/${month}/${year}`
+  return `${day}/${month}/${year}`
 }
 
-type InvoiceItem = {
-  id: number
-  description: string
-  quantity: number
-  price: number
-}
+const formatAmount = (amount: number | undefined | null): string => {
+  if (amount == null) return '₵0.00'
 
-type InvoiceData = {
-  id: number
-  invoiceNumber: string
-  tenantName: string
-  tenantEmail: string
-  tenantAvatar?: string
-  propertyName: string
-  unitName: string
-  amount: string
-  issuedDate: string
-  dueDate: string
-  status: 'paid' | 'pending' | 'overdue' | 'draft' | 'cancelled'
-  balance: string
-  invoiceMonth?: string
-  invoiceType?: string
-  description?: string
-  invoiceItems?: InvoiceItem[]
+  return `₵${amount.toFixed(2)}`
 }
 
 type Props = {
-  invoiceData?: InvoiceData
+  invoiceData?: Invoice
   invoiceId: string
 }
 
 const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
-  // Calculate totals from invoice items
-  const subtotal = invoiceData?.invoiceItems?.reduce((sum, item) => sum + item.quantity * item.price, 0) || 0
-  const total = subtotal
+  const subtotal = invoiceData?.invoiceItems?.reduce((sum, item) => sum + item.quantity * item.price, 0) ?? 0
+  const total = invoiceData?.amount ?? subtotal
+
+  const initials = invoiceData?.occupantName
+    ?.split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
 
   return (
     <Card className='previewCard'>
@@ -72,11 +59,6 @@ const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
                 <div className='flex flex-col gap-6'>
                   <div className='flex items-center gap-2.5'>
                     <Logo />
-                  </div>
-                  <div>
-                    <Typography color='text.primary'>Office 149, 450 South Brand Brooklyn</Typography>
-                    <Typography color='text.primary'>San Diego County, CA 91905, USA</Typography>
-                    <Typography color='text.primary'>+1 (123) 456 7891, +44 (876) 543 2198</Typography>
                   </div>
                 </div>
                 <div className='flex flex-col gap-6'>
@@ -106,34 +88,29 @@ const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
                     Invoice To:
                   </Typography>
                   <div className='flex items-center gap-3'>
-                    {invoiceData?.tenantAvatar ? (
-                      <CustomAvatar src={invoiceData.tenantAvatar} skin='light' size={40} />
-                    ) : (
-                      <CustomAvatar skin='light' size={40}>
-                        {invoiceData?.tenantName
-                          ?.split(' ')
-                          .map(n => n[0])
-                          .join('')
-                          .toUpperCase()
-                          .slice(0, 2)}
-                      </CustomAvatar>
-                    )}
+                    <CustomAvatar skin='light' size={40}>
+                      {initials}
+                    </CustomAvatar>
                     <div className='flex flex-col'>
                       <Typography className='font-medium' color='text.primary'>
-                        {invoiceData?.tenantName}
+                        {invoiceData?.occupantName || '—'}
                       </Typography>
                       <Typography variant='body2' color='text.secondary'>
-                        {invoiceData?.tenantEmail}
+                        {invoiceData?.occupantEmail || '—'}
                       </Typography>
                     </div>
                   </div>
                   <div className='mts-2'>
-                    <Typography variant='body2' color='text.primary'>
-                      {invoiceData?.propertyName}
-                    </Typography>
-                    <Typography variant='body2' color='text.primary'>
-                      {invoiceData?.unitName}
-                    </Typography>
+                    {invoiceData?.propertyName && (
+                      <Typography variant='body2' color='text.primary'>
+                        {invoiceData.propertyName}
+                      </Typography>
+                    )}
+                    {invoiceData?.unitNo && (
+                      <Typography variant='body2' color='text.primary'>
+                        Unit {invoiceData.unitNo}
+                      </Typography>
+                    )}
                   </div>
                 </div>
               </Grid>
@@ -148,7 +125,7 @@ const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
                         Total Due:
                       </Typography>
                       <Typography className='font-medium' color='text.primary'>
-                        {invoiceData?.amount || '₵0'}
+                        {formatAmount(invoiceData?.amount)}
                       </Typography>
                     </div>
                     <div className='flex items-center gap-4'>
@@ -156,7 +133,7 @@ const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
                         Balance:
                       </Typography>
                       <Typography className='font-medium' color='text.primary'>
-                        {invoiceData?.balance || '₵0'}
+                        {formatAmount(invoiceData?.balance)}
                       </Typography>
                     </div>
                     <div className='flex items-center gap-4'>
@@ -164,7 +141,7 @@ const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
                         Status:
                       </Typography>
                       <Typography className='font-medium capitalize' color='text.primary'>
-                        {invoiceData?.status || 'N/A'}
+                        {invoiceData?.status?.toLowerCase() || 'N/A'}
                       </Typography>
                     </div>
                     {invoiceData?.invoiceType && (
@@ -202,7 +179,7 @@ const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
                       const itemTotal = item.quantity * item.price
 
                       return (
-                        <tr key={item.id || index}>
+                        <tr key={index}>
                           <td>
                             <Typography color='text.primary'>Item {index + 1}</Typography>
                           </td>
@@ -258,15 +235,6 @@ const ViewInvoiceCard = ({ invoiceData, invoiceId }: Props) => {
             </div>
           </Grid>
 
-          <Grid size={{ xs: 12 }}>
-            <Divider className='border-dashed' />
-          </Grid>
-
-          <Grid size={{ xs: 12 }}>
-            <Typography variant='body2' color='text.secondary'>
-              Thank you for your business!
-            </Typography>
-          </Grid>
         </Grid>
       </CardContent>
     </Card>

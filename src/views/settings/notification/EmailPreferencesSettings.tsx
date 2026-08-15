@@ -3,7 +3,7 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -18,8 +18,6 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
-import Chip from '@mui/material/Chip'
-import Box from '@mui/material/Box'
 import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
 
@@ -30,8 +28,8 @@ import Alert from '@mui/material/Alert'
 
 import type { NotificationType } from '@/types/settings/notificationTypes'
 
-// Utils Imports
-import { notificationSettingsApi } from '@/utils/settings/api'
+// API Imports
+import { notificationSettingsApi } from '@/lib/api/settings'
 
 // MUI Imports
 
@@ -84,6 +82,20 @@ const EmailPreferencesSettings = () => {
     message: '',
     severity: 'success'
   })
+
+  useEffect(() => {
+    notificationSettingsApi.get().then(settings => {
+      const ep = settings.emailPreferences
+      if (!ep?.length) return
+      const updated = { ...notifications }
+      ep.forEach(pref => {
+        if (pref.type in updated) updated[pref.type] = pref.enabled
+      })
+      setNotifications(updated)
+      if (ep[0]?.frequency) setFrequency(ep[0].frequency)
+    }).catch(console.error)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleNotificationToggle = (type: NotificationType) => {
     setNotifications(prev => ({

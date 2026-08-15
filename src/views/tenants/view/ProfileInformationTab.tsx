@@ -21,6 +21,8 @@ type TenantData = {
   age?: number
   familyMembers?: number
   job?: string
+  ghanaCardId?: string
+  idType?: string
   previousAddress?: {
     address: string
     city: string
@@ -119,6 +121,26 @@ const ProfileInformationTab = ({ tenantData }: { tenantData?: TenantData }) => {
                     </Typography>
                     <Typography variant='body2' className='font-medium'>
                       {tenantData.job}
+                    </Typography>
+                  </div>
+                )}
+                {tenantData?.ghanaCardId && (
+                  <div className='flex justify-between'>
+                    <Typography variant='body2' color='text.secondary'>
+                      Ghana Card ID:
+                    </Typography>
+                    <Typography variant='body2' className='font-medium'>
+                      {tenantData.ghanaCardId}
+                    </Typography>
+                  </div>
+                )}
+                {tenantData?.idType && (
+                  <div className='flex justify-between'>
+                    <Typography variant='body2' color='text.secondary'>
+                      ID Type:
+                    </Typography>
+                    <Typography variant='body2' className='font-medium'>
+                      {tenantData.idType}
                     </Typography>
                   </div>
                 )}

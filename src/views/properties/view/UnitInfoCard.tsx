@@ -12,24 +12,28 @@ import Chip from '@mui/material/Chip'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 
-type UnitData = {
+type UnitViewData = {
   id: string
   unitNumber: string
   propertyName: string
   propertyId: string
   tenantName: string | null
-  status: 'occupied' | 'vacant' | 'maintenance'
+  status: 'occupied' | 'vacant' | 'maintenance' | 'available' | 'reserved'
   rent: string
+  rentPeriod: string
   bedrooms: number
   bathrooms: number
   size: string
+  floor: number | null
 }
 
-const UnitInfoCard = ({ unitData }: { unitData?: UnitData }) => {
+const UnitInfoCard = ({ unitData }: { unitData?: UnitViewData }) => {
   const statusColor: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
     occupied: 'success',
     vacant: 'warning',
-    maintenance: 'error'
+    available: 'warning',
+    maintenance: 'error',
+    reserved: 'info'
   }
 
   return (
@@ -79,7 +83,25 @@ const UnitInfoCard = ({ unitData }: { unitData?: UnitData }) => {
               <Typography variant='body2' color='text.secondary'>
                 Rent
               </Typography>
-              <Typography variant='h6'>{unitData?.rent || '-'}</Typography>
+              <Typography variant='h6'>
+                {unitData?.rent} <span className='text-sm font-normal text-textSecondary'>/ {unitData?.rentPeriod}</span>
+              </Typography>
+            </div>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <div className='flex flex-col gap-1'>
+              <Typography variant='body2' color='text.secondary'>
+                Floor
+              </Typography>
+              <Typography variant='h6'>{unitData?.floor !== null ? unitData?.floor : '-'}</Typography>
+            </div>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <div className='flex flex-col gap-1'>
+              <Typography variant='body2' color='text.secondary'>
+                Size
+              </Typography>
+              <Typography variant='h6'>{unitData?.size || '-'}</Typography>
             </div>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -98,21 +120,13 @@ const UnitInfoCard = ({ unitData }: { unitData?: UnitData }) => {
               <Typography variant='h6'>{unitData?.bathrooms || '-'}</Typography>
             </div>
           </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <div className='flex flex-col gap-1'>
-              <Typography variant='body2' color='text.secondary'>
-                Size
-              </Typography>
-              <Typography variant='h6'>{unitData?.size || '-'}</Typography>
-            </div>
-          </Grid>
           <Grid size={{ xs: 12 }}>
             <Divider />
           </Grid>
           <Grid size={{ xs: 12 }}>
             <div className='flex flex-col gap-1'>
               <Typography variant='body2' color='text.secondary'>
-                Tenant
+                Current Tenant
               </Typography>
               {unitData?.tenantName ? (
                 <div className='flex items-center gap-3'>

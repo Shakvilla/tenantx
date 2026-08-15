@@ -28,6 +28,9 @@ import Logo from '@components/layout/shared/Logo'
 // Config Imports
 import themeConfig from '@configs/themeConfig'
 
+// Validation Imports
+import { RegisterSchema } from '@/lib/validation/schemas/auth.schema'
+
 // Hook Imports
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
@@ -38,15 +41,15 @@ const Register = ({ mode }: { mode: Mode }) => {
   const [isPasswordShown, setIsPasswordShown] = useState(false)
 
   const [formData, setFormData] = useState({
-    name: '',
+    fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    tenantName: '',
-    phone: '',
+    companyName: ''
   })
 
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Vars
@@ -80,32 +83,40 @@ const Register = ({ mode }: { mode: Mode }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null)
 
-    // Validation
+    // Validate with centralized Zod schema
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match')
-      
-return
+
+      return
     }
 
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters')
-      
-return
+    const validation = RegisterSchema.safeParse({
+      email: formData.email,
+      password: formData.password,
+      fullName: formData.fullName,
+      companyName: formData.companyName
+    })
+
+    if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message ?? 'Invalid input'
+
+      setError(firstError)
+
+      return
     }
 
     setIsSubmitting(true)
 
-    const result = await register({
-      email: formData.email,
-      password: formData.password,
-      name: formData.name,
-      phone: formData.phone || undefined,
-      tenantName: formData.tenantName,
-    })
+    const result = await register(validation.data)
 
     if (result.success) {
-      router.push('/dashboard')
+      setSuccess('Account created! Taking you to your dashboard...')
+
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 1500)
     } else {
       setError(result.error || 'Registration failed. Please try again.')
       setIsSubmitting(false)
@@ -113,11 +124,7 @@ return
   }
 
   const isFormValid =
-    formData.name &&
-    formData.email &&
-    formData.password &&
-    formData.confirmPassword &&
-    formData.tenantName
+    formData.fullName && formData.email && formData.password && formData.confirmPassword && formData.companyName
 
   return (
     <div className='flex bs-full justify-center'>
@@ -154,19 +161,16 @@ return
             </Alert>
           )}
 
-          <form
-            noValidate
-            autoComplete='off'
-            onSubmit={handleSubmit}
-            className='flex flex-col gap-4'
-          >
+          {success && <Alert severity='success'>{success}</Alert>}
+
+          <form noValidate autoComplete='off' onSubmit={handleSubmit} className='flex flex-col gap-4'>
             <TextField
               autoFocus
               fullWidth
               label='Full Name'
               size='small'
-              value={formData.name}
-              onChange={handleChange('name')}
+              value={formData.fullName}
+              onChange={handleChange('fullName')}
               disabled={isSubmitting}
               required
             />
@@ -182,19 +186,10 @@ return
             />
             <TextField
               fullWidth
-              label='Phone (optional)'
-              size='small'
-              type='tel'
-              value={formData.phone}
-              onChange={handleChange('phone')}
-              disabled={isSubmitting}
-            />
-            <TextField
-              fullWidth
               label='Company / Organization Name'
               size='small'
-              value={formData.tenantName}
-              onChange={handleChange('tenantName')}
+              value={formData.companyName}
+              onChange={handleChange('companyName')}
               disabled={isSubmitting}
               required
               helperText='This will be your workspace name'

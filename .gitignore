@@ -36,6 +36,28 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+
 # icon generated file
 src/assets/iconify-icons/generated-icons.js
 src/assets/iconify-icons/generated-icons.css
+
+# ai agentic
+.agent
+.agents
+.cursor
+.vscode
+CLAUDE.md
+CODE_REVIEW_AUDIT_PLAN.md
+__doctor_output.txt
+__lint_output.txt
+__test_output.txt
+
+/docs
+
+
+# Agent scratch: SDD ledgers, task briefs, review packages.
+.superpowers/
+.claude/
+e2e/.auth/
+test-results/
+playwright-report/

@@ -1,8 +1,18 @@
+// Next Imports
+import { Bricolage_Grotesque } from 'next/font/google'
+
 // MUI Imports
 import InitColorSchemeScript from '@mui/material/InitColorSchemeScript'
 
 // Third-party Imports
 import 'react-perfect-scrollbar/dist/css/styles.css'
+
+const bricolageGrotesque = Bricolage_Grotesque({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-bricolage-grotesque',
+  display: 'swap',
+})
 
 // Type Imports
 import type { ChildrenType } from '@core/types'
@@ -33,7 +43,7 @@ const RootLayout = async (props: ChildrenType) => {
   const direction = 'ltr'
 
   return (
-    <html id='__next' lang='en' dir={direction} suppressHydrationWarning>
+    <html id='__next' lang='en' dir={direction} suppressHydrationWarning className={bricolageGrotesque.variable}>
       <body className='flex is-full min-bs-full flex-auto flex-col'>
         <InitColorSchemeScript attribute='data' defaultMode={systemMode} />
         {children}

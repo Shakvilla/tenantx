@@ -14,7 +14,6 @@ import Paper from '@mui/material/Paper'
 import Popper from '@mui/material/Popper'
 import { useTheme } from '@mui/material/styles'
 import ClickAwayListener from '@mui/material/ClickAwayListener'
-import Switch from '@mui/material/Switch'
 import type { Breakpoint } from '@mui/material/styles'
 
 // Third-party Imports
@@ -25,7 +24,7 @@ import PerfectScrollbar from 'react-perfect-scrollbar'
 
 // Type Imports
 import type { Settings } from '@core/contexts/settingsContext'
-import type { Direction, SidebarType } from '@core/types'
+import type { Direction } from '@core/types'
 import type { PrimaryColorConfig } from '@configs/primaryColorConfig'
 
 // Icon Imports

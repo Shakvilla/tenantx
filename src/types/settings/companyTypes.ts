@@ -19,7 +19,15 @@ export interface Address {
 export interface CompanyBasicInfo {
   companyName: string
   address: Address
-  phone: string
+
+  /**
+   * @deprecated The published contact number lives on `tenants.contact_phone`,
+   * written through `contactSettingsApi` — occupants read it, and this blob key
+   * was never read by anything. Optional so nothing writes it going forward;
+   * still declared because existing rows carry a stale copy that the settings
+   * form reads once, as a fallback, to migrate the value on first save.
+   */
+  phone?: string
   email: string
   website?: string
   logo?: string

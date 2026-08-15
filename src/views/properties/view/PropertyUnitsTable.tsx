@@ -12,10 +12,8 @@ import Chip from '@mui/material/Chip'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
-import Dialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
-import DialogContent from '@mui/material/DialogContent'
-import DialogActions from '@mui/material/DialogActions'
+import TablePagination from '@mui/material/TablePagination'
+import Avatar from '@mui/material/Avatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -26,24 +24,32 @@ import {
   getCoreRowModel,
   useReactTable,
   getFilteredRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFacetedMinMaxValues,
   getPaginationRowModel,
   getSortedRowModel
 } from '@tanstack/react-table'
 import type { ColumnDef, FilterFn } from '@tanstack/react-table'
 
 // Component Imports
-import OptionMenu from '@core/components/option-menu'
+import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
 import AddUnitDialog from './AddUnitDialog'
+import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
+import { UnitCapGate } from '@/components/subscription/UnitCapGate'
+import { useSubscription } from '@/contexts/SubscriptionContext'
 
 // API Imports
-import { getPropertyUnits, deleteUnit, type PropertyUnit } from '@/lib/api/properties'
+import { getUnitsByProperty as getPropertyUnits, deleteUnit } from '@/lib/api/units'
+import { getOccupantById } from '@/lib/api/occupants'
+import { getStoredTenantId } from '@/lib/api/storage'
+import { tablePaginationCount } from '@/lib/api/pagination'
+import type { Unit as PropertyUnit } from '@/types/property'
+import { formatCurrency } from '@/utils/currency'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
+
+// ImageKit does not serve original files on this account; see ikUrl.
+import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
@@ -57,11 +63,14 @@ type UnitType = {
   id: string
   unitNumber: string
   tenantName: string | null
-  status: 'occupied' | 'vacant' | 'maintenance'
-  rent: string
-  bedrooms: number
-  bathrooms: number
+  type: string
+  status: 'occupied' | 'vacant' | 'maintenance' | string
+  rent: number
+  formattedRent: string
+  bedrooms: number | string
+  bathrooms: number | string
   size: string
+  images: string[] | null
   originalData: PropertyUnit
 }
 
@@ -73,20 +82,49 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
   reserved: 'info'
 }
 
-function transformUnits(units: PropertyUnit[]): UnitType[] {
-  return units.map((unit) => ({
-    id: unit.id,
-    unitNumber: unit.unit_no,
-    tenantName: unit.tenant_record
-      ? `${unit.tenant_record.first_name} ${unit.tenant_record.last_name}`
-      : null,
-    status: unit.status === 'available' ? 'vacant' : (unit.status as 'occupied' | 'vacant' | 'maintenance'),
-    rent: `₵${unit.rent?.toLocaleString() || '0'}`,
-    bedrooms: unit.bedrooms || 0,
-    bathrooms: unit.bathrooms || 0,
-    size: unit.size_sqft ? `${unit.size_sqft.toLocaleString()} sqft` : '-',
-    originalData: unit
-  }))
+function transformUnits(units: PropertyUnit[], nameMap: Record<string, string> = {}): UnitType[] {
+  return units.map(unit => {
+    const oId = unit.occupantId || unit.tenantRecordId || null
+
+    
+return {
+      id: unit.id,
+      unitNumber: unit.unitNo,
+      type: unit.type,
+      status: unit.status,
+      bedrooms: unit.bedrooms || '-',
+      bathrooms: unit.bathrooms || '-',
+      rent: unit.rent,
+      formattedRent: formatCurrency(unit.rent, unit.currency ?? undefined),
+      size: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-',
+      tenantName: oId ? (nameMap[oId] ?? 'Loading…') : null,
+      images: unit.images || null,
+      originalData: unit
+    }
+  })
+}
+
+async function resolveOccupantNames(
+  units: PropertyUnit[],
+  tenantId: string
+): Promise<Record<string, string>> {
+  const ids = [...new Set(
+    units.map(u => u.occupantId || u.tenantRecordId).filter(Boolean) as string[]
+  )]
+
+  const results = await Promise.allSettled(
+    ids.map(id => getOccupantById(tenantId, id))
+  )
+
+  const map: Record<string, string> = {}
+
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled' && r.value?.firstName) {
+      map[ids[i]] = `${r.value.firstName} ${r.value.lastName}`
+    }
+  })
+  
+return map
 }
 
 const columnHelper = createColumnHelper<UnitType>()
@@ -96,11 +134,21 @@ interface Props {
 }
 
 const PropertyUnitsTable = ({ propertyId }: Props) => {
+  const { refresh: refreshSubscription } = useSubscription()
+
   // States
   const [data, setData] = useState<UnitType[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [globalFilter, setGlobalFilter] = useState('')
+
+  // Pagination states
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [hasNext, setHasNext] = useState(false)
+  const [cursorHistory, setCursorHistory] = useState<string[]>([])
 
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -110,39 +158,69 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
   const [deleting, setDeleting] = useState(false)
 
   // Fetch units
-  const fetchUnits = useCallback(async () => {
-    if (!propertyId) {
-      setLoading(false)
-      setError('No property ID provided')
-      
-return
-    }
+  const fetchUnits = useCallback(
+    async (cursorOverride?: string | null) => {
+      if (!propertyId) {
+        setLoading(false)
+        setError('No property ID provided')
 
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await getPropertyUnits(propertyId)
-
-      if (response.success && response.data) {
-        setData(transformUnits(response.data))
-      } else {
-        setError('Failed to load units')
+        return
       }
-    } catch (err) {
-      console.error('Error fetching units:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load units')
-    } finally {
-      setLoading(false)
-    }
-  }, [propertyId])
+
+      try {
+        const tenantId = getStoredTenantId()
+
+        if (!tenantId) return
+
+        setLoading(true)
+        setError(null)
+
+        const response = await getPropertyUnits(tenantId, propertyId, {
+          size: pageSize,
+          sort: 'id,asc',
+          cursor: cursorOverride ?? undefined
+        })
+
+        if (response.success && response.data) {
+          const units = response.data
+
+
+          // Show units immediately, then patch names in once resolved
+          setData(transformUnits(units))
+          setTotal(response.meta?.pagination?.total || units.length || 0)
+          setCursor(response.meta?.pagination?.cursor ?? null)
+          setHasNext(response.meta?.pagination?.hasNext ?? false)
+
+          // Resolve occupant names in parallel (non-blocking)
+          resolveOccupantNames(units, tenantId)
+            .then(nameMap => setData(transformUnits(units, nameMap)))
+            .catch(() => { /* non-critical — names stay as "Loading…" */ })
+        } else {
+          setError('Failed to load units')
+        }
+      } catch (err) {
+        console.error('Error fetching units:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load units')
+        setData([])
+        setTotal(0)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [propertyId, pageSize]
+  )
 
   useEffect(() => {
-    fetchUnits()
+    setCursor(null)
+    setCursorHistory([])
+    setPage(0)
+    fetchUnits(null)
   }, [fetchUnits])
 
-  // Handle add success
+  // Handle add success — refresh units list and subscription context (unit count may have changed)
   const handleAddSuccess = () => {
     fetchUnits()
+    refreshSubscription()
   }
 
   // Handle edit
@@ -161,16 +239,23 @@ return
   const handleDeleteConfirm = async () => {
     if (!unitToDelete) return
 
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) return
+
     setDeleting(true)
 
     try {
-      await deleteUnit(unitToDelete.id)
+      await deleteUnit(tenantId, unitToDelete.id)
       setDeleteDialogOpen(false)
       setUnitToDelete(null)
       fetchUnits()
     } catch (err) {
       console.error('Error deleting unit:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete unit')
+
+      // Rethrow: ConfirmationDialog awaits this and reports the outcome.
+      // Swallowing it makes the dialog announce a success that did not happen.
+      throw err instanceof Error ? err : new Error('Failed to delete unit')
     } finally {
       setDeleting(false)
     }
@@ -187,30 +272,46 @@ return
       columnHelper.accessor('unitNumber', {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
-          <Typography color="text.primary" className="font-medium">
-            {row.original.unitNumber}
-          </Typography>
+          <div className='flex items-center gap-3'>
+            <Avatar
+              variant='rounded'
+              sx={{ width: 34, height: 34 }}
+              src={ikUrl(row.original.images?.[0], IK_THUMB) || undefined}
+            >
+              <i className='ri-home-3-line text-base' />
+            </Avatar>
+            <div className='flex flex-col'>
+              <Typography color='text.primary' className='font-medium'>
+                {row.original.unitNumber}
+              </Typography>
+              {row.original.type && (
+                <Typography variant='caption' color='text.secondary' className='capitalize'>
+                  {row.original.type}
+                </Typography>
+              )}
+            </div>
+          </div>
         )
       }),
       columnHelper.accessor('tenantName', {
         header: 'TENANT',
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
+          <div className='flex items-center gap-3'>
             {row.original.tenantName ? (
               <>
-                <CustomAvatar skin="light" color="primary" size={34}>
+                <CustomAvatar skin='light' color='primary' size={34}>
                   {row.original.tenantName
                     .split(' ')
-                    .map((n) => n[0])
+                    .map(n => n[0])
                     .join('')
                     .toUpperCase()}
                 </CustomAvatar>
-                <Typography color="text.primary" className="font-medium">
+                <Typography color='text.primary' className='font-medium'>
                   {row.original.tenantName}
                 </Typography>
               </>
             ) : (
-              <Typography color="text.secondary">-</Typography>
+              <Typography color='text.secondary'>-</Typography>
             )}
           </div>
         )
@@ -219,19 +320,19 @@ return
         header: 'STATUS',
         cell: ({ row }) => (
           <Chip
-            variant="tonal"
+            variant='tonal'
             label={row.original.status}
-            size="small"
+            size='small'
             color={unitStatusObj[row.original.status] || 'default'}
-            className="capitalize"
+            className='capitalize'
           />
         )
       }),
       columnHelper.accessor('rent', {
         header: 'RENT',
         cell: ({ row }) => (
-          <Typography color="text.primary" className="font-medium">
-            {row.original.rent}
+          <Typography color='text.primary' className='font-medium'>
+            {row.original.formattedRent}
           </Typography>
         )
       }),
@@ -245,15 +346,20 @@ return
       }),
       columnHelper.accessor('size', {
         header: 'SIZE',
-        cell: ({ row }) => <Typography color="text.secondary">{row.original.size}</Typography>
+        cell: ({ row }) => <Typography color='text.secondary'>{row.original.size}</Typography>
       }),
       columnHelper.display({
         id: 'actions',
         header: 'ACTIONS',
         cell: ({ row }) => (
-          <OptionMenu
+          <RowActions
             iconButtonProps={{ size: 'small' }}
             options={[
+              {
+                text: 'View',
+                icon: 'ri-eye-line',
+                href: `/properties/units/${row.original.id}`
+              },
               {
                 text: 'Edit',
                 icon: 'ri-pencil-line',
@@ -280,50 +386,50 @@ return
     columns,
     filterFns: { fuzzy: fuzzyFilter },
     state: { globalFilter },
-    initialState: { pagination: { pageSize: 10 } },
+    manualPagination: true,
+    pageCount: Math.ceil(total / pageSize),
     globalFilterFn: fuzzyFilter,
     getCoreRowModel: getCoreRowModel(),
     onGlobalFilterChange: setGlobalFilter,
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-    getFacetedMinMaxValues: getFacetedMinMaxValues()
+    getPaginationRowModel: getPaginationRowModel()
   })
 
   return (
     <>
       <Card>
         <CardHeader
-          title="Property Units"
+          title='Property Units'
           action={
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<i className="ri-add-line" />}
-              onClick={() => setAddDialogOpen(true)}
-            >
-              Add Unit
-            </Button>
+            <UnitCapGate>
+              <Button
+                variant='contained'
+                size='small'
+                startIcon={<i className='ri-add-line' />}
+                onClick={() => setAddDialogOpen(true)}
+              >
+                Add Unit
+              </Button>
+            </UnitCapGate>
           }
         />
         <CardContent>
           {loading ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
+            <Box display='flex' justifyContent='center' alignItems='center' minHeight={200}>
               <CircularProgress />
             </Box>
           ) : error ? (
-            <Box display="flex" justifyContent="center" alignItems="center" minHeight={200}>
-              <Typography color="error">{error}</Typography>
+            <Box display='flex' justifyContent='center' alignItems='center' minHeight={200}>
+              <Typography color='error'>{error}</Typography>
             </Box>
           ) : (
-            <div className="overflow-x-auto">
+            <div className='overflow-x-auto'>
               <table className={tableStyles.table}>
                 <thead>
-                  {table.getHeaderGroups().map((headerGroup) => (
+                  {table.getHeaderGroups().map(headerGroup => (
                     <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
+                      {headerGroup.headers.map(header => (
                         <th key={header.id}>
                           {header.isPlaceholder ? null : (
                             <div
@@ -335,8 +441,8 @@ return
                             >
                               {flexRender(header.column.columnDef.header, header.getContext())}
                               {{
-                                asc: <i className="ri-arrow-up-s-line text-xl" />,
-                                desc: <i className="ri-arrow-down-s-line text-xl" />
+                                asc: <i className='ri-arrow-up-s-line text-xl' />,
+                                desc: <i className='ri-arrow-down-s-line text-xl' />
                               }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
                             </div>
                           )}
@@ -348,29 +454,62 @@ return
                 {table.getFilteredRowModel().rows.length === 0 ? (
                   <tbody>
                     <tr>
-                      <td colSpan={table.getVisibleFlatColumns().length} className="text-center">
+                      <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
                         No units available
                       </td>
                     </tr>
                   </tbody>
                 ) : (
-                  <tbody className="border-be">
-                    {table
-                      .getRowModel()
-                      .rows.slice(0, table.getState().pagination.pageSize)
-                      .map((row) => (
-                        <tr key={row.id}>
-                          {row.getVisibleCells().map((cell) => (
-                            <td key={cell.id} className="first:is-14">
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
+                  <tbody className='border-be'>
+                    {table.getRowModel().rows.map(row => (
+                      <tr key={row.id}>
+                        {row.getVisibleCells().map(cell => (
+                          <td key={cell.id} className='first:is-14'>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
                   </tbody>
                 )}
               </table>
             </div>
+          )}
+          {!loading && !error && (
+            <TablePagination
+              rowsPerPageOptions={[10, 25, 50]}
+              component='div'
+              className='border-bs'
+              count={tablePaginationCount(total)}
+              rowsPerPage={pageSize}
+              page={page}
+              SelectProps={{
+                inputProps: { 'aria-label': 'rows per page' }
+              }}
+              onPageChange={(_, newPage) => {
+                if (newPage > page && hasNext && cursor) {
+                  // Going forward
+                  setCursorHistory(prev => [...prev, cursor])
+                  fetchUnits(cursor)
+                  setPage(newPage)
+                } else if (newPage < page) {
+                  // Going backward
+                  const newHistory = [...cursorHistory]
+                  const prevCursor = newHistory.pop() ?? null
+
+                  setCursorHistory(newHistory)
+                  fetchUnits(prevCursor === cursorHistory[0] ? null : prevCursor)
+                  setPage(newPage)
+                }
+              }}
+              onRowsPerPageChange={e => {
+                setPageSize(Number(e.target.value))
+                setPage(0)
+                setCursor(null)
+                setCursorHistory([])
+                fetchUnits(null)
+              }}
+            />
           )}
         </CardContent>
       </Card>
@@ -387,28 +526,12 @@ return
       )}
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Delete Unit</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete {unitToDelete?.unitNumber}? This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-            Cancel
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={handleDeleteConfirm}
-            disabled={deleting}
-            startIcon={deleting ? <CircularProgress size={20} /> : null}
-          >
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        setOpen={setDeleteDialogOpen}
+        type='delete-unit'
+        onConfirm={handleDeleteConfirm}
+      />
     </>
   )
 }

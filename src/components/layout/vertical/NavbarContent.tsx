@@ -3,9 +3,12 @@
 // Third-party Imports
 import classnames from 'classnames'
 
+// MUI Imports
+import Box from '@mui/material/Box'
+import LinearProgress from '@mui/material/LinearProgress'
+
 // Type Imports
 import type { ShortcutsType } from '@components/layout/shared/ShortcutsDropdown'
-import type { NotificationsType } from '@components/layout/shared/NotificationsDropdown'
 
 // Component Imports
 import NavToggle from './NavToggle'
@@ -15,6 +18,9 @@ import ShortcutsDropdown from '@components/layout/shared/ShortcutsDropdown'
 import ModeDropdown from '@components/layout/shared/ModeDropdown'
 import NotificationsDropdown from '@components/layout/shared/NotificationsDropdown'
 import UserDropdown from '@components/layout/shared/UserDropdown'
+
+// Context Imports
+import { useAuth } from '@/contexts/AuthContext'
 
 // Util Imports
 import { verticalLayoutClasses } from '@layouts/utils/layoutClasses'
@@ -59,50 +65,31 @@ const shortcuts: ShortcutsType[] = [
   }
 ]
 
-const notifications: NotificationsType[] = [
-  {
-    avatarImage: '/images/avatars/2.png',
-    title: 'New Maintenance Request',
-    subtitle: 'Maintenance request submitted for Room A-101',
-    time: '1h ago',
-    read: false
-  },
-  {
-    title: 'Payment Received',
-    subtitle: 'Payment of €1,200 received from Jordan Stevenson',
-    time: '3h ago',
-    read: false
-  },
-  {
-    avatarImage: '/images/avatars/3.png',
-    title: 'Lease Agreement Signed',
-    subtitle: 'New lease agreement signed for Property B-205',
-    time: '5h ago',
-    read: true
-  },
-  {
-    avatarIcon: 'ri-alert-line',
-    avatarColor: 'warning',
-    title: 'Overdue Payment',
-    subtitle: 'Payment overdue for Room C-301',
-    time: '1 day ago',
-    read: true
-  }
-]
-
 const NavbarContent = () => {
+  const { isRefreshing } = useAuth()
+
   return (
-    <div className={classnames(verticalLayoutClasses.navbarContent, 'flex items-center justify-between gap-4 is-full')}>
-      <div className='flex items-center gap-4'>
-        <NavToggle />
-        <NavSearch />
-      </div>
-      <div className='flex items-center gap-2'>
-        <CreateButton />
-        <ShortcutsDropdown shortcuts={shortcuts} />
-        <ModeDropdown />
-        <NotificationsDropdown notifications={notifications} />
-        <UserDropdown />
+    <div className={classnames(verticalLayoutClasses.navbarContent, 'flex flex-col is-full relative')}>
+      {isRefreshing && (
+        <LinearProgress 
+          className='absolute block-start-0 inline-start-0 is-full' 
+          sx={{ height: 2, zIndex: 1000 }}
+        />
+      )}
+      <div className='flex items-center justify-between gap-4 is-full bs-full'>
+        <div className='flex items-center gap-4'>
+          <NavToggle />
+          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+            <NavSearch />
+          </Box>
+        </div>
+        <div className='flex items-center gap-2'>
+          <CreateButton />
+          <ShortcutsDropdown shortcuts={shortcuts} />
+          <ModeDropdown />
+          <NotificationsDropdown />
+          <UserDropdown />
+        </div>
       </div>
     </div>
   )
