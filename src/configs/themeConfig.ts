@@ -51,9 +51,9 @@ export type Config = {
 }
 
 const themeConfig: Config = {
-  templateName: 'TenantX',
+  templateName: 'Yiliora',
   homePageUrl: '/dashboard',
-  settingsCookieName: 'tenantx-1',
+  settingsCookieName: 'yiliora-1',
   mode: 'light', // 'system', 'light', 'dark'
   skin: 'default', // 'default', 'bordered'
   semiDark: false, // true, false (deprecated, use sidebarType instead)

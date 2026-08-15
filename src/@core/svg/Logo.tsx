@@ -1,77 +1,46 @@
 // React Imports
 import type { SVGAttributes } from 'react'
 
+/**
+ * The Yiliora mark — the Y glyph only, without the wordmark.
+ *
+ * <p>The full lockup lives at {@code public/images/logo/yiliora.svg}. It is not
+ * used here on purpose: the sidebar renders the platform (or tenant) name as a
+ * text element right beside this mark, so a lockup would print the name twice.
+ * The lockup also sets its wordmark in an unstyled {@code <text>} element, which
+ * resolves to whatever default face the viewer's OS supplies — fine for a quick
+ * preview, wrong for a logo. Pairing the mark with the sidebar's own themed text
+ * sidesteps both problems and gets dark mode for free.
+ *
+ * <p>The stroke is the brand pink rather than {@code var(--mui-palette-primary-main)}
+ * so the mark stays the mark when a tenant's branding changes the primary colour.
+ * Swap the constant below if you would rather it follow the theme.
+ */
+const BRAND = '#EF4195'
+
 const Logo = (props: SVGAttributes<SVGElement>) => {
   return (
-    <svg width='40' height='22' viewBox='0 0 40 22' fill='none' xmlns='http://www.w3.org/2000/svg' {...props}>
-      <rect
-        width='7.37565'
-        height='21.1131'
-        rx='3.68783'
-        transform='matrix(-0.865206 0.501417 0.498585 0.866841 28.4115 0)'
-        fill='var(--mui-palette-primary-main)'
-      />
-      <rect
-        width='7.37565'
-        height='21.1131'
-        rx='3.68783'
-        transform='matrix(-0.865206 0.501417 0.498585 0.866841 28.4869 0)'
-        fill='url(#paint0_linear_448_114254)'
-        fillOpacity='0.4'
-      />
-      <rect
-        width='7.37565'
-        height='21.1131'
-        rx='3.68783'
-        transform='matrix(0.865206 0.501417 -0.498585 0.866841 25.6563 0)'
-        fill='var(--mui-palette-primary-main)'
-      />
-      <rect
-        width='7.37565'
-        height='21.1131'
-        rx='3.68783'
-        transform='matrix(-0.865206 0.501417 0.498585 0.866841 14.3293 0)'
-        fill='var(--mui-palette-primary-main)'
-      />
-      <rect
-        width='7.37565'
-        height='21.1131'
-        rx='3.68783'
-        transform='matrix(-0.865206 0.501417 0.498585 0.866841 14.3293 0)'
-        fill='url(#paint1_linear_448_114254)'
-        fillOpacity='0.4'
-      />
-      <rect
-        width='7.37565'
-        height='21.1131'
-        rx='3.68783'
-        transform='matrix(0.865206 0.501417 -0.498585 0.866841 11.5132 0)'
-        fill='var(--mui-palette-primary-main)'
-      />
-      <defs>
-        <linearGradient
-          id='paint0_linear_448_114254'
-          x1='3.68783'
-          y1='0'
-          x2='3.68783'
-          y2='21.1131'
-          gradientUnits='userSpaceOnUse'
-        >
-          <stop />
-          <stop offset='1' stopOpacity='0' />
-        </linearGradient>
-        <linearGradient
-          id='paint1_linear_448_114254'
-          x1='3.68783'
-          y1='0'
-          x2='3.68783'
-          y2='21.1131'
-          gradientUnits='userSpaceOnUse'
-        >
-          <stop />
-          <stop offset='1' stopOpacity='0' />
-        </linearGradient>
-      </defs>
+    <svg
+      width='24'
+      height='28'
+      viewBox='8 6 24 28'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      role='img'
+      aria-label='Yiliora'
+      {...props}
+    >
+      <g transform='translate(4 4)'>
+        <path
+          d='M23.4 6.6 L16 15.4 L16 25.4'
+          fill='none'
+          stroke={BRAND}
+          strokeWidth='5.6'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+        />
+        <path d='M8.6 6.6 L10.8 9.2' fill='none' stroke={BRAND} strokeWidth='5.6' strokeLinecap='round' />
+      </g>
     </svg>
   )
 }

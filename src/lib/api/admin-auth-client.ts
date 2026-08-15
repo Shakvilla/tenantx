@@ -1403,7 +1403,7 @@ export async function exportTenantData(tenantId: string): Promise<void> {
   const m   = cd.match(/filename="?([^"]+)"?/)
 
   a.href     = url
-  a.download = m ? m[1] : `tenantx_export_${tenantId}.json`
+  a.download = m ? m[1] : `yiliora_export_${tenantId}.json`
   a.click()
   URL.revokeObjectURL(url)
 }

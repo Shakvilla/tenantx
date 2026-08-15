@@ -82,7 +82,7 @@ export async function uploadDocument(
     body.append('signature', auth.signature)
     body.append('expire', String(auth.expire))
     body.append('token', auth.token)
-    body.append('folder', `/tenantx/${tenantId}/documents`)
+    body.append('folder', `/yiliora/${tenantId}/documents`)
     body.append('useUniqueFileName', 'true')
 
     // The point of the whole migration. Without this the file is world-readable

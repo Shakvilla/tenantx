@@ -22,12 +22,12 @@ export type CloudinaryUploadResult = {
  * Upload a file to Cloudinary with progress reporting.
  *
  * @param file       The File object from an <input type="file">
- * @param folder     Cloudinary folder path, e.g. "tenantx/documents"
+ * @param folder     Cloudinary folder path, e.g. "yiliora/documents"
  * @param onProgress Called with 0–100 as the upload progresses
  */
 export function uploadToCloudinary(
   file: File,
-  folder = 'tenantx/documents',
+  folder = 'yiliora/documents',
   onProgress?: (percent: number) => void
 ): Promise<CloudinaryUploadResult> {
   if (!CLOUD_NAME || !UPLOAD_PRESET) {

@@ -1,8 +1,44 @@
 // MUI Imports
+import { darken, getContrastRatio } from '@mui/material/styles'
 import type { Theme } from '@mui/material/styles'
 
 // Config Imports
 import themeConfig from '@configs/themeConfig'
+
+/** WCAG AA for normal-size text. Button labels here are ~15px, so this is the bar. */
+const MIN_LABEL_CONTRAST = 4.5
+
+/**
+ * A background dark enough for the button's white label to reach WCAG AA.
+ *
+ * <p>The brand pink (#EF4195) gives white text only 3.58:1 — fine for a chip, an
+ * icon or a link underline, short of AA for a 15px button label. Rather than
+ * darkening the whole palette and pulling the interface away from the logo, only
+ * the filled button is darkened; the brand colour still drives links, chips,
+ * highlights and the mark itself.
+ *
+ * <p>Computed rather than hardcoded because the primary colour is not fixed:
+ * platform branding can set a tenant's own colour at runtime, and a hardcoded
+ * shade would be wrong for every colour but this one. A palette that already
+ * clears the bar is returned untouched, so this is a no-op for dark primaries.
+ */
+const labelSafeBackground = (theme: {
+  palette: { primary: { main: string; contrastText: string } }
+}): string => {
+  const base = theme.palette.primary.main
+
+  // Only meaningful when MUI has chosen a white label; against a dark label,
+  // darkening the background would make things worse.
+  if (getContrastRatio(theme.palette.primary.contrastText, '#fff') > 1.05) return base
+
+  for (let step = 0; step <= 10; step++) {
+    const candidate = step === 0 ? base : darken(base, step * 0.05)
+
+    if (getContrastRatio('#fff', candidate) >= MIN_LABEL_CONTRAST) return candidate
+  }
+
+  return darken(base, 0.5)
+}
 
 const iconStyles = (size?: string) => ({
   '& > *:nth-of-type(1)': {
@@ -191,12 +227,20 @@ const button: Theme['components'] = {
           {
             props: { variant: 'contained', color: 'primary' },
             style: {
+              // Not var(--mui-palette-primary-main): see labelSafeBackground above.
+              // Hover and active are derived from the same value so they stay
+              // darker than the resting state rather than reverting to the
+              // lighter palette `dark`.
+              backgroundColor: labelSafeBackground(theme),
+              '&:not(.Mui-disabled):hover': {
+                backgroundColor: darken(labelSafeBackground(theme), 0.1)
+              },
               '&:not(.Mui-disabled):active, &.Mui-focusVisible:not(:has(span.MuiTouchRipple-root))': {
-                backgroundColor: 'var(--mui-palette-primary-dark)'
+                backgroundColor: darken(labelSafeBackground(theme), 0.16)
               },
               '&.Mui-disabled': {
                 color: 'var(--mui-palette-primary-contrastText)',
-                backgroundColor: 'var(--mui-palette-primary-main)'
+                backgroundColor: labelSafeBackground(theme)
               }
             }
           },

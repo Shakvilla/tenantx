@@ -6,7 +6,7 @@ describe('SiteFooter', () => {
   it('shows the current year in the copyright line', () => {
     render(<SiteFooter />)
     const year = new Date().getFullYear()
-    expect(screen.getByText(new RegExp(`© ${year} TenantX · Ghana Property Platform`))).toBeInTheDocument()
+    expect(screen.getByText(new RegExp(`© ${year} Yiliora · Ghana Property Platform`))).toBeInTheDocument()
   })
 
   it('links to the listings index', () => {

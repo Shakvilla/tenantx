@@ -94,7 +94,7 @@ export async function openInspectionReport(id: string): Promise<void> {
 /**
  * Upload inspection item photos to ImageKit.
  *
- * Folder: /tenantx/{tenantId}/inspections/{inspectionId}
+ * Folder: /yiliora/{tenantId}/inspections/{inspectionId}
  *
  * @returns array of CDN URLs ready to store in ItemUpsert.photoUrls
  */
@@ -103,7 +103,7 @@ export async function uploadInspectionPhotos(
   tenantId: string,
   inspectionId: string
 ): Promise<string[]> {
-  const folder = `/tenantx/${tenantId}/inspections/${inspectionId}`
+  const folder = `/yiliora/${tenantId}/inspections/${inspectionId}`
   const uploaded = await uploadImages(files, { folder })
   return uploaded.map(f => f.url)
 }
