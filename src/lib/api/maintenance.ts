@@ -555,8 +555,8 @@ export async function uploadMaintenanceImages(
 ): Promise<MaintenanceImageUploadResult[]> {
   const { uploadImages } = await import('@/lib/imagekit')
   const folder = requestId
-    ? `/tenantx/${tenantId}/maintenance/${requestId}`
-    : `/tenantx/${tenantId}/maintenance`
+    ? `/yiliora/${tenantId}/maintenance/${requestId}`
+    : `/yiliora/${tenantId}/maintenance`
   const uploaded = await uploadImages(files, { folder })
   return uploaded.map(u => ({ url: u.url, fileId: u.fileId }))
 }

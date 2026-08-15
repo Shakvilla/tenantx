@@ -24,7 +24,7 @@ interface PlatformBrandingState {
 // ---------------------------------------------------------------------------
 
 const PlatformBrandingContext = createContext<PlatformBrandingState>({
-  platformName:  'TenantX',
+  platformName:  'Yiliora',
   logoUrl:       '',
   primaryColour: '#7367F0',
 })
@@ -34,7 +34,7 @@ const PlatformBrandingContext = createContext<PlatformBrandingState>({
 // ---------------------------------------------------------------------------
 
 export function PlatformBrandingProvider({ children }: { children: React.ReactNode }) {
-  const [platformName,  setPlatformName]  = useState('TenantX')
+  const [platformName,  setPlatformName]  = useState('Yiliora')
   const [logoUrl,       setLogoUrl]       = useState('')
   const [primaryColour, setPrimaryColour] = useState('#7367F0')
 

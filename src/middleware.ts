@@ -283,7 +283,7 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
     // Platform-offline notice, impersonation, and maintainer job links —
     // always allow through regardless of session state. A job link must render
     // the same for signed-in and signed-out visitors alike, because whoever
-    // holds the link (e.g. a maintainer with no TenantX account) is the
+    // holds the link (e.g. a maintainer with no Yiliora account) is the
     // intended audience — a signed-in landlord tapping it must not be bounced
     // to /dashboard.
     if (matchesRoute(pathname, ['/auth/impersonate', '/platform-offline', '/jobs'])) {

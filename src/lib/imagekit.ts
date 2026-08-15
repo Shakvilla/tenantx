@@ -10,8 +10,8 @@
  * Usage:
  *   import { uploadImage, uploadImages } from '@/lib/imagekit'
  *
- *   const url  = await uploadImage(file, { folder: '/tenantx/properties' })
- *   const urls = await uploadImages(files, { folder: '/tenantx/avatars' })
+ *   const url  = await uploadImage(file, { folder: '/yiliora/properties' })
+ *   const urls = await uploadImages(files, { folder: '/yiliora/avatars' })
  */
 
 import { apiGet, API_BASE } from './api/client'
@@ -25,7 +25,7 @@ export interface ImageKitAuthParams {
 }
 
 export interface UploadOptions {
-  /** ImageKit folder path, e.g. "/tenantx/properties".  Defaults to "/tenantx". */
+  /** ImageKit folder path, e.g. "/yiliora/properties".  Defaults to "/yiliora". */
   folder?: string
   /** Custom file name (without extension).  Defaults to original filename. */
   fileName?: string
@@ -91,7 +91,7 @@ export async function uploadImage(
   const auth = await getAuthParams()
 
   const {
-    folder            = '/tenantx',
+    folder            = '/yiliora',
     fileName          = file.name,
     useUniqueFileName = true,
     tags              = []
@@ -217,7 +217,7 @@ export function ikUrl(url: string | null | undefined, transform: string = IK_CAR
  * Build a transformed ImageKit URL (resize, format conversion, etc.)
  *
  * @example
- * buildUrl('/tenantx/properties/photo.jpg', [{ width: 400, height: 300, crop: 'maintain_ratio' }])
+ * buildUrl('/yiliora/properties/photo.jpg', [{ width: 400, height: 300, crop: 'maintain_ratio' }])
  */
 export function buildUrl(
   filePath: string,

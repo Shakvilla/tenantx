@@ -28,7 +28,7 @@ interface BrandingState {
 // ---------------------------------------------------------------------------
 
 const AdminBrandingContext = createContext<BrandingState>({
-  platformName:  'TenantX',
+  platformName:  'Yiliora',
   logoUrl:       '',
   primaryColour: '#7367F0',
   refresh:       () => {},
@@ -39,7 +39,7 @@ const AdminBrandingContext = createContext<BrandingState>({
 // ---------------------------------------------------------------------------
 
 export function AdminBrandingProvider({ children }: { children: React.ReactNode }) {
-  const [platformName,  setPlatformName]  = useState('TenantX')
+  const [platformName,  setPlatformName]  = useState('Yiliora')
   const [logoUrl,       setLogoUrl]       = useState('')
   const [primaryColour, setPrimaryColour] = useState('#7367F0')
 

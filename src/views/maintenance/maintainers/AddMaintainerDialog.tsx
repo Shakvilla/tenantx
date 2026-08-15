@@ -285,7 +285,7 @@ const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'a
             />
             <Typography variant='caption' color='text.secondary' className='block'>
               {formData.listedInMarketplace
-                ? 'Their name, trade and phone number will be visible to tenants of every landlord on TenantX, who can call them directly.'
+                ? 'Their name, trade and phone number will be visible to tenants of every landlord on Yiliora, who can call them directly.'
                 : 'They stay private to your account. Turn this on to let tenants of any landlord find and call them.'}
             </Typography>
           </Grid>

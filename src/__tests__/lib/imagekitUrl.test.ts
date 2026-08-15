@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import { ikUrl, IK_THUMB, IK_CARD, IK_FULL } from '@/lib/imagekit'
 
-const STORED = 'https://ik.imagekit.io/ixtkw2ixq/tenantx/atkaada-company-ltd/properties/2bedroom_r3hTiIeuL.jpeg'
+const STORED = 'https://ik.imagekit.io/ixtkw2ixq/yiliora/atkaada-company-ltd/properties/2bedroom_r3hTiIeuL.jpeg'
 
 /**
  * Why this exists at all.
@@ -27,7 +27,7 @@ describe('ikUrl', () => {
     const out = ikUrl(STORED, 'w-400')
 
     expect(out).toBe(
-      'https://ik.imagekit.io/ixtkw2ixq/tr:w-400/tenantx/atkaada-company-ltd/properties/2bedroom_r3hTiIeuL.jpeg'
+      'https://ik.imagekit.io/ixtkw2ixq/tr:w-400/yiliora/atkaada-company-ltd/properties/2bedroom_r3hTiIeuL.jpeg'
     )
     expect(out).not.toContain('?tr=')
     expect(out).not.toContain('&tr=')
@@ -36,14 +36,14 @@ describe('ikUrl', () => {
   it('inserts after the endpoint id, not at the start of the path', () => {
     // ik.imagekit.io/<endpointId>/<path>: putting tr: before the endpoint id
     // addresses a different account entirely.
-    expect(ikUrl(STORED, 'w-400')).toContain('/ixtkw2ixq/tr:w-400/tenantx/')
+    expect(ikUrl(STORED, 'w-400')).toContain('/ixtkw2ixq/tr:w-400/yiliora/')
   })
 
   it('keeps an existing query string', () => {
     // ImageKit's own API hands back URLs carrying ?updatedAt=…, and a stored
     // URL may well have one.
     expect(ikUrl(`${STORED}?updatedAt=1786196795690`, 'w-400')).toBe(
-      'https://ik.imagekit.io/ixtkw2ixq/tr:w-400/tenantx/atkaada-company-ltd/properties/2bedroom_r3hTiIeuL.jpeg?updatedAt=1786196795690'
+      'https://ik.imagekit.io/ixtkw2ixq/tr:w-400/yiliora/atkaada-company-ltd/properties/2bedroom_r3hTiIeuL.jpeg?updatedAt=1786196795690'
     )
   })
 

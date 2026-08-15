@@ -46,7 +46,7 @@ type ActionState =
 // ---------------------------------------------------------------------------
 
 const PRIVATE_ARRANGEMENT_COPY =
-  "This is a private arrangement between you and the tenant. TenantX isn't taking payment and isn't a party to the work."
+  "This is a private arrangement between you and the tenant. Yiliora isn't taking payment and isn't a party to the work."
 
 const ACCEPTED_HEADLINE = 'Thanks — the tenant has been told you accepted.'
 const ACCEPTED_BODY = "They'll contact you directly to arrange the work."

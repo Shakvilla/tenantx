@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-const STORAGE_KEY = 'tenantx-saved-listings'
+const STORAGE_KEY = 'yiliora-saved-listings'
 
 function readSaved(): Set<string> {
   try {

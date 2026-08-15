@@ -275,7 +275,7 @@ export default function AdminPlatformSettingsView() {
     setLogoUploading(true)
     try {
       const { uploadImage } = await import('@/lib/imagekit')
-      const uploaded = await uploadImage(file, { folder: '/tenantx/platform/branding' })
+      const uploaded = await uploadImage(file, { folder: '/yiliora/platform/branding' })
 
       await save('branding.logo_url', uploaded.url)
     } catch (e: unknown) {
@@ -416,7 +416,7 @@ export default function AdminPlatformSettingsView() {
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 900, mx: 'auto' }}>
       <Typography variant='h4' fontWeight={700} sx={{ mb: 0.5 }}>Platform Settings</Typography>
       <Typography variant='body2' color='text.secondary' sx={{ mb: 4 }}>
-        Global configuration for the {localValues['branding.platform_name'] || 'TenantX'} platform. Changes take effect immediately.
+        Global configuration for the {localValues['branding.platform_name'] || 'Yiliora'} platform. Changes take effect immediately.
       </Typography>
 
       {/* ── 0. Maintenance Mode ──────────────────────────────────────────────── */}

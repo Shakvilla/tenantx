@@ -292,14 +292,14 @@ describe('Properties Service', () => {
     it('should upload via ImageKit into the tenant property folder', async () => {
       const { uploadImages } = await import('@/lib/imagekit')
       vi.mocked(uploadImages).mockResolvedValue([
-        { filePath: '/tenantx/test-tenant-id/properties/prop-1/test.jpg', url: 'https://ik.example/test.jpg', fileId: 'f1' }
+        { filePath: '/yiliora/test-tenant-id/properties/prop-1/test.jpg', url: 'https://ik.example/test.jpg', fileId: 'f1' }
       ] as any)
       const files = [new File([], 'test.jpg')]
 
       const result = await uploadPropertyImages(tenantId, files, 'prop-1')
 
       expect(uploadImages).toHaveBeenCalledWith(files, {
-        folder: `/tenantx/${tenantId}/properties/prop-1`
+        folder: `/yiliora/${tenantId}/properties/prop-1`
       })
       expect(result.success).toBe(true)
       expect(result.data?.count).toBe(1)

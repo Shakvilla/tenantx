@@ -3,7 +3,7 @@
  * Uses native fetch so it works in both Server and Client components.
  *
  * This is the destination for the maintainer job-link SMS
- * ("https://app.tenantx.cloud/jobs/{token}"). The visitor has no TenantX
+ * ("https://app.yiliora.cloud/jobs/{token}"). The visitor has no Yiliora
  * account, so nothing here may send Authorization or X-Tenant-ID — see
  * src/lib/api/client.ts, whose interceptor injects both and is therefore
  * NOT usable for this surface.

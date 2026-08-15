@@ -249,7 +249,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
     setDocUploadError(null)
     setDocUploading(true)
     try {
-      const result = await uploadImage(file, { folder: '/tenantx/agreements' })
+      const result = await uploadImage(file, { folder: '/yiliora/agreements' })
       setFormData(prev => ({ ...prev, documentUrl: result.url }))
     } catch (err: any) {
       setDocUploadError(err?.message ?? 'Upload failed. Please try again.')
