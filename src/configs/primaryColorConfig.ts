@@ -8,10 +8,14 @@ export type PrimaryColorConfig = {
 // Primary color config object
 const primaryColorConfig: PrimaryColorConfig[] = [
   {
+    // Yiliora brand pink. `light` and `dark` are derived the same way the
+    // template's original triple was — light is the main mixed 20% toward white,
+    // dark is the main at 80% — so the tint/shade relationship the components
+    // rely on (hover, active, disabled) is unchanged.
     name: 'primary-1',
-    light: '#496be5',
-    main: '#1b46de',
-    dark: '#1638b2'
+    light: '#F267AA',
+    main: '#EF4195',
+    dark: '#BF3477'
   },
   {
     name: 'primary-2',
