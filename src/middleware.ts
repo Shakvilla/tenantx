@@ -1,6 +1,141 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 /**
+ * ── Security headers ──────────────────────────────────────────────────────
+ *
+ * The app served no security headers at all: no CSP, no HSTS, no framing or
+ * MIME-sniffing protection. That matters more here than in most apps because
+ * the access and refresh tokens live in localStorage, which script running on
+ * the page can read — so a single injected script is a full account takeover,
+ * with seven days of persistence from the refresh token. Storage is the deeper
+ * issue and is not fixed here; a CSP is what stands between an injection and
+ * that storage in the meantime.
+ *
+ * The policy is nonce-based rather than `'unsafe-inline'`. Next injects inline
+ * hydration scripts, so a policy permissive enough to allow those by keyword
+ * would allow an attacker's inline script equally, which is a header that looks
+ * like protection and is not. Next stamps its own scripts with the nonce it
+ * reads from the request's CSP header, so that header is set on the request as
+ * well as the response.
+ *
+ * Trade-off accepted: emitting a per-request nonce opts routes out of static
+ * rendering. Nearly every route here is behind auth and already dynamic.
+ */
+function buildCsp(nonce: string, isHttps: boolean): string {
+  const isProd = process.env.NODE_ENV === 'production'
+
+  // Where the browser is allowed to send requests: our own API, and ImageKit,
+  // which the browser uploads to directly and reads signed document links from.
+  const apiOrigin = originOf(process.env.NEXT_PUBLIC_API_BASE_URL)
+  const imageKitOrigin = originOf(process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT)
+
+  const connect = ["'self'", apiOrigin, imageKitOrigin, 'https://upload.imagekit.io']
+    .filter(Boolean)
+    .join(' ')
+
+  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://images.unsplash.com']
+    .filter(Boolean)
+    .join(' ')
+
+  return [
+    "default-src 'self'",
+
+    // 'strict-dynamic' lets Next's nonced bootstrap load the chunks it needs
+    // without every chunk URL being listed. The bare `https:` after it is
+    // ignored by browsers that understand 'strict-dynamic' and acts as the
+    // fallback for those that don't. 'unsafe-eval' is dev-only — React Refresh
+    // needs it and production does not.
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https:${isProd ? '' : " 'unsafe-eval'"}`,
+
+    // Emotion (MUI) inserts style elements at runtime that a nonce cannot cover.
+    // Style injection is a far weaker primitive than script injection.
+    "style-src 'self' 'unsafe-inline'",
+
+    `img-src ${img}`,
+    "font-src 'self' data:",
+    `connect-src ${connect}`,
+
+    // Clickjacking: frame-ancestors is the modern control; X-Frame-Options below
+    // covers browsers that still only honour that.
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    // Keyed on the scheme actually in use, NOT on NODE_ENV. A production *build*
+    // is not the same as being *served over TLS*: gating this on NODE_ENV sent
+    // upgrade-insecure-requests to the plain-HTTP Docker stack, which rewrote every
+    // request to https:// against a server with no TLS and took the whole app down
+    // with ERR_SSL_PROTOCOL_ERROR. Behind Coolify the proxy sets x-forwarded-proto,
+    // so this switches itself on there and stays off locally.
+    ...(isHttps ? ['upgrade-insecure-requests'] : []),
+  ].join('; ')
+}
+
+/** Whether the browser reached us over TLS, accounting for a terminating proxy. */
+function isHttpsRequest(request: NextRequest): boolean {
+  const forwardedProto = request.headers.get('x-forwarded-proto')
+
+  if (forwardedProto) {
+    return forwardedProto.split(',')[0].trim() === 'https'
+  }
+
+  return request.nextUrl.protocol === 'https:'
+}
+
+/** The scheme+host of a configured URL, or '' when unset or unparseable. */
+function originOf(url: string | undefined): string {
+  if (!url) return ''
+
+  try {
+    return new URL(url).origin
+  } catch {
+    return ''
+  }
+}
+
+function generateNonce(): string {
+  return btoa(crypto.randomUUID())
+}
+
+function applySecurityHeaders(response: NextResponse, csp: string, isHttps: boolean): NextResponse {
+  response.headers.set('Content-Security-Policy', csp)
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self), payment=()')
+
+  // RFC 6797: a user agent must ignore this over a non-secure transport, so it is
+  // only sent where it means something.
+  if (isHttps) {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
+
+  return response
+}
+
+/**
+ * `NextResponse.next()` carrying the nonce and CSP on the *request* — that is
+ * where Next looks when deciding what nonce to stamp on its own script tags.
+ */
+function nextWithHeaders(
+  request: NextRequest,
+  nonce: string,
+  csp: string,
+  extra?: Record<string, string>
+): NextResponse {
+  const headers = new Headers(request.headers)
+
+  headers.set('x-nonce', nonce)
+  headers.set('Content-Security-Policy', csp)
+
+  for (const [key, value] of Object.entries(extra ?? {})) {
+    headers.set(key, value)
+  }
+
+  return NextResponse.next({ request: { headers } })
+}
+
+/**
  * Public page routes that don't require authentication.
  *
  * `/platform-offline` is the screen shown when the platform itself is down.
@@ -93,11 +228,21 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 }
 
 export async function middleware(request: NextRequest) {
+  const nonce = generateNonce()
+  const isHttps = isHttpsRequest(request)
+  const csp = buildCsp(nonce, isHttps)
+
+  const response = await handleRouting(request, nonce, csp)
+
+  return applySecurityHeaders(response, csp, isHttps)
+}
+
+async function handleRouting(request: NextRequest, nonce: string, csp: string) {
   const { pathname } = request.nextUrl
 
   // ── Vacancy listing pages are always public ──────────────────────────────
   if (isPublicVacancyRoute(pathname)) {
-    return NextResponse.next()
+    return nextWithHeaders(request, nonce, csp)
   }
 
   // ── Read cookies ──────────────────────────────────────────────────────────
@@ -119,7 +264,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/admin', request.url))
       }
 
-      return NextResponse.next()
+      return nextWithHeaders(request, nonce, csp)
     }
 
     // All other /admin/** routes require an active admin session
@@ -128,11 +273,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // Inject admin token as Authorization header for admin Server Components
-    const requestHeaders = new Headers(request.headers)
-
-    requestHeaders.set('Authorization', `Bearer ${adminToken}`)
-
-    return NextResponse.next({ request: { headers: requestHeaders } })
+    return nextWithHeaders(request, nonce, csp, { Authorization: `Bearer ${adminToken}` })
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -146,7 +287,7 @@ export async function middleware(request: NextRequest) {
     // intended audience — a signed-in landlord tapping it must not be bounced
     // to /dashboard.
     if (matchesRoute(pathname, ['/auth/impersonate', '/platform-offline', '/jobs'])) {
-      return NextResponse.next()
+      return nextWithHeaders(request, nonce, csp)
     }
 
     // Already logged in as admin → go to admin dashboard
@@ -159,7 +300,7 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
-    return NextResponse.next()
+    return nextWithHeaders(request, nonce, csp)
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -188,12 +329,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // 3. Authenticated — inject auth headers for Server Components
-  const requestHeaders = new Headers(request.headers)
-
-  requestHeaders.set('Authorization', `Bearer ${authToken}`)
-  requestHeaders.set('X-Tenant-ID', tenantId!)
-
-  return NextResponse.next({ request: { headers: requestHeaders } })
+  return nextWithHeaders(request, nonce, csp, {
+    Authorization: `Bearer ${authToken}`,
+    'X-Tenant-ID': tenantId!,
+  })
 }
 
 // Match all routes except API, static files, and Next.js internals
