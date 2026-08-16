@@ -190,6 +190,7 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
         <Grid size={{ xs: 12 }}>
           <AdvanceRentSection
             occupantId={tenantData.id}
+            occupantName={tenantData.name}
             unitId={tenantData.unitId}
             propertyId={tenantData.propertyId}
           />
