@@ -16,8 +16,12 @@ import { E2E_USER } from './fixtures'
  */
 /**
  * Order matters only for readability — every statement is a plain DELETE scoped
- * by tenant_id, and none of these carry a foreign key to another (see F-09:
- * agreements have no FK to property/unit/occupant at all).
+ * by tenant_id, and none of these carry a foreign key to *another table in this
+ * list* (see F-09: agreements have no FK to property/unit/occupant at all).
+ *
+ * `ledger_entries` and `withdrawals` do have one, to `wallets` — which is exactly
+ * why the wallet row is reset rather than deleted below, so no ordering constraint
+ * is introduced here.
  */
 const TABLES = [
   // Notifications accumulate across runs, and the listing-pause spec asserts
@@ -31,6 +35,10 @@ const TABLES = [
   // is already PAID, and its part-payment assertion fails for the wrong reason.
   'payment_transactions',
   'ledger_entries',
+
+  // Cash-out requests. Cleared alongside the ledger so total_withdrawn (reset
+  // below) cannot disagree with the rows that justify it.
+  'withdrawals',
   'invoices',
   'agreements',
   'vacancy_listings',
@@ -62,7 +70,37 @@ reset('reset the e2e tenant', async () => {
   const raiseCap = `UPDATE tenant_subscriptions SET grandfathered_unit_cap = 500
                     WHERE tenant_id = '${E2E_USER.tenantId}';`
 
-  const sql = TABLES.map(t => `DELETE FROM ${t} WHERE tenant_id = '${E2E_USER.tenantId}';`).join(' ') + raiseCap
+  /**
+   * Put the wallet's cached totals back to zero.
+   *
+   * The wallet row is NOT deleted. `ledger_entries` and `withdrawals` both carry a
+   * foreign key to it, and in production a tenant's wallet is permanent — deleting
+   * it models nothing that ever happens. The drift being fixed here is not the row's
+   * existence but its cached aggregates: `balance`, `offline_balance`, `total_earned`
+   * and `total_withdrawn` are running totals maintained alongside the ledger, so
+   * wiping the ledger without them left the wallet claiming money no entry supported.
+   *
+   * Measured before this was added: the QA tenant's ledger summed to 1,200 while its
+   * balance read 51,600 — the balance had been accumulating across every run since
+   * the suite was written. Any assertion about a wallet figure was meaningless, and
+   * once withdrawable balance arrived the phantom amount became spendable in tests.
+   *
+   * `linked_momo_number` is deliberately left alone: it is configuration a landlord
+   * sets once, not transactional state, and clearing it would break the first spec
+   * that needs a number already linked.
+   */
+  const resetWallet = `UPDATE wallets
+                          SET balance         = 0.00,
+                              offline_balance = 0.00,
+                              pending_balance = 0.00,
+                              total_earned    = 0.00,
+                              total_withdrawn = 0.00
+                        WHERE tenant_id = '${E2E_USER.tenantId}';`
+
+  const sql =
+    TABLES.map(t => `DELETE FROM ${t} WHERE tenant_id = '${E2E_USER.tenantId}';`).join(' ') +
+    resetWallet +
+    raiseCap
 
   const out = execFileSync(
     'docker',
