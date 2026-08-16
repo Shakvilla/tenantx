@@ -35,6 +35,11 @@ type Props = {
   open: boolean
   onClose: () => void
   onAdvanceRecorded?: (record: AdvanceRentResponse) => void
+  // initiatePayment() only returns { advanceRentId, paymentTransactionId, status } — not a
+  // full AdvanceRentResponse — so it can't be handed to onAdvanceRecorded. Call this instead
+  // once the gateway payment has been started, so the caller can refetch its list and pick
+  // up the new PENDING record.
+  onPaymentRequested?: () => void
   occupantId: string
   occupantName?: string
   unitId?: string
@@ -65,6 +70,7 @@ const AddAdvanceRentDrawer = ({
   open,
   onClose,
   onAdvanceRecorded,
+  onPaymentRequested,
   occupantId,
   occupantName,
   unitId,
@@ -182,6 +188,10 @@ const AddAdvanceRentDrawer = ({
     // on their own handset turns this into an ACTIVE advance, so the drawer must wait
     // rather than treat the 202 as "done".
     setRequested({ walletNumber })
+
+    // Let the caller pick up the new PENDING record now, while the waiting alert is
+    // still open — closing the drawer should not be the only way to see it appear.
+    onPaymentRequested?.()
   }
 
   const handleSubmit = async (e: FormEvent) => {

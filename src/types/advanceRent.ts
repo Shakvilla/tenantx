@@ -1,4 +1,4 @@
-export type AdvanceRentStatus = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'CANCELLED'
+export type AdvanceRentStatus = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'CANCELLED' | 'PENDING' | 'FAILED'
 
 export type PaymentMethodType = 'CASH' | 'MOBILE_MONEY' | 'CHEQUE' | 'BANK_TRANSFER'
 

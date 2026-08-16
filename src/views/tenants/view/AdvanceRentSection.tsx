@@ -36,7 +36,25 @@ const statusColor = (s: AdvanceRentStatus) => {
     case 'EXPIRING':  return 'warning'
     case 'EXPIRED':   return 'error'
     case 'CANCELLED': return 'default'
+    // Started through the gateway but not yet approved by the occupant — distinct
+    // from every settled state above, so it can't fall through to the generic chip.
+    case 'PENDING':   return 'info'
+    // The gateway rejected it synchronously or the occupant never approved —
+    // nothing was ever collected. Same "problem" family as EXPIRED but a
+    // different label makes the two unmistakable.
+    case 'FAILED':    return 'error'
     default:          return 'default'
+  }
+}
+
+// PENDING/FAILED read badly as their raw enum text ("PENDING" alone doesn't say
+// who's blocking it) — spell out what the landlord actually needs to know.
+// Every other status keeps its existing raw-text label unchanged.
+const statusLabel = (s: AdvanceRentStatus): string => {
+  switch (s) {
+    case 'PENDING': return 'Waiting on occupant'
+    case 'FAILED':  return 'Not collected'
+    default:        return s
   }
 }
 
@@ -162,6 +180,22 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
                   </Typography>
                 </Box>
               )}
+              {r.status === 'PENDING' && (
+                <Box sx={{ bgcolor: 'info.lightOpacity', px: 6, py: 1.5 }}>
+                  <Typography variant='caption' color='info.main' className='font-medium'>
+                    ⏳ A MoMo prompt was sent to the occupant — nothing is collected until they
+                    approve it on their phone
+                  </Typography>
+                </Box>
+              )}
+              {r.status === 'FAILED' && (
+                <Box sx={{ bgcolor: 'error.lightOpacity', px: 6, py: 1.5 }}>
+                  <Typography variant='caption' color='error.main' className='font-medium'>
+                    ✕ The gateway payment did not go through — nothing was collected. Try again
+                    or record the payment manually once you receive it.
+                  </Typography>
+                </Box>
+              )}
 
               <Box className='px-6 py-5 flex flex-col gap-4'>
                 {/* Header row */}
@@ -172,7 +206,7 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
                         ₵{r.totalAmount.toFixed(2)} advance
                       </Typography>
                       <Chip
-                        label={r.status}
+                        label={statusLabel(r.status)}
                         size='small'
                         color={statusColor(r.status)}
                         variant='tonal'
@@ -214,26 +248,35 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
                   )}
                 </Box>
 
-                {/* Time-based progress bar */}
-                <Box>
-                  <Box className='flex justify-between mb-1'>
-                    <Typography variant='caption' color='text.secondary'>
-                      Period progress
-                    </Typography>
-                    <Typography variant='caption' color='text.secondary'>
-                      {r.monthsRemaining} month{r.monthsRemaining !== 1 ? 's' : ''} remaining
+                {/* Time-based progress bar — only meaningful once money has actually been
+                    applied. A PENDING/FAILED record reports remainingBalance 0 because
+                    nothing has been collected yet, not because the advance ran out; showing
+                    the same "% elapsed" bar for it would read as an advance already in use. */}
+                {r.status === 'PENDING' || r.status === 'FAILED' ? (
+                  <Typography variant='caption' color='text.disabled'>
+                    Nothing collected yet — this advance is not in effect.
+                  </Typography>
+                ) : (
+                  <Box>
+                    <Box className='flex justify-between mb-1'>
+                      <Typography variant='caption' color='text.secondary'>
+                        Period progress
+                      </Typography>
+                      <Typography variant='caption' color='text.secondary'>
+                        {r.monthsRemaining} month{r.monthsRemaining !== 1 ? 's' : ''} remaining
+                      </Typography>
+                    </Box>
+                    <LinearProgress
+                      variant='determinate'
+                      value={r.percentageUsed}
+                      color={r.status === 'EXPIRING' ? 'warning' : r.status === 'EXPIRED' ? 'error' : 'success'}
+                      sx={{ height: 6, borderRadius: 3 }}
+                    />
+                    <Typography variant='caption' color='text.disabled' sx={{ mt: 0.5, display: 'block' }}>
+                      {r.percentageUsed}% of period elapsed
                     </Typography>
                   </Box>
-                  <LinearProgress
-                    variant='determinate'
-                    value={r.percentageUsed}
-                    color={r.status === 'EXPIRING' ? 'warning' : r.status === 'EXPIRED' ? 'error' : 'success'}
-                    sx={{ height: 6, borderRadius: 3 }}
-                  />
-                  <Typography variant='caption' color='text.disabled' sx={{ mt: 0.5, display: 'block' }}>
-                    {r.percentageUsed}% of period elapsed
-                  </Typography>
-                </Box>
+                )}
 
                 {/* Meta row */}
                 <Box className='flex flex-wrap gap-x-6 gap-y-1'>
@@ -273,6 +316,11 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onAdvanceRecorded={handleAdvanceRecorded}
+        // initiatePayment() returns a slim { advanceRentId, paymentTransactionId, status }
+        // shape, not a full AdvanceRentResponse, so it can't be spliced into the list the
+        // way onAdvanceRecorded does — refetch instead so the new PENDING row (and its
+        // real totals) comes straight from the server.
+        onPaymentRequested={fetchRecords}
         occupantId={occupantId}
         occupantName={occupantName}
         unitId={unitId}
