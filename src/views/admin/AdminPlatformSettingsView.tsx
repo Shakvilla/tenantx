@@ -275,7 +275,15 @@ export default function AdminPlatformSettingsView() {
     setLogoUploading(true)
     try {
       const { uploadImage } = await import('@/lib/imagekit')
-      const uploaded = await uploadImage(file, { folder: '/yiliora/platform/branding' })
+      const { getAdminImageKitAuth } = await import('@/lib/api/admin-auth-client')
+
+      // getAuth is required here, not optional: the default signs through the
+      // tenant-scoped endpoint, and an administrator has no tenant, so it fails
+      // with "Missing X-Tenant-ID header" before the upload starts.
+      const uploaded = await uploadImage(file, {
+        folder: '/yiliora/platform/branding',
+        getAuth: getAdminImageKitAuth
+      })
 
       await save('branding.logo_url', uploaded.url)
     } catch (e: unknown) {
