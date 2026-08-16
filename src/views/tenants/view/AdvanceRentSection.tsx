@@ -24,6 +24,7 @@ import AddAdvanceRentDrawer from './AddAdvanceRentDrawer'
 
 type Props = {
   occupantId: string
+  occupantName?: string
   unitId?: string
   propertyId?: string
   monthlyRent?: number
@@ -49,7 +50,7 @@ const methodLabel: Record<string, string> = {
 const fmt = (d: string) =>
   new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
-const AdvanceRentSection = ({ occupantId, unitId, propertyId, monthlyRent }: Props) => {
+const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, monthlyRent }: Props) => {
   const [records, setRecords]       = useState<AdvanceRentResponse[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
@@ -270,9 +271,10 @@ const AdvanceRentSection = ({ occupantId, unitId, propertyId, monthlyRent }: Pro
 
       <AddAdvanceRentDrawer
         open={drawerOpen}
-        handleClose={() => setDrawerOpen(false)}
+        onClose={() => setDrawerOpen(false)}
         onAdvanceRecorded={handleAdvanceRecorded}
         occupantId={occupantId}
+        occupantName={occupantName}
         unitId={unitId}
         propertyId={propertyId}
         monthlyRent={monthlyRent}

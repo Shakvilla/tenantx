@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 
 // MUI
@@ -17,21 +17,42 @@ import Button from '@mui/material/Button'
 import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
+import RadioGroup from '@mui/material/RadioGroup'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Radio from '@mui/material/Radio'
 
 // API
 import { advanceRentsApi } from '@/lib/api/advanceRents'
-import type { AdvanceRentResponse, PaymentMethodType } from '@/types/advanceRent'
+import type { AdvanceRentLimits, AdvanceRentResponse, PaymentMethodType } from '@/types/advanceRent'
+
+// The MoMo number format is shared with the wallet feature — reuse its regex
+// rather than duplicating it.
+import { MOMO_NUMBER } from '@/views/wallet/WalletDashboard'
 
 type Props = {
   open: boolean
-  handleClose: () => void
+  onClose: () => void
   onAdvanceRecorded?: (record: AdvanceRentResponse) => void
   occupantId: string
+  occupantName?: string
   unitId?: string
   propertyId?: string
   monthlyRent?: number
 }
+
+type Mode = 'record' | 'request'
+
+// The backend's MobileNetwork enum for gateway payments (MTN, AIRTELTIGO, VODAFONE) —
+// distinct from the wallet feature's MomoNetwork ('TELECEL' instead of 'VODAFONE').
+type MobileNetwork = 'MTN' | 'AIRTELTIGO' | 'VODAFONE'
+
+const MOBILE_NETWORKS: { value: MobileNetwork; label: string }[] = [
+  { value: 'MTN', label: 'MTN' },
+  { value: 'AIRTELTIGO', label: 'AirtelTigo' },
+  { value: 'VODAFONE', label: 'Vodafone' }
+]
 
 const PAYMENT_METHODS: { value: PaymentMethodType; label: string }[] = [
   { value: 'MOBILE_MONEY',   label: 'Mobile Money (MoMo)' },
@@ -40,43 +61,127 @@ const PAYMENT_METHODS: { value: PaymentMethodType; label: string }[] = [
   { value: 'BANK_TRANSFER',  label: 'Bank Transfer' }
 ]
 
-const MONTHS_OPTIONS = [1, 2, 3, 6, 12, 18, 24]
-
 const AddAdvanceRentDrawer = ({
   open,
-  handleClose,
+  onClose,
   onAdvanceRecorded,
   occupantId,
+  occupantName,
   unitId,
   propertyId,
   monthlyRent: defaultMonthlyRent
 }: Props) => {
+  const [mode, setMode]                     = useState<Mode>('record')
   const [monthlyRent, setMonthlyRent]       = useState(defaultMonthlyRent?.toString() ?? '')
-  const [monthsCovered, setMonthsCovered]   = useState<number>(12)
+  const [monthsCovered, setMonthsCovered]   = useState('12')
   const [periodStart, setPeriodStart]       = useState(() => new Date().toISOString().split('T')[0])
+
+  // "Already received" fields
   const [paymentMethod, setPaymentMethod]   = useState<PaymentMethodType | ''>('')
   const [paymentReference, setPaymentReference] = useState('')
   const [notes, setNotes]                   = useState('')
+
+  // "Request payment" fields — the occupant's own MoMo wallet, not the landlord's
+  const [mobileNetwork, setMobileNetwork]   = useState<MobileNetwork>('MTN')
+  const [walletNumber, setWalletNumber]     = useState('')
+
+  const [limits, setLimits]                 = useState<AdvanceRentLimits | null>(null)
+
   const [loading, setLoading]               = useState(false)
   const [error, setError]                   = useState<string | null>(null)
 
-  const totalAmount = monthlyRent && monthsCovered
-    ? (parseFloat(monthlyRent) * monthsCovered).toFixed(2)
+  // Set once a gateway payment has been started — the drawer switches to a
+  // waiting state and can no longer be treated as "nothing happened".
+  const [requested, setRequested]           = useState<{ walletNumber: string } | null>(null)
+
+  // Fetch the landlord's configured advance-rent range whenever the drawer opens,
+  // so the months field can be clamped with the same message the backend enforces.
+  useEffect(() => {
+    if (!open) return
+    advanceRentsApi.getLimits()
+      .then(setLimits)
+      .catch(() => setLimits(null))
+  }, [open])
+
+  const monthsNum = Number(monthsCovered)
+  const monthsValid = monthsCovered !== '' && Number.isFinite(monthsNum) && monthsNum > 0
+
+  const monthsError = (() => {
+    if (!monthsValid) return monthsCovered !== '' ? 'Enter a valid number of months' : null
+    if (!limits) return null
+    if (monthsNum > limits.maxMonths) return `You can offer at most ${limits.maxMonths} months`
+    if (monthsNum < limits.minMonths) return `You must offer at least ${limits.minMonths} months`
+
+    return null
+  })()
+
+  const totalAmount = monthlyRent && monthsValid
+    ? (parseFloat(monthlyRent) * monthsNum).toFixed(2)
     : '0.00'
 
   const resetForm = () => {
+    setMode('record')
     setMonthlyRent(defaultMonthlyRent?.toString() ?? '')
-    setMonthsCovered(12)
+    setMonthsCovered('12')
     setPeriodStart(new Date().toISOString().split('T')[0])
     setPaymentMethod('')
     setPaymentReference('')
     setNotes('')
+    setMobileNetwork('MTN')
+    setWalletNumber('')
     setError(null)
+    setRequested(null)
+    setLimits(null)
   }
 
   const handleClose_ = () => {
     resetForm()
-    handleClose()
+    onClose()
+  }
+
+  const handleRecordSubmit = async () => {
+    const record = await advanceRentsApi.create({
+      occupantId,
+      unitId: unitId || undefined,
+      propertyId: propertyId || undefined,
+      monthlyRent: parseFloat(monthlyRent),
+      monthsCovered: monthsNum,
+      periodStart,
+      currency: 'GHS',
+      paymentMethod: paymentMethod || undefined,
+      paymentReference: paymentReference || undefined,
+      notes: notes || undefined
+    })
+    onAdvanceRecorded?.(record)
+    handleClose_()
+  }
+
+  const handleRequestSubmit = async () => {
+    if (!unitId) {
+      setError('This occupant has no assigned unit yet — assign one before requesting payment through the platform')
+      return
+    }
+
+    if (!MOMO_NUMBER.test(walletNumber)) {
+      setError('Enter a valid 10-digit Ghanaian MoMo number')
+      return
+    }
+
+    await advanceRentsApi.initiatePayment({
+      occupantId,
+      unitId,
+      propertyId: propertyId || undefined,
+      monthlyRent: parseFloat(monthlyRent),
+      monthsCovered: monthsNum,
+      periodStart,
+      mobileNetwork,
+      walletNumber
+    })
+
+    // PENDING — no invoices or wallet credit exist yet. Only the occupant's approval
+    // on their own handset turns this into an ACTIVE advance, so the drawer must wait
+    // rather than treat the 202 as "done".
+    setRequested({ walletNumber })
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -86,39 +191,38 @@ const AddAdvanceRentDrawer = ({
       return
     }
 
+    if (monthsError) {
+      setError(monthsError)
+      return
+    }
+
     setLoading(true)
     setError(null)
 
     try {
-      const record = await advanceRentsApi.create({
-        occupantId,
-        unitId: unitId || undefined,
-        propertyId: propertyId || undefined,
-        monthlyRent: parseFloat(monthlyRent),
-        monthsCovered,
-        periodStart,
-        currency: 'GHS',
-        paymentMethod: paymentMethod || undefined,
-        paymentReference: paymentReference || undefined,
-        notes: notes || undefined
-      })
-      onAdvanceRecorded?.(record)
-      handleClose_()
+      if (mode === 'record') {
+        await handleRecordSubmit()
+      } else {
+        await handleRequestSubmit()
+      }
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to record advance rent')
+      setError(err?.response?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   // Compute period end display
-  const periodEnd = periodStart
+  const periodEnd = periodStart && monthsValid
     ? (() => {
         const d = new Date(periodStart)
-        d.setMonth(d.getMonth() + monthsCovered)
+        d.setMonth(d.getMonth() + monthsNum)
         return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
       })()
     : '—'
+
+  const submitDisabled = loading || !monthlyRent || parseFloat(monthlyRent) <= 0 || !!monthsError ||
+    (mode === 'request' && !MOMO_NUMBER.test(walletNumber))
 
   return (
     <Drawer
@@ -128,7 +232,7 @@ const AddAdvanceRentDrawer = ({
       PaperProps={{ sx: { width: { xs: '100%', sm: 400 } } }}
     >
       <Box className='flex items-center justify-between px-6 py-4'>
-        <Typography variant='h5'>Record Advance Rent</Typography>
+        <Typography variant='h5'>Advance Rent</Typography>
         <IconButton onClick={handleClose_} size='small'>
           <i className='ri-close-line text-xl' />
         </IconButton>
@@ -136,127 +240,204 @@ const AddAdvanceRentDrawer = ({
 
       <Divider />
 
-      {/* Total preview banner */}
-      <Box sx={{ bgcolor: 'primary.lightOpacity', px: 6, py: 3 }}>
-        <Typography variant='caption' color='primary' className='uppercase font-medium tracking-wide'>
-          Total Advance Amount
-        </Typography>
-        <Typography variant='h4' color='primary' className='font-bold'>
-          ₵{totalAmount}
-        </Typography>
-        <Typography variant='caption' color='text.secondary'>
-          {monthsCovered} month{monthsCovered !== 1 ? 's' : ''} × ₵{monthlyRent || '0'} monthly rent
-        </Typography>
-        <br />
-        <Typography variant='caption' color='text.secondary'>
-          Period ends: <strong>{periodEnd}</strong>
-        </Typography>
-      </Box>
-
-      <Divider />
-
-      <form onSubmit={handleSubmit}>
+      {requested ? (
         <Box className='flex flex-col gap-5 px-6 py-6'>
-
-          {error && <Alert severity='error' onClose={() => setError(null)}>{error}</Alert>}
-
-          {/* Monthly rent */}
-          <TextField
-            label='Monthly Rent'
-            required
-            size='small'
-            type='number'
-            inputProps={{ min: 0.01, step: 0.01 }}
-            value={monthlyRent}
-            onChange={e => setMonthlyRent(e.target.value)}
-            InputProps={{
-              startAdornment: <InputAdornment position='start'>₵</InputAdornment>
-            }}
-          />
-
-          {/* Months covered */}
-          <FormControl size='small' required>
-            <InputLabel>Months Covered</InputLabel>
-            <Select
-              label='Months Covered'
-              value={monthsCovered}
-              onChange={e => setMonthsCovered(Number(e.target.value))}
-            >
-              {MONTHS_OPTIONS.map(m => (
-                <MenuItem key={m} value={m}>
-                  {m} month{m !== 1 ? 's' : ''}
-                  {m === 12 ? ' (1 year)' : m === 24 ? ' (2 years)' : ''}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Period start */}
-          <TextField
-            label='Advance Period Start'
-            required
-            size='small'
-            type='date'
-            value={periodStart}
-            onChange={e => setPeriodStart(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-          />
+          <Alert severity='info' icon={<i className='ri-smartphone-line' />}>
+            <AlertTitle>Waiting for {occupantName || 'the occupant'} to approve</AlertTitle>
+            A payment prompt has been sent to {requested.walletNumber}. They need to approve it on
+            their phone. Nothing is recorded until they do — you can close this and check back.
+          </Alert>
+          <Button variant='outlined' color='secondary' onClick={handleClose_}>
+            Close
+          </Button>
+        </Box>
+      ) : (
+        <>
+          {/* Total preview banner */}
+          <Box sx={{ bgcolor: 'primary.lightOpacity', px: 6, py: 3 }}>
+            <Typography variant='caption' color='primary' className='uppercase font-medium tracking-wide'>
+              Total Advance Amount
+            </Typography>
+            <Typography variant='h4' color='primary' className='font-bold'>
+              ₵{totalAmount}
+            </Typography>
+            <Typography variant='caption' color='text.secondary'>
+              {monthsNum || 0} month{monthsNum !== 1 ? 's' : ''} × ₵{monthlyRent || '0'} monthly rent
+            </Typography>
+            <br />
+            <Typography variant='caption' color='text.secondary'>
+              Period ends: <strong>{periodEnd}</strong>
+            </Typography>
+          </Box>
 
           <Divider />
 
-          {/* Payment method */}
-          <FormControl size='small'>
-            <InputLabel>Payment Method</InputLabel>
-            <Select
-              label='Payment Method'
-              value={paymentMethod}
-              onChange={e => setPaymentMethod(e.target.value as PaymentMethodType)}
-            >
-              <MenuItem value=''>Not specified</MenuItem>
-              {PAYMENT_METHODS.map(m => (
-                <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <form onSubmit={handleSubmit}>
+            <Box className='flex flex-col gap-5 px-6 py-6'>
 
-          {/* Payment reference */}
-          <TextField
-            label='Payment Reference'
-            size='small'
-            placeholder='Receipt no., transaction ID...'
-            value={paymentReference}
-            onChange={e => setPaymentReference(e.target.value)}
-          />
+              {error && <Alert severity='error' onClose={() => setError(null)}>{error}</Alert>}
 
-          {/* Notes */}
-          <TextField
-            label='Notes'
-            size='small'
-            multiline
-            rows={2}
-            placeholder='Any additional notes...'
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-          />
+              {/*
+                Two genuinely different actions, not two payment methods. "Already received"
+                records money the landlord is holding. "Request payment" asks the occupant to
+                approve a MoMo prompt — the landlord starts it but cannot complete it, which the
+                copy has to say plainly or they will wonder why nothing happened.
+              */}
+              <FormControl>
+                <RadioGroup value={mode} onChange={e => setMode(e.target.value as Mode)}>
+                  <FormControlLabel
+                    value='record'
+                    control={<Radio />}
+                    label='Already received — record cash, cheque or a bank transfer'
+                  />
+                  <FormControlLabel
+                    value='request'
+                    control={<Radio />}
+                    label='Request payment through Yiliora — MoMo'
+                  />
+                </RadioGroup>
+              </FormControl>
 
-        </Box>
+              <Divider />
 
-        <Divider />
+              {/* Monthly rent */}
+              <TextField
+                label='Monthly Rent'
+                required
+                size='small'
+                type='number'
+                inputProps={{ min: 0.01, step: 'any' }}
+                value={monthlyRent}
+                onChange={e => setMonthlyRent(e.target.value)}
+                InputProps={{
+                  startAdornment: <InputAdornment position='start'>₵</InputAdornment>
+                }}
+              />
 
-        <Box className='flex justify-end gap-3 px-6 py-4'>
-          <Button variant='outlined' color='secondary' onClick={handleClose_} disabled={loading}>
-            Cancel
-          </Button>
-          <Button
-            type='submit'
-            variant='contained'
-            disabled={loading || !monthlyRent || parseFloat(monthlyRent) <= 0}
-            startIcon={loading ? <CircularProgress size={16} /> : <i className='ri-save-line' />}
-          >
-            {loading ? 'Saving...' : 'Record Advance'}
-          </Button>
-        </Box>
-      </form>
+              {/* Months covered */}
+              <TextField
+                label='Months Covered'
+                required
+                size='small'
+                type='number'
+                inputProps={{ min: 1, step: 1 }}
+                value={monthsCovered}
+                onChange={e => setMonthsCovered(e.target.value)}
+                error={!!monthsError}
+                helperText={monthsError ?? (limits ? `Allowed range: ${limits.minMonths}–${limits.maxMonths} months` : ' ')}
+              />
+
+              {/* Period start */}
+              <TextField
+                label='Advance Period Start'
+                required
+                size='small'
+                type='date'
+                value={periodStart}
+                onChange={e => setPeriodStart(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+
+              <Divider />
+
+              {mode === 'record' ? (
+                <>
+                  {/* Payment method */}
+                  <FormControl size='small'>
+                    <InputLabel id='payment-method-label'>Payment Method</InputLabel>
+                    <Select
+                      labelId='payment-method-label'
+                      label='Payment Method'
+                      value={paymentMethod}
+                      onChange={e => setPaymentMethod(e.target.value as PaymentMethodType)}
+                    >
+                      <MenuItem value=''>Not specified</MenuItem>
+                      {PAYMENT_METHODS.map(m => (
+                        <MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Payment reference */}
+                  <TextField
+                    label='Payment Reference'
+                    size='small'
+                    placeholder='Receipt no., transaction ID...'
+                    value={paymentReference}
+                    onChange={e => setPaymentReference(e.target.value)}
+                  />
+
+                  {/* Notes */}
+                  <TextField
+                    label='Notes'
+                    size='small'
+                    multiline
+                    rows={2}
+                    placeholder='Any additional notes...'
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                  />
+                </>
+              ) : (
+                <>
+                  <Typography variant='body2' color='text.secondary'>
+                    A MoMo prompt is sent to the occupant&apos;s own number below. Only they can
+                    approve it — you will not be asked for a PIN here.
+                  </Typography>
+
+                  {/* Occupant's MoMo network */}
+                  <FormControl size='small' required>
+                    <InputLabel id='mobile-network-label'>Network</InputLabel>
+                    <Select
+                      labelId='mobile-network-label'
+                      label='Network'
+                      value={mobileNetwork}
+                      onChange={e => setMobileNetwork(e.target.value as MobileNetwork)}
+                    >
+                      {MOBILE_NETWORKS.map(n => (
+                        <MenuItem key={n.value} value={n.value}>{n.label}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  {/* Occupant's MoMo number */}
+                  <TextField
+                    label='MoMo Number'
+                    required
+                    size='small'
+                    placeholder='024XXXXXXX'
+                    value={walletNumber}
+                    onChange={e => setWalletNumber(e.target.value.replace(/\s+/g, ''))}
+                    error={walletNumber.length > 0 && !MOMO_NUMBER.test(walletNumber)}
+                    helperText={
+                      walletNumber.length > 0 && !MOMO_NUMBER.test(walletNumber)
+                        ? 'Enter a valid 10-digit Ghanaian number'
+                        : 'The occupant’s own number — not yours'
+                    }
+                  />
+                </>
+              )}
+
+            </Box>
+
+            <Divider />
+
+            <Box className='flex justify-end gap-3 px-6 py-4'>
+              <Button variant='outlined' color='secondary' onClick={handleClose_} disabled={loading}>
+                Cancel
+              </Button>
+              <Button
+                type='submit'
+                variant='contained'
+                disabled={submitDisabled}
+                startIcon={loading ? <CircularProgress size={16} /> : <i className={mode === 'record' ? 'ri-save-line' : 'ri-smartphone-line'} />}
+              >
+                {loading ? 'Saving...' : mode === 'record' ? 'Record Advance' : 'Request Payment'}
+              </Button>
+            </Box>
+          </form>
+        </>
+      )}
     </Drawer>
   )
 }

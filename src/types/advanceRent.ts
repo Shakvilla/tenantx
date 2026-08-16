@@ -53,3 +53,26 @@ export interface AdvanceRentStatsResponse {
   expiringCount: number
   expiredCount: number
 }
+
+export interface AdvanceRentLimits {
+  minMonths: number
+  maxMonths: number
+  occupantSelfServiceEnabled: boolean
+}
+
+export interface InitiateAdvancePaymentRequest {
+  occupantId: string
+  unitId: string
+  propertyId?: string
+  monthlyRent: number
+  monthsCovered: number
+  periodStart: string
+  mobileNetwork: 'MTN' | 'AIRTELTIGO' | 'VODAFONE'
+  walletNumber: string
+}
+
+export interface AdvancePaymentInitiated {
+  advanceRentId: string
+  paymentTransactionId: string
+  status: 'PENDING'
+}

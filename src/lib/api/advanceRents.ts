@@ -9,13 +9,19 @@
  *   GET    /api/v1/advance-rents/expiring                → list expiring (< 2 months)
  *   GET    /api/v1/advance-rents/stats                   → summary stats
  *   POST   /api/v1/advance-rents/{id}/cancel             → cancel record
+ *   GET    /api/v1/advance-rents/limits                  → landlord's configured month range
+ *   POST   /api/v1/advance-rents/initiate-payment        → start a MoMo advance on the occupant's behalf (202 Accepted)
+ *   POST   /api/v1/advance-rents/{id}/cancel-pending      → abandon a pending gateway attempt
  */
 
-import { apiClient, API_BASE } from './client'
+import { apiClient, API_BASE, apiGet, apiPost } from './client'
 import type {
   AdvanceRentResponse,
   CreateAdvanceRentRequest,
-  AdvanceRentStatsResponse
+  AdvanceRentStatsResponse,
+  AdvanceRentLimits,
+  InitiateAdvancePaymentRequest,
+  AdvancePaymentInitiated
 } from '@/types/advanceRent'
 
 const BASE = `${API_BASE}/advance-rents`
@@ -54,5 +60,17 @@ export const advanceRentsApi = {
   cancel: async (id: string): Promise<AdvanceRentResponse> => {
     const res = await apiClient.post<AdvanceRentResponse>(`${BASE}/${id}/cancel`, {})
     return res.data
+  },
+
+  getLimits(): Promise<AdvanceRentLimits> {
+    return apiGet<AdvanceRentLimits>(`${BASE}/limits`)
+  },
+
+  initiatePayment(data: InitiateAdvancePaymentRequest): Promise<AdvancePaymentInitiated> {
+    return apiPost<AdvancePaymentInitiated>(`${BASE}/initiate-payment`, data)
+  },
+
+  cancelPending: async (id: string): Promise<void> => {
+    await apiClient.post(`${BASE}/${id}/cancel-pending`, {})
   }
 }
