@@ -194,6 +194,23 @@ export async function getAdminMe(): Promise<AdminProfile> {
   return adminGet<AdminProfile>('/auth/me')
 }
 
+/**
+ * ImageKit upload credentials for the platform console.
+ *
+ * <p>Hits the admin-scoped endpoint rather than the tenant one. A platform
+ * administrator has no tenant, so the tenant-scoped call carries no X-Tenant-ID
+ * and is rejected with TENANT_MISSING before any handler runs — which is what
+ * broke every logo upload in Platform Settings. Pass this to `uploadImage` as
+ * its `getAuth` option from anywhere in the admin console.
+ */
+export async function getAdminImageKitAuth(): Promise<{
+  token: string
+  expire: number
+  signature: string
+}> {
+  return adminGet('/imagekit/auth')
+}
+
 export interface UpdateAdminProfilePayload {
   fullName: string
   email: string
