@@ -33,6 +33,15 @@ export interface UploadOptions {
   useUniqueFileName?: boolean
   /** Array of tag strings for ImageKit. */
   tags?: string[]
+  /**
+   * Where to fetch the upload signature from. Defaults to the tenant-scoped
+   * endpoint, which is right for everything inside a landlord's workspace.
+   *
+   * The platform console must pass its own: an administrator has no tenant, so
+   * the default call carries no X-Tenant-ID and the backend rejects it with
+   * TENANT_MISSING before reaching a handler. See getAdminImageKitAuth.
+   */
+  getAuth?: () => Promise<ImageKitAuthParams>
 }
 
 export interface UploadedFile {
@@ -88,14 +97,15 @@ export async function uploadImage(
     )
   }
 
-  const auth = await getAuthParams()
-
   const {
     folder            = '/yiliora',
     fileName          = file.name,
     useUniqueFileName = true,
-    tags              = []
+    tags              = [],
+    getAuth           = getAuthParams
   } = options
+
+  const auth = await getAuth()
 
   const form = new FormData()
   form.append('file',              file)
