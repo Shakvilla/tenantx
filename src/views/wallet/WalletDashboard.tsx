@@ -149,7 +149,7 @@ const WalletSummaryCard = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <i className='ri-wallet-3-line' style={{ color: 'var(--mui-palette-common-white)', fontSize: 16 }} />
               <Typography variant='caption' sx={{ color: 'var(--mui-palette-common-white)', textTransform: 'uppercase', letterSpacing: 1.2 }}>
-                Available Balance
+                Available to Withdraw
               </Typography>
             </div>
             {loading ? (
@@ -159,14 +159,43 @@ const WalletSummaryCard = ({
               </>
             ) : (
               <>
+                {/*
+                  The headline is what the landlord can act on, not everything they
+                  have collected. Rent paid to them in cash sits in `balance` for the
+                  books but the platform never received it, so showing balance here
+                  promised money we cannot send.
+                */}
                 <Typography variant='h3' fontWeight={800} sx={{ color: 'var(--mui-palette-common-white)', lineHeight: 1.1, my: 1 }}>
-                  {fmt(wallet?.balance ?? 0)}
+                  {fmt(wallet?.withdrawableBalance ?? 0)}
                 </Typography>
                 <Typography variant='body2' sx={{ color: 'var(--mui-palette-common-white)', position: 'relative', zIndex: 1 }}>
                   {wallet?.pendingBalance && wallet.pendingBalance > 0
                     ? `+ ${fmt(wallet.pendingBalance)} collecting…`
                     : wallet?.currency ?? 'GHS'}
                 </Typography>
+
+                {(wallet?.offlineBalance ?? 0) > 0 && (
+                  <Box
+                    sx={{
+                      mt: 1.5,
+                      px: 1.5,
+                      py: 1,
+                      borderRadius: 1,
+                      bgcolor: 'rgba(255,255,255,0.15)',
+                      position: 'relative',
+                      zIndex: 1,
+                      maxWidth: 340
+                    }}
+                  >
+                    <Typography variant='caption' sx={{ color: 'var(--mui-palette-common-white)', display: 'block', fontWeight: 600 }}>
+                      {fmt(wallet?.offlineBalance ?? 0)} collected outside Yiliora
+                    </Typography>
+                    <Typography variant='caption' sx={{ color: 'rgba(255,255,255,0.85)', display: 'block', lineHeight: 1.4 }}>
+                      Cash, cheque and bank payments you recorded. That money already reached you
+                      directly, so it is counted in your records but cannot be withdrawn here.
+                    </Typography>
+                  </Box>
+                )}
               </>
             )}
           </div>
@@ -175,7 +204,7 @@ const WalletSummaryCard = ({
             variant='contained'
             size='medium'
             onClick={onWithdraw}
-            disabled={!isActive || (wallet?.balance ?? 0) <= 0}
+            disabled={!isActive || (wallet?.withdrawableBalance ?? 0) <= 0}
             startIcon={<i className='ri-arrow-up-circle-line' />}
             sx={{
               mt: 2,
@@ -203,6 +232,14 @@ const WalletSummaryCard = ({
                 iconColor: '#f59e0b',
                 iconBg: '#fffbeb',
                 hint: 'Payments being collected',
+              },
+              {
+                label: 'Collected Outside Yiliora',
+                value: loading ? null : fmt(wallet?.offlineBalance ?? 0),
+                icon: 'ri-hand-coin-line',
+                iconColor: '#64748b',
+                iconBg: '#f1f5f9',
+                hint: 'Cash, cheque and bank — not withdrawable',
               },
               {
                 label: 'Total Earned',
@@ -311,7 +348,7 @@ const WithdrawDialog = ({
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
 
-  const maxAmount = wallet?.balance ?? 0
+  const maxAmount = wallet?.withdrawableBalance ?? 0
 
   useEffect(() => {
     if (open && wallet?.linkedMomoNumber) {
@@ -362,7 +399,7 @@ const WithdrawDialog = ({
             type='number'
             value={amount}
             onChange={e => setAmount(e.target.value)}
-            helperText={`Available: ${fmt(maxAmount)}`}
+            helperText={`Available to withdraw: ${fmt(maxAmount)}`}
             slotProps={{ input: { startAdornment: <InputAdornment position='start'>₵</InputAdornment> } }}
           />
           <FormControl fullWidth size='small'>
