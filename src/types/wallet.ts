@@ -33,7 +33,12 @@ export interface WalletResponse {
   id: string
   currency: string
   status: WalletStatus
+  /** Everything collected — the withdrawable share plus what was collected offline. */
   balance: number
+  /** What can actually be paid out: rent settled through the platform's gateway. */
+  withdrawableBalance: number
+  /** Collected directly by the landlord (cash, cheque, bank, MoMo to their own number). */
+  offlineBalance: number
   pendingBalance: number
   totalEarned: number
   totalWithdrawn: number
