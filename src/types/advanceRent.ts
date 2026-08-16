@@ -1,4 +1,4 @@
-export type AdvanceRentStatus = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'CANCELLED'
+export type AdvanceRentStatus = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'CANCELLED' | 'PENDING' | 'FAILED'
 
 export type PaymentMethodType = 'CASH' | 'MOBILE_MONEY' | 'CHEQUE' | 'BANK_TRANSFER'
 
@@ -52,4 +52,27 @@ export interface AdvanceRentStatsResponse {
   activeCount: number
   expiringCount: number
   expiredCount: number
+}
+
+export interface AdvanceRentLimits {
+  minMonths: number
+  maxMonths: number
+  occupantSelfServiceEnabled: boolean
+}
+
+export interface InitiateAdvancePaymentRequest {
+  occupantId: string
+  unitId: string
+  propertyId?: string
+  monthlyRent: number
+  monthsCovered: number
+  periodStart: string
+  mobileNetwork: 'MTN' | 'AIRTELTIGO' | 'VODAFONE'
+  walletNumber: string
+}
+
+export interface AdvancePaymentInitiated {
+  advanceRentId: string
+  paymentTransactionId: string
+  status: 'PENDING'
 }
