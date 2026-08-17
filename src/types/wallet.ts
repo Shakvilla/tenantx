@@ -27,6 +27,17 @@ export type WithdrawalStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
 export type LedgerEntryStatus = 'PENDING' | 'COMPLETED' | 'REVERSED' | 'FAILED'
 export type MomoNetwork = 'MTN' | 'AIRTELTIGO' | 'TELECEL'
 
+/**
+ * A Ghanaian mobile number: leading 0, a network digit, then eight more — ten
+ * digits in total, e.g. 0244778899.
+ *
+ * Shared by the wallet feature (linking/withdrawing) and the advance-rent
+ * gateway-payment flow, so it lives with the other wallet primitives rather
+ * than inside a large page component that pulls in TanStack Table and MUI
+ * modules unrelated to the regex itself.
+ */
+export const MOMO_NUMBER = /^0[2-9]\d{8}$/
+
 // ---- Response shapes ----
 
 export interface WalletResponse {

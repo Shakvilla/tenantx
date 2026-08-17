@@ -68,6 +68,11 @@ const methodLabel: Record<string, string> = {
 const fmt = (d: string) =>
   new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
+// How often to re-check while a gateway advance is PENDING. The webhook that
+// activates it (or fails it) happens off-screen — the only way this landlord
+// finds out short of a manual reload is by polling.
+const PENDING_POLL_INTERVAL_MS = 5000
+
 const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, monthlyRent }: Props) => {
   const [records, setRecords]       = useState<AdvanceRentResponse[]>([])
   const [loading, setLoading]       = useState(true)
@@ -86,6 +91,23 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
 
   useEffect(() => { fetchRecords() }, [fetchRecords])
 
+  // A gateway advance sits PENDING until the occupant approves (or the
+  // gateway declines) off-screen — there is no push notification into this
+  // component, so re-poll on an interval for as long as any row is still
+  // PENDING. `hasPending` is a plain boolean, not the `records` array itself,
+  // so this effect only restarts when pending-ness actually flips (not on
+  // every unrelated re-render), and it stops re-arming the timer entirely
+  // once nothing is pending.
+  const hasPending = records.some(r => r.status === 'PENDING')
+
+  useEffect(() => {
+    if (!hasPending) return
+
+    const interval = setInterval(() => { fetchRecords() }, PENDING_POLL_INTERVAL_MS)
+
+    return () => clearInterval(interval)
+  }, [hasPending, fetchRecords])
+
   const handleAdvanceRecorded = (record: AdvanceRentResponse) => {
     setRecords(prev => [record, ...prev])
   }
@@ -101,6 +123,29 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
       setRecords(prev => prev.map(r => r.id === record.id ? updated : r))
     } catch (err: any) {
       setError(err?.response?.data?.message ?? err?.message ?? 'Failed to cancel')
+    } finally {
+      setCancelling(null)
+    }
+  }
+
+  // Distinct from handleCancel above: a PENDING record has never been paid,
+  // so there is nothing to reverse — no invoice to void, no wallet credit to
+  // claw back. This only abandons the request so the months it was holding
+  // (per assertNoOverlap on the backend) are freed for a retry, which is the
+  // only way to escape the 409 "already covers part of this period" error a
+  // landlord otherwise hits if they try recording the advance again while the
+  // occupant never approved the original MoMo prompt.
+  const handleCancelPending = async (record: AdvanceRentResponse) => {
+    if (!confirm(
+      `Abandon this pending advance request? ${occupantName || 'The occupant'} hasn't approved ` +
+      `the payment yet, so nothing was collected and nothing will be reversed. This cannot be undone.`
+    )) return
+    setCancelling(record.id)
+    try {
+      await advanceRentsApi.cancelPending(record.id)
+      fetchRecords()
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to abandon the pending request')
     } finally {
       setCancelling(null)
     }
@@ -229,7 +274,8 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
                     </Typography>
                   </Box>
 
-                  {/* Cancel action — only for active records */}
+                  {/* Cancel action — only for active records. Reverses real money:
+                      voids invoices and claws back the wallet credit. */}
                   {(r.status === 'ACTIVE' || r.status === 'EXPIRING') && (
                     <Tooltip title='Cancel advance record'>
                       <span>
@@ -237,6 +283,28 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
                           size='small'
                           color='error'
                           onClick={() => handleCancel(r)}
+                          disabled={cancelling === r.id}
+                        >
+                          {cancelling === r.id
+                            ? <CircularProgress size={14} />
+                            : <i className='ri-close-circle-line text-base' />}
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
+
+                  {/* Abandon action — only for PENDING records. Nothing has been
+                      collected, so this does not reverse a payment; it just frees
+                      the months a stalled gateway request would otherwise hold
+                      against a retry (see the 409 this exists to avoid). */}
+                  {r.status === 'PENDING' && (
+                    <Tooltip title="Abandon this pending request — the occupant hasn't paid, so nothing is reversed">
+                      <span>
+                        <IconButton
+                          size='small'
+                          color='warning'
+                          aria-label='Abandon pending advance request'
+                          onClick={() => handleCancelPending(r)}
                           disabled={cancelling === r.id}
                         >
                           {cancelling === r.id
@@ -314,7 +382,11 @@ const AdvanceRentSection = ({ occupantId, occupantName, unitId, propertyId, mont
 
       <AddAdvanceRentDrawer
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        // Refetch on close too, not just on onPaymentRequested — the drawer's
+        // own "Close" button in the waiting state is a second path back to
+        // this list that shouldn't leave it stale, and it's a cheap safety
+        // net alongside the interval poll above.
+        onClose={() => { setDrawerOpen(false); fetchRecords() }}
         onAdvanceRecorded={handleAdvanceRecorded}
         // initiatePayment() returns a slim { advanceRentId, paymentTransactionId, status }
         // shape, not a full AdvanceRentResponse, so it can't be spliced into the list the

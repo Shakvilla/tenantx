@@ -25,13 +25,28 @@ describe('AddAdvanceRentDrawer', () => {
     vi.mocked(advanceRentsApi.initiatePayment).mockResolvedValue({ advanceRentId: 'a1', paymentTransactionId: 'p1', status: 'PENDING' })
   })
 
-  it('offers cash and cheque when recording a payment already received', async () => {
+  it('shows cash/cheque payment options when recording, and removes that control entirely when switching to request payment', async () => {
     render(<AddAdvanceRentDrawer open onClose={() => {}} occupantId='o1' unitId='u1' />)
-    await userEvent.click(screen.getByRole('radio', { name: /already received/i }))
 
+    // Default mode is "record" — opening the Select must actually list cash/cheque
+    // (this opens the menu for real, rather than asserting an option role is
+    // absent while no menu is open anywhere, which can never fail).
     await userEvent.click(screen.getByLabelText(/payment method/i))
     expect(screen.getByRole('option', { name: /cash/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /cheque/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option', { name: /^cash$/i }))
+
+    // Switching to "request payment" swaps the whole control out — the
+    // payment-method field disappears rather than merely losing some options.
+    await userEvent.click(screen.getByRole('radio', { name: /request payment/i }))
+    expect(screen.queryByLabelText(/payment method/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^network/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/momo number/i)).toBeInTheDocument()
+
+    // ...and switching back to "record" restores it.
+    await userEvent.click(screen.getByRole('radio', { name: /already received/i }))
+    expect(screen.getByLabelText(/payment method/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/momo number/i)).not.toBeInTheDocument()
   })
 
   it('asks for the occupant MoMo number when requesting payment through the platform', async () => {
@@ -39,10 +54,30 @@ describe('AddAdvanceRentDrawer', () => {
     await userEvent.click(screen.getByRole('radio', { name: /request payment/i }))
 
     expect(screen.getByLabelText(/momo number/i)).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /cash/i })).not.toBeInTheDocument()
   })
 
-  it('shows a waiting state making clear the occupant must approve', async () => {
+  it('labels the gateway network "Telecel" but still sends the backend\'s VODAFONE wire value', async () => {
+    const { advanceRentsApi } = await import('@/lib/api/advanceRents')
+    render(<AddAdvanceRentDrawer open onClose={() => {}} occupantId='o1' unitId='u1' />)
+
+    await userEvent.click(screen.getByRole('radio', { name: /request payment/i }))
+    await userEvent.click(screen.getByLabelText(/^network/i))
+    expect(screen.getByRole('option', { name: /telecel/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /vodafone/i })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('option', { name: /telecel/i }))
+
+    await userEvent.type(screen.getByLabelText(/monthly rent/i), '1000')
+    await userEvent.type(screen.getByLabelText(/momo number/i), '0244778899')
+    await userEvent.click(screen.getByRole('button', { name: /request payment/i }))
+
+    await waitFor(() =>
+      expect(advanceRentsApi.initiatePayment).toHaveBeenCalledWith(
+        expect.objectContaining({ mobileNetwork: 'VODAFONE' })
+      )
+    )
+  })
+
+  it('shows a waiting state making clear the occupant must approve, and that the request is saved as pending (not silently dropped)', async () => {
     const { advanceRentsApi } = await import('@/lib/api/advanceRents')
     render(<AddAdvanceRentDrawer open onClose={() => {}} occupantId='o1' unitId='u1' />)
 
@@ -53,6 +88,8 @@ describe('AddAdvanceRentDrawer', () => {
 
     await waitFor(() => expect(advanceRentsApi.initiatePayment).toHaveBeenCalled())
     expect(screen.getByText(/approve.*phone/i)).toBeInTheDocument()
+    expect(screen.getByText(/saved as pending/i)).toBeInTheDocument()
+    expect(screen.queryByText(/nothing is recorded/i)).not.toBeInTheDocument()
   })
 
   it('rejects more months than the landlord allows', async () => {
@@ -61,5 +98,14 @@ describe('AddAdvanceRentDrawer', () => {
     await userEvent.type(screen.getByLabelText(/months/i), '24')
 
     expect(await screen.findByText(/at most 12/i)).toBeInTheDocument()
+  })
+
+  it('disables submit and shows an error when Months Covered is cleared, rather than silently allowing monthsCovered: 0', async () => {
+    render(<AddAdvanceRentDrawer open onClose={() => {}} occupantId='o1' unitId='u1' />)
+    await userEvent.type(screen.getByLabelText(/monthly rent/i), '1000')
+    await userEvent.clear(screen.getByLabelText(/months/i))
+
+    expect(await screen.findByText(/enter a valid number of months/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /record advance/i })).toBeDisabled()
   })
 })
