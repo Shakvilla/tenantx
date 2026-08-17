@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { MOMO_NUMBER } from '@/views/wallet/WalletDashboard'
+import { MOMO_NUMBER } from '@/types/wallet'
 
 /**
  * The pattern that guards both money-out paths: linking a MoMo number and
