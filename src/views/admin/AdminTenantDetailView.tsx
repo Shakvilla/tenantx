@@ -108,6 +108,7 @@ import {
 } from '@/lib/api/admin-auth-client'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { fuzzyFilter } from '@/utils/tableFilterFns'
+import AdminReconciliationQueue from '@/views/admin/AdminReconciliationQueue'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -2966,6 +2967,14 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
           )}
         </CardContent>
       </Card>
+      </LazySection>
+
+      {/* ── Stranded payments (reconciliation queue) ──────────────────────────
+          Sits directly under Payments because it is the same rows narrowed to the ones the
+          platform could not book. LazySection defers the mount, and the queue loads itself
+          once mounted, so the extra request is only made if the operator scrolls this far. */}
+      <LazySection onVisible={() => { /* the queue fetches itself on mount */ }} minHeight={120}>
+        <AdminReconciliationQueue tenantId={tenantId} />
       </LazySection>
 
       {/* ── Inspections ───────────────────────────────────────────────────────── */}
