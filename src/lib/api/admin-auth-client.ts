@@ -1694,6 +1694,33 @@ export interface AdminAgreementSummary {
   createdAt:        string | null
 }
 
+/**
+ * Whether a flagged payment can be taken out of the reconciliation queue by completing the
+ * settlement that was interrupted — and whether doing so moves money.
+ *
+ * `resolvable` and `creditable` are deliberately two booleans, not one: a payment a late
+ * webhook already settled is resolvable but not creditable (resolving only clears a stale
+ * flag), while a landlord-abandoned one is neither. The UI must not collapse them.
+ */
+export interface AdminReconciliationAssessment {
+  outcome:     string
+  resolvable:  boolean
+  creditable:  boolean
+  explanation: string | null
+}
+
+/** What the resolve action actually did. */
+export interface AdminReconciliationResolution {
+  paymentId:          string
+  outcome:            string
+  walletCredited:     boolean
+  invoicesForAdvance: number
+  amount:             number
+  resolvedBy:         string | null
+  resolvedAt:         string | null
+  detail:             string | null
+}
+
 export interface AdminPaymentSummary {
   id:            string
   invoiceId:     string | null
@@ -1704,6 +1731,17 @@ export interface AdminPaymentSummary {
   paymentMethod: string | null
   status:        string | null
   failureReason: string | null
+  /** True when the gateway may have taken the payer's money without the platform booking it. */
+  needsReconciliation: boolean
+  reconciliationReason: string | null
+  /** Only populated for flagged rows; null for payments that settled normally. */
+  reconciliation: AdminReconciliationAssessment | null
+  /**
+   * When the flag was first raised. Not in the current admin response shape — kept optional so
+   * the column upgrades itself the moment the backend exposes it, and falls back to the
+   * payment's own creation time (labelled as such) until then.
+   */
+  flaggedForReconciliationAt?: string | null
   paymentDate:   string | null
   createdAt:     string | null
 }
@@ -1750,6 +1788,33 @@ export async function getTenantPayments(
   tenantId: string, page = 0, size = 20
 ): Promise<AdminPagedPayments> {
   return adminGet<AdminPagedPayments>(`/tenants/${tenantId}/payments?page=${page}&size=${size}`)
+}
+
+/**
+ * The reconciliation queue: the same payments endpoint narrowed to the rows the platform could
+ * not book. Every row comes back with its own assessment, so the caller can tell which ones the
+ * resolve action would refuse without asking.
+ */
+export async function getTenantReconciliationQueue(
+  tenantId: string, page = 0, size = 20
+): Promise<AdminPagedPayments> {
+  return adminGet<AdminPagedPayments>(
+    `/tenants/${tenantId}/payments?page=${page}&size=${size}&needsReconciliation=true`
+  )
+}
+
+/**
+ * Completes the settlement that was interrupted: activates the advance, issues its monthly
+ * invoices as PAID and credits the landlord's wallet once for the full amount as withdrawable
+ * gateway money. Requires the `platform:wallet:adjust` authority, and refuses with a business
+ * error (409) whenever completing the settlement would be wrong rather than merely redundant.
+ */
+export async function resolvePaymentReconciliation(
+  tenantId: string, paymentId: string
+): Promise<AdminReconciliationResolution> {
+  return adminPost<AdminReconciliationResolution>(
+    `/tenants/${tenantId}/payments/${paymentId}/resolve-reconciliation`
+  )
 }
 
 export async function getTenantInspections(
