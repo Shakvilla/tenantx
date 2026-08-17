@@ -29,7 +29,7 @@ import type { AdvanceRentLimits, AdvanceRentResponse, PaymentMethodType } from '
 
 // The MoMo number format is shared with the wallet feature — reuse its regex
 // rather than duplicating it.
-import { MOMO_NUMBER } from '@/views/wallet/WalletDashboard'
+import { MOMO_NUMBER } from '@/types/wallet'
 
 type Props = {
   open: boolean
@@ -51,12 +51,16 @@ type Mode = 'record' | 'request'
 
 // The backend's MobileNetwork enum for gateway payments (MTN, AIRTELTIGO, VODAFONE) —
 // distinct from the wallet feature's MomoNetwork ('TELECEL' instead of 'VODAFONE').
+// The wire value MUST stay 'VODAFONE' — that's what the backend enum and the
+// gateway integration expect. Only the on-screen label is rebranded to match
+// how the network is actually marketed in Ghana today (and how the wallet
+// feature already labels its own, separate TELECEL enum value).
 type MobileNetwork = 'MTN' | 'AIRTELTIGO' | 'VODAFONE'
 
 const MOBILE_NETWORKS: { value: MobileNetwork; label: string }[] = [
   { value: 'MTN', label: 'MTN' },
   { value: 'AIRTELTIGO', label: 'AirtelTigo' },
-  { value: 'VODAFONE', label: 'Vodafone' }
+  { value: 'VODAFONE', label: 'Telecel' }
 ]
 
 const PAYMENT_METHODS: { value: PaymentMethodType; label: string }[] = [
@@ -113,7 +117,11 @@ const AddAdvanceRentDrawer = ({
   const monthsValid = monthsCovered !== '' && Number.isFinite(monthsNum) && monthsNum > 0
 
   const monthsError = (() => {
-    if (!monthsValid) return monthsCovered !== '' ? 'Enter a valid number of months' : null
+    // Blank must fail closed, not read as "not yet an error" — an empty field
+    // would otherwise pass validation, leave submitDisabled false, and send
+    // monthsCovered: 0 to the backend if the browser's native required/step
+    // constraints ever get bypassed (e.g. programmatic submit, autofill).
+    if (!monthsValid) return 'Enter a valid number of months'
     if (!limits) return null
     if (monthsNum > limits.maxMonths) return `You can offer at most ${limits.maxMonths} months`
     if (monthsNum < limits.minMonths) return `You must offer at least ${limits.minMonths} months`
@@ -255,7 +263,8 @@ const AddAdvanceRentDrawer = ({
           <Alert severity='info' icon={<i className='ri-smartphone-line' />}>
             <AlertTitle>Waiting for {occupantName || 'the occupant'} to approve</AlertTitle>
             A payment prompt has been sent to {requested.walletNumber}. They need to approve it on
-            their phone. Nothing is recorded until they do — you can close this and check back.
+            their phone. Nothing is collected until they approve — this request is saved as
+            pending in the meantime. You can close this and check back.
           </Alert>
           <Button variant='outlined' color='secondary' onClick={handleClose_}>
             Close

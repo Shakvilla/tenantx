@@ -53,26 +53,18 @@ import type {
   WithdrawalResponse,
   WithdrawalStatus,
 } from '@/types/wallet'
-import { CATEGORY_LABELS, MOMO_NETWORKS } from '@/types/wallet'
+import { CATEGORY_LABELS, MOMO_NETWORKS, MOMO_NUMBER } from '@/types/wallet'
 import { fuzzyFilter } from '@/utils/tableFilterFns'
 
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
-
-/**
- * A Ghanaian mobile number: leading 0, a network digit, then eight more — ten
- * digits in total, e.g. 0244778899.
- *
- * It was written `/^0[2-9]\d{7}$/`, which is nine digits, in both the withdraw
- * dialog and the linked-number card. The message beside it said "10-digit", so
- * the rule and its own error contradicted each other, and every real number a
- * landlord could type was rejected. Nothing could be linked and nothing could
- * be withdrawn — the entire money-out path was closed.
- *
- * Declared once so the two call sites cannot drift apart again.
- */
-export const MOMO_NUMBER = /^0[2-9]\d{8}$/
+//
+// MOMO_NUMBER (the Ghanaian mobile-number regex, and the fix for the
+// nine-vs-ten-digit contradiction that used to reject every real number) now
+// lives in '@/types/wallet' — it is shared with the advance-rent gateway
+// flow, which shouldn't have to import this 1000+ line page component just
+// for a regex.
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-GH', { style: 'currency', currency: 'GHS' }).format(n)
