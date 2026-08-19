@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-19
 **Primary repo:** `Tenants` (Next.js 15)
-**Also touches:** `TenantX-backend` — one change, described in §6
+**Also touches:** `TenantX-backend` — two changes, described in §6
 **Backend dependency:** `feat/login-otp` @ `c95868a` (pushed, suite 1370/1370)
 
 ---
@@ -25,7 +25,8 @@ blocked by that choice.
 
 ## 2. What exists, verified
 
-Read from the source rather than assumed, because three of these findings changed the design.
+Read from the source rather than assumed. Several of these findings changed the design rather
+than decorating it.
 
 **Two of the three backend login paths are reachable from this app.**
 `AuthContext` calls `globalLogin` → `POST /global/auth/login`, then `selectTenant` →
@@ -55,7 +56,7 @@ retrofit `ForgotPassword` onto it (out of scope, and its channel-selection step 
 
 **`revoke-all` is `GLOBAL_USER`-only.**
 `GlobalAuthController:215` hardcodes the principal type. Platform admins have no equivalent.
-No "forget my devices" UI is in this slice; §9 records it.
+No "forget my devices" UI is in this slice; §10 records it.
 
 ### 2.1 Backend contract
 
@@ -66,7 +67,7 @@ interface VerifyOtpRequest {
   pendingToken: string
   otp: string
   deviceId: string
-  rememberDevice: boolean   // added by §6
+  rememberDevice: boolean   // added by §6.1
 }
 ```
 
@@ -226,10 +227,13 @@ generate support tickets for a step nobody has to take.
 
 ---
 
-## 6. Backend change: `rememberDevice`
+## 6. Backend changes
 
-The only backend work in this slice. Three call sites trust the device unconditionally after a
-successful verify:
+Two, both small. No migration; no change to any of the nine settings.
+
+### 6.1 `rememberDevice`
+
+Three call sites trust the device unconditionally after a successful verify:
 
 - `AuthServiceImpl:432`
 - `GlobalAuthServiceImpl:563`
@@ -246,7 +250,29 @@ field would challenge on every login forever, which reads as a broken feature an
 exactly the pressure to switch the whole thing off. **Both branches are pinned by tests**, since
 an unpinned default is how this silently inverts later.
 
-No migration. No change to any of the nine settings.
+### 6.2 A distinct error for an exhausted code
+
+`checkOtpGuards` (`OtpServiceImpl:625-646`) currently throws the same
+`BusinessException(OTP_INVALID)` for an exhausted code as for a wrong one. Add
+`OTP_ATTEMPTS_EXHAUSTED` to `BusinessErrorCode`
+(`infrastructure/shared/enums/BusinessErrorCode.java`, beside `OTP_EXPIRED` and `OTP_INVALID`,
+`HttpStatus.BAD_REQUEST`) and throw it from the `attemptsExhausted` branch only.
+
+**This deliberately narrows the no-oracle property**, so the narrowing is bounded on purpose and
+must stay bounded:
+
+- The exhausted branch is reached **only after five failed attempts**, so it is not a cheap
+  probe.
+- It reveals a fact about the caller's **own** code — that it is spent — and nothing about
+  whether any particular guess was right, which device was expected, or whether the account
+  exists.
+- **The other three causes stay uniform.** Wrong code, device mismatch, and expiry continue to
+  throw the identical `OTP_INVALID`. A test pins that, because the temptation to keep splitting
+  this enum is exactly how a no-oracle property erodes one reasonable-looking commit at a time.
+
+Without this, a user who mistypes five times then enters the **correct** code is refused with
+the same message as attempt one, and nothing on screen explains why — which reads as the feature
+being broken rather than as working protection.
 
 ---
 
@@ -275,24 +301,25 @@ that is the reasoning the split was built on, and a settings screen is where it 
 ### 8.1 What the backend deliberately will not tell us
 
 `checkOtpGuards` throws the **identical** `BusinessException(OTP_INVALID)` for a wrong code, a
-device mismatch, an expired code, and an attempts-exhausted code. Its own comment states why:
-"so none of them is an oracle." It also returns no attempt count.
+device mismatch, and an expired code. Its own comment states why: "so none of them is an
+oracle." It returns no attempt count, and §6.2 does not add one.
 
-This is a deliberate security property, not a gap, and the UI must not try to reconstruct the
-distinction by inference. So the wrong-code case gets **one honest message** covering all of it,
-which tells the user the only actionable thing anyway — get a new code:
+That is a deliberate security property, not a gap, and **the UI must not reconstruct the
+distinction by inference** — not from timing, not from response shape, not from anything else.
+Those three causes share one honest message, which names the only actionable step anyway:
 
 > That code isn't valid. It may be wrong, expired, or already used. Start over to get a new one.
 
-The known cost is recorded in §10: after five failed attempts the code is dead, and the user
-sees the same message they saw on attempt one. They can enter the *correct* code and still be
-refused, with nothing on screen explaining why. §10 carries the option to fix that.
+§6.2 carves out exactly one exception — an exhausted code, reachable only after five failures —
+because there the user's next action differs: no code they can type will work, and they must
+start over. Everything else stays uniform.
 
 ### 8.2 Conditions the client can and must distinguish
 
 | backend condition | what the user sees |
 |---|---|
-| `OTP_INVALID` (any cause) | the single message above |
+| `OTP_INVALID` (wrong / device mismatch / expired) | the single message above |
+| `OTP_ATTEMPTS_EXHAUSTED` (§6.2) | "You've used all attempts for this code. Start over to get a new one." |
 | send budget exhausted (429) | "Too many codes requested. Try again in an hour" |
 | pending token expired / invalid (403) | drop back to the login form with an explanatory line, not a dead screen |
 | missing `X-Device-Id` (400, `DEVICE_ID_REQUIRED`) | our client's bug — logs loudly rather than blaming the user |
@@ -318,11 +345,14 @@ Vitest + React Testing Library, matching the repo's existing setup (`vitest run`
 4. Verify success runs the same post-login path as an unchallenged login (landlord: tenant token
    + tenantId + role/userType persisted; admin: admin token stored).
 5. The remember checkbox reaches the request body in **both** states.
-6. The four conditions in §8.2 render four distinguishable messages — and `OTP_INVALID` renders
-   the same message regardless of underlying cause, so no future edit turns the UI into the
-   oracle the backend refuses to be.
+6. The five conditions in §8.2 render five distinguishable messages — and `OTP_INVALID` renders
+   the same message for a wrong code, a device mismatch, and an expired one, so no future edit
+   turns the UI into the oracle the backend refuses to be.
 7. Backend: `rememberDevice` true / false / absent each produce the right `trusted_devices` state
    on all three paths.
+8. Backend: `OTP_ATTEMPTS_EXHAUSTED` is thrown **only** from the exhausted branch, and the other
+   three causes still throw an indistinguishable `OTP_INVALID` — pinned, because a no-oracle
+   property erodes one reasonable-looking commit at a time.
 
 **Every assertion is mutation-checked before being called green** — break the thing it claims to
 pin, watch it go red, restore. Ten guards in the backend half turned out to be pinned by nothing,
@@ -332,13 +362,6 @@ each caught this way and never by the suite passing.
 
 ## 10. Out of scope, recorded
 
-- **Signalling an exhausted code (open decision).** After five failed attempts the code is dead
-  and every later entry — including the correct one — is refused with the same message as
-  attempt one. Fixing it means a second backend change: a distinct error code for
-  attempts-exhausted, deliberately narrowing the uniform-error property described in §8.1. The
-  narrowing is arguably safe (it reveals only a fact about the caller's own code, and only after
-  five failures), but it weakens a property the backend chose on purpose, so it is **not**
-  assumed here. Decide before implementation; the spec ships with §8.1's single message.
 - **`POST /api/v1/auth/login` challenge UI** — no client in this repo calls it. Note that §6's
   `rememberDevice` change still covers that path's verify DTO, so all three stay consistent.
 - **"Forget all my devices"** — `revoke-all` is `GLOBAL_USER`-only and lives on a global-token
