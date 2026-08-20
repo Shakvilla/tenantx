@@ -26,8 +26,21 @@ export function otpErrorMessage(error: unknown): OtpErrorDisplay {
     }
   }
 
-  if (code === 'DEVICE_ID_REQUIRED') {
-    // Nothing the user typed caused this and nothing they type will fix it.
+  // DEVICE_ID_REQUIRED and VALIDATION_ERROR are grouped for the same reason: nothing the user
+  // typed caused either and nothing they type will fix it. They reach this function via
+  // different call sites, though, so both are matched explicitly rather than one standing in
+  // for the other:
+  //  - DEVICE_ID_REQUIRED is thrown by the service layer when a REQUIRED HEADER (X-Device-Id) is
+  //    missing — reachable on the resend path (selectTenant sends the device id as a header,
+  //    which apiClient's interceptor could in principle omit).
+  //  - The verify-otp endpoints (VerifySelectTenantOtpRequestDto / the admin equivalent) instead
+  //    take deviceId as a REQUIRED BODY FIELD with @NotBlank, so a blank/missing value there
+  //    fails DTO validation before the handler ever runs and comes back as VALIDATION_ERROR, not
+  //    DEVICE_ID_REQUIRED — that branch is written to match what the backend actually sends for
+  //    THIS shape of the same underlying problem. Without it, a blank device id at verify time
+  //    fell through to the generic "status === 400" bucket below and rendered "That code isn't
+  //    valid" for a bug that had nothing to do with the code the user typed.
+  if (code === 'DEVICE_ID_REQUIRED' || code === 'VALIDATION_ERROR') {
     return {
       message: 'Something went wrong on our side identifying this browser. Please start over.',
       startOver: true

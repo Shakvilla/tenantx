@@ -162,17 +162,21 @@ interface OtpChallengeFormProps {
   isSubmitting: boolean
   error: string | null            // no attempt count — see §8.1, the backend returns none
   onSubmit: (otp: string, rememberDevice: boolean) => void
-  onResend?: () => void       // absent → renders "Start over" instead
+  onResend?: () => void       // absent → resend control is omitted
   onStartOver: () => void
 }
 ```
 
 Knows nothing about API calls, tokens, or which path invoked it. Renders: a 6-digit code field,
 "Sent to {maskedTarget}", the remember-this-device checkbox (**checked by default**), an error
-slot, a submit button, and either a resend control or a "Start over" link.
+slot, a submit button, and a "Start over" link — plus a resend control alongside it whenever
+`onResend` is supplied.
 
-Rendering "Start over" where `onResend` is absent is the honest representation of a path that
-genuinely cannot resend — a disabled resend button would imply a temporary state.
+"Start over" is unconditional rather than an either/or with resend: it is the only escape hatch
+on the path that genuinely cannot resend (admin, §4.3), so it must always be available, and there
+is no reason to take it away just because a resend control also exists. Omitting the resend
+control where `onResend` is absent is the honest representation of a path that genuinely cannot
+resend — a disabled resend button would imply a temporary state.
 
 ### 4.2 Landlord path — `AuthContext`
 

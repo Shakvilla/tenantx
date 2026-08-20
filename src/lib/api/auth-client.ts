@@ -1,5 +1,7 @@
 /* eslint-disable lines-around-comment */
-import { apiGet, apiPost, apiClient, API_BASE } from './client'
+import { AxiosError } from 'axios'
+
+import { apiGet, apiPost, apiClient, API_BASE, getErrorMessage } from './client'
 import { getDeviceId } from './device-id'
 import type { RegisterPayload, LoginPayload } from '../validation/schemas/auth.schema'
 import {
@@ -138,13 +140,19 @@ export async function globalLogin(
  */
 export async function selectTenant(
   tenantId: string
-): Promise<ApiResponse<SelectTenantResponse | OtpChallenge>> {
+): Promise<ApiResponse<SelectTenantResponse | OtpChallenge> & { rawError?: unknown }> {
   try {
     // We need to use the global token from localStorage explicitly here
     // because the interceptor might not have it yet.
     const token = getStoredToken()
 
-    const data = await apiPost<SelectTenantResponse | OtpChallenge>(
+    // Posts through apiClient directly rather than the apiPost helper, deliberately — same
+    // reasoning as verifySelectTenantOtp below. apiPost catches the AxiosError and rethrows a
+    // plain Error carrying only a message, which discards the HTTP status and the backend's
+    // error code. resendOtp (AuthContext) needs those to tell a 429 rate-limit from anything
+    // else via otpErrorMessage; without the raw error a resend failure produced no message at
+    // all.
+    const response = await apiClient.post<SelectTenantResponse | OtpChallenge>(
       `${API_BASE}/global/auth/select-tenant`,
       { tenantId },
       {
@@ -163,6 +171,8 @@ export async function selectTenant(
       }
     )
 
+    const data = response.data
+
     // A challenge is not a session. Storing anything here — even the tenant id — would leave
     // the app in a half-authenticated state that middleware and the interceptors would treat
     // as real.
@@ -175,11 +185,14 @@ export async function selectTenant(
     setStoredTenantId(tenantId)
 
     return { success: true, data }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof AxiosError ? getErrorMessage(error) : (error as Error)?.message
+
     return {
       success: false,
       data: null,
-      error: { code: 'TENANT_SELECTION_ERROR', message: error.message || 'Tenant selection failed' },
+      error: { code: 'TENANT_SELECTION_ERROR', message: message || 'Tenant selection failed' },
+      rawError: error
     }
   }
 }

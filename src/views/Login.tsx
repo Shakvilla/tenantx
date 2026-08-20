@@ -111,7 +111,16 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     // If workspace selection is needed, the component will re-render with the selection UI
     // If auto-selected (single workspace), redirect to dashboard
-    if (result.success && !needsWorkspaceSelection) {
+    //
+    // result.otpRequired must gate this, not the needsWorkspaceSelection state read below — that
+    // read is a stale closure captured at the start of this render (state updates from the
+    // login() call above haven't been reflected here yet), so it is always whatever it was
+    // BEFORE this submission, never the outcome of this one. A challenge and a real session both
+    // return { success: true } from login(); only otpRequired tells them apart. Without this gate
+    // a correct password on an unrecognised browser flashes the code-entry screen and then
+    // immediately navigates away from it (see AuthProvider's per-route-group mounting — crossing
+    // that boundary unmounts the provider and destroys the in-memory pendingToken with it).
+    if (result.success && !result.otpRequired && !needsWorkspaceSelection) {
       // Small delay to let the state settle (auto-select case)
       setTimeout(() => {
         router.push(redirectTo)
@@ -127,11 +136,14 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     const result = await selectWorkspace(workspace)
 
-    if (result.success) {
+    if (result.success && !result.otpRequired) {
       router.push(redirectTo)
-    } else {
+    } else if (!result.success) {
       setError(result.error || 'Failed to select workspace.')
     }
+
+    // result.success && result.otpRequired: no navigation and no error — the component
+    // re-renders into the OTP challenge below because needsOtp/otpChallenge are now set.
 
     setIsSubmitting(false)
   }
@@ -153,7 +165,17 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
   const handleOtpResend = async () => {
     setError(null)
-    await resendOtp()
+
+    const result = await resendOtp()
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to resend the code.')
+    } else if (result.sessionEstablished) {
+      // Rare: the device got trusted (or the switch flipped off) between the challenge and this
+      // resend, and a real session came back instead of a fresh code. The context already
+      // established it; this is only the navigation half.
+      router.push(redirectTo)
+    }
   }
 
   const handleOtpCancel = () => {

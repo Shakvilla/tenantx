@@ -69,18 +69,24 @@ interface AuthContextValue extends AuthState {
   login: (
     email: string,
     password: string
-  ) => Promise<{ success: boolean; error?: string; requiresWorkspaceSelection?: boolean; needsPasswordSetup?: boolean }>
+  ) => Promise<{
+    success: boolean
+    error?: string
+    requiresWorkspaceSelection?: boolean
+    needsPasswordSetup?: boolean
+    otpRequired?: boolean
+  }>
   register: (data: {
     email: string
     password: string
     fullName: string
     companyName: string
   }) => Promise<{ success: boolean; error?: string }>
-  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string }>
+  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean }>
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
   verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
-  resendOtp: () => Promise<void>
+  resendOtp: () => Promise<{ success: boolean; error?: string; sessionEstablished?: boolean }>
   cancelOtp: () => void
 }
 
@@ -295,7 +301,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setState(prev => ({
           ...prev,
           isLoading: false,
-          needsPasswordSetup: true
+          needsPasswordSetup: true,
+          // Defensive: not reachable today (a fresh login() call starts from a clean state), but
+          // a stale challenge from a previous account surviving into this branch would otherwise
+          // leave needsOtp/otpChallenge dangling from whatever they were before.
+          needsOtp: false,
+          otpChallenge: null
         }))
 
         return { success: true, needsPasswordSetup: true }
@@ -319,7 +330,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...prev,
         isLoading: false,
         pendingWorkspaces: workspaces,
-        needsWorkspaceSelection: true
+        needsWorkspaceSelection: true,
+        // Defensive, same reasoning as the firstTimeLogin branch above.
+        needsOtp: false,
+        otpChallenge: null
       }))
 
       return { success: true, requiresWorkspaceSelection: true }
@@ -329,7 +343,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   // ---- Select Workspace ----
-  const handleSelectWorkspace = async (workspace: Workspace): Promise<{ success: boolean; error?: string }> => {
+  const handleSelectWorkspace = async (
+    workspace: Workspace
+  ): Promise<{ success: boolean; error?: string; otpRequired?: boolean }> => {
     setState(prev => ({ ...prev, isLoading: true }))
 
     const result = await selectTenant(workspace.tenantId)
@@ -349,7 +365,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         otpChallenge: { ...(result.data as OtpChallenge), workspace }
       }))
 
-      return { success: true }
+      // otpRequired distinguishes this from a real session — Login.tsx must not navigate on it.
+      // A challenge and a session are otherwise byte-identical ({ success: true }), which is
+      // exactly what let the caller push straight to /dashboard on a challenge before this fix.
+      return { success: true, otpRequired: true }
     }
 
     const tenantData = result.data as SelectTenantResponse
@@ -430,18 +449,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resendOtp = useCallback(async () => {
     const challenge = stateRef.current.otpChallenge
 
-    if (!challenge) return
+    if (!challenge) return { success: false, error: 'No verification in progress.' }
 
     // A true resend: /select-tenant needs only the global token, which is still held. No
     // credentials are kept anywhere to make this possible.
     const result = await selectTenant(challenge.workspace.tenantId)
 
-    if (result.success && isOtpChallenge(result.data)) {
+    if (!result.success || !result.data) {
+      // Previously swallowed outright — a 429 or an expired global token produced no message at
+      // all, so "Send a new code" appeared to do nothing. rawError is the raw axios error (see
+      // selectTenant), which is what otpErrorMessage needs to tell a rate limit from anything else.
+      return { success: false, error: otpErrorMessage(result.rawError).message }
+    }
+
+    if (isOtpChallenge(result.data)) {
       setState(prev => ({
         ...prev,
         otpChallenge: { ...(result.data as OtpChallenge), workspace: challenge.workspace }
       }))
+
+      return { success: true }
     }
+
+    // A real session came back instead of a fresh code — the switch flipped off mid-flow, or
+    // this device got trusted in another tab. Route it through the same establish path as every
+    // other session; leaving it here would land tokens/cookies while the context still reports
+    // needsOtp: true, isAuthenticated: false — middleware sees a signed-in user, the UI does not.
+    establishTenantSession(result.data as SelectTenantResponse, challenge.workspace)
+
+    return { success: true, sessionEstablished: true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

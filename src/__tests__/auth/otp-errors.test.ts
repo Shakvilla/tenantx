@@ -44,6 +44,19 @@ describe('otpErrorMessage', () => {
     expect(result.startOver).toBe(true)
   })
 
+  // M-1: the verify-otp endpoints take deviceId as a required BODY field (@NotBlank on
+  // VerifySelectTenantOtpRequestDto / its admin equivalent), so a blank/missing value there
+  // fails DTO validation before DEVICE_ID_REQUIRED's own service-layer guard is ever reached —
+  // the backend actually returns VALIDATION_ERROR for this shape of the same our-bug problem.
+  // Without this branch it fell into the generic "status === 400" bucket below and rendered
+  // "That code isn't valid" for something that had nothing to do with what the user typed.
+  it('does not blame the user for a validation error either', () => {
+    const result = otpErrorMessage(backendError(400, 'VALIDATION_ERROR'))
+
+    expect(result.message).not.toMatch(/code/i)
+    expect(result.startOver).toBe(true)
+  })
+
   it('falls back to a generic message for anything unrecognised', () => {
     expect(otpErrorMessage(new Error('socket hang up')).message).toBeTruthy()
   })

@@ -143,20 +143,15 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
     setState(prev => ({ ...prev, isAdminLoading: true }))
 
+    // verifyAdminLoginOtp and getAdminMe are deliberately NOT in the same try block. A failure
+    // in verifyAdminLoginOtp is a genuine OTP failure — wrong/expired code, exhausted attempts,
+    // dead pending token — and otpErrorMessage's discrimination applies. A failure in getAdminMe
+    // happens AFTER the code was accepted and admin_token already stored (verifyAdminLoginOtp
+    // stores it before returning); reporting that through otpErrorMessage told a CORRECTLY
+    // verified admin "that code isn't valid", or on a 403 cleared the challenge and left a valid
+    // token sitting in storage with no session ever established from it.
     try {
       await verifyAdminLoginOtp(challenge.pendingToken, otp, rememberDevice)
-
-      const profile = await getAdminMe()
-
-      setState({
-        adminUser: profile,
-        isAdminAuthenticated: true,
-        isAdminLoading: false,
-        needsOtp: false,
-        otpChallenge: null
-      })
-
-      return { success: true }
     } catch (err) {
       const display = otpErrorMessage(err)
 
@@ -168,6 +163,39 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       }))
 
       return { success: false, error: display.message, startOver: display.startOver }
+    }
+
+    try {
+      const profile = await getAdminMe()
+
+      setState({
+        adminUser: profile,
+        isAdminAuthenticated: true,
+        isAdminLoading: false,
+        needsOtp: false,
+        otpChallenge: null
+      })
+
+      return { success: true }
+    } catch {
+      // The code was valid and a token is stored, but there is no profile to show for it — don't
+      // leave a half-authenticated token behind for a session that never actually got
+      // established client-side.
+      clearStoredAdminToken()
+
+      setState({
+        adminUser: null,
+        isAdminAuthenticated: false,
+        isAdminLoading: false,
+        needsOtp: false,
+        otpChallenge: null
+      })
+
+      return {
+        success: false,
+        error: 'Signed in, but we could not load your profile. Please sign in again.',
+        startOver: true
+      }
     }
   }, [])
 
