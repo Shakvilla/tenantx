@@ -1568,6 +1568,12 @@ describe('AuthContext login-OTP branch', () => {
     expect(api.tenant?.id).toBe('t-1')
     expect(api.user?.role).toBe('OWNER')
     expect(api.user?.userType).toBe('LANDLORD')
+
+    // Middleware treats a user as authenticated only when BOTH cookies exist. The OTP path
+    // skips selectTenant's own setStoredTenantId call — it returned a challenge and bailed
+    // out before reaching it — so without an explicit call here the landlord verifies
+    // successfully and is redirected straight back to /login.
+    expect(localStorage.getItem('tenant_id')).toBe('t-1')
   })
 
   it('passes rememberDevice through to the verify call', async () => {
@@ -1657,6 +1663,12 @@ Then extract the existing post-select body — from `setStoredUserRole(...)` thr
    * /select-tenant path and the post-OTP path call this, so the two cannot drift apart.
    */
   const establishTenantSession = (tenantData: SelectTenantResponse, workspace: Workspace) => {
+    // setStoredTenantId is NOT redundant with selectTenant's own call. The OTP path never
+    // reaches that call — selectTenant returned a challenge and bailed out before it — and
+    // middleware treats a user as authenticated only when BOTH auth_token and tenant_id
+    // cookies exist. Without this line a landlord completes the challenge and is bounced
+    // straight back to /login. On the unchallenged path it simply sets the same value twice.
+    setStoredTenantId(workspace.tenantId)
     setStoredUserRole(workspace.role)
     setStoredUserType(workspace.userType)
 
@@ -1738,6 +1750,9 @@ Then:
 ```
 
 Add `verifyOtp`, `resendOtp`, `cancelOtp` to the provider's `value`.
+
+`AuthContext.tsx` does not currently import `setStoredTenantId` — add it to the existing
+`@/lib/api/auth-client` import block (it is re-exported there, at `auth-client.ts:491`).
 
 **On `result.rawError`:** `verifySelectTenantOtp` from Task 5 returns `{ success, data, error }`. Extend its failure branch to also return `rawError: error` (the original axios error object) so `otpErrorMessage` can read the status and code. Update Task 5's type accordingly if you have not already.
 
@@ -1870,7 +1885,16 @@ Expected: type-check clean, whole suite green.
 
 - [ ] **Step 8: Mutation-check the shared success path**
 
-In `verifyOtp`, replace `establishTenantSession(result.data, challenge.workspace)` with a hand-written `setState` that omits `setStoredUserRole` / `setStoredUserType`. Expect `lands in the identical authenticated state after verifying` to FAIL on `api.user?.role`. Restore, confirm green, report.
+Two mutations, both against `lands in the identical authenticated state after verifying`:
+
+1. Remove `setStoredTenantId(workspace.tenantId)` from `establishTenantSession`. Expect FAIL on
+   the `tenant_id` assertion. This is the one that matters — it is the difference between a
+   working login and a redirect loop.
+2. Replace `establishTenantSession(result.data, challenge.workspace)` in `verifyOtp` with a
+   hand-written `setState` that omits `setStoredUserRole` / `setStoredUserType`. Expect FAIL on
+   `api.user?.role`.
+
+Restore after each, confirm green, report both outputs.
 
 - [ ] **Step 9: Commit**
 
