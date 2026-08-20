@@ -1433,8 +1433,8 @@ export default function AdminPlatformSettingsView() {
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
             {[
-              { key: 'otp.device.trust_days',         label: 'Remember a device for (days)', help: 'How long a verified browser skips the code. Lower is stricter and asks more often' },
-              { key: 'otp.device.max_per_principal',  label: 'Remembered devices per user',  help: 'Once reached, the least recently used device is forgotten' },
+              { key: 'otp.device.trust_days',         label: 'Remember a device for (days)', help: 'How long a verified browser skips the code. At 0 a device expires the instant it is trusted, so every login is challenged forever and "remember this device" silently does nothing' },
+              { key: 'otp.device.max_per_principal',  label: 'Remembered devices per user',  help: 'Once reached, the least recently used device is forgotten. At 0 the at-cap check is never true, so trusting a device evicts every device already trusted — nothing ever stays remembered' },
               { key: 'otp.send.max_per_identifier',   label: 'Codes per account per hour',   help: 'Set too low and a user who mistypes their email cannot get a second code' },
               { key: 'otp.send.max_per_ip',           label: 'Codes per IP per hour',        help: 'Keep well above the per-account limit: households and offices share one address behind a router' },
               { key: 'otp.verify.max_attempts',       label: 'Attempts per code',            help: 'After this many wrong guesses the code is dead and the user must start over' },
@@ -1456,7 +1456,8 @@ export default function AdminPlatformSettingsView() {
           <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 2 }}>
             Every value above must be 1 or more. Zero is rejected because each one is a
             platform-wide outage rather than a stricter setting: no codes can be sent, no code can
-            be redeemed, or live codes are deleted mid-login.
+            be redeemed, live codes are deleted mid-login, no device ever stays trusted, or
+            trusting one device evicts every other device already trusted.
           </Typography>
 
           {['otp.device.trust_days', 'otp.device.max_per_principal', 'otp.send.max_per_identifier', 'otp.send.max_per_ip', 'otp.verify.max_attempts', 'otp.code.retention_days'].some(k => dirty.has(k)) && (
