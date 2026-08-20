@@ -14,6 +14,7 @@ import {
   getStoredToken,
   getStoredTenantId,
   clearStoredTokens,
+  isOtpChallenge,
   type Workspace,
   type UserProfile
 } from '@/lib/api/auth-client'
@@ -313,6 +314,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState(prev => ({ ...prev, isLoading: false }))
 
       return { success: false, error: result.error?.message ?? 'Failed to select workspace' }
+    }
+
+    // Placeholder narrowing only. selectTenant can now answer with an OTP challenge, and a later
+    // task adds the state and UI to complete it. Until then this fails closed rather than falling
+    // through to code that would read tokens off a challenge response that carries none.
+    if (isOtpChallenge(result.data)) {
+      setState(prev => ({ ...prev, isLoading: false }))
+
+      return { success: false, error: 'Verification required.' }
     }
 
     // The select-tenant response includes the user profile inline (AuthResponseDto.user).
