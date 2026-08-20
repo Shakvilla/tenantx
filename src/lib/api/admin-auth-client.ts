@@ -267,6 +267,29 @@ export async function changeAdminPassword(currentPassword: string, newPassword: 
 }
 
 // ---------------------------------------------------------------------------
+// Phone verification (login-OTP SMS delivery)
+// ---------------------------------------------------------------------------
+
+/**
+ * Submits a phone number for verification — POST /profile/phone
+ * Backend contract: SubmitPhoneNumberRequest validates ^\+?[0-9()\s-]{7,16}$
+ *
+ * Path is relative to adminClient's baseURL, which already includes /api/v1/admin —
+ * do not repeat the /admin prefix here.
+ */
+export async function submitAdminPhoneNumber(phoneNumber: string): Promise<{ expiresInSeconds: number }> {
+  return adminPost<{ message: string; expiresInSeconds: number }>('/profile/phone', { phoneNumber })
+}
+
+/**
+ * Confirms the 6-digit code sent to the submitted phone — POST /profile/phone/verify
+ * Backend contract: VerifyPhoneNumberRequest requires exactly 6 digits.
+ */
+export async function verifyAdminPhoneNumber(otp: string): Promise<void> {
+  await adminPost<void>('/profile/phone/verify', { otp })
+}
+
+// ---------------------------------------------------------------------------
 // Tenants (landlord accounts)
 // ---------------------------------------------------------------------------
 

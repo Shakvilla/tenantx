@@ -561,5 +561,23 @@ export async function getMyLoginHistory(params?: {
   return apiGet<MyLoginHistoryPage>(`${API_BASE}/users/me/login-history${q.toString() ? `?${q}` : ''}`)
 }
 
+// ── Phone verification (login-OTP SMS delivery) ────────────────────────────
+
+/**
+ * Submits a phone number for verification — POST /profile/phone
+ * Backend contract: SubmitPhoneNumberRequest validates ^\+?[0-9()\s-]{7,16}$
+ */
+export async function submitPhoneNumber(phoneNumber: string): Promise<{ expiresInSeconds: number }> {
+  return apiPost<{ message: string; expiresInSeconds: number }>(`${API_BASE}/profile/phone`, { phoneNumber })
+}
+
+/**
+ * Confirms the 6-digit code sent to the submitted phone — POST /profile/phone/verify
+ * Backend contract: VerifyPhoneNumberRequest requires exactly 6 digits.
+ */
+export async function verifyPhoneNumber(otp: string): Promise<void> {
+  await apiPost<void>(`${API_BASE}/profile/phone/verify`, { otp })
+}
+
 // Re-export storage helpers for convenience
 export { getStoredToken, getStoredTenantId, setStoredTokens, setStoredTenantId, clearStoredTokens }
