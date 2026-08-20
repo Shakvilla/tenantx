@@ -1389,6 +1389,91 @@ export default function AdminPlatformSettingsView() {
         </CardContent>
       </Card>
 
+      {/* ── 10. Login OTP ─────────────────────────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-shield-keyhole-line'
+            title='Login OTP'
+            subtitle='A one-time code on the first sign-in from an unrecognised browser. Email delivery has no switch and can never be turned off, so no setting here can lock anyone out.'
+          />
+          <Divider sx={{ mb: 2 }} />
+
+          <Alert severity='info' sx={{ mb: 2 }}>
+            Arm <strong>platform admins</strong> first. They are a handful of people you can reach
+            directly, so a problem is a conversation. Landlord sign-in covers every paying
+            customer, where the same problem is a lockout discovered through support tickets.
+          </Alert>
+
+          <ToggleRow
+            label='Require OTP for landlord and staff sign-in'
+            description='Applies to tenant-user login and workspace selection — every landlord and staff account'
+            checked={boolVal(settings, 'OTP', 'otp.login.enabled')}
+            saving={saving.has('otp.login.enabled')}
+            onChange={v => save('otp.login.enabled', String(v))}
+          />
+
+          <ToggleRow
+            label='Require OTP for platform admin sign-in'
+            description='Applies only to this console. Independent of the landlord switch above'
+            checked={boolVal(settings, 'OTP', 'otp.admin.login.enabled')}
+            saving={saving.has('otp.admin.login.enabled')}
+            onChange={v => save('otp.admin.login.enabled', String(v))}
+          />
+
+          <ToggleRow
+            label='Allow SMS delivery'
+            description='Off by default: SMS costs money per send. Codes go by SMS only to users who have verified a phone number; everyone else still receives email'
+            checked={boolVal(settings, 'OTP', 'otp.login.sms_enabled')}
+            saving={saving.has('otp.login.sms_enabled')}
+            onChange={v => save('otp.login.sms_enabled', String(v))}
+          />
+
+          <Divider sx={{ my: 2 }} />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
+            {[
+              { key: 'otp.device.trust_days',         label: 'Remember a device for (days)', help: 'How long a verified browser skips the code. Lower is stricter and asks more often' },
+              { key: 'otp.device.max_per_principal',  label: 'Remembered devices per user',  help: 'Once reached, the least recently used device is forgotten' },
+              { key: 'otp.send.max_per_identifier',   label: 'Codes per account per hour',   help: 'Set too low and a user who mistypes their email cannot get a second code' },
+              { key: 'otp.send.max_per_ip',           label: 'Codes per IP per hour',        help: 'Keep well above the per-account limit: households and offices share one address behind a router' },
+              { key: 'otp.verify.max_attempts',       label: 'Attempts per code',            help: 'After this many wrong guesses the code is dead and the user must start over' },
+              { key: 'otp.code.retention_days',       label: 'Keep used codes for (days)',   help: 'How long expired codes stay in the database before the purge job removes them' },
+            ].map(({ key, label, help }) => (
+              <TextField
+                key={key}
+                size='small'
+                label={label}
+                type='number'
+                inputProps={{ min: 1 }}
+                value={localValues[key] ?? ''}
+                onChange={e => setLocal(key, e.target.value)}
+                helperText={help}
+              />
+            ))}
+          </Box>
+
+          <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 2 }}>
+            Every value above must be 1 or more. Zero is rejected because each one is a
+            platform-wide outage rather than a stricter setting: no codes can be sent, no code can
+            be redeemed, or live codes are deleted mid-login.
+          </Typography>
+
+          {['otp.device.trust_days', 'otp.device.max_per_principal', 'otp.send.max_per_identifier', 'otp.send.max_per_ip', 'otp.verify.max_attempts', 'otp.code.retention_days'].some(k => dirty.has(k)) && (
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Button
+                variant='contained'
+                size='small'
+                onClick={() => saveDirty(['otp.device.trust_days', 'otp.device.max_per_principal', 'otp.send.max_per_identifier', 'otp.send.max_per_ip', 'otp.verify.max_attempts', 'otp.code.retention_days'])}
+                disabled={['otp.device.trust_days', 'otp.device.max_per_principal', 'otp.send.max_per_identifier', 'otp.send.max_per_ip', 'otp.verify.max_attempts', 'otp.code.retention_days'].some(k => saving.has(k))}
+              >
+                Save OTP Limits
+              </Button>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Toast */}
       <Snackbar
         open={!!toast}
