@@ -16,7 +16,9 @@ import TablePagination from '@mui/material/TablePagination'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
-import { getMyLoginHistory, logoutAllUser, type MyLoginHistoryItem } from '@/lib/api/auth-client'
+import PhoneVerificationCard from '@/components/auth/PhoneVerificationCard'
+import { useAuth } from '@/contexts/AuthContext'
+import { getMyLoginHistory, logoutAllUser, submitPhoneNumber, verifyPhoneNumber, type MyLoginHistoryItem } from '@/lib/api/auth-client'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,8 @@ function parseDevice(userAgent: string | null): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function SecuritySettingsView() {
+  const { user } = useAuth()
+
   const [history, setHistory]   = useState<MyLoginHistoryItem[]>([])
   const [total, setTotal]       = useState(0)
   const [page, setPage]         = useState(0)
@@ -56,6 +60,13 @@ export default function SecuritySettingsView() {
   const [error, setError]       = useState<string | null>(null)
   const [logoutAll, setLogoutAll] = useState(false)
   const [logoutMsg, setLogoutMsg] = useState<string | null>(null)
+
+  // AuthUser carries no `phoneVerified` flag from the backend — only an optional `phone`. We
+  // seed from that and otherwise treat verification as local UI state, flipped once `onVerified`
+  // fires. This does not claim to know the server's verification status; it only reflects what
+  // happened in this session.
+  const [localPhone, setLocalPhone]     = useState<string | null>(user?.phone ?? null)
+  const [localVerified, setLocalVerified] = useState(false)
 
   const load = (p: number) => {
     setLoading(true)
@@ -124,6 +135,23 @@ export default function SecuritySettingsView() {
           </Box>
         </CardContent>
       </Card>
+
+      {/* Phone verification */}
+      <Box sx={{ mb: 3 }}>
+        <PhoneVerificationCard
+          currentPhone={localPhone}
+          isVerified={localVerified}
+          onSubmitPhone={async phoneNumber => {
+            const result = await submitPhoneNumber(phoneNumber)
+
+            setLocalPhone(phoneNumber)
+
+            return result
+          }}
+          onVerifyPhone={verifyPhoneNumber}
+          onVerified={() => setLocalVerified(true)}
+        />
+      </Box>
 
       {/* Login history */}
       <Card variant='outlined'>
