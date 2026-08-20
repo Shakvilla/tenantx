@@ -132,9 +132,13 @@ export async function selectTenant(
         headers: {
           Authorization: `Bearer ${token}`,
 
-          // This object REPLACES nothing the interceptor set, but stating the device id here
-          // makes the requirement local to the call that depends on it: /select-tenant is one
-          // of the two endpoints that raise an OTP challenge.
+          // apiClient's request interceptor already injects X-Device-Id on every client-side
+          // request, including this one, so this entry is redundant in production today. It's
+          // kept as defense-in-depth: it survives a future edit that makes the interceptor
+          // conditional (e.g. gated to auth routes only), and it survives a caller that replaces
+          // `headers` wholesale instead of merging into it — either of which would otherwise
+          // silently drop the header on /select-tenant, one of the two endpoints that raise an
+          // OTP challenge.
           'X-Device-Id': getDeviceId()
         },
       }

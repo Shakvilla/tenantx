@@ -71,7 +71,7 @@ describe('X-Device-Id is sent from every call site', () => {
   })
 
   // selectTenant passes its own headers object, which can silently replace the interceptor's.
-  it('selectTenant sends it alongside its explicit Authorization header', async () => {
+  it('a real selectTenant request carries the device id', async () => {
     const seen = captureRequests()
 
     // getStoredToken() (src/lib/api/storage.ts) only accepts a structurally-valid JWT
@@ -80,13 +80,32 @@ describe('X-Device-Id is sent from every call site', () => {
     // ('Bearer null'). Three dot-separated segments is all isValidJwt() checks.
     localStorage.setItem('auth_token', 'header.payload.global-token-signature')
 
-    // apiClient's own request interceptor (client.ts) also injects X-Device-Id unconditionally
-    // on every client-side request, which would silently backfill a missing header here and
-    // mask a regression in selectTenant's own explicit headers object — the exact thing this
-    // test exists to catch (confirmed by mutation-testing: removing selectTenant's own header
-    // line left this assertion green until the interceptor was cleared). Clearing it isolates
-    // what selectTenant supplies itself; Authorization is already explicit in its headers
-    // object, so clearing the interceptor doesn't remove anything this call still needs.
+    // apiClient's request interceptor is left registered here — this is the real, unmodified
+    // production path. It asserts what actually goes over the wire when selectTenant runs,
+    // regardless of which of the interceptor or selectTenant's own headers object is what
+    // supplies X-Device-Id.
+    const { selectTenant } = await import('@/lib/api/auth-client')
+
+    await selectTenant('tenant-1')
+
+    expect(headerOf(seen[0], 'X-Device-Id')).toBe(getDeviceId())
+    expect(headerOf(seen[0], 'Authorization')).toBe('Bearer header.payload.global-token-signature')
+  })
+
+  it("selectTenant's own headers object carries the device id, so it survives an interceptor change", async () => {
+    const seen = captureRequests()
+
+    localStorage.setItem('auth_token', 'header.payload.global-token-signature')
+
+    // This is a defense-in-depth check, not an integration assertion: apiClient's request
+    // interceptor (client.ts) is the production mechanism that puts X-Device-Id on every
+    // client-side request, including this one — the test above already proves that. Clearing
+    // the interceptor here isolates what selectTenant's own explicit headers object supplies on
+    // its own, so a regression in that object (e.g. someone deletes the 'X-Device-Id' entry) is
+    // caught even though it's currently masked in production by the interceptor. Confirmed by
+    // mutation-testing: removing selectTenant's own header line left the test above green until
+    // the interceptor was cleared here. Authorization is already explicit in the headers object,
+    // so clearing the interceptor doesn't remove anything this call still needs.
     const { apiClient } = await import('@/lib/api/client')
     apiClient.interceptors.request.clear()
 
