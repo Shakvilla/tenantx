@@ -92,6 +92,17 @@ export interface OtpChallenge {
   pendingToken: string
   channel: 'EMAIL' | 'SMS'
   maskedTarget: string
+
+  /**
+   * The other delivery channel the caller could switch to, or `null`/absent when no switch is
+   * available (policy is a single fixed channel, or the principal has no verified phone). This
+   * is the server's own eligibility signal — callers must render a switch control only when this
+   * is present, never infer availability from `channel` alone.
+   */
+  alternateChannel?: {
+    channel: 'EMAIL' | 'SMS'
+    maskedTarget: string
+  } | null
 }
 
 /** Narrows a login response to a challenge. Keyed on `otpRequired`, the flag the backend sets. */

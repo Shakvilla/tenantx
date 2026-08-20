@@ -84,6 +84,20 @@ export default function AdminLoginView() {
     }
   }
 
+  // A switch is just a resend that names the other channel — the pendingToken alone identifies
+  // the challenge. resendOtp refreshes otpChallenge from the server's response (new channel, new
+  // maskedTarget, and a possibly-flipped alternateChannel), so nothing here needs to track the
+  // target channel itself.
+  const handleOtpSwitch = async (targetChannel: 'EMAIL' | 'SMS') => {
+    setError(null)
+
+    const result = await resendOtp(targetChannel)
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to switch channel.')
+    }
+  }
+
   if (needsOtp && otpChallenge) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-backgroundDefault p-6'>
@@ -100,6 +114,15 @@ export default function AdminLoginView() {
             onSubmit={handleOtpSubmit}
             onResend={handleOtpResend}
             onStartOver={handleOtpCancel}
+            alternateChannel={
+              otpChallenge.alternateChannel
+                ? {
+                    channel: otpChallenge.alternateChannel.channel,
+                    maskedTarget: otpChallenge.alternateChannel.maskedTarget,
+                    onSwitch: () => handleOtpSwitch(otpChallenge.alternateChannel!.channel)
+                  }
+                : undefined
+            }
           />
         </div>
       </div>
