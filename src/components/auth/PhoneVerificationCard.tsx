@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -50,6 +50,24 @@ export default function PhoneVerificationCard({
   const [isSendingCode, setIsSendingCode] = useState(false)
   const [isVerifyingCode, setIsVerifyingCode] = useState(false)
 
+  // The component owns no source of truth for verification status — `isVerified`/`currentPhone`
+  // live in the parent, which updates them only after `onVerified()` fires and re-renders with
+  // new props. `step` is local UI state seeded once from the initial props, so without this
+  // effect a successful verify would leave the card stuck showing the code form: `onVerified()`
+  // fires, the parent's state changes, but nothing here ever looks at the new props again.
+  //
+  // Deriving from props (rather than calling `setStep('verified')` directly inside the verify
+  // handler) also means this is correct even if the parent's re-render lags a tick behind the
+  // callback: we only flip to the verified view once `currentPhone` has actually arrived, so we
+  // never render the verified layout with a still-null number. And because the dependency array
+  // only changes when the props themselves change, an unrelated re-render with the same props
+  // (e.g. while the user is mid-`Change number`) never clobbers that in-progress step.
+  useEffect(() => {
+    if (isVerified && currentPhone) {
+      setStep('verified')
+    }
+  }, [isVerified, currentPhone])
+
   const handleSendCode = async (e: React.FormEvent) => {
     e.preventDefault()
     setApiError(null)
@@ -90,7 +108,11 @@ export default function PhoneVerificationCard({
     }
   }
 
-  const handleChangeNumber = () => {
+  // Shared by "Change number" (from the verified view) and "Use a different number" (from the
+  // code step) — both return to the phone step, and both must clear any stale error from the
+  // step being abandoned. Previously only the former did, so a failed verify's error message
+  // could linger on screen after backing out to re-enter the number.
+  const resetToPhoneStep = () => {
     setApiError(null)
     setPhoneError(null)
     setOtp('')
@@ -101,7 +123,18 @@ export default function PhoneVerificationCard({
     <Card variant='outlined'>
       <CardHeader
         title='Phone number'
-        subheader='Optional. Add a phone number to receive your login codes by SMS — codes are sent by email unless you have a confirmed phone number on file.'
+        // "Verified" appears in the subheader's prose only on the phone/code steps, where the
+        // "Verified" Chip below is not on screen. On the verified step, the Chip is the only
+        // thing that should say "Verified" — repeating the word in the subheader too would give
+        // `getByText(/verified/i)` two matches instead of one (a real DOM ambiguity, not a test
+        // artifact: the Chip's label and a sentence containing "verified" are both matched, since
+        // each is a distinct element's own direct text). This keeps one consistent word for the
+        // concept throughout, without ever showing it twice at once.
+        subheader={
+          step === 'verified'
+            ? 'Manage the phone number used to deliver your login codes by SMS.'
+            : 'Optional. Add a phone number to receive your login codes by SMS — codes are sent by email unless you have a verified phone number on file.'
+        }
         avatar={<i className='ri-smartphone-line' style={{ fontSize: '1.4rem', opacity: 0.7 }} />}
       />
       <Divider />
@@ -128,7 +161,7 @@ export default function PhoneVerificationCard({
               </Typography>
               <Chip label='Verified' size='small' color='success' variant='tonal' />
             </Box>
-            <Button variant='outlined' size='small' onClick={handleChangeNumber}>
+            <Button variant='outlined' size='small' onClick={resetToPhoneStep}>
               Change number
             </Button>
           </Box>
@@ -191,7 +224,7 @@ export default function PhoneVerificationCard({
               >
                 {isVerifyingCode ? <CircularProgress size={22} color='inherit' /> : 'Verify'}
               </Button>
-              <Button variant='text' color='secondary' onClick={() => setStep('phone')} disabled={isVerifyingCode}>
+              <Button variant='text' color='secondary' onClick={resetToPhoneStep} disabled={isVerifyingCode}>
                 Use a different number
               </Button>
             </Box>

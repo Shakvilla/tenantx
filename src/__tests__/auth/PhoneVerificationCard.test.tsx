@@ -83,4 +83,46 @@ describe('PhoneVerificationCard', () => {
     await user.click(screen.getByRole('button', { name: /change number/i }))
     expect(screen.getByLabelText(/phone number/i)).toBeInTheDocument()
   })
+
+  // The component owns no source of truth for verification status — `isVerified`/`currentPhone`
+  // live in the parent. The real flow is: user verifies -> onVerified() fires -> the parent
+  // updates its own state -> the parent re-renders this component with the new props. A card
+  // that only reacts to onVerifyPhone/onVerified firing (and never looks at the props it's
+  // handed afterward) would stay stuck showing the code form forever.
+  it('shows the verified view once the parent applies updated props after a successful verify', async () => {
+    const user = userEvent.setup()
+    const onVerified = vi.fn()
+
+    const { rerender } = render(
+      <PhoneVerificationCard
+        currentPhone={null}
+        isVerified={false}
+        onSubmitPhone={vi.fn().mockResolvedValue({ expiresInSeconds: 600 })}
+        onVerifyPhone={vi.fn().mockResolvedValue(undefined)}
+        onVerified={onVerified}
+      />
+    )
+
+    await user.type(screen.getByLabelText(/phone number/i), '+233241234567')
+    await user.click(screen.getByRole('button', { name: /send code/i }))
+    await user.type(await screen.findByLabelText(/verification code/i), '123456')
+    await user.click(screen.getByRole('button', { name: /^verify$/i }))
+
+    expect(onVerified).toHaveBeenCalled()
+
+    // Simulate the parent's post-verify re-render — same component instance, new props.
+    rerender(
+      <PhoneVerificationCard
+        currentPhone='+233241234567'
+        isVerified={true}
+        onSubmitPhone={vi.fn().mockResolvedValue({ expiresInSeconds: 600 })}
+        onVerifyPhone={vi.fn().mockResolvedValue(undefined)}
+        onVerified={onVerified}
+      />
+    )
+
+    expect(screen.getByText(/verified/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /change number/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/verification code/i)).not.toBeInTheDocument()
+  })
 })
