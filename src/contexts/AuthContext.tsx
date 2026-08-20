@@ -1,7 +1,7 @@
 /* eslint-disable import/no-unresolved */
 'use client'
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -13,10 +13,14 @@ import {
   logoutUser,
   getStoredToken,
   getStoredTenantId,
+  setStoredTenantId,
   clearStoredTokens,
   isOtpChallenge,
+  verifySelectTenantOtp,
   type Workspace,
-  type UserProfile
+  type UserProfile,
+  type OtpChallenge,
+  type SelectTenantResponse
 } from '@/lib/api/auth-client'
 import {
   getStoredUserRole,
@@ -24,6 +28,7 @@ import {
   getStoredUserType,
   setStoredUserType
 } from '@/lib/api/storage'
+import { otpErrorMessage } from '@/lib/api/otp-errors'
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -54,6 +59,10 @@ interface AuthState {
   pendingWorkspaces: Workspace[] | null
   needsWorkspaceSelection: boolean
   needsPasswordSetup: boolean
+  needsOtp: boolean
+
+  /** The live challenge plus the workspace it was raised for, so resend and verify can finish it. */
+  otpChallenge: (OtpChallenge & { workspace: Workspace }) | null
 }
 
 interface AuthContextValue extends AuthState {
@@ -70,6 +79,9 @@ interface AuthContextValue extends AuthState {
   selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string }>
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
+  verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
+  resendOtp: () => Promise<void>
+  cancelOtp: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -102,8 +114,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isRefreshing: false,
     pendingWorkspaces: null,
     needsWorkspaceSelection: false,
-    needsPasswordSetup: false
+    needsPasswordSetup: false,
+    needsOtp: false,
+    otpChallenge: null
   })
+
+  const stateRef = useRef(state)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   // ---- Event Listeners for API Client ----
   useEffect(() => {
@@ -181,7 +201,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isRefreshing: false,
           pendingWorkspaces: null,
           needsWorkspaceSelection: false,
-          needsPasswordSetup: false
+          needsPasswordSetup: false,
+          needsOtp: false,
+          otpChallenge: null
         })
         return
       }
@@ -197,7 +219,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               isRefreshing: false,
               pendingWorkspaces: null,
               needsWorkspaceSelection: false,
-              needsPasswordSetup: false
+              needsPasswordSetup: false,
+              needsOtp: false,
+              otpChallenge: null
             })
           } else {
             // Only clear tokens if explicitly UNAUTHORIZED (401)
@@ -316,20 +340,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: result.error?.message ?? 'Failed to select workspace' }
     }
 
-    // Placeholder narrowing only. selectTenant can now answer with an OTP challenge, and a later
-    // task adds the state and UI to complete it. Until then this fails closed rather than falling
-    // through to code that would read tokens off a challenge response that carries none.
+    // A challenge, not a session. Everything below this point assumes tokens exist.
     if (isOtpChallenge(result.data)) {
-      setState(prev => ({ ...prev, isLoading: false }))
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        needsOtp: true,
+        otpChallenge: { ...(result.data as OtpChallenge), workspace }
+      }))
 
-      return { success: false, error: 'Verification required.' }
+      return { success: true }
     }
 
-    // The select-tenant response includes the user profile inline (AuthResponseDto.user).
-    // No need for a separate getCurrentUser() call — eliminates the API waterfall.
-    const tenantData = result.data
+    const tenantData = result.data as SelectTenantResponse
 
-    // Persist role + userType so they survive page refresh (getCurrentUser doesn't return them)
+    establishTenantSession(tenantData, workspace)
+
+    return { success: true }
+  }
+
+  /**
+   * The one and only place a landlord session is established. Both the unchallenged
+   * /select-tenant path and the post-OTP path call this, so the two cannot drift apart.
+   */
+  const establishTenantSession = (tenantData: SelectTenantResponse, workspace: Workspace) => {
+    // setStoredTenantId is NOT redundant with selectTenant's own call. The OTP path never
+    // reaches that call — selectTenant returned a challenge and bailed out before it — and
+    // middleware treats a user as authenticated only when BOTH auth_token and tenant_id
+    // cookies exist. Without this line a landlord completes the challenge and is bounced
+    // straight back to /login. On the unchallenged path it simply sets the same value twice.
+    setStoredTenantId(workspace.tenantId)
     setStoredUserRole(workspace.role)
     setStoredUserType(workspace.userType)
 
@@ -337,19 +377,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: tenantData.user
         ? mapProfileToUser(tenantData.user, workspace.role, workspace.userType)
         : { id: '', email: '', name: '', role: workspace.role, userType: workspace.userType },
-      tenant: {
-        id: workspace.tenantId,
-        name: workspace.tenantName
-      },
+      tenant: { id: workspace.tenantId, name: workspace.tenantName },
       isAuthenticated: true,
       isLoading: false,
       isRefreshing: false,
       pendingWorkspaces: null,
       needsWorkspaceSelection: false,
-      needsPasswordSetup: false
+      needsPasswordSetup: false,
+      needsOtp: false,
+      otpChallenge: null
     })
-
-    return { success: true }
   }
 
   const selectWorkspaceMethod = useCallback(
@@ -359,6 +396,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   )
+
+  // ---- Verify login OTP ----
+  const verifyOtp = useCallback(async (otp: string, rememberDevice: boolean) => {
+    const challenge = stateRef.current.otpChallenge
+
+    if (!challenge) return { success: false, error: 'No verification in progress.', startOver: true }
+
+    setState(prev => ({ ...prev, isLoading: true }))
+
+    const result = await verifySelectTenantOtp(challenge.pendingToken, otp, rememberDevice)
+
+    if (!result.success || !result.data) {
+      const display = otpErrorMessage(result.rawError)
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        needsOtp: !display.startOver,
+        otpChallenge: display.startOver ? null : prev.otpChallenge
+      }))
+
+      return { success: false, error: display.message, startOver: display.startOver }
+    }
+
+    establishTenantSession(result.data, challenge.workspace)
+
+    return { success: true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ---- Resend login OTP ----
+  const resendOtp = useCallback(async () => {
+    const challenge = stateRef.current.otpChallenge
+
+    if (!challenge) return
+
+    // A true resend: /select-tenant needs only the global token, which is still held. No
+    // credentials are kept anywhere to make this possible.
+    const result = await selectTenant(challenge.workspace.tenantId)
+
+    if (result.success && isOtpChallenge(result.data)) {
+      setState(prev => ({
+        ...prev,
+        otpChallenge: { ...(result.data as OtpChallenge), workspace: challenge.workspace }
+      }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ---- Cancel login OTP ----
+  const cancelOtp = useCallback(() => {
+    setState(prev => ({ ...prev, needsOtp: false, otpChallenge: null }))
+  }, [])
 
   // ---- Register ----
   const register = useCallback(
@@ -395,6 +485,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         pendingWorkspaces:     null,
         needsWorkspaceSelection: false,
         needsPasswordSetup:    false,
+        needsOtp:              false,
+        otpChallenge:          null,
       })
 
       return { success: true }
@@ -414,7 +506,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isRefreshing: false,
         pendingWorkspaces: null,
         needsWorkspaceSelection: false,
-        needsPasswordSetup: false
+        needsPasswordSetup: false,
+        needsOtp: false,
+        otpChallenge: null
       })
 
       // A reason means this was an involuntary logout (session expired / invalid token) —
@@ -464,7 +558,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         selectWorkspace: selectWorkspaceMethod,
         logout,
-        refreshUser
+        refreshUser,
+        verifyOtp,
+        resendOtp,
+        cancelOtp
       }}
     >
       {children}
