@@ -1,5 +1,6 @@
 /* eslint-disable lines-around-comment */
 import { apiGet, apiPost, API_BASE } from './client'
+import { getDeviceId } from './device-id'
 import type { RegisterPayload, LoginPayload } from '../validation/schemas/auth.schema'
 import {
   getStoredToken,
@@ -130,6 +131,11 @@ export async function selectTenant(
       {
         headers: {
           Authorization: `Bearer ${token}`,
+
+          // This object REPLACES nothing the interceptor set, but stating the device id here
+          // makes the requirement local to the call that depends on it: /select-tenant is one
+          // of the two endpoints that raise an OTP challenge.
+          'X-Device-Id': getDeviceId()
         },
       }
     )

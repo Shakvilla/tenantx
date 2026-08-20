@@ -6,6 +6,7 @@ import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } fr
 import axios, { AxiosError } from 'axios'
 
 import { getStoredRefreshToken, getStoredTenantId, setStoredTokens, getStoredToken } from './storage';
+import { getDeviceId } from './device-id'
 
 // ---------------------------------------------------------------------------
 // Base URL and apiClient config
@@ -36,6 +37,13 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // Inject X-Tenant-ID if not already set (don't override if caller set it explicitly)
   if (tenantId && !config.headers?.get('X-Tenant-ID')) {
     config.headers.set('X-Tenant-ID', tenantId)
+  }
+
+  // Identifies the browser for login OTP device trust. Set unconditionally rather than only
+  // on auth routes: the backend reads it on /select-tenant, and a caller that overrides
+  // `headers` still gets it because that override happens before this interceptor runs.
+  if (!config.headers?.get('X-Device-Id')) {
+    config.headers.set('X-Device-Id', getDeviceId())
   }
 
   return config
