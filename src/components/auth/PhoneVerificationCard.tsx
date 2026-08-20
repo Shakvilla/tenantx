@@ -27,6 +27,15 @@ export interface PhoneVerificationCardProps {
   onSubmitPhone: (phoneNumber: string) => Promise<{ expiresInSeconds: number }>
   onVerifyPhone: (otp: string) => Promise<void>
   onVerified: () => void
+
+  // The backend persists verification (`phone_verified_at`), but neither mounting site can
+  // currently read it back — so `isVerified` here always starts `false`, even for someone who
+  // verified last week. Without this note, the phone step reads as though nothing was ever done,
+  // and re-verifying burns one of only 3 hourly SMS sends on a no-op. Only the card knows when
+  // it is actually showing the phone step (that's private `step` state), so a caller cannot
+  // place this correctly on its own — hence the slot here rather than a sibling element at the
+  // mounting sites.
+  phoneStepNote?: React.ReactNode
 }
 
 type Step = 'verified' | 'phone' | 'code'
@@ -40,7 +49,8 @@ export default function PhoneVerificationCard({
   isVerified,
   onSubmitPhone,
   onVerifyPhone,
-  onVerified
+  onVerified,
+  phoneStepNote
 }: PhoneVerificationCardProps) {
   const [step, setStep] = useState<Step>(initialStep(currentPhone, isVerified))
   const [phoneNumber, setPhoneNumber] = useState(currentPhone ?? '')
@@ -168,33 +178,36 @@ export default function PhoneVerificationCard({
         )}
 
         {step === 'phone' && (
-          <Box
-            component='form'
-            noValidate
-            onSubmit={handleSendCode}
-            sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}
-          >
-            <TextField
-              fullWidth
-              label='Phone number'
-              placeholder='+233241234567'
-              value={phoneNumber}
-              onChange={e => {
-                setPhoneNumber(e.target.value)
-                if (phoneError) setPhoneError(null)
-              }}
-              error={!!phoneError}
-              helperText={phoneError ?? 'Used only to deliver login codes by SMS.'}
-            />
-            <Button
-              variant='contained'
-              type='submit'
-              disabled={isSendingCode}
-              sx={{ alignSelf: 'flex-start' }}
-              startIcon={isSendingCode ? <CircularProgress size={16} color='inherit' /> : undefined}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {phoneStepNote}
+            <Box
+              component='form'
+              noValidate
+              onSubmit={handleSendCode}
+              sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}
             >
-              {isSendingCode ? 'Sending…' : 'Send code'}
-            </Button>
+              <TextField
+                fullWidth
+                label='Phone number'
+                placeholder='+233241234567'
+                value={phoneNumber}
+                onChange={e => {
+                  setPhoneNumber(e.target.value)
+                  if (phoneError) setPhoneError(null)
+                }}
+                error={!!phoneError}
+                helperText={phoneError ?? 'Used only to deliver login codes by SMS.'}
+              />
+              <Button
+                variant='contained'
+                type='submit'
+                disabled={isSendingCode}
+                sx={{ alignSelf: 'flex-start' }}
+                startIcon={isSendingCode ? <CircularProgress size={16} color='inherit' /> : undefined}
+              >
+                {isSendingCode ? 'Sending…' : 'Send code'}
+              </Button>
+            </Box>
           </Box>
         )}
 

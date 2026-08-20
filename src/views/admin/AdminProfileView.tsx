@@ -330,6 +330,12 @@ function AdminPhoneVerificationSection() {
         }}
         onVerifyPhone={verifyAdminPhoneNumber}
         onVerified={() => setVerified(true)}
+        phoneStepNote={
+          <Alert severity='info' variant='outlined'>
+            Already verified a number? It stays verified — we just can&apos;t display it on this page yet, so
+            there&apos;s no need to redo it unless your number changed.
+          </Alert>
+        }
       />
     </Box>
   )
