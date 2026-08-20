@@ -12,6 +12,9 @@ import axios from 'axios'
 import type { AxiosInstance } from 'axios'
 
 import { getStoredAdminToken, setStoredAdminToken, clearStoredAdminToken } from './admin-storage'
+import { isOtpChallenge } from './auth-client'
+import type { OtpChallenge } from './auth-client'
+import { getDeviceId } from './device-id'
 
 const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:1201/api/v1')
   .replace(/\/api\/v1$/, '') + '/api/v1/admin'
@@ -33,6 +36,10 @@ adminClient.interceptors.request.use(config => {
 
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+
+  if (!config.headers['X-Device-Id']) {
+    config.headers['X-Device-Id'] = getDeviceId()
   }
 
 
@@ -181,13 +188,43 @@ return res.data
 // Auth
 // ---------------------------------------------------------------------------
 
-export async function adminLogin(email: string, password: string): Promise<AdminLoginResponse> {
-  // Call directly (no auth header needed for login)
-  const res = await axios.post<AdminLoginResponse>(`${ADMIN_API_BASE}/auth/login`, { email, password })
+export async function adminLogin(email: string, password: string): Promise<AdminLoginResponse | OtpChallenge> {
+  // Bare axios.post: no auth header is needed for login, and adminClient's interceptor never
+  // runs here. X-Device-Id must therefore be passed explicitly — without it the backend
+  // cannot tell whether this browser is already trusted, and rejects the login outright when
+  // login OTP is armed.
+  const res = await axios.post<AdminLoginResponse | OtpChallenge>(
+    `${ADMIN_API_BASE}/auth/login`,
+    { email, password },
+    { headers: { 'X-Device-Id': getDeviceId() } }
+  )
+
+  // No token is minted alongside a challenge, so there is nothing to store and storing the
+  // undefined accessToken would corrupt the session state.
+  if (isOtpChallenge(res.data)) return res.data
 
   setStoredAdminToken(res.data.accessToken)
 
 return res.data
+}
+
+/**
+ * Completes the login-OTP challenge raised by {@link adminLogin}. On success the stored admin
+ * token is identical to an unchallenged login's.
+ */
+export async function verifyAdminLoginOtp(
+  pendingToken: string,
+  otp: string,
+  rememberDevice: boolean
+): Promise<AdminLoginResponse> {
+  const res = await axios.post<AdminLoginResponse>(
+    `${ADMIN_API_BASE}/auth/verify-otp`,
+    { pendingToken, otp, deviceId: getDeviceId(), rememberDevice }
+  )
+
+  setStoredAdminToken(res.data.accessToken)
+
+  return res.data
 }
 
 export async function getAdminMe(): Promise<AdminProfile> {
@@ -227,6 +264,29 @@ export function adminLogout(): void {
 
 export async function changeAdminPassword(currentPassword: string, newPassword: string): Promise<void> {
   await adminPut('/auth/change-password', { currentPassword, newPassword })
+}
+
+// ---------------------------------------------------------------------------
+// Phone verification (login-OTP SMS delivery)
+// ---------------------------------------------------------------------------
+
+/**
+ * Submits a phone number for verification — POST /profile/phone
+ * Backend contract: SubmitPhoneNumberRequest validates ^\+?[0-9()\s-]{7,16}$
+ *
+ * Path is relative to adminClient's baseURL, which already includes /api/v1/admin —
+ * do not repeat the /admin prefix here.
+ */
+export async function submitAdminPhoneNumber(phoneNumber: string): Promise<{ expiresInSeconds: number }> {
+  return adminPost<{ message: string; expiresInSeconds: number }>('/profile/phone', { phoneNumber })
+}
+
+/**
+ * Confirms the 6-digit code sent to the submitted phone — POST /profile/phone/verify
+ * Backend contract: VerifyPhoneNumberRequest requires exactly 6 digits.
+ */
+export async function verifyAdminPhoneNumber(otp: string): Promise<void> {
+  await adminPost<void>('/profile/phone/verify', { otp })
 }
 
 // ---------------------------------------------------------------------------

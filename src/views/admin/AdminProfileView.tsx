@@ -17,8 +17,9 @@ import IconButton from '@mui/material/IconButton'
 import InputAdornment from '@mui/material/InputAdornment'
 import Snackbar from '@mui/material/Snackbar'
 
+import PhoneVerificationCard from '@/components/auth/PhoneVerificationCard'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
-import { changeAdminPassword, updateAdminProfile } from '@/lib/api/admin-auth-client'
+import { changeAdminPassword, submitAdminPhoneNumber, updateAdminProfile, verifyAdminPhoneNumber } from '@/lib/api/admin-auth-client'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -304,6 +305,43 @@ function ChangePasswordCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Phone verification section
+// ---------------------------------------------------------------------------
+
+// AdminProfile (src/lib/api/admin-auth-client.ts) carries no phone or phoneVerified field at
+// all — unlike the landlord's AuthUser, which at least has an optional `phone`. There is
+// nothing to seed from here, so both current phone and verified status start out purely as
+// local UI state, set only once `onSubmitPhone`/`onVerified` actually run in this session.
+function AdminPhoneVerificationSection() {
+  const [phone, setPhone]       = useState<string | null>(null)
+  const [verified, setVerified] = useState(false)
+
+  return (
+    <Box sx={{ mt: 3 }}>
+      <PhoneVerificationCard
+        currentPhone={phone}
+        isVerified={verified}
+        onSubmitPhone={async phoneNumber => {
+          const result = await submitAdminPhoneNumber(phoneNumber)
+
+          setPhone(phoneNumber)
+
+          return result
+        }}
+        onVerifyPhone={verifyAdminPhoneNumber}
+        onVerified={() => setVerified(true)}
+        phoneStepNote={
+          <Alert severity='info' variant='outlined'>
+            Already verified a number? It stays verified — we just can&apos;t display it on this page yet, so
+            there&apos;s no need to redo it unless your number changed.
+          </Alert>
+        }
+      />
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main view
 // ---------------------------------------------------------------------------
 
@@ -369,6 +407,9 @@ export default function AdminProfileView() {
           </InfoRow>
         </CardContent>
       </Card>
+
+      {/* Phone verification */}
+      <AdminPhoneVerificationSection />
 
       {/* Change password */}
       <ChangePasswordCard />
