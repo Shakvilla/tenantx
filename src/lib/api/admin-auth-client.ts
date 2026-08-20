@@ -12,6 +12,8 @@ import axios from 'axios'
 import type { AxiosInstance } from 'axios'
 
 import { getStoredAdminToken, setStoredAdminToken, clearStoredAdminToken } from './admin-storage'
+import { isOtpChallenge } from './auth-client'
+import type { OtpChallenge } from './auth-client'
 import { getDeviceId } from './device-id'
 
 const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:1201/api/v1')
@@ -186,20 +188,43 @@ return res.data
 // Auth
 // ---------------------------------------------------------------------------
 
-export async function adminLogin(email: string, password: string): Promise<AdminLoginResponse> {
+export async function adminLogin(email: string, password: string): Promise<AdminLoginResponse | OtpChallenge> {
   // Bare axios.post: no auth header is needed for login, and adminClient's interceptor never
   // runs here. X-Device-Id must therefore be passed explicitly — without it the backend
   // cannot tell whether this browser is already trusted, and rejects the login outright when
   // login OTP is armed.
-  const res = await axios.post<AdminLoginResponse>(
+  const res = await axios.post<AdminLoginResponse | OtpChallenge>(
     `${ADMIN_API_BASE}/auth/login`,
     { email, password },
     { headers: { 'X-Device-Id': getDeviceId() } }
   )
 
+  // No token is minted alongside a challenge, so there is nothing to store and storing the
+  // undefined accessToken would corrupt the session state.
+  if (isOtpChallenge(res.data)) return res.data
+
   setStoredAdminToken(res.data.accessToken)
 
 return res.data
+}
+
+/**
+ * Completes the login-OTP challenge raised by {@link adminLogin}. On success the stored admin
+ * token is identical to an unchallenged login's.
+ */
+export async function verifyAdminLoginOtp(
+  pendingToken: string,
+  otp: string,
+  rememberDevice: boolean
+): Promise<AdminLoginResponse> {
+  const res = await axios.post<AdminLoginResponse>(
+    `${ADMIN_API_BASE}/auth/verify-otp`,
+    { pendingToken, otp, deviceId: getDeviceId(), rememberDevice }
+  )
+
+  setStoredAdminToken(res.data.accessToken)
+
+  return res.data
 }
 
 export async function getAdminMe(): Promise<AdminProfile> {

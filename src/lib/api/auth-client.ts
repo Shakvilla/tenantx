@@ -1,5 +1,5 @@
 /* eslint-disable lines-around-comment */
-import { apiGet, apiPost, API_BASE } from './client'
+import { apiGet, apiPost, apiClient, API_BASE } from './client'
 import { getDeviceId } from './device-id'
 import type { RegisterPayload, LoginPayload } from '../validation/schemas/auth.schema'
 import {
@@ -78,6 +78,25 @@ export type ApiResponse<T> = {
   }
 }
 
+/**
+ * A login-OTP challenge. Returned by /select-tenant and /admin/auth/login in place of a
+ * session when the device is not trusted and login OTP is armed.
+ *
+ * It deliberately carries NO token of any kind. That is what makes the OTP step unskippable:
+ * there is nothing here a client could store and use, so the only way forward is to verify.
+ */
+export interface OtpChallenge {
+  otpRequired: true
+  pendingToken: string
+  channel: 'EMAIL' | 'SMS'
+  maskedTarget: string
+}
+
+/** Narrows a login response to a challenge. Keyed on `otpRequired`, the flag the backend sets. */
+export function isOtpChallenge(value: unknown): value is OtpChallenge {
+  return typeof value === 'object' && value !== null && (value as { otpRequired?: unknown }).otpRequired === true
+}
+
 // ---------------------------------------------------------------------------
 // API Functions
 // ---------------------------------------------------------------------------
@@ -119,13 +138,13 @@ export async function globalLogin(
  */
 export async function selectTenant(
   tenantId: string
-): Promise<ApiResponse<SelectTenantResponse>> {
+): Promise<ApiResponse<SelectTenantResponse | OtpChallenge>> {
   try {
     // We need to use the global token from localStorage explicitly here
     // because the interceptor might not have it yet.
     const token = getStoredToken()
 
-    const data = await apiPost<SelectTenantResponse>(
+    const data = await apiPost<SelectTenantResponse | OtpChallenge>(
       `${API_BASE}/global/auth/select-tenant`,
       { tenantId },
       {
@@ -144,6 +163,13 @@ export async function selectTenant(
       }
     )
 
+    // A challenge is not a session. Storing anything here — even the tenant id — would leave
+    // the app in a half-authenticated state that middleware and the interceptors would treat
+    // as real.
+    if (isOtpChallenge(data)) {
+      return { success: true, data }
+    }
+
     // Replace tokens with tenant-scoped ones and set cookies
     setStoredTokens(data.accessToken, data.refreshToken)
     setStoredTenantId(tenantId)
@@ -155,6 +181,44 @@ export async function selectTenant(
       data: null,
       error: { code: 'TENANT_SELECTION_ERROR', message: error.message || 'Tenant selection failed' },
     }
+  }
+}
+
+export type OtpVerifyResult =
+  | { success: true; data: SelectTenantResponse }
+  // rawError is the original axios error, NOT a message. otpErrorMessage (Task 6) needs the
+  // status and the backend's error code to tell OTP_ATTEMPTS_EXHAUSTED from OTP_INVALID,
+  // and apiPost's rethrown Error has already discarded both.
+  | { success: false; data: null; rawError: unknown }
+
+/**
+ * Completes the login-OTP challenge raised by {@link selectTenant}.
+ *
+ * On success this is indistinguishable from an unchallenged /select-tenant: same response
+ * shape, same storage. The caller's success path is therefore identical either way.
+ *
+ * Posts through `apiClient` rather than the `apiPost` helper, deliberately. `apiPost` catches
+ * the AxiosError and rethrows a plain Error carrying only a message — which discards the HTTP
+ * status and the backend's error code, the two things `otpErrorMessage` needs to tell an
+ * exhausted code from a merely wrong one. The raw error is handed upward instead, and only the
+ * caller turns it into words.
+ */
+export async function verifySelectTenantOtp(
+  pendingToken: string,
+  otp: string,
+  rememberDevice: boolean
+): Promise<OtpVerifyResult> {
+  try {
+    const response = await apiClient.post<SelectTenantResponse>(
+      `${API_BASE}/global/auth/select-tenant/verify-otp`,
+      { pendingToken, otp, deviceId: getDeviceId(), rememberDevice }
+    )
+
+    setStoredTokens(response.data.accessToken, response.data.refreshToken)
+
+    return { success: true, data: response.data }
+  } catch (error: unknown) {
+    return { success: false, data: null, rawError: error }
   }
 }
 
