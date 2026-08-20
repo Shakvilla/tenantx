@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   globalLogin,
   selectTenant,
-  registerUser,
+  signupComplete,
   getCurrentUser,
   logoutUser,
   getStoredToken,
@@ -77,17 +77,25 @@ interface AuthContextValue extends AuthState {
     needsPasswordSetup?: boolean
     otpRequired?: boolean
   }>
-  register: (data: {
-    email: string
-    password: string
+  /**
+   * Completes the email-verified signup challenge `signupStart` raised (Register.tsx owns that
+   * challenge locally — it is not the same as `otpChallenge`, which is the LOGIN-OTP state
+   * above). This is the ONLY place a freshly-signed-up landlord's session gets established,
+   * mirroring `establishTenantSession`'s reasoning: `fullName` has to be passed in because
+   * `SignupResponse` (the backend's `/signup/complete` reply) never carries it — Register.tsx
+   * already collected it on the form.
+   */
+  completeSignup: (params: {
+    pendingToken: string
+    otp: string
+    rememberDevice: boolean
     fullName: string
-    companyName: string
-  }) => Promise<{ success: boolean; error?: string }>
+  }) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
   selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean }>
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
   verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
-  resendOtp: (channel?: 'EMAIL' | 'SMS') => Promise<{ success: boolean; error?: string; sessionEstablished?: boolean }>
+  resendOtp: (channel?: 'EMAIL' | 'SMS') => Promise<{ success: boolean; error?: string }>
   cancelOtp: () => void
 }
 
@@ -480,22 +488,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, needsOtp: false, otpChallenge: null }))
   }, [])
 
-  // ---- Register ----
-  const register = useCallback(
-    async (data: { email: string; password: string; fullName: string; companyName: string }) => {
+  // ---- Complete email-verified signup ----
+  //
+  // The one and only place a freshly-signed-up landlord's session gets established — mirrors
+  // establishTenantSession's own reasoning. Previously Register.tsx called signupComplete
+  // (auth-client) directly and set NO state at all: signupComplete only writes tokens, never
+  // user/tenant/isAuthenticated/role/userType. A brand-new landlord landed on /dashboard with
+  // this provider un-remounted, so it still read user: null, isAuthenticated: false — no
+  // workspace name, SubscriptionContext never loading — recovering only on a hard refresh. Every
+  // new landlord's first screen was broken. Routing completion through this method instead means
+  // the same state writes {@code login}/{@code verifyOtp} rely on also happen here.
+  const completeSignup = useCallback(
+    async (params: { pendingToken: string; otp: string; rememberDevice: boolean; fullName: string }) => {
       setState(prev => ({ ...prev, isLoading: true }))
 
-      const result = await registerUser(data)
+      const result = await signupComplete(params.pendingToken, params.otp, params.rememberDevice)
 
       if (!result.success || !result.data) {
         setState(prev => ({ ...prev, isLoading: false }))
 
-        return { success: false, error: result.error?.message ?? 'Registration failed' }
+        const display = otpErrorMessage(result.rawError)
+
+        return { success: false, error: display.message, startOver: display.startOver }
       }
 
       const signup = result.data
 
-      // The backend returns a tenant-scoped JWT immediately after signup.
+      // The backend returns a tenant-scoped JWT immediately after signup completes.
       // Persist role + userType so the bootstrap useEffect can restore them on page refresh.
       setStoredUserRole('ADMIN')
       setStoredUserType('LANDLORD')
@@ -504,7 +523,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: {
           id:       signup.userId,
           email:    signup.email,
-          name:     data.fullName,
+          name:     params.fullName,
           role:     'ADMIN',
           userType: 'LANDLORD',
         },
@@ -585,7 +604,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         ...state,
         login,
-        register,
+        completeSignup,
         selectWorkspace: selectWorkspaceMethod,
         logout,
         refreshUser,

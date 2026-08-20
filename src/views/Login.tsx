@@ -170,11 +170,6 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     if (!result.success) {
       setError(result.error ?? 'Failed to resend the code.')
-    } else if (result.sessionEstablished) {
-      // Rare: the device got trusted (or the switch flipped off) between the challenge and this
-      // resend, and a real session came back instead of a fresh code. The context already
-      // established it; this is only the navigation half.
-      router.push(redirectTo)
     }
   }
 
@@ -194,10 +189,6 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     if (!result.success) {
       setError(result.error ?? 'Failed to switch channel.')
-    } else if (result.sessionEstablished) {
-      // Same rare case handleOtpResend guards against: device trust changed underneath the
-      // challenge and a real session came back instead of a fresh code.
-      router.push(redirectTo)
     }
   }
 

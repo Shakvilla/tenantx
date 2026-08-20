@@ -33,12 +33,13 @@ import themeConfig from '@configs/themeConfig'
 import { RegisterSchema } from '@/lib/validation/schemas/auth.schema'
 
 // API Imports
-import { signupStart, signupComplete, type OtpChallenge } from '@/lib/api/auth-client'
+import { signupStart, type OtpChallenge } from '@/lib/api/auth-client'
 import { otpErrorMessage } from '@/lib/api/otp-errors'
 
 // Hook Imports
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
+import { useAuth } from '@/contexts/AuthContext'
 
 /**
  * Validates an optional phone number before it is ever sent to the API. Matches the backend's
@@ -85,6 +86,7 @@ const Register = ({ mode }: { mode: Mode }) => {
 
   // Hooks
   const router = useRouter()
+  const { completeSignup } = useAuth()
   const { settings } = useSettings()
   const authBackground = useImageVariant(mode, lightImg, darkImg)
 
@@ -165,22 +167,28 @@ const Register = ({ mode }: { mode: Mode }) => {
     setError(null)
     setIsSubmitting(true)
 
-    const result = await signupComplete(challenge.pendingToken, otp, rememberDevice)
+    // Routed through AuthContext (not signupComplete directly) so the same user/tenant/
+    // isAuthenticated/role/userType state writes every other auth path relies on happen here too
+    // — see completeSignup's own comment for the broken-dashboard bug this fixes.
+    const result = await completeSignup({
+      pendingToken: challenge.pendingToken,
+      otp,
+      rememberDevice,
+      fullName: formData.fullName
+    })
 
-    if (result.success && result.data) {
+    if (result.success) {
       setSuccess('Account created! Taking you to your dashboard...')
 
       setTimeout(() => {
         router.push('/dashboard')
       }, 1500)
     } else {
-      const display = otpErrorMessage(result.rawError)
-
-      setError(display.message)
+      setError(result.error || 'Verification failed. Please try again.')
       setIsSubmitting(false)
 
       // No code can help — back to the registration form so the user can start over.
-      if (display.startOver) setChallenge(null)
+      if (result.startOver) setChallenge(null)
     }
   }
 

@@ -3,7 +3,7 @@ import { AxiosError } from 'axios'
 
 import { apiGet, apiPost, apiClient, API_BASE, getErrorMessage } from './client'
 import { getDeviceId } from './device-id'
-import type { RegisterPayload, LoginPayload } from '../validation/schemas/auth.schema'
+import type { LoginPayload } from '../validation/schemas/auth.schema'
 import {
   getStoredToken,
   getStoredTenantId,
@@ -49,7 +49,7 @@ export interface VerifyOtpResponse {
   verificationToken: string
 }
 
-/** Response from POST /auth/signup — mirrors OnboardingResponseDto */
+/** Response from POST /auth/signup/complete — mirrors OnboardingResponseDto */
 export interface SignupResponse {
   token: string
   expiresIn: number
@@ -329,41 +329,13 @@ export async function signupComplete(
       rememberDevice
     })
 
-    // Store the tenant-scoped token so middleware allows dashboard navigation, same as
-    // registerUser below.
+    // Store the tenant-scoped token so middleware allows dashboard navigation.
     setStoredTokens(response.data.token, '')
     setStoredTenantId(response.data.tenantId)
 
     return { success: true, data: response.data }
   } catch (error: unknown) {
     return { success: false, data: null, rawError: error }
-  }
-}
-
-/**
- * Register / Signup — POST /auth/signup
- * Self-service account creation (creates user + tenant).
- * The backend returns a tenant-scoped JWT immediately, so we store it
- * to auto-authenticate the user without a separate login step.
- */
-export async function registerUser(payload: RegisterPayload): Promise<ApiResponse<SignupResponse>> {
-  try {
-    const data = await apiPost<SignupResponse>(
-      `${API_BASE}/auth/signup`,
-      payload
-    )
-
-    // Store the tenant-scoped token so middleware allows dashboard navigation
-    setStoredTokens(data.token, '')
-    setStoredTenantId(data.tenantId)
-
-    return { success: true, data }
-  } catch (error: any) {
-    return {
-      success: false,
-      data: null,
-      error: { code: 'REGISTRATION_ERROR', message: error.message || 'Registration failed' },
-    }
   }
 }
 
