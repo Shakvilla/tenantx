@@ -22,7 +22,7 @@ export default function AdminLoginView() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { adminLogin, needsOtp, otpChallenge, verifyOtp, cancelOtp } = useAdminAuth()
+  const { adminLogin, needsOtp, otpChallenge, verifyOtp, resendOtp, cancelOtp } = useAdminAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,6 +74,16 @@ export default function AdminLoginView() {
     cancelOtp()
   }
 
+  const handleOtpResend = async () => {
+    setError(null)
+
+    const result = await resendOtp()
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to resend the code.')
+    }
+  }
+
   if (needsOtp && otpChallenge) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-backgroundDefault p-6'>
@@ -88,6 +98,7 @@ export default function AdminLoginView() {
             isSubmitting={isSubmitting}
             error={error}
             onSubmit={handleOtpSubmit}
+            onResend={handleOtpResend}
             onStartOver={handleOtpCancel}
           />
         </div>

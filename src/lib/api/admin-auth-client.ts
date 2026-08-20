@@ -227,6 +227,27 @@ export async function verifyAdminLoginOtp(
   return res.data
 }
 
+/**
+ * Resends the login-OTP code raised by {@link adminLogin}, on the same pendingToken — no
+ * credentials required. The pendingToken already proves the password step happened. Always
+ * yields a fresh challenge (never a full session); mints no token, so there is nothing to store.
+ *
+ * `channel` is honoured only when the server's policy allows a switch for this admin; a
+ * disallowed choice is refused (400). This function never infers eligibility — it only forwards
+ * whatever the caller asks for and lets the server decide.
+ */
+export async function resendAdminOtp(
+  pendingToken: string,
+  channel?: 'EMAIL' | 'SMS'
+): Promise<OtpChallenge> {
+  const res = await axios.post<OtpChallenge>(
+    `${ADMIN_API_BASE}/auth/verify-otp/resend`,
+    { pendingToken, channel }
+  )
+
+  return res.data
+}
+
 export async function getAdminMe(): Promise<AdminProfile> {
   return adminGet<AdminProfile>('/auth/me')
 }

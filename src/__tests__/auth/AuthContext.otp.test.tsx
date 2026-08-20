@@ -12,13 +12,14 @@ vi.mock('@/lib/api/auth-client', async () => {
     ...actual,
     selectTenant: vi.fn(),
     verifySelectTenantOtp: vi.fn(),
+    resendSelectTenantOtp: vi.fn(),
     getCurrentUser: vi.fn().mockResolvedValue({ success: false, data: null }),
     getStoredToken: vi.fn(() => null),
     getStoredTenantId: vi.fn(() => null)
   }
 })
 
-import { selectTenant, verifySelectTenantOtp } from '@/lib/api/auth-client'
+import { selectTenant, verifySelectTenantOtp, resendSelectTenantOtp } from '@/lib/api/auth-client'
 
 const WORKSPACE = { tenantId: 't-1', tenantName: 'Atkaada', role: 'OWNER', userType: 'LANDLORD' }
 
@@ -105,8 +106,16 @@ describe('AuthContext login-OTP branch', () => {
     expect(verifySelectTenantOtp).toHaveBeenCalledWith('pending', '123456', false)
   })
 
-  it('resend re-runs select-tenant for the same workspace', async () => {
+  // Task 8: resend now hits /select-tenant/verify-otp/resend on the pendingToken alone, rather
+  // than re-running selectTenant (which needed no credentials either, but re-checked device
+  // trust from scratch — a resend must not do that, it only reissues a code on the existing
+  // challenge).
+  it('resend uses the pendingToken, not select-tenant', async () => {
     ;(selectTenant as any).mockResolvedValue({
+      success: true,
+      data: { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL', maskedTarget: 'a***@b.com' }
+    })
+    ;(resendSelectTenantOtp as any).mockResolvedValue({
       success: true,
       data: { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL', maskedTarget: 'a***@b.com' }
     })
@@ -115,57 +124,42 @@ describe('AuthContext login-OTP branch', () => {
     await act(async () => { await api.selectWorkspace(WORKSPACE as any) })
     await act(async () => { await api.resendOtp() })
 
-    expect(selectTenant).toHaveBeenCalledTimes(2)
-    expect((selectTenant as any).mock.calls[1][0]).toBe('t-1')
+    expect(selectTenant).toHaveBeenCalledTimes(1)
+    expect(resendSelectTenantOtp).toHaveBeenCalledWith('pending', undefined)
   })
 
-  // I-2, branch 1: a resend that comes back with a REAL SESSION instead of a fresh challenge —
-  // the device got trusted (or the switch flipped off) between the first challenge and this
-  // resend. Before the fix this session was stranded: selectTenant's own setStoredTokens/
-  // setStoredTenantId ran, but the context state was never updated, so middleware would see an
-  // authenticated user while isAuthenticated/needsOtp still said otherwise.
-  it('resend establishes the session when select-tenant stops challenging mid-flow', async () => {
-    ;(selectTenant as any)
-      .mockResolvedValueOnce({
-        success: true,
-        data: { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL', maskedTarget: 'a***@b.com' }
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        data: {
-          accessToken: 'tenant-token', refreshToken: 'refresh', tokenType: 'Bearer',
-          expiresIn: 3600, expiresAt: '', user: { id: 'u1', email: 'a@b.com', fullName: 'A B', companyName: '', active: true, createdAt: '' }
-        }
-      })
+  it('resend forwards an explicit channel choice', async () => {
+    ;(selectTenant as any).mockResolvedValue({
+      success: true,
+      data: { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL', maskedTarget: 'a***@b.com' }
+    })
+    ;(resendSelectTenantOtp as any).mockResolvedValue({
+      success: true,
+      data: { otpRequired: true, pendingToken: 'pending', channel: 'SMS', maskedTarget: '***4072' }
+    })
 
     renderProvider()
     await act(async () => { await api.selectWorkspace(WORKSPACE as any) })
+    await act(async () => { await api.resendOtp('SMS') })
 
-    let resendResult: any
-    await act(async () => { resendResult = await api.resendOtp() })
-
-    expect(resendResult).toEqual({ success: true, sessionEstablished: true })
-    await waitFor(() => expect(api.isAuthenticated).toBe(true))
-    expect(api.needsOtp).toBe(false)
-    expect(api.otpChallenge).toBeNull()
-    expect(localStorage.getItem('tenant_id')).toBe('t-1')
+    expect(resendSelectTenantOtp).toHaveBeenCalledWith('pending', 'SMS')
+    expect(api.otpChallenge?.channel).toBe('SMS')
+    expect(api.otpChallenge?.maskedTarget).toBe('***4072')
   })
 
-  // I-2, branch 2: a resend failure (429 send-budget, expired global token, etc.) used to be
-  // swallowed entirely — no state change, no message, "Send a new code" looked like it did
-  // nothing. It must now come back through otpErrorMessage so the caller has something to show.
+  // A resend failure (429 send-budget, a disallowed channel, etc.) used to be swallowed
+  // entirely — no state change, no message, "Send a new code" looked like it did nothing. It
+  // must now come back through otpErrorMessage so the caller has something to show.
   it('resend surfaces a failure instead of swallowing it', async () => {
-    ;(selectTenant as any)
-      .mockResolvedValueOnce({
-        success: true,
-        data: { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL', maskedTarget: 'a***@b.com' }
-      })
-      .mockResolvedValueOnce({
-        success: false,
-        data: null,
-        error: { code: 'TENANT_SELECTION_ERROR', message: 'Too many requests' },
-        rawError: { response: { status: 429, data: {} } }
-      })
+    ;(selectTenant as any).mockResolvedValue({
+      success: true,
+      data: { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL', maskedTarget: 'a***@b.com' }
+    })
+    ;(resendSelectTenantOtp as any).mockResolvedValue({
+      success: false,
+      data: null,
+      rawError: { response: { status: 429, data: {} } }
+    })
 
     renderProvider()
     await act(async () => { await api.selectWorkspace(WORKSPACE as any) })

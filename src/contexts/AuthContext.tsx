@@ -17,6 +17,7 @@ import {
   clearStoredTokens,
   isOtpChallenge,
   verifySelectTenantOtp,
+  resendSelectTenantOtp,
   type Workspace,
   type UserProfile,
   type OtpChallenge,
@@ -86,7 +87,7 @@ interface AuthContextValue extends AuthState {
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
   verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
-  resendOtp: () => Promise<{ success: boolean; error?: string; sessionEstablished?: boolean }>
+  resendOtp: (channel?: 'EMAIL' | 'SMS') => Promise<{ success: boolean; error?: string; sessionEstablished?: boolean }>
   cancelOtp: () => void
 }
 
@@ -446,38 +447,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // ---- Resend login OTP ----
-  const resendOtp = useCallback(async () => {
+  const resendOtp = useCallback(async (channel?: 'EMAIL' | 'SMS') => {
     const challenge = stateRef.current.otpChallenge
 
     if (!challenge) return { success: false, error: 'No verification in progress.' }
 
-    // A true resend: /select-tenant needs only the global token, which is still held. No
-    // credentials are kept anywhere to make this possible.
-    const result = await selectTenant(challenge.workspace.tenantId)
+    // A true resend, on the pendingToken alone — /select-tenant/verify-otp/resend needs no
+    // credentials. `channel` is honoured only when the server's policy allows a switch; this
+    // function never infers eligibility client-side, it only forwards what the caller asks for.
+    const result = await resendSelectTenantOtp(challenge.pendingToken, channel)
 
     if (!result.success || !result.data) {
-      // Previously swallowed outright — a 429 or an expired global token produced no message at
-      // all, so "Send a new code" appeared to do nothing. rawError is the raw axios error (see
-      // selectTenant), which is what otpErrorMessage needs to tell a rate limit from anything else.
+      // Previously swallowed outright — a 429 or a disallowed channel produced no message at
+      // all, so "Send a new code" appeared to do nothing. rawError is the raw axios error, which
+      // is what otpErrorMessage needs to tell a rate limit from anything else.
       return { success: false, error: otpErrorMessage(result.rawError).message }
     }
 
-    if (isOtpChallenge(result.data)) {
-      setState(prev => ({
-        ...prev,
-        otpChallenge: { ...(result.data as OtpChallenge), workspace: challenge.workspace }
-      }))
+    // Always a fresh challenge, never a full session — resend reissues a code on the same
+    // pendingToken and does not re-check device trust.
+    setState(prev => ({
+      ...prev,
+      otpChallenge: { ...(result.data as OtpChallenge), workspace: challenge.workspace }
+    }))
 
-      return { success: true }
-    }
-
-    // A real session came back instead of a fresh code — the switch flipped off mid-flow, or
-    // this device got trusted in another tab. Route it through the same establish path as every
-    // other session; leaving it here would land tokens/cookies while the context still reports
-    // needsOtp: true, isAuthenticated: false — middleware sees a signed-in user, the UI does not.
-    establishTenantSession(result.data as SelectTenantResponse, challenge.workspace)
-
-    return { success: true, sessionEstablished: true }
+    return { success: true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

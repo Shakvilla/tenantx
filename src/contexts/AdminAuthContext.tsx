@@ -8,6 +8,7 @@ import {
   getAdminMe,
   adminLogout as apiAdminLogout,
   verifyAdminLoginOtp,
+  resendAdminOtp,
   type AdminProfile
 } from '@/lib/api/admin-auth-client'
 import { isOtpChallenge, type OtpChallenge } from '@/lib/api/auth-client'
@@ -35,6 +36,7 @@ interface AdminAuthContextValue extends AdminAuthState {
   hasRole:       (role: string) => boolean
   setAdminUser:  (profile: AdminUser) => void
   verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
+  resendOtp: (channel?: 'EMAIL' | 'SMS') => Promise<{ success: boolean; error?: string }>
   cancelOtp: () => void
 }
 
@@ -199,6 +201,23 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // ---- Resend login OTP ----
+  const resendOtp = useCallback(async (channel?: 'EMAIL' | 'SMS') => {
+    const challenge = stateRef.current.otpChallenge
+
+    if (!challenge) return { success: false, error: 'No verification in progress.' }
+
+    try {
+      const result = await resendAdminOtp(challenge.pendingToken, channel)
+
+      setState(prev => ({ ...prev, otpChallenge: result }))
+
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: otpErrorMessage(err).message }
+    }
+  }, [])
+
   // ---- Cancel login OTP ----
   const cancelOtp = useCallback(() => {
     setState(prev => ({ ...prev, needsOtp: false, otpChallenge: null }))
@@ -233,7 +252,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AdminAuthContext.Provider
-      value={{ ...state, adminLogin, adminLogout, hasPermission, hasRole, setAdminUser, verifyOtp, cancelOtp }}
+      value={{ ...state, adminLogin, adminLogout, hasPermission, hasRole, setAdminUser, verifyOtp, resendOtp, cancelOtp }}
     >
       {children}
     </AdminAuthContext.Provider>
