@@ -1421,13 +1421,26 @@ export default function AdminPlatformSettingsView() {
             onChange={v => save('otp.admin.login.enabled', String(v))}
           />
 
-          <ToggleRow
-            label='Allow SMS delivery'
-            description='Off by default: SMS costs money per send. Codes go by SMS only to users who have verified a phone number; everyone else still receives email'
-            checked={boolVal(settings, 'OTP', 'otp.login.sms_enabled')}
-            saving={saving.has('otp.login.sms_enabled')}
-            onChange={v => save('otp.login.sms_enabled', String(v))}
-          />
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 1, gap: 2 }}>
+            <Box>
+              <Typography variant='body2' fontWeight={500}>OTP delivery channel</Typography>
+              <Typography variant='caption' color='text.secondary'>
+                SMS and &quot;user chooses&quot; both fall back to email for anyone without a verified
+                phone. Email delivery has no switch and can never be turned off, so no option here
+                can leave someone unable to receive a code.
+              </Typography>
+            </Box>
+            <Select
+              size='small'
+              value={val(settings, 'OTP', 'otp.login.channel') || 'EMAIL'}
+              onChange={e => save('otp.login.channel', e.target.value)}
+              disabled={saving.has('otp.login.channel')}
+            >
+              <MenuItem value='EMAIL'>Email only</MenuItem>
+              <MenuItem value='SMS'>SMS where possible</MenuItem>
+              <MenuItem value='BOTH'>SMS or email, user chooses</MenuItem>
+            </Select>
+          </Box>
 
           <Divider sx={{ my: 2 }} />
 
