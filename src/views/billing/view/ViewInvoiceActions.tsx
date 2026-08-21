@@ -299,6 +299,17 @@ const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecor
 
     const formatAmt = (n: number | undefined | null) => `₵${(n ?? 0).toFixed(2)}`
 
+    // AUTH-L7-03: every DB-stored string interpolated into this document.write template must be
+    // HTML-escaped — CSP inheritance into an about:blank popup is browser-dependent, so escaping
+    // is the control, not the CSP.
+    const esc = (v: string | undefined | null): string =>
+      String(v ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+
     const occupantInitials = invoiceData.occupantName
       ?.split(' ')
       .map(n => n[0])
@@ -311,7 +322,7 @@ const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecor
       <html>
         <head>
           <meta charset="UTF-8">
-          <title>Invoice ${invoiceData.invoiceNumber || _invoiceId}</title>
+          <title>Invoice ${esc(invoiceData.invoiceNumber || _invoiceId)}</title>
           ${styles}
         </head>
         <body>
@@ -322,11 +333,11 @@ const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecor
                 <div class="header-left">
                 </div>
                 <div class="header-right">
-                  <div class="invoice-title">Invoice #${invoiceData.invoiceNumber || _invoiceId}</div>
+                  <div class="invoice-title">Invoice #${esc(invoiceData.invoiceNumber || _invoiceId)}</div>
                   <div class="invoice-details">
                     <p>Date Issued: ${formatDate(invoiceData.issuedDate)}</p>
                     <p>Date Due: ${formatDate(invoiceData.dueDate)}</p>
-                    ${invoiceData.invoiceMonth ? `<p>Invoice Month: ${invoiceData.invoiceMonth}</p>` : ''}
+                    ${invoiceData.invoiceMonth ? `<p>Invoice Month: ${esc(invoiceData.invoiceMonth)}</p>` : ''}
 
                   </div>
                 </div>
@@ -338,15 +349,15 @@ const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecor
               <div class="invoice-to">
                 <div class="section-title">Invoice To:</div>
                 <div class="tenant-info">
-                  <div class="tenant-initials">${occupantInitials}</div>
+                  <div class="tenant-initials">${esc(occupantInitials)}</div>
                   <div class="tenant-details">
-                    <div class="tenant-name">${invoiceData.occupantName || '—'}</div>
-                    <div class="tenant-email">${invoiceData.occupantEmail || '—'}</div>
+                    <div class="tenant-name">${esc(invoiceData.occupantName) || '—'}</div>
+                    <div class="tenant-email">${esc(invoiceData.occupantEmail) || '—'}</div>
                   </div>
                 </div>
                 <div class="property-info">
-                  <p>${invoiceData.propertyName || ''}</p>
-                  ${invoiceData.unitNo ? `<p>Unit ${invoiceData.unitNo}</p>` : ''}
+                  <p>${esc(invoiceData.propertyName)}</p>
+                  ${invoiceData.unitNo ? `<p>Unit ${esc(invoiceData.unitNo)}</p>` : ''}
                 </div>
               </div>
               <div class="bill-to">
@@ -362,12 +373,12 @@ const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecor
                   </div>
                   <div class="bill-to-row">
                     <span class="bill-to-label">Status:</span>
-                    <span class="bill-to-value" style="text-transform: capitalize;">${invoiceData.status?.toLowerCase() || ''}</span>
+                    <span class="bill-to-value" style="text-transform: capitalize;">${esc(invoiceData.status?.toLowerCase())}</span>
                   </div>
                   ${invoiceData.invoiceType ? `
                   <div class="bill-to-row">
                     <span class="bill-to-label">Invoice Type:</span>
-                    <span class="bill-to-value">${invoiceData.invoiceType}</span>
+                    <span class="bill-to-value">${esc(invoiceData.invoiceType)}</span>
                   </div>
                   ` : ''}
                 </div>
@@ -394,7 +405,7 @@ const ViewInvoiceActions = ({ invoiceId: _invoiceId, invoiceData, onPaymentRecor
 return `
                     <tr>
                       <td>Item ${index + 1}</td>
-                      <td>${item.description}</td>
+                      <td>${esc(item.description)}</td>
                       <td>${item.quantity}</td>
                       <td>₵${item.price.toFixed(2)}</td>
                       <td>₵${itemTotal.toFixed(2)}</td>
@@ -409,7 +420,7 @@ return `
             <div class="summary-section">
               ${invoiceData.description ? `
               <div class="summary-left">
-                <p><span class="description-label">Description:</span>${invoiceData.description}</p>
+                <p><span class="description-label">Description:</span>${esc(invoiceData.description)}</p>
               </div>
               ` : ''}
               <div class="summary-right">
