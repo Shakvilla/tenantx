@@ -653,6 +653,23 @@ export async function getMyLoginHistory(params?: {
 
 // ── Phone verification (login-OTP SMS delivery) ────────────────────────────
 
+/** The caller's own phone number and whether it has been proved. GET /profile/phone */
+export interface PhoneStatus {
+  phoneNumber: string | null
+  verified: boolean
+}
+
+/**
+ * Reads back the caller's own phone number and verification status — GET /profile/phone
+ *
+ * This is what lets the phone card pre-fill a number the user already gave us (at signup, or
+ * on an earlier visit) instead of asking for it again, and show an already-verified number as
+ * verified instead of inviting a re-verify that would spend one of only 3 hourly SMS sends.
+ */
+export async function getPhoneStatus(): Promise<PhoneStatus> {
+  return apiGet<PhoneStatus>(`${API_BASE}/profile/phone`)
+}
+
 /**
  * Submits a phone number for verification — POST /profile/phone
  * Backend contract: SubmitPhoneNumberRequest validates ^\+?[0-9()\s-]{7,16}$

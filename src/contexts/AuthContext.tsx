@@ -42,7 +42,12 @@ export interface AuthUser {
   /** UserType from backend: LANDLORD | STAFF | MAINTAINER | OCCUPANT */
   userType: string
   avatarUrl?: string
-  phone?: string
+
+  // No `phone` here on purpose. It used to sit alongside these, unset by every login and
+  // profile response, and SecuritySettingsView seeded its phone card from it — so the card
+  // always started blank. The phone now comes from GET /profile/phone (see `getPhoneStatus`),
+  // the only source that actually knows it; re-adding an optional field here would just invite
+  // the same silent-empty seed again.
 }
 
 export interface AuthTenant {

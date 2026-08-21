@@ -291,6 +291,23 @@ export async function changeAdminPassword(currentPassword: string, newPassword: 
 // Phone verification (login-OTP SMS delivery)
 // ---------------------------------------------------------------------------
 
+/** The caller's own phone number and whether it has been proved. GET /admin/profile/phone */
+export interface AdminPhoneStatus {
+  phoneNumber: string | null
+  verified: boolean
+}
+
+/**
+ * Reads back the calling admin's own phone number and verification status —
+ * GET /profile/phone (relative to adminClient's baseURL, which already includes /api/v1/admin).
+ *
+ * Without it the phone card had nothing to seed from and started blank for everyone, so an
+ * admin who verified last week saw no sign of it and would redo the whole flow.
+ */
+export async function getAdminPhoneStatus(): Promise<AdminPhoneStatus> {
+  return adminGet<AdminPhoneStatus>('/profile/phone')
+}
+
 /**
  * Submits a phone number for verification — POST /profile/phone
  * Backend contract: SubmitPhoneNumberRequest validates ^\+?[0-9()\s-]{7,16}$
