@@ -152,6 +152,40 @@ export interface PaginatedResponse<T> {
   total?: number
 }
 
+/**
+ * What the backend actually sends. `PaginatedResponse` above is the flat shape this client
+ * promises its callers, but no endpoint has ever returned it: the counts and the cursor live
+ * under `meta.pagination`. Typing the raw envelope as the flat shape meant `res.total` and
+ * `res.cursor` were silently `undefined` — TypeScript cannot catch that, because the assertion
+ * in `adminGet<T>` tells it the response already IS the flat shape.
+ *
+ * The visible symptom was the Tenants list footer reading "0–0 of 0" beneath five rows. The
+ * quieter one was paging: `AdminTenantsView` stores `res.cursor` as the next page's key, so
+ * with it undefined, "next page" re-requested page 0 forever.
+ */
+interface PaginatedEnvelope<T> {
+  data: T
+  meta?: {
+    pagination?: {
+      total?: number
+      hasNext?: boolean
+      cursor?: string | null
+    }
+  }
+}
+
+/** Flattens the envelope onto the shape callers already expect. */
+function toPaginated<T>(envelope: PaginatedEnvelope<T>): PaginatedResponse<T> {
+  const pagination = envelope.meta?.pagination
+
+  return {
+    data: envelope.data,
+    cursor: pagination?.cursor ?? null,
+    hasMore: pagination?.hasNext ?? false,
+    total: pagination?.total
+  }
+}
+
 // ---------------------------------------------------------------------------
 // API helpers
 // ---------------------------------------------------------------------------
@@ -336,7 +370,7 @@ export async function getAdminTenants(cursor?: string, size = 50): Promise<Pagin
 
   if (cursor) params.set('cursor', cursor)
 
-return adminGet<PaginatedResponse<TenantRecord[]>>(`/tenants?${params}`)
+return toPaginated(await adminGet<PaginatedEnvelope<TenantRecord[]>>(`/tenants?${params}`))
 }
 
 export async function getAdminTenant(id: string): Promise<TenantRecord> {
@@ -410,7 +444,7 @@ export async function getSystemAdmins(cursor?: string, size = 50): Promise<Pagin
 
   if (cursor) params.set('cursor', cursor)
 
-return adminGet<PaginatedResponse<AdminRecord[]>>(`/system-admins?${params}`)
+return toPaginated(await adminGet<PaginatedEnvelope<AdminRecord[]>>(`/system-admins?${params}`))
 }
 
 export async function getSystemAdmin(id: string): Promise<AdminRecord> {
