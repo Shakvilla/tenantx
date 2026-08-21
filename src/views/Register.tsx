@@ -24,6 +24,7 @@ import type { Mode } from '@core/types'
 // Component Imports
 import Link from '@components/Link'
 import Logo from '@components/layout/shared/Logo'
+import OtpChallengeForm from '@/components/auth/OtpChallengeForm'
 
 // Config Imports
 import themeConfig from '@configs/themeConfig'
@@ -31,10 +32,21 @@ import themeConfig from '@configs/themeConfig'
 // Validation Imports
 import { RegisterSchema } from '@/lib/validation/schemas/auth.schema'
 
+// API Imports
+import { signupStart, type OtpChallenge } from '@/lib/api/auth-client'
+import { otpErrorMessage } from '@/lib/api/otp-errors'
+
 // Hook Imports
 import { useImageVariant } from '@core/hooks/useImageVariant'
 import { useSettings } from '@core/hooks/useSettings'
 import { useAuth } from '@/contexts/AuthContext'
+
+/**
+ * Validates an optional phone number before it is ever sent to the API. Matches the backend's
+ * own constraint on `phoneNumber` — a typo caught here costs nothing, while one sent to
+ * /auth/signup/start burns one of the account's three-per-hour code sends for nothing.
+ */
+const PHONE_PATTERN = /^\+?[0-9()\s-]{7,16}$/
 
 const Register = ({ mode }: { mode: Mode }) => {
   // States
@@ -45,12 +57,18 @@ const Register = ({ mode }: { mode: Mode }) => {
     email: '',
     password: '',
     confirmPassword: '',
-    companyName: ''
+    companyName: '',
+    phoneNumber: ''
   })
 
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // The email-verification challenge from /auth/signup/start. Non-null means the code step is
+  // showing instead of the registration form — same otpRequired-gated shape every other login-OTP
+  // flow in this app uses.
+  const [challenge, setChallenge] = useState<OtpChallenge | null>(null)
 
   // Vars
   // const darkImg = '/images/pages/auth-v2-mask-1-dark.png'
@@ -68,8 +86,8 @@ const Register = ({ mode }: { mode: Mode }) => {
 
   // Hooks
   const router = useRouter()
+  const { completeSignup } = useAuth()
   const { settings } = useSettings()
-  const { register } = useAuth()
   const authBackground = useImageVariant(mode, lightImg, darkImg)
 
   const characterIllustration = useImageVariant(
@@ -113,9 +131,51 @@ const Register = ({ mode }: { mode: Mode }) => {
       return
     }
 
+    const trimmedPhone = formData.phoneNumber.trim()
+
+    // Caught here, before the API is ever called: the backend allows only three code sends per
+    // hour, so a typo caught locally costs nothing while one sent to the server burns one of
+    // three.
+    if (trimmedPhone && !PHONE_PATTERN.test(trimmedPhone)) {
+      setError('Enter 7 to 16 digits, optionally starting with +')
+
+      return
+    }
+
     setIsSubmitting(true)
 
-    const result = await register(validation.data)
+    const result = await signupStart({
+      email: validation.data.email,
+      password: validation.data.password,
+      fullName: validation.data.fullName,
+      companyName: validation.data.companyName,
+      ...(trimmedPhone ? { phoneNumber: trimmedPhone } : {})
+    })
+
+    if (result.success && result.data) {
+      setChallenge(result.data)
+      setIsSubmitting(false)
+    } else {
+      setError(otpErrorMessage(result.rawError).message || 'Registration failed. Please try again.')
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleOtpSubmit = async (otp: string, rememberDevice: boolean) => {
+    if (!challenge) return
+
+    setError(null)
+    setIsSubmitting(true)
+
+    // Routed through AuthContext (not signupComplete directly) so the same user/tenant/
+    // isAuthenticated/role/userType state writes every other auth path relies on happen here too
+    // — see completeSignup's own comment for the broken-dashboard bug this fixes.
+    const result = await completeSignup({
+      pendingToken: challenge.pendingToken,
+      otp,
+      rememberDevice,
+      fullName: formData.fullName
+    })
 
     if (result.success) {
       setSuccess('Account created! Taking you to your dashboard...')
@@ -124,9 +184,17 @@ const Register = ({ mode }: { mode: Mode }) => {
         router.push('/dashboard')
       }, 1500)
     } else {
-      setError(result.error || 'Registration failed. Please try again.')
+      setError(result.error || 'Verification failed. Please try again.')
       setIsSubmitting(false)
+
+      // No code can help — back to the registration form so the user can start over.
+      if (result.startOver) setChallenge(null)
     }
+  }
+
+  const handleOtpStartOver = () => {
+    setError(null)
+    setChallenge(null)
   }
 
   const isFormValid =
@@ -156,6 +224,21 @@ const Register = ({ mode }: { mode: Mode }) => {
           <Logo />
         </Link>
         <div className='flex flex-col gap-5 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
+          {challenge ? (
+            <>
+              {success && <Alert severity='success'>{success}</Alert>}
+              <OtpChallengeForm
+                channel={challenge.channel}
+                maskedTarget={challenge.maskedTarget}
+                isSubmitting={isSubmitting}
+                error={error}
+                onSubmit={handleOtpSubmit}
+                onStartOver={handleOtpStartOver}
+                hideRememberDevice
+              />
+            </>
+          ) : (
+          <>
           <div>
             <Typography variant='h4'>{`Join ${themeConfig.templateName}! 🚀`}</Typography>
             <Typography className='mbs-1'>Create your account and start managing your properties</Typography>
@@ -199,6 +282,15 @@ const Register = ({ mode }: { mode: Mode }) => {
               disabled={isSubmitting}
               required
               helperText='This will be your workspace name'
+            />
+            <TextField
+              fullWidth
+              label='Phone Number'
+              size='small'
+              value={formData.phoneNumber}
+              onChange={handleChange('phoneNumber')}
+              disabled={isSubmitting}
+              helperText='Optional — used to send login codes by SMS'
             />
             <TextField
               fullWidth
@@ -252,6 +344,8 @@ const Register = ({ mode }: { mode: Mode }) => {
               </Typography>
             </div>
           </form>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -16,7 +16,8 @@ import TablePagination from '@mui/material/TablePagination'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
-import { getMyLoginHistory, logoutAllUser, type MyLoginHistoryItem } from '@/lib/api/auth-client'
+import PhoneVerificationCard from '@/components/auth/PhoneVerificationCard'
+import { getMyLoginHistory, getPhoneStatus, logoutAllUser, submitPhoneNumber, verifyPhoneNumber, type MyLoginHistoryItem } from '@/lib/api/auth-client'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,7 @@ function parseDevice(userAgent: string | null): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function SecuritySettingsView() {
+
   const [history, setHistory]   = useState<MyLoginHistoryItem[]>([])
   const [total, setTotal]       = useState(0)
   const [page, setPage]         = useState(0)
@@ -56,6 +58,15 @@ export default function SecuritySettingsView() {
   const [error, setError]       = useState<string | null>(null)
   const [logoutAll, setLogoutAll] = useState(false)
   const [logoutMsg, setLogoutMsg] = useState<string | null>(null)
+
+  // Seeded from GET /profile/phone, the server's own answer — not from AuthUser, whose optional
+  // `phone` is never populated by any login or profile response. `phoneStatusLoaded` gates the
+  // card's first render on purpose: PhoneVerificationCard seeds its text field and its step from
+  // props in `useState` initialisers, which never re-read a prop that arrives later, so mounting
+  // it before the fetch resolves would pin it to "no number on file" for the whole visit.
+  const [localPhone, setLocalPhone]       = useState<string | null>(null)
+  const [localVerified, setLocalVerified] = useState(false)
+  const [phoneStatusLoaded, setPhoneStatusLoaded] = useState(false)
 
   const load = (p: number) => {
     setLoading(true)
@@ -67,6 +78,24 @@ export default function SecuritySettingsView() {
   }
 
   useEffect(() => { load(0) }, [])
+
+  // A failed status read must not block the card: falling through with `phoneStatusLoaded` true
+  // and no number degrades to exactly the old behaviour (an empty field the user can fill in),
+  // whereas leaving the skeleton up forever would remove a working feature over a read error.
+  useEffect(() => {
+    let cancelled = false
+
+    getPhoneStatus()
+      .then(status => {
+        if (cancelled) return
+        setLocalPhone(status.phoneNumber)
+        setLocalVerified(status.verified)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPhoneStatusLoaded(true) })
+
+    return () => { cancelled = true }
+  }, [])
 
   const handleLogoutAll = async () => {
     setLogoutAll(true)
@@ -124,6 +153,31 @@ export default function SecuritySettingsView() {
           </Box>
         </CardContent>
       </Card>
+
+      {/* Phone verification */}
+      <Box sx={{ mb: 3 }}>
+        {phoneStatusLoaded ? (
+          <PhoneVerificationCard
+            currentPhone={localPhone}
+            isVerified={localVerified}
+            onSubmitPhone={async phoneNumber => {
+              const result = await submitPhoneNumber(phoneNumber)
+
+              // A newly submitted number is stored but NOT yet proved — the server clears
+              // phone_verified_at whenever the number changes, so mirroring that here keeps the
+              // card from showing a stale "Verified" chip against a number nobody has confirmed.
+              setLocalPhone(phoneNumber)
+              setLocalVerified(false)
+
+              return result
+            }}
+            onVerifyPhone={verifyPhoneNumber}
+            onVerified={() => setLocalVerified(true)}
+          />
+        ) : (
+          <Skeleton variant='rounded' height={180} />
+        )}
+      </Box>
 
       {/* Login history */}
       <Card variant='outlined'>

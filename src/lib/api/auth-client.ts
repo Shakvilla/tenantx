@@ -1,6 +1,9 @@
 /* eslint-disable lines-around-comment */
-import { apiGet, apiPost, API_BASE } from './client'
-import type { RegisterPayload, LoginPayload } from '../validation/schemas/auth.schema'
+import { AxiosError } from 'axios'
+
+import { apiGet, apiPost, apiClient, API_BASE, getErrorMessage } from './client'
+import { getDeviceId } from './device-id'
+import type { LoginPayload } from '../validation/schemas/auth.schema'
 import {
   getStoredToken,
   getStoredTenantId,
@@ -46,7 +49,7 @@ export interface VerifyOtpResponse {
   verificationToken: string
 }
 
-/** Response from POST /auth/signup — mirrors OnboardingResponseDto */
+/** Response from POST /auth/signup/complete — mirrors OnboardingResponseDto */
 export interface SignupResponse {
   token: string
   expiresIn: number
@@ -75,6 +78,36 @@ export type ApiResponse<T> = {
     code: string
     message: string
   }
+}
+
+/**
+ * A login-OTP challenge. Returned by /select-tenant and /admin/auth/login in place of a
+ * session when the device is not trusted and login OTP is armed.
+ *
+ * It deliberately carries NO token of any kind. That is what makes the OTP step unskippable:
+ * there is nothing here a client could store and use, so the only way forward is to verify.
+ */
+export interface OtpChallenge {
+  otpRequired: true
+  pendingToken: string
+  channel: 'EMAIL' | 'SMS'
+  maskedTarget: string
+
+  /**
+   * The other delivery channel the caller could switch to, or `null`/absent when no switch is
+   * available (policy is a single fixed channel, or the principal has no verified phone). This
+   * is the server's own eligibility signal — callers must render a switch control only when this
+   * is present, never infer availability from `channel` alone.
+   */
+  alternateChannel?: {
+    channel: 'EMAIL' | 'SMS'
+    maskedTarget: string
+  } | null
+}
+
+/** Narrows a login response to a challenge. Keyed on `otpRequired`, the flag the backend sets. */
+export function isOtpChallenge(value: unknown): value is OtpChallenge {
+  return typeof value === 'object' && value !== null && (value as { otpRequired?: unknown }).otpRequired === true
 }
 
 // ---------------------------------------------------------------------------
@@ -118,60 +151,191 @@ export async function globalLogin(
  */
 export async function selectTenant(
   tenantId: string
-): Promise<ApiResponse<SelectTenantResponse>> {
+): Promise<ApiResponse<SelectTenantResponse | OtpChallenge> & { rawError?: unknown }> {
   try {
     // We need to use the global token from localStorage explicitly here
     // because the interceptor might not have it yet.
     const token = getStoredToken()
 
-    const data = await apiPost<SelectTenantResponse>(
+    // Posts through apiClient directly rather than the apiPost helper, deliberately — same
+    // reasoning as verifySelectTenantOtp below. apiPost catches the AxiosError and rethrows a
+    // plain Error carrying only a message, which discards the HTTP status and the backend's
+    // error code. resendOtp (AuthContext) needs those to tell a 429 rate-limit from anything
+    // else via otpErrorMessage; without the raw error a resend failure produced no message at
+    // all.
+    const response = await apiClient.post<SelectTenantResponse | OtpChallenge>(
       `${API_BASE}/global/auth/select-tenant`,
       { tenantId },
       {
         headers: {
           Authorization: `Bearer ${token}`,
+
+          // apiClient's request interceptor already injects X-Device-Id on every client-side
+          // request, including this one, so this entry is redundant in production today. It's
+          // kept as defense-in-depth: it survives a future edit that makes the interceptor
+          // conditional (e.g. gated to auth routes only), and it survives a caller that replaces
+          // `headers` wholesale instead of merging into it — either of which would otherwise
+          // silently drop the header on /select-tenant, one of the two endpoints that raise an
+          // OTP challenge.
+          'X-Device-Id': getDeviceId()
         },
       }
     )
+
+    const data = response.data
+
+    // A challenge is not a session. Storing anything here — even the tenant id — would leave
+    // the app in a half-authenticated state that middleware and the interceptors would treat
+    // as real.
+    if (isOtpChallenge(data)) {
+      return { success: true, data }
+    }
 
     // Replace tokens with tenant-scoped ones and set cookies
     setStoredTokens(data.accessToken, data.refreshToken)
     setStoredTenantId(tenantId)
 
     return { success: true, data }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof AxiosError ? getErrorMessage(error) : (error as Error)?.message
+
     return {
       success: false,
       data: null,
-      error: { code: 'TENANT_SELECTION_ERROR', message: error.message || 'Tenant selection failed' },
+      error: { code: 'TENANT_SELECTION_ERROR', message: message || 'Tenant selection failed' },
+      rawError: error
     }
   }
 }
 
+export type OtpVerifyResult =
+  | { success: true; data: SelectTenantResponse }
+  // rawError is the original axios error, NOT a message. otpErrorMessage (Task 6) needs the
+  // status and the backend's error code to tell OTP_ATTEMPTS_EXHAUSTED from OTP_INVALID,
+  // and apiPost's rethrown Error has already discarded both.
+  | { success: false; data: null; rawError: unknown }
+
 /**
- * Register / Signup — POST /auth/signup
- * Self-service account creation (creates user + tenant).
- * The backend returns a tenant-scoped JWT immediately, so we store it
- * to auto-authenticate the user without a separate login step.
+ * Resends the login-OTP code raised by {@link selectTenant}, on the same `pendingToken` — no
+ * credentials required. Always yields a fresh challenge (same shape as the original, same
+ * pendingToken reused by the backend); it never returns a full session.
+ *
+ * `channel` is honoured only when the server's policy allows a switch for this principal. A
+ * disallowed choice is refused (400/VALIDATION_ERROR), surfaced to the caller as `rawError` —
+ * this function never infers eligibility, it only forwards the caller's request.
+ *
+ * Posts through `apiClient` directly, for the same reason `verifySelectTenantOtp` does: the
+ * `apiPost` helper's rethrown Error discards the HTTP status and backend error code that
+ * `otpErrorMessage` needs.
  */
-export async function registerUser(payload: RegisterPayload): Promise<ApiResponse<SignupResponse>> {
+export async function resendSelectTenantOtp(
+  pendingToken: string,
+  channel?: 'EMAIL' | 'SMS'
+): Promise<{ success: boolean; data: OtpChallenge | null; rawError?: unknown }> {
   try {
-    const data = await apiPost<SignupResponse>(
-      `${API_BASE}/auth/signup`,
-      payload
+    const response = await apiClient.post<OtpChallenge>(
+      `${API_BASE}/global/auth/select-tenant/verify-otp/resend`,
+      { pendingToken, channel }
     )
 
-    // Store the tenant-scoped token so middleware allows dashboard navigation
-    setStoredTokens(data.token, '')
-    setStoredTenantId(data.tenantId)
+    return { success: true, data: response.data }
+  } catch (error: unknown) {
+    return { success: false, data: null, rawError: error }
+  }
+}
 
-    return { success: true, data }
-  } catch (error: any) {
-    return {
-      success: false,
-      data: null,
-      error: { code: 'REGISTRATION_ERROR', message: error.message || 'Registration failed' },
-    }
+/**
+ * Completes the login-OTP challenge raised by {@link selectTenant}.
+ *
+ * On success this is indistinguishable from an unchallenged /select-tenant: same response
+ * shape, same storage. The caller's success path is therefore identical either way.
+ *
+ * Posts through `apiClient` rather than the `apiPost` helper, deliberately. `apiPost` catches
+ * the AxiosError and rethrows a plain Error carrying only a message — which discards the HTTP
+ * status and the backend's error code, the two things `otpErrorMessage` needs to tell an
+ * exhausted code from a merely wrong one. The raw error is handed upward instead, and only the
+ * caller turns it into words.
+ */
+export async function verifySelectTenantOtp(
+  pendingToken: string,
+  otp: string,
+  rememberDevice: boolean
+): Promise<OtpVerifyResult> {
+  try {
+    const response = await apiClient.post<SelectTenantResponse>(
+      `${API_BASE}/global/auth/select-tenant/verify-otp`,
+      { pendingToken, otp, deviceId: getDeviceId(), rememberDevice }
+    )
+
+    setStoredTokens(response.data.accessToken, response.data.refreshToken)
+
+    return { success: true, data: response.data }
+  } catch (error: unknown) {
+    return { success: false, data: null, rawError: error }
+  }
+}
+
+/** Payload for {@link signupStart} — RegisterPayload plus an optional phone for SMS login codes. */
+export interface SignupStartPayload {
+  email: string
+  password: string
+  fullName: string
+  companyName: string
+
+  /** Optional. Validated locally with /^\+?[0-9()\s-]{7,16}$/ before this is ever called. */
+  phoneNumber?: string
+}
+
+/**
+ * Signup — Step 1: Start — POST /auth/signup/start
+ *
+ * Creates NOTHING. Emails a verification code and returns a challenge — same invariant every
+ * other OTP challenge in this codebase holds: no token, no cookie, nothing a client could use
+ * as a session. The account is created only by {@link signupComplete}, on a correct code.
+ *
+ * Posts through `apiClient` directly, not the `apiPost` helper, for the same reason
+ * `verifySelectTenantOtp` does: `apiPost` discards the HTTP status and backend error code that
+ * `otpErrorMessage` needs.
+ */
+export async function signupStart(
+  payload: SignupStartPayload
+): Promise<{ success: boolean; data: OtpChallenge | null; rawError?: unknown }> {
+  try {
+    const response = await apiClient.post<OtpChallenge>(`${API_BASE}/auth/signup/start`, payload)
+
+    return { success: true, data: response.data }
+  } catch (error: unknown) {
+    return { success: false, data: null, rawError: error }
+  }
+}
+
+/**
+ * Signup — Step 2: Complete — POST /auth/signup/complete
+ *
+ * Creates the account and returns the normal signup session response. The device is trusted by
+ * the backend as part of proving the email — there is nothing for the user to opt out of, so
+ * `rememberDevice` is always sent `true` (see `OtpChallengeForm`'s `hideRememberDevice`).
+ */
+export async function signupComplete(
+  pendingToken: string,
+  otp: string,
+  rememberDevice: boolean
+): Promise<{ success: boolean; data: SignupResponse | null; rawError?: unknown }> {
+  try {
+    const response = await apiClient.post<SignupResponse>(`${API_BASE}/auth/signup/complete`, {
+      pendingToken,
+      otp,
+      deviceId: getDeviceId(),
+      rememberDevice
+    })
+
+    // Store the tenant-scoped token so middleware allows dashboard navigation.
+    setStoredTokens(response.data.token, '')
+    setStoredTenantId(response.data.tenantId)
+
+    return { success: true, data: response.data }
+  } catch (error: unknown) {
+    return { success: false, data: null, rawError: error }
   }
 }
 
@@ -485,6 +649,41 @@ export async function getMyLoginHistory(params?: {
   if (params?.page !== undefined) q.set('page', String(params.page))
   if (params?.size !== undefined) q.set('size', String(params.size))
   return apiGet<MyLoginHistoryPage>(`${API_BASE}/users/me/login-history${q.toString() ? `?${q}` : ''}`)
+}
+
+// ── Phone verification (login-OTP SMS delivery) ────────────────────────────
+
+/** The caller's own phone number and whether it has been proved. GET /profile/phone */
+export interface PhoneStatus {
+  phoneNumber: string | null
+  verified: boolean
+}
+
+/**
+ * Reads back the caller's own phone number and verification status — GET /profile/phone
+ *
+ * This is what lets the phone card pre-fill a number the user already gave us (at signup, or
+ * on an earlier visit) instead of asking for it again, and show an already-verified number as
+ * verified instead of inviting a re-verify that would spend one of only 3 hourly SMS sends.
+ */
+export async function getPhoneStatus(): Promise<PhoneStatus> {
+  return apiGet<PhoneStatus>(`${API_BASE}/profile/phone`)
+}
+
+/**
+ * Submits a phone number for verification — POST /profile/phone
+ * Backend contract: SubmitPhoneNumberRequest validates ^\+?[0-9()\s-]{7,16}$
+ */
+export async function submitPhoneNumber(phoneNumber: string): Promise<{ expiresInSeconds: number }> {
+  return apiPost<{ message: string; expiresInSeconds: number }>(`${API_BASE}/profile/phone`, { phoneNumber })
+}
+
+/**
+ * Confirms the 6-digit code sent to the submitted phone — POST /profile/phone/verify
+ * Backend contract: VerifyPhoneNumberRequest requires exactly 6 digits.
+ */
+export async function verifyPhoneNumber(otp: string): Promise<void> {
+  await apiPost<void>(`${API_BASE}/profile/phone/verify`, { otp })
 }
 
 // Re-export storage helpers for convenience

@@ -17,16 +17,14 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 
-// Third-party Imports
-import classnames from 'classnames'
-
 // Type Imports
 import type { Mode } from '@core/types'
 import type { Workspace } from '@/lib/api/auth-client'
 
 // Component Imports
 import Link from '@components/Link'
-import Logo from '@components/layout/shared/Logo'
+import AuthShell from '@/components/auth/AuthShell'
+import OtpChallengeForm from '@/components/auth/OtpChallengeForm'
 import WorkspaceSelection from '@views/auth/WorkspaceSelection'
 
 // Config Imports
@@ -74,7 +72,17 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
   // Hooks
   const router = useRouter()
   const { settings } = useSettings()
-  const { login, needsWorkspaceSelection, pendingWorkspaces, selectWorkspace } = useAuth()
+  const {
+    login,
+    needsWorkspaceSelection,
+    pendingWorkspaces,
+    selectWorkspace,
+    needsOtp,
+    otpChallenge,
+    verifyOtp,
+    resendOtp,
+    cancelOtp
+  } = useAuth()
   const authBackground = useImageVariant(mode, lightImg, darkImg)
 
 
@@ -103,7 +111,16 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     // If workspace selection is needed, the component will re-render with the selection UI
     // If auto-selected (single workspace), redirect to dashboard
-    if (result.success && !needsWorkspaceSelection) {
+    //
+    // result.otpRequired must gate this, not the needsWorkspaceSelection state read below — that
+    // read is a stale closure captured at the start of this render (state updates from the
+    // login() call above haven't been reflected here yet), so it is always whatever it was
+    // BEFORE this submission, never the outcome of this one. A challenge and a real session both
+    // return { success: true } from login(); only otpRequired tells them apart. Without this gate
+    // a correct password on an unrecognised browser flashes the code-entry screen and then
+    // immediately navigates away from it (see AuthProvider's per-route-group mounting — crossing
+    // that boundary unmounts the provider and destroys the in-memory pendingToken with it).
+    if (result.success && !result.otpRequired && !needsWorkspaceSelection) {
       // Small delay to let the state settle (auto-select case)
       setTimeout(() => {
         router.push(redirectTo)
@@ -119,13 +136,92 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     const result = await selectWorkspace(workspace)
 
-    if (result.success) {
+    if (result.success && !result.otpRequired) {
       router.push(redirectTo)
-    } else {
+    } else if (!result.success) {
       setError(result.error || 'Failed to select workspace.')
     }
 
+    // result.success && result.otpRequired: no navigation and no error — the component
+    // re-renders into the OTP challenge below because needsOtp/otpChallenge are now set.
+
     setIsSubmitting(false)
+  }
+
+  const handleOtpSubmit = async (otp: string, rememberDevice: boolean) => {
+    setError(null)
+    setIsSubmitting(true)
+
+    const result = await verifyOtp(otp, rememberDevice)
+
+    if (result.success) {
+      router.push(redirectTo)
+    } else {
+      setError(result.error ?? 'Verification failed.')
+    }
+
+    setIsSubmitting(false)
+  }
+
+  const handleOtpResend = async () => {
+    setError(null)
+
+    const result = await resendOtp()
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to resend the code.')
+    }
+  }
+
+  const handleOtpCancel = () => {
+    setError(null)
+    cancelOtp()
+  }
+
+  // The pendingToken alone identifies the challenge — a switch is just a resend that names the
+  // other channel. resendOtp refreshes otpChallenge from the server's response (new channel, new
+  // maskedTarget, and a possibly-flipped alternateChannel), so nothing here needs to track the
+  // target channel itself.
+  const handleOtpSwitch = async (targetChannel: 'EMAIL' | 'SMS') => {
+    setError(null)
+
+    const result = await resendOtp(targetChannel)
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to switch channel.')
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // OTP Challenge View
+  // ---------------------------------------------------------------------------
+  if (needsOtp && otpChallenge) {
+    return (
+      <AuthShell
+        characterIllustration={characterIllustration}
+        authBackground={authBackground}
+        bordered={settings.skin === 'bordered'}
+      >
+        <OtpChallengeForm
+          channel={otpChallenge.channel}
+          maskedTarget={otpChallenge.maskedTarget}
+          isSubmitting={isSubmitting}
+          error={error}
+          onSubmit={handleOtpSubmit}
+          onResend={handleOtpResend}
+          onStartOver={handleOtpCancel}
+          alternateChannel={
+            otpChallenge.alternateChannel
+              ? {
+                  channel: otpChallenge.alternateChannel.channel,
+                  maskedTarget: otpChallenge.alternateChannel.maskedTarget,
+                  onSwitch: () => handleOtpSwitch(otpChallenge.alternateChannel!.channel)
+                }
+              : undefined
+          }
+        />
+      </AuthShell>
+    )
   }
 
   // ---------------------------------------------------------------------------
@@ -133,47 +229,27 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
   // ---------------------------------------------------------------------------
   if (needsWorkspaceSelection && pendingWorkspaces && pendingWorkspaces.length > 0) {
     return (
-      <div className='flex bs-full justify-center'>
-        <div
-          className={classnames(
-            'flex bs-full items-center justify-center flex-1 min-bs-[100dvh] relative p-6 max-md:hidden',
-            {
-              'border-ie': settings.skin === 'bordered'
-            }
-          )}
-        >
-          <div className='pli-6 max-lg:mbs-40 lg:mbe-24'>
-            <img
-              src={characterIllustration}
-              alt='character-illustration'
-              className='max-bs-[673px] max-is-full bs-auto'
-            />
-          </div>
-          <img src={authBackground} className='absolute bottom-[4%] z-[-1] is-full max-md:hidden' />
-        </div>
-        <div className='flex justify-center items-center bs-full bg-backgroundPaper !min-is-full p-6 md:!min-is-[unset] md:p-12 md:is-[480px]'>
-          <Link className='absolute block-start-5 sm:block-start-[38px] inline-start-6 sm:inline-start-[38px]'>
-            <Logo />
-          </Link>
-          <div className='flex flex-col gap-5 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
-            {showSessionNotice && sessionReason && (
-              <Alert severity='warning' onClose={() => setShowSessionNotice(false)}>
-                {sessionReason}
-              </Alert>
-            )}
-            {error && (
-              <Alert severity='error' onClose={() => setError(null)}>
-                {error}
-              </Alert>
-            )}
-            <WorkspaceSelection
-              workspaces={pendingWorkspaces}
-              onSelect={handleWorkspaceSelect}
-              isLoading={isSubmitting}
-            />
-          </div>
-        </div>
-      </div>
+      <AuthShell
+        characterIllustration={characterIllustration}
+        authBackground={authBackground}
+        bordered={settings.skin === 'bordered'}
+      >
+        {showSessionNotice && sessionReason && (
+          <Alert severity='warning' onClose={() => setShowSessionNotice(false)}>
+            {sessionReason}
+          </Alert>
+        )}
+        {error && (
+          <Alert severity='error' onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+        <WorkspaceSelection
+          workspaces={pendingWorkspaces}
+          onSelect={handleWorkspaceSelect}
+          isLoading={isSubmitting}
+        />
+      </AuthShell>
     )
   }
 
@@ -181,111 +257,91 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
   // Login Form View
   // ---------------------------------------------------------------------------
   return (
-    <div className='flex bs-full justify-center'>
-      <div
-        className={classnames(
-          'flex bs-full items-center justify-center flex-1 min-bs-[100dvh] relative p-6 max-md:hidden',
-          {
-            'border-ie': settings.skin === 'bordered'
-          }
-        )}
+    <AuthShell
+      characterIllustration={characterIllustration}
+      authBackground={authBackground}
+      bordered={settings.skin === 'bordered'}
+    >
+      <div>
+        <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
+        <Typography className='mbs-1'>Please sign-in to your account and start the adventure</Typography>
+      </div>
+
+      {showSessionNotice && sessionReason && (
+        <Alert severity='warning' onClose={() => setShowSessionNotice(false)}>
+          {sessionReason}
+        </Alert>
+      )}
+
+      {error && (
+        <Alert severity='error' onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      <form
+        noValidate
+        autoComplete='off'
+        onSubmit={handleSubmit}
+        className='flex flex-col gap-5'
       >
-        <div className='pli-6 max-lg:mbs-40 lg:mbe-24'>
-          <img
-            src={characterIllustration}
-            alt='character-illustration'
-            className='max-bs-[673px] max-is-full bs-auto'
-          />
+        <TextField
+          autoFocus
+          fullWidth
+          label='Email'
+          size='small'
+          type='email'
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          disabled={isSubmitting}
+        />
+        <TextField
+          fullWidth
+          label='Password'
+          size='small'
+          type={isPasswordShown ? 'text' : 'password'}
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          disabled={isSubmitting}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position='end'>
+                  <IconButton
+                    size='small'
+                    edge='end'
+                    onClick={handleClickShowPassword}
+                    onMouseDown={e => e.preventDefault()}
+                  >
+                    <i className={isPasswordShown ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }
+          }}
+        />
+        <div className='flex justify-between items-center flex-wrap gap-x-3 gap-y-1'>
+          <FormControlLabel control={<Checkbox />} label='Remember me' />
+          <Typography className='text-end' color='secondary.main'>
+            <Link href='/forgot-password'>Forgot password?</Link>
+          </Typography>
         </div>
-        <img src={authBackground} className='absolute bottom-[4%] z-[-1] is-full max-md:hidden' />
-      </div>
-      <div className='flex justify-center items-center bs-full bg-backgroundPaper !min-is-full p-6 md:!min-is-[unset] md:p-12 md:is-[480px]'>
-        <Link className='absolute block-start-5 sm:block-start-[38px] inline-start-6 sm:inline-start-[38px]'>
-          <Logo />
-        </Link>
-        <div className='flex flex-col gap-5 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
-          <div>
-            <Typography variant='h4'>{`Welcome to ${themeConfig.templateName}! 👋🏻`}</Typography>
-            <Typography className='mbs-1'>Please sign-in to your account and start the adventure</Typography>
-          </div>
-
-          {showSessionNotice && sessionReason && (
-            <Alert severity='warning' onClose={() => setShowSessionNotice(false)}>
-              {sessionReason}
-            </Alert>
-          )}
-
-          {error && (
-            <Alert severity='error' onClose={() => setError(null)}>
-              {error}
-            </Alert>
-          )}
-
-          <form
-            noValidate
-            autoComplete='off'
-            onSubmit={handleSubmit}
-            className='flex flex-col gap-5'
-          >
-            <TextField
-              autoFocus
-              fullWidth
-              label='Email'
-              size='small'
-              type='email'
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              disabled={isSubmitting}
-            />
-            <TextField
-              fullWidth
-              label='Password'
-              size='small'
-              type={isPasswordShown ? 'text' : 'password'}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              disabled={isSubmitting}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position='end'>
-                      <IconButton
-                        size='small'
-                        edge='end'
-                        onClick={handleClickShowPassword}
-                        onMouseDown={e => e.preventDefault()}
-                      >
-                        <i className={isPasswordShown ? 'ri-eye-off-line' : 'ri-eye-line'} />
-                      </IconButton>
-                    </InputAdornment>
-                  )
-                }
-              }}
-            />
-            <div className='flex justify-between items-center flex-wrap gap-x-3 gap-y-1'>
-              <FormControlLabel control={<Checkbox />} label='Remember me' />
-              <Typography className='text-end' color='secondary.main'>
-                <Link href='/forgot-password'>Forgot password?</Link>
-              </Typography>
-            </div>
-            <Button
-              fullWidth
-              variant='contained'
-              type='submit'
-              disabled={isSubmitting || !email || !password}
-            >
-              {isSubmitting ? <CircularProgress size={24} color='inherit' /> : 'Log In'}
-            </Button>
-            <div className='flex justify-center items-center flex-wrap gap-2'>
-              <Typography>New on our platform?</Typography>
-              <Typography component={Link} href='/register' color='primary.main'>
-                Create an account
-              </Typography>
-            </div>
-          </form>
+        <Button
+          fullWidth
+          variant='contained'
+          type='submit'
+          disabled={isSubmitting || !email || !password}
+        >
+          {isSubmitting ? <CircularProgress size={24} color='inherit' /> : 'Log In'}
+        </Button>
+        <div className='flex justify-center items-center flex-wrap gap-2'>
+          <Typography>New on our platform?</Typography>
+          <Typography component={Link} href='/register' color='primary.main'>
+            Create an account
+          </Typography>
         </div>
-      </div>
-    </div>
+      </form>
+    </AuthShell>
   )
 }
 

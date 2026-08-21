@@ -13,6 +13,7 @@ import Chip from '@mui/material/Chip'
 import Logo from '@components/layout/shared/Logo'
 import Link from '@components/Link'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
+import OtpChallengeForm from '@/components/auth/OtpChallengeForm'
 
 export default function AdminLoginView() {
   const [email, setEmail] = useState('')
@@ -21,7 +22,7 @@ export default function AdminLoginView() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { adminLogin } = useAdminAuth()
+  const { adminLogin, needsOtp, otpChallenge, verifyOtp, resendOtp, cancelOtp } = useAdminAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,6 +32,15 @@ export default function AdminLoginView() {
 
     const result = await adminLogin(email, password)
 
+    if (result.otpRequired) {
+      // Not an error: the password was correct and the component re-renders into the
+      // challenge below. Falling through would show "Invalid credentials" for a SUCCESSFUL
+      // password check.
+      setIsSubmitting(false)
+
+      return
+    }
+
     if (result.success) {
       router.push('/admin')
     } else {
@@ -39,6 +49,84 @@ export default function AdminLoginView() {
     }
 
     setIsSubmitting(false)
+  }
+
+  const handleOtpSubmit = async (otp: string, rememberDevice: boolean) => {
+    setError(null)
+    setIsSubmitting(true)
+
+    const result = await verifyOtp(otp, rememberDevice)
+
+    if (result.success) {
+      router.push('/admin')
+    } else {
+      setError(result.error ?? 'Verification failed.')
+      // startOver means no code can help — the form below is what the user needs next.
+      if (result.startOver) setPassword('')
+    }
+
+    setIsSubmitting(false)
+  }
+
+  const handleOtpCancel = () => {
+    setError(null)
+    setPassword('')
+    cancelOtp()
+  }
+
+  const handleOtpResend = async () => {
+    setError(null)
+
+    const result = await resendOtp()
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to resend the code.')
+    }
+  }
+
+  // A switch is just a resend that names the other channel — the pendingToken alone identifies
+  // the challenge. resendOtp refreshes otpChallenge from the server's response (new channel, new
+  // maskedTarget, and a possibly-flipped alternateChannel), so nothing here needs to track the
+  // target channel itself.
+  const handleOtpSwitch = async (targetChannel: 'EMAIL' | 'SMS') => {
+    setError(null)
+
+    const result = await resendOtp(targetChannel)
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to switch channel.')
+    }
+  }
+
+  if (needsOtp && otpChallenge) {
+    return (
+      <div className='flex min-h-screen items-center justify-center bg-backgroundDefault p-6'>
+        <div className='w-full max-w-[400px] flex flex-col gap-6'>
+          <div className='flex flex-col items-center gap-3'>
+            <Link href='/'><Logo /></Link>
+            <Chip label='Platform Administration' size='small' color='warning' variant='outlined' />
+          </div>
+          <OtpChallengeForm
+            channel={otpChallenge.channel}
+            maskedTarget={otpChallenge.maskedTarget}
+            isSubmitting={isSubmitting}
+            error={error}
+            onSubmit={handleOtpSubmit}
+            onResend={handleOtpResend}
+            onStartOver={handleOtpCancel}
+            alternateChannel={
+              otpChallenge.alternateChannel
+                ? {
+                    channel: otpChallenge.alternateChannel.channel,
+                    maskedTarget: otpChallenge.alternateChannel.maskedTarget,
+                    onSwitch: () => handleOtpSwitch(otpChallenge.alternateChannel!.channel)
+                  }
+                : undefined
+            }
+          />
+        </div>
+      </div>
+    )
   }
 
   return (

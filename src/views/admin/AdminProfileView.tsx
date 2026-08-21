@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -15,10 +15,12 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
 import InputAdornment from '@mui/material/InputAdornment'
+import Skeleton from '@mui/material/Skeleton'
 import Snackbar from '@mui/material/Snackbar'
 
+import PhoneVerificationCard from '@/components/auth/PhoneVerificationCard'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
-import { changeAdminPassword, updateAdminProfile } from '@/lib/api/admin-auth-client'
+import { changeAdminPassword, getAdminPhoneStatus, submitAdminPhoneNumber, updateAdminProfile, verifyAdminPhoneNumber } from '@/lib/api/admin-auth-client'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -304,6 +306,62 @@ function ChangePasswordCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Phone verification section
+// ---------------------------------------------------------------------------
+
+// Seeded from GET /admin/profile/phone rather than from AdminProfile, which carries no phone
+// field. `loaded` gates the first render on purpose: PhoneVerificationCard seeds its text field
+// and its step from props in `useState` initialisers, which never re-read a prop that arrives
+// later, so mounting before the fetch resolves would pin the card to "no number on file".
+function AdminPhoneVerificationSection() {
+  const [phone, setPhone]       = useState<string | null>(null)
+  const [verified, setVerified] = useState(false)
+  const [loaded, setLoaded]     = useState(false)
+
+  // A failed read falls through with `loaded` true and no number — degrading to exactly the old
+  // behaviour (an empty field the admin can fill in) rather than hiding the feature entirely.
+  useEffect(() => {
+    let cancelled = false
+
+    getAdminPhoneStatus()
+      .then(status => {
+        if (cancelled) return
+        setPhone(status.phoneNumber)
+        setVerified(status.verified)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true) })
+
+    return () => { cancelled = true }
+  }, [])
+
+  return (
+    <Box sx={{ mt: 3 }}>
+      {loaded ? (
+        <PhoneVerificationCard
+          currentPhone={phone}
+          isVerified={verified}
+          onSubmitPhone={async phoneNumber => {
+            const result = await submitAdminPhoneNumber(phoneNumber)
+
+            // Submitting is not proving: the server clears phone_verified_at whenever the number
+            // changes, so the local flag has to follow or the card would show a stale "Verified".
+            setPhone(phoneNumber)
+            setVerified(false)
+
+            return result
+          }}
+          onVerifyPhone={verifyAdminPhoneNumber}
+          onVerified={() => setVerified(true)}
+        />
+      ) : (
+        <Skeleton variant='rounded' height={180} />
+      )}
+    </Box>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main view
 // ---------------------------------------------------------------------------
 
@@ -369,6 +427,9 @@ export default function AdminProfileView() {
           </InfoRow>
         </CardContent>
       </Card>
+
+      {/* Phone verification */}
+      <AdminPhoneVerificationSection />
 
       {/* Change password */}
       <ChangePasswordCard />
