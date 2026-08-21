@@ -58,6 +58,22 @@ export default function ImpersonateHandoff() {
       return
     }
 
+    // AUTH-L7-06: the hash is attacker-suppliable, so require internal consistency before
+    // installing anything — an unexpired token whose tenant claim matches the tenantId param.
+    // (The signature is verified by the backend on every API call; these checks stop an
+    // obviously forged or mismatched handoff from ever becoming a stored session.)
+    const exp = payload['exp']
+
+    if (typeof exp !== 'number' || exp * 1000 <= Date.now()) {
+      setError('This impersonation token has expired.')
+      return
+    }
+
+    if (typeof payload['tenant'] !== 'string' || payload['tenant'] !== tenantId) {
+      setError('This impersonation token was not issued for the requested workspace.')
+      return
+    }
+
     // Overwrite only the tenant-specific keys — do NOT touch admin_token
     // (the admin may still have their admin tab open on the same browser).
     // setStoredTokens writes auth_token to localStorage + cookie.

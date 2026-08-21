@@ -13,6 +13,9 @@
  */
 
 import { useRef, useEffect, useCallback, useState } from 'react'
+
+import DOMPurify from 'dompurify'
+
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import IconButton from '@mui/material/IconButton'
@@ -27,6 +30,11 @@ type Props = {
   minHeight?: number
   error?: boolean
 }
+
+// AUTH-L7-02: `value` is DB-stored HTML written straight into innerHTML — a reachable XSS sink.
+// The deployed CSP blocks execution today, but the sink itself must be closed: sanitize every
+// value before it touches the DOM (and on the way out, so stored payloads get cleaned on save).
+const sanitize = (html: string): string => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
 
 const RichTextEditor = ({
   label,
@@ -43,7 +51,7 @@ const RichTextEditor = ({
   // contentEditable — React will fight the user's edits on every re-render)
   useEffect(() => {
     if (divRef.current) {
-      divRef.current.innerHTML = value || ''
+      divRef.current.innerHTML = sanitize(value || '')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // mount only
@@ -54,7 +62,7 @@ const RichTextEditor = ({
     const el = divRef.current
     if (!el || el === document.activeElement) return
     const current = el.innerHTML
-    const next    = value || ''
+    const next    = sanitize(value || '')
     if (current !== next) el.innerHTML = next
   }, [value])
 
@@ -62,7 +70,10 @@ const RichTextEditor = ({
 
   const getHtml = useCallback((): string => {
     const raw = divRef.current?.innerHTML ?? ''
-    return raw === '' || raw === '<br>' ? '' : raw
+    if (raw === '' || raw === '<br>') return ''
+
+    // Sanitize outbound too, so a payload pasted into the editor never reaches the DB.
+    return sanitize(raw)
   }, [])
 
   const handleInput = useCallback(() => {

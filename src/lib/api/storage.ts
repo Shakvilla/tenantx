@@ -33,8 +33,12 @@ function decodeJwtExpiry(token: string): number | null {
   }
 }
 
-/** Cookie max-age (seconds) that matches the token's real expiry, with a 60s floor and a 24h fallback. */
-function maxAgeForToken(token: string): number {
+/**
+ * Cookie max-age (seconds) that matches the token's real expiry, with a 60s floor and a 24h fallback.
+ * Exported so admin-storage sizes its cookie the same way (AUTH-L7-04: the admin cookie was a fixed
+ * 86400s against a 900s token — a 96× overrun with no refresh flow to renew it).
+ */
+export function maxAgeForToken(token: string): number {
   const exp = decodeJwtExpiry(token)
 
   if (exp === null) return 86400
