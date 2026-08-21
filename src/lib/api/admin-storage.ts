@@ -8,6 +8,8 @@
  * No tenant ID needed — admin calls go to /api/v1/admin/** with tenant="SYSTEM" in the JWT.
  */
 
+import { maxAgeForToken } from './storage'
+
 const ADMIN_TOKEN_KEY = 'admin_token'
 
 /** Returns true only if the value is a structurally valid JWT (3 dot-separated parts) */
@@ -69,7 +71,11 @@ export function setStoredAdminToken(token: string): void {
     return
   }
   localStorage.setItem(ADMIN_TOKEN_KEY, token)
-  setCookie(ADMIN_TOKEN_KEY, token)
+
+  // AUTH-L7-04: size the cookie to the token's real expiry (~15 min), not a fixed 24h.
+  // Admin has no refresh flow, so a stale-but-present cookie only defers the logout moment
+  // while passing middleware's presence-only check.
+  setCookie(ADMIN_TOKEN_KEY, token, maxAgeForToken(token))
 }
 
 export function clearStoredAdminToken(): void {

@@ -208,6 +208,34 @@ function isLandlordOnlyRoute(pathname: string): boolean {
   return matchesRoute(pathname, LANDLORD_ONLY_ROUTES)
 }
 
+// AUTH-L7-05: when the deployment provides the backend's JWT secret (JWT_SECRET env var, server
+// side only — middleware runs on the Next server, never in the browser), role-gate claims are
+// VERIFIED with jose rather than merely decoded, so a STAFF user editing their own cookie can no
+// longer reach landlord-only pages. Without the env var the previous decode-only behavior stands
+// (UI gate only; data stays server-gated by the backend).
+const rawJwtSecret = process.env.JWT_SECRET
+
+const encodedJwtSecret = rawJwtSecret && rawJwtSecret.length > 0 ? new TextEncoder().encode(rawJwtSecret) : null
+
+/**
+ * Returns the token's claims for routing decisions. Signature-verified when JWT_SECRET is
+ * configured (null on any verification failure); decode-only otherwise.
+ */
+async function jwtClaimsForRouting(token: string): Promise<Record<string, unknown> | null> {
+  if (encodedJwtSecret) {
+    try {
+      const { jwtVerify } = await import('jose')
+      const { payload } = await jwtVerify(token, encodedJwtSecret)
+
+      return payload as Record<string, unknown>
+    } catch {
+      return null
+    }
+  }
+
+  return decodeJwtPayload(token)
+}
+
 /**
  * Decodes the JWT payload without verifying the signature — the backend
  * validates the signature on every API call. The middleware only needs to
@@ -318,9 +346,20 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
     return NextResponse.redirect(redirectUrl)
   }
 
-  // 2. LANDLORD-only routes — block STAFF and other non-LANDLORD userTypes
+  // 2. LANDLORD-only routes — block STAFF and other non-LANDLORD userTypes.
+  // AUTH-L7-05: claims are signature-verified when JWT_SECRET is configured; a token that fails
+  // verification is treated as no session at all, not merely as non-LANDLORD.
   if (isLandlordOnlyRoute(pathname)) {
-    const claims = decodeJwtPayload(authToken!)
+    const claims = await jwtClaimsForRouting(authToken!)
+
+    if (claims === null && encodedJwtSecret) {
+      const redirectUrl = new URL('/login', request.url)
+
+      redirectUrl.searchParams.set('redirectTo', pathname)
+
+      return NextResponse.redirect(redirectUrl)
+    }
+
     const userType = (claims?.userType as string) ?? ''
 
     if (userType !== 'LANDLORD') {
