@@ -1736,13 +1736,17 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
   return (
     <Box>
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+      {/* flexWrap matters here: six action buttons in a nowrap row overflowed the viewport
+          below ~1100px and scrolled the whole PAGE sideways, which put Deactivate and Offboard
+          off-screen with no way to reach them — the two actions this screen exists for. minWidth
+          on the title block is what lets it shrink instead of pinning the row to its full width. */}
+      <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, mb: 3 }}>
         <Tooltip title='Back to Tenants'>
           <IconButton onClick={() => router.push('/admin/tenants')}>
             <i className='ri-arrow-left-line' />
           </IconButton>
         </Tooltip>
-        <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1, minWidth: 200 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Typography variant='h5' fontWeight={700}>{tenant.name}</Typography>
             <Chip size='small' label={tenant.active ? 'Active' : 'Inactive'} color={tenant.active ? 'success' : 'default'} variant='outlined' />
@@ -1753,7 +1757,7 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
         </Box>
 
         {canManage && (
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 1 }}>
             <Button variant='outlined' startIcon={<i className='ri-pencil-line' />} onClick={() => setEditOpen(true)}>Edit</Button>
             <Button variant='outlined' startIcon={<i className='ri-mail-send-line' />} onClick={() => setMessageOpen(true)}>Message</Button>
             <Button variant='outlined' color='warning' startIcon={<i className='ri-lock-password-line' />} onClick={() => setResetPasswordOpen(true)}>Reset Password</Button>
