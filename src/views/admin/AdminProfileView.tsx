@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -15,11 +15,12 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
 import InputAdornment from '@mui/material/InputAdornment'
+import Skeleton from '@mui/material/Skeleton'
 import Snackbar from '@mui/material/Snackbar'
 
 import PhoneVerificationCard from '@/components/auth/PhoneVerificationCard'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
-import { changeAdminPassword, submitAdminPhoneNumber, updateAdminProfile, verifyAdminPhoneNumber } from '@/lib/api/admin-auth-client'
+import { changeAdminPassword, getAdminPhoneStatus, submitAdminPhoneNumber, updateAdminProfile, verifyAdminPhoneNumber } from '@/lib/api/admin-auth-client'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -308,35 +309,54 @@ function ChangePasswordCard() {
 // Phone verification section
 // ---------------------------------------------------------------------------
 
-// AdminProfile (src/lib/api/admin-auth-client.ts) carries no phone or phoneVerified field at
-// all — unlike the landlord's AuthUser, which at least has an optional `phone`. There is
-// nothing to seed from here, so both current phone and verified status start out purely as
-// local UI state, set only once `onSubmitPhone`/`onVerified` actually run in this session.
+// Seeded from GET /admin/profile/phone rather than from AdminProfile, which carries no phone
+// field. `loaded` gates the first render on purpose: PhoneVerificationCard seeds its text field
+// and its step from props in `useState` initialisers, which never re-read a prop that arrives
+// later, so mounting before the fetch resolves would pin the card to "no number on file".
 function AdminPhoneVerificationSection() {
   const [phone, setPhone]       = useState<string | null>(null)
   const [verified, setVerified] = useState(false)
+  const [loaded, setLoaded]     = useState(false)
+
+  // A failed read falls through with `loaded` true and no number — degrading to exactly the old
+  // behaviour (an empty field the admin can fill in) rather than hiding the feature entirely.
+  useEffect(() => {
+    let cancelled = false
+
+    getAdminPhoneStatus()
+      .then(status => {
+        if (cancelled) return
+        setPhone(status.phoneNumber)
+        setVerified(status.verified)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoaded(true) })
+
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <Box sx={{ mt: 3 }}>
-      <PhoneVerificationCard
-        currentPhone={phone}
-        isVerified={verified}
-        onSubmitPhone={async phoneNumber => {
-          const result = await submitAdminPhoneNumber(phoneNumber)
+      {loaded ? (
+        <PhoneVerificationCard
+          currentPhone={phone}
+          isVerified={verified}
+          onSubmitPhone={async phoneNumber => {
+            const result = await submitAdminPhoneNumber(phoneNumber)
 
-          setPhone(phoneNumber)
+            // Submitting is not proving: the server clears phone_verified_at whenever the number
+            // changes, so the local flag has to follow or the card would show a stale "Verified".
+            setPhone(phoneNumber)
+            setVerified(false)
 
-          return result
-        }}
-        onVerifyPhone={verifyAdminPhoneNumber}
-        onVerified={() => setVerified(true)}
-        phoneStepNote={
-          <Alert severity='info' variant='outlined'>
-            Already verified a number? It stays verified — we just can&apos;t display it on this page yet, so
-            there&apos;s no need to redo it unless your number changed.
-          </Alert>
-        }
-      />
+            return result
+          }}
+          onVerifyPhone={verifyAdminPhoneNumber}
+          onVerified={() => setVerified(true)}
+        />
+      ) : (
+        <Skeleton variant='rounded' height={180} />
+      )}
     </Box>
   )
 }

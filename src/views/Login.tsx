@@ -170,17 +170,26 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
 
     if (!result.success) {
       setError(result.error ?? 'Failed to resend the code.')
-    } else if (result.sessionEstablished) {
-      // Rare: the device got trusted (or the switch flipped off) between the challenge and this
-      // resend, and a real session came back instead of a fresh code. The context already
-      // established it; this is only the navigation half.
-      router.push(redirectTo)
     }
   }
 
   const handleOtpCancel = () => {
     setError(null)
     cancelOtp()
+  }
+
+  // The pendingToken alone identifies the challenge — a switch is just a resend that names the
+  // other channel. resendOtp refreshes otpChallenge from the server's response (new channel, new
+  // maskedTarget, and a possibly-flipped alternateChannel), so nothing here needs to track the
+  // target channel itself.
+  const handleOtpSwitch = async (targetChannel: 'EMAIL' | 'SMS') => {
+    setError(null)
+
+    const result = await resendOtp(targetChannel)
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to switch channel.')
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -201,6 +210,15 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
           onSubmit={handleOtpSubmit}
           onResend={handleOtpResend}
           onStartOver={handleOtpCancel}
+          alternateChannel={
+            otpChallenge.alternateChannel
+              ? {
+                  channel: otpChallenge.alternateChannel.channel,
+                  maskedTarget: otpChallenge.alternateChannel.maskedTarget,
+                  onSwitch: () => handleOtpSwitch(otpChallenge.alternateChannel!.channel)
+                }
+              : undefined
+          }
         />
       </AuthShell>
     )

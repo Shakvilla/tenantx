@@ -227,6 +227,27 @@ export async function verifyAdminLoginOtp(
   return res.data
 }
 
+/**
+ * Resends the login-OTP code raised by {@link adminLogin}, on the same pendingToken — no
+ * credentials required. The pendingToken already proves the password step happened. Always
+ * yields a fresh challenge (never a full session); mints no token, so there is nothing to store.
+ *
+ * `channel` is honoured only when the server's policy allows a switch for this admin; a
+ * disallowed choice is refused (400). This function never infers eligibility — it only forwards
+ * whatever the caller asks for and lets the server decide.
+ */
+export async function resendAdminOtp(
+  pendingToken: string,
+  channel?: 'EMAIL' | 'SMS'
+): Promise<OtpChallenge> {
+  const res = await axios.post<OtpChallenge>(
+    `${ADMIN_API_BASE}/auth/verify-otp/resend`,
+    { pendingToken, channel }
+  )
+
+  return res.data
+}
+
 export async function getAdminMe(): Promise<AdminProfile> {
   return adminGet<AdminProfile>('/auth/me')
 }
@@ -269,6 +290,23 @@ export async function changeAdminPassword(currentPassword: string, newPassword: 
 // ---------------------------------------------------------------------------
 // Phone verification (login-OTP SMS delivery)
 // ---------------------------------------------------------------------------
+
+/** The caller's own phone number and whether it has been proved. GET /admin/profile/phone */
+export interface AdminPhoneStatus {
+  phoneNumber: string | null
+  verified: boolean
+}
+
+/**
+ * Reads back the calling admin's own phone number and verification status —
+ * GET /profile/phone (relative to adminClient's baseURL, which already includes /api/v1/admin).
+ *
+ * Without it the phone card had nothing to seed from and started blank for everyone, so an
+ * admin who verified last week saw no sign of it and would redo the whole flow.
+ */
+export async function getAdminPhoneStatus(): Promise<AdminPhoneStatus> {
+  return adminGet<AdminPhoneStatus>('/profile/phone')
+}
 
 /**
  * Submits a phone number for verification — POST /profile/phone

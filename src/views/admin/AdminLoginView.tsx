@@ -22,7 +22,7 @@ export default function AdminLoginView() {
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { adminLogin, needsOtp, otpChallenge, verifyOtp, cancelOtp } = useAdminAuth()
+  const { adminLogin, needsOtp, otpChallenge, verifyOtp, resendOtp, cancelOtp } = useAdminAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -74,6 +74,30 @@ export default function AdminLoginView() {
     cancelOtp()
   }
 
+  const handleOtpResend = async () => {
+    setError(null)
+
+    const result = await resendOtp()
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to resend the code.')
+    }
+  }
+
+  // A switch is just a resend that names the other channel — the pendingToken alone identifies
+  // the challenge. resendOtp refreshes otpChallenge from the server's response (new channel, new
+  // maskedTarget, and a possibly-flipped alternateChannel), so nothing here needs to track the
+  // target channel itself.
+  const handleOtpSwitch = async (targetChannel: 'EMAIL' | 'SMS') => {
+    setError(null)
+
+    const result = await resendOtp(targetChannel)
+
+    if (!result.success) {
+      setError(result.error ?? 'Failed to switch channel.')
+    }
+  }
+
   if (needsOtp && otpChallenge) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-backgroundDefault p-6'>
@@ -88,7 +112,17 @@ export default function AdminLoginView() {
             isSubmitting={isSubmitting}
             error={error}
             onSubmit={handleOtpSubmit}
+            onResend={handleOtpResend}
             onStartOver={handleOtpCancel}
+            alternateChannel={
+              otpChallenge.alternateChannel
+                ? {
+                    channel: otpChallenge.alternateChannel.channel,
+                    maskedTarget: otpChallenge.alternateChannel.maskedTarget,
+                    onSwitch: () => handleOtpSwitch(otpChallenge.alternateChannel!.channel)
+                  }
+                : undefined
+            }
           />
         </div>
       </div>

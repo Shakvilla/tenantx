@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   globalLogin,
   selectTenant,
-  registerUser,
+  signupComplete,
   getCurrentUser,
   logoutUser,
   getStoredToken,
@@ -17,6 +17,7 @@ import {
   clearStoredTokens,
   isOtpChallenge,
   verifySelectTenantOtp,
+  resendSelectTenantOtp,
   type Workspace,
   type UserProfile,
   type OtpChallenge,
@@ -41,7 +42,12 @@ export interface AuthUser {
   /** UserType from backend: LANDLORD | STAFF | MAINTAINER | OCCUPANT */
   userType: string
   avatarUrl?: string
-  phone?: string
+
+  // No `phone` here on purpose. It used to sit alongside these, unset by every login and
+  // profile response, and SecuritySettingsView seeded its phone card from it — so the card
+  // always started blank. The phone now comes from GET /profile/phone (see `getPhoneStatus`),
+  // the only source that actually knows it; re-adding an optional field here would just invite
+  // the same silent-empty seed again.
 }
 
 export interface AuthTenant {
@@ -76,17 +82,25 @@ interface AuthContextValue extends AuthState {
     needsPasswordSetup?: boolean
     otpRequired?: boolean
   }>
-  register: (data: {
-    email: string
-    password: string
+  /**
+   * Completes the email-verified signup challenge `signupStart` raised (Register.tsx owns that
+   * challenge locally — it is not the same as `otpChallenge`, which is the LOGIN-OTP state
+   * above). This is the ONLY place a freshly-signed-up landlord's session gets established,
+   * mirroring `establishTenantSession`'s reasoning: `fullName` has to be passed in because
+   * `SignupResponse` (the backend's `/signup/complete` reply) never carries it — Register.tsx
+   * already collected it on the form.
+   */
+  completeSignup: (params: {
+    pendingToken: string
+    otp: string
+    rememberDevice: boolean
     fullName: string
-    companyName: string
-  }) => Promise<{ success: boolean; error?: string }>
+  }) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
   selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean }>
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
   verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
-  resendOtp: () => Promise<{ success: boolean; error?: string; sessionEstablished?: boolean }>
+  resendOtp: (channel?: 'EMAIL' | 'SMS') => Promise<{ success: boolean; error?: string }>
   cancelOtp: () => void
 }
 
@@ -446,38 +460,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // ---- Resend login OTP ----
-  const resendOtp = useCallback(async () => {
+  const resendOtp = useCallback(async (channel?: 'EMAIL' | 'SMS') => {
     const challenge = stateRef.current.otpChallenge
 
     if (!challenge) return { success: false, error: 'No verification in progress.' }
 
-    // A true resend: /select-tenant needs only the global token, which is still held. No
-    // credentials are kept anywhere to make this possible.
-    const result = await selectTenant(challenge.workspace.tenantId)
+    // A true resend, on the pendingToken alone — /select-tenant/verify-otp/resend needs no
+    // credentials. `channel` is honoured only when the server's policy allows a switch; this
+    // function never infers eligibility client-side, it only forwards what the caller asks for.
+    const result = await resendSelectTenantOtp(challenge.pendingToken, channel)
 
     if (!result.success || !result.data) {
-      // Previously swallowed outright — a 429 or an expired global token produced no message at
-      // all, so "Send a new code" appeared to do nothing. rawError is the raw axios error (see
-      // selectTenant), which is what otpErrorMessage needs to tell a rate limit from anything else.
+      // Previously swallowed outright — a 429 or a disallowed channel produced no message at
+      // all, so "Send a new code" appeared to do nothing. rawError is the raw axios error, which
+      // is what otpErrorMessage needs to tell a rate limit from anything else.
       return { success: false, error: otpErrorMessage(result.rawError).message }
     }
 
-    if (isOtpChallenge(result.data)) {
-      setState(prev => ({
-        ...prev,
-        otpChallenge: { ...(result.data as OtpChallenge), workspace: challenge.workspace }
-      }))
+    // Always a fresh challenge, never a full session — resend reissues a code on the same
+    // pendingToken and does not re-check device trust.
+    setState(prev => ({
+      ...prev,
+      otpChallenge: { ...(result.data as OtpChallenge), workspace: challenge.workspace }
+    }))
 
-      return { success: true }
-    }
-
-    // A real session came back instead of a fresh code — the switch flipped off mid-flow, or
-    // this device got trusted in another tab. Route it through the same establish path as every
-    // other session; leaving it here would land tokens/cookies while the context still reports
-    // needsOtp: true, isAuthenticated: false — middleware sees a signed-in user, the UI does not.
-    establishTenantSession(result.data as SelectTenantResponse, challenge.workspace)
-
-    return { success: true, sessionEstablished: true }
+    return { success: true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -486,22 +493,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, needsOtp: false, otpChallenge: null }))
   }, [])
 
-  // ---- Register ----
-  const register = useCallback(
-    async (data: { email: string; password: string; fullName: string; companyName: string }) => {
+  // ---- Complete email-verified signup ----
+  //
+  // The one and only place a freshly-signed-up landlord's session gets established — mirrors
+  // establishTenantSession's own reasoning. Previously Register.tsx called signupComplete
+  // (auth-client) directly and set NO state at all: signupComplete only writes tokens, never
+  // user/tenant/isAuthenticated/role/userType. A brand-new landlord landed on /dashboard with
+  // this provider un-remounted, so it still read user: null, isAuthenticated: false — no
+  // workspace name, SubscriptionContext never loading — recovering only on a hard refresh. Every
+  // new landlord's first screen was broken. Routing completion through this method instead means
+  // the same state writes {@code login}/{@code verifyOtp} rely on also happen here.
+  const completeSignup = useCallback(
+    async (params: { pendingToken: string; otp: string; rememberDevice: boolean; fullName: string }) => {
       setState(prev => ({ ...prev, isLoading: true }))
 
-      const result = await registerUser(data)
+      const result = await signupComplete(params.pendingToken, params.otp, params.rememberDevice)
 
       if (!result.success || !result.data) {
         setState(prev => ({ ...prev, isLoading: false }))
 
-        return { success: false, error: result.error?.message ?? 'Registration failed' }
+        const display = otpErrorMessage(result.rawError)
+
+        return { success: false, error: display.message, startOver: display.startOver }
       }
 
       const signup = result.data
 
-      // The backend returns a tenant-scoped JWT immediately after signup.
+      // The backend returns a tenant-scoped JWT immediately after signup completes.
       // Persist role + userType so the bootstrap useEffect can restore them on page refresh.
       setStoredUserRole('ADMIN')
       setStoredUserType('LANDLORD')
@@ -510,7 +528,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: {
           id:       signup.userId,
           email:    signup.email,
-          name:     data.fullName,
+          name:     params.fullName,
           role:     'ADMIN',
           userType: 'LANDLORD',
         },
@@ -591,7 +609,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         ...state,
         login,
-        register,
+        completeSignup,
         selectWorkspace: selectWorkspaceMethod,
         logout,
         refreshUser,

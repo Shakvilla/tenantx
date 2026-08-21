@@ -34,6 +34,24 @@ export interface OtpChallengeFormProps {
   onResend?: () => void
 
   onStartOver: () => void
+
+  /**
+   * Hides the remember-this-device checkbox. Set at signup, where the device is trusted by the
+   * backend as part of proving the email and there is nothing for the user to opt out of.
+   */
+  hideRememberDevice?: boolean
+
+  /**
+   * A second delivery channel the server has offered for this challenge. Omit entirely when no
+   * switch is available — the caller must not infer this client-side; it comes only from
+   * whatever signal the server provides. When present, renders a "Send to {maskedTarget}
+   * instead" control that calls `onSwitch`.
+   */
+  alternateChannel?: {
+    channel: 'EMAIL' | 'SMS'
+    maskedTarget: string
+    onSwitch: () => void
+  }
 }
 
 export default function OtpChallengeForm({
@@ -43,7 +61,9 @@ export default function OtpChallengeForm({
   error,
   onSubmit,
   onResend,
-  onStartOver
+  onStartOver,
+  hideRememberDevice,
+  alternateChannel
 }: OtpChallengeFormProps) {
   const [otp, setOtp] = useState('')
   const [rememberDevice, setRememberDevice] = useState(true)
@@ -77,17 +97,29 @@ export default function OtpChallengeForm({
         inputProps={{ inputMode: 'numeric', autoComplete: 'one-time-code', maxLength: OTP_LENGTH }}
       />
 
-      <FormControlLabel
-        control={<Checkbox checked={rememberDevice} onChange={e => setRememberDevice(e.target.checked)} />}
-        label='Remember this device'
-      />
-      <Typography variant='caption' color='text.secondary' sx={{ mt: -2 }}>
-        Leave this unchecked on a shared or public computer — we’ll ask for a code every time.
-      </Typography>
+      {!hideRememberDevice && (
+        <>
+          <FormControlLabel
+            control={<Checkbox checked={rememberDevice} onChange={e => setRememberDevice(e.target.checked)} />}
+            label='Remember this device'
+          />
+          <Typography variant='caption' color='text.secondary' sx={{ mt: -2 }}>
+            Leave this unchecked on a shared or public computer — we’ll ask for a code every time.
+          </Typography>
+        </>
+      )}
 
       <Button fullWidth variant='contained' type='submit' disabled={!canSubmit}>
         {isSubmitting ? <CircularProgress size={22} color='inherit' /> : 'Verify'}
       </Button>
+
+      {alternateChannel && (
+        <Box className='flex justify-center'>
+          <Button size='small' onClick={alternateChannel.onSwitch} disabled={isSubmitting}>
+            Send to {alternateChannel.maskedTarget} instead
+          </Button>
+        </Box>
+      )}
 
       <Box className='flex justify-center gap-4'>
         {onResend && (
