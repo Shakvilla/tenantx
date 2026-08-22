@@ -255,6 +255,16 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function hasUnexpiredJwt(token: string | undefined): token is string {
+  if (!token) return false
+
+  const exp = decodeJwtPayload(token)?.exp
+
+  // A token without a readable numeric exp is treated as no session — same posture as
+  // admin-storage's isValidJwt wipe of corrupted values.
+  return typeof exp === 'number' && exp * 1000 > Date.now()
+}
+
 export async function middleware(request: NextRequest) {
   const nonce = generateNonce()
   const isHttps = isHttpsRequest(request)
@@ -278,7 +288,13 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
   const authToken  = request.cookies.get('auth_token')?.value
   const tenantId   = request.cookies.get('tenant_id')?.value
 
-  const isAdminAuthenticated  = !!adminToken
+  // A PRESENT-but-expired admin token must not count as an admin session. The old client set
+  // the admin cookie with a fixed 24h max-age against a ~15-minute token, so a stale cookie
+  // could linger for a day — and since /login and /register redirect admin-authenticated users
+  // to /admin, that stale cookie locked the holder out of the entire tenant auth surface (they
+  // bounced to an admin panel whose every API call 401s). Decode-only exp check: this is a UX
+  // routing gate, the backend still verifies the signature on every call.
+  const isAdminAuthenticated  = hasUnexpiredJwt(adminToken)
   const isTenantAuthenticated = !!authToken && !!tenantId
 
   // ═══════════════════════════════════════════════════════════════════════════
