@@ -57,6 +57,8 @@ export interface OccupantRecord {
 }
 
 interface OccupantQuery {
+  /** 'summary' returns only the fields the dashboard table renders — no PII (audit #7). */
+  view?: 'summary'
   search?: string
   status?: string
   propertyId?: string
@@ -124,6 +126,7 @@ export async function getOccupants(
 ): Promise<ApiResponse<OccupantRecord[]>> {
   const params = new URLSearchParams()
 
+  if (query.view) params.set('view', query.view)
   if (query.size) params.set('size', query.size.toString())
   if (query.search) params.set('search', query.search)
   if (query.status) params.set('status', query.status)
