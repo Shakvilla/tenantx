@@ -25,14 +25,19 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 // Maps each feature key to the minimum plan name required to unlock it.
 // Used to generate accurate "requires X plan" messages without needing
 // to know the tenant's current plan.
+//
+// INSPECTIONS and CAUTION_FEES are deliberately absent: both are available on
+// every plan, including Free. Move-in inspections are part of onboarding and
+// recording a deposit is core tenancy record-keeping, so neither is gated (see
+// backend V160 and FeatureEnforcementRegistry, Mode.UNGATED). They were listed
+// here as 'Basic' while nothing enforced it, which showed landlords an upgrade
+// badge over a feature they already had.
 const FEATURE_REQUIRED_PLAN: Record<string, string> = {
   // Basic features
   COMMUNICATION:            'Basic',
   EXPENSES:                 'Basic',
-  INSPECTIONS:              'Basic',
   VACANCY_LISTINGS:         'Basic',
   ADVANCE_RENT:             'Basic',
-  CAUTION_FEES:             'Basic',
   RENT_REVIEWS:             'Basic',
   LATE_FEES:                'Basic',
   MAINTENANCE_CONTRACTORS:  'Basic',

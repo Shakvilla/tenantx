@@ -11,6 +11,7 @@ import Grid from '@mui/material/Grid2'
 import TaxSettings from './TaxSettings'
 import CurrencySettings from './CurrencySettings'
 import LateFeeSettings from './LateFeeSettings'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 const PaymentSettingsContent = () => {
   return (
@@ -22,7 +23,11 @@ const PaymentSettingsContent = () => {
         <CurrencySettings />
       </Grid>
       <Grid size={{ xs: 12 }}>
-        <LateFeeSettings />
+        {/* Late fees are applied by a nightly job that now checks the plan, so without
+            this gate a Free landlord could configure a switch that silently did nothing. */}
+        <FeatureGate feature='LATE_FEES'>
+          <LateFeeSettings />
+        </FeatureGate>
       </Grid>
     </Grid>
   )
