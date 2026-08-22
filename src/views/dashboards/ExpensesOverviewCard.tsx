@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
+
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -16,7 +16,8 @@ import RowActions from '@components/table/RowActions'
 import CustomAvatar from '@core/components/mui/Avatar'
 
 // API Imports
-import { getExpenses, getExpenseStats, type Expense, type ExpenseStats } from '@/lib/api/expenses'
+// Data: one shared /dashboard/summary fetch — no stats call, no full expense download (audit #2/P2-02).
+import { useDashboardSummary } from '@views/dashboards/DashboardSummaryContext'
 
 const ICON_COLORS: Array<'primary' | 'warning' | 'info' | 'success'> = ['primary', 'warning', 'info', 'success']
 
@@ -30,45 +31,22 @@ const ICONS = [
 ]
 
 const ExpensesOverviewCard = () => {
-  const [stats, setStats] = useState<ExpenseStats | null>(null)
-  const [expenses, setExpenses] = useState<Expense[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    setLoading(true)
-    Promise.all([getExpenseStats(), getExpenses()])
-      .then(([s, exp]) => {
-        setStats(s)
-        setExpenses(exp)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+  const { summary, loading } = useDashboardSummary()
 
   // Group by item name, sum amounts, take top 4
-  const topExpenseTypes = (() => {
-    const map: Record<string, number> = {}
+  // Server-grouped (audit #2): byItem is already summed and sorted descending.
+  const topExpenseTypes = (summary?.expenses?.byItem ?? [])
+    .slice(0, 4)
+    .map(({ item, amount }, i) => ({
+      label: item,
+      amount: amount >= 1000
+        ? `₵${(amount / 1000).toFixed(1)}k`
+        : `₵${amount.toFixed(0)}`,
+      icon: ICONS[i % ICONS.length],
+      iconColor: ICON_COLORS[i % ICON_COLORS.length]
+    }))
 
-    expenses.forEach(exp => {
-      const key = exp.item || 'Other'
-
-      map[key] = (map[key] || 0) + exp.amount
-    })
-
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 4)
-      .map(([label, amount], i) => ({
-        label,
-        amount: amount >= 1000
-          ? `₵${(amount / 1000).toFixed(1)}k`
-          : `₵${amount.toFixed(0)}`,
-        icon: ICONS[i % ICONS.length],
-        iconColor: ICON_COLORS[i % ICON_COLORS.length]
-      }))
-  })()
-
-  const totalAmount = stats?.totalAmount ?? 0
+  const totalAmount = summary?.expenses?.totalAmount ?? 0
   const totalDisplay = totalAmount >= 1000
     ? `₵${(totalAmount / 1000).toFixed(1)}k`
     : `₵${totalAmount.toFixed(0)}`
