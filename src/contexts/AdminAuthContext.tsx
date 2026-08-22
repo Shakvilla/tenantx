@@ -73,7 +73,16 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         needsOtp: false,
         otpChallenge: null
       })
-      router.push('/admin/login')
+
+      // This provider is mounted GLOBALLY (Providers.tsx), and the bootstrap effect below
+      // validates any stored admin token on EVERY page. A stale token therefore fires this
+      // handler on /register or /login too — and unconditionally pushing /admin/login from
+      // there locked users with a dead admin cookie out of the entire tenant auth surface.
+      // Only hijack navigation when the user is actually in the admin area; elsewhere the
+      // silent state reset above is the whole job.
+      if (window.location.pathname.startsWith('/admin')) {
+        router.push('/admin/login')
+      }
     }
     window.addEventListener('ADMIN_SESSION_EXPIRED', handleExpired)
     return () => window.removeEventListener('ADMIN_SESSION_EXPIRED', handleExpired)

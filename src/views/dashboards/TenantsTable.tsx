@@ -60,7 +60,7 @@ const TenantsTable = () => {
     const tenantId = getStoredTenantId()
     if (!tenantId) { setLoading(false); return }
 
-    getOccupants(tenantId, { size: 50 })
+    getOccupants(tenantId, { size: 50, view: 'summary' })
       .then(res => setOccupants(res.data ?? []))
       .catch(() => setOccupants([]))
       .finally(() => setLoading(false))
