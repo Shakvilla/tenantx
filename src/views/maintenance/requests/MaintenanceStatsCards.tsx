@@ -29,7 +29,14 @@ type StatItem = {
   color?: string
 }
 
-const MaintenanceStatsCards = () => {
+type Props = {
+  /** Bump to refetch — the parent increments this whenever the request list changes
+      (create/edit/refresh), so the tiles never show stale zeros next to a fresh list
+      (QA sweep 2026-08-22: tiles stayed at 0 after creating the first request). */
+  refreshKey?: number
+}
+
+const MaintenanceStatsCards = ({ refreshKey = 0 }: Props) => {
   const [stats, setStats] = useState<MaintenanceRequestStats | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -41,7 +48,7 @@ const MaintenanceStatsCards = () => {
       .then(s => setStats(s))
       .catch(() => setStats(null))
       .finally(() => setLoading(false))
-  }, [])
+  }, [refreshKey])
 
   const data: StatItem[] = stats
     ? [

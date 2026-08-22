@@ -123,6 +123,13 @@ export async function globalLogin(
   credentials: LoginPayload
 ): Promise<ApiResponse<GlobalLoginResponse>> {
   try {
+    // A leftover session must not ride along on a fresh login attempt: apiPost's interceptor
+    // attaches whatever auth_token is stored, and a stale tenant bearer on /global/auth/login
+    // makes the backend reject the whole request — surfaced to the user as a raw
+    // "Request failed with status code 401" even with correct credentials
+    // (QA sweep 2026-08-22). Logging in IS the decision to discard any previous session.
+    clearStoredTokens()
+
     const data = await apiPost<GlobalLoginResponse>(
       `${API_BASE}/global/auth/login`,
       credentials

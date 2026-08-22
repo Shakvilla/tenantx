@@ -114,12 +114,19 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
 
   const isEdit = Boolean(editExpense)
 
+  // Explicit, not derived from formData: choosing "Other" CLEARS item, and a value derived
+  // from `formData.item` being non-empty collapsed back to '' the instant "Other" was picked —
+  // so the manual text field could never appear on a fresh expense (QA sweep 2026-08-22).
+  const [manualMode, setManualMode] = useState(false)
+
   // The dropdown value: config id, 'other', or ''
-  const configSelectValue = formData.expenseConfigId
-    ? formData.expenseConfigId
-    : formData.item
-      ? OTHER   // edit mode with a manual item but no config
-      : ''
+  const configSelectValue = manualMode
+    ? OTHER
+    : formData.expenseConfigId
+      ? formData.expenseConfigId
+      : formData.item
+        ? OTHER   // edit mode with a manual item but no config
+        : ''
 
   const showManualItem = configSelectValue === OTHER
 
@@ -148,6 +155,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   useEffect(() => {
     if (open) {
       setFormData(editExpense ? apiToForm(editExpense) : initialData)
+      setManualMode(Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item))
       setErrors({})
       setApiError(null)
     }
@@ -167,10 +175,13 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   const handleConfigChange = (value: string) => {
     if (value === OTHER) {
       // Clear config link, let user type manually
+      setManualMode(true)
       setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
     } else if (value === '') {
+      setManualMode(false)
       setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
     } else {
+      setManualMode(false)
       // Auto-fill item name from selected config
       const config = expenseConfigs.find(c => c.id === value)
       setFormData(prev => ({ ...prev, expenseConfigId: value, item: config?.item ?? '' }))
