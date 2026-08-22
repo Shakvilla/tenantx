@@ -1,7 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-
 // MUI Imports
 import Grid from '@mui/material/Grid2'
 import Skeleton from '@mui/material/Skeleton'
@@ -11,42 +9,23 @@ import CardContent from '@mui/material/CardContent'
 // Component Imports
 import PropertyStatsCard from '@/components/card-statistics/PropertyStatsCard'
 
-// API Imports
-import { getPropertyStats } from '@/lib/api/properties'
-import { getOccupantStats } from '@/lib/api/occupants'
-import { getStoredTenantId } from '@/lib/api/storage'
+// Data: one shared /dashboard/summary fetch instead of two stats calls of its own
+// (2026-08-20 dashboard audit, handoff #2).
+import { useDashboardSummary } from '@views/dashboards/DashboardSummaryContext'
 
-const DashboardStatsCards = ({ onLoaded }: { onLoaded?: () => void }) => {
-  const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({
-    totalProperties: 0,
-    totalOccupants: 0,
-    occupiedUnits: 0,
-    vacantUnits: 0,
-    reservedUnits: 0
-  })
+const DashboardStatsCards = () => {
+  const { summary, loading } = useDashboardSummary()
 
-  useEffect(() => {
-    const tenantId = getStoredTenantId()
-    if (!tenantId) { setLoading(false); onLoaded?.(); return }
+  const stats = {
+    totalProperties: summary?.properties?.totalProperties ?? 0,
+    totalOccupants: summary?.occupants?.total ?? 0,
+    occupiedUnits: summary?.properties?.occupiedUnits ?? 0,
 
-    Promise.all([
-      getPropertyStats(tenantId).catch(() => null),
-      getOccupantStats(tenantId).catch(() => null)
-    ]).then(([propStats, occStats]) => {
-      setStats({
-        totalProperties: propStats?.data?.total ?? 0,
-        totalOccupants: occStats?.total ?? 0,
-        occupiedUnits: propStats?.data?.occupiedUnits ?? 0,
-
-        // Read directly rather than as totalUnits - occupiedUnits: that subtraction
-        // counted units under maintenance and units awaiting move-in as vacant.
-        vacantUnits: propStats?.data?.vacantUnits ?? 0,
-        reservedUnits: propStats?.data?.reservedUnits ?? 0
-      })
-    }).finally(() => { setLoading(false); onLoaded?.() })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    // Read directly rather than as totalUnits - occupiedUnits: that subtraction
+    // counted units under maintenance and units awaiting move-in as vacant.
+    vacantUnits: summary?.properties?.vacantUnits ?? 0,
+    reservedUnits: summary?.properties?.reservedUnits ?? 0
+  }
 
   if (loading) {
     return (

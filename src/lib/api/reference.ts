@@ -16,7 +16,9 @@ const BASE = `${API_BASE}/reference`
 // ---------------------------------------------------------------------------
 
 export async function getAllReferenceData(): Promise<AllReferenceData> {
-  const res = await fetch(`${BASE}/all`, { cache: 'no-store' })
+  // DASHBOARD-P3-07: this is a near-static ~216-row reference table that changes approximately
+  // never — 'no-store' refetched it on every load. Let the browser cache it.
+  const res = await fetch(`${BASE}/all`, { cache: 'force-cache' })
 
   if (!res.ok) throw new Error(`Failed to fetch reference data: ${res.status}`)
 
