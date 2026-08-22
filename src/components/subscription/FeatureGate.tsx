@@ -48,7 +48,8 @@ const FEATURE_REQUIRED_PLAN: Record<string, string> = {
   // Pro features
   RENT_COLLECTION:          'Pro',
   LANDLORD_WALLET:          'Pro',
-  AUTOMATED_RECONCILIATION: 'Pro',
+  // AUTOMATED_RECONCILIATION was retired from the plan matrix by backend V161 — it
+  // was sold as a Pro benefit with nothing landlord-facing behind it.
   FINANCIAL_REPORTS:        'Pro',
   UTILITIES_MANAGEMENT:     'Pro',
   AGENT_MANAGEMENT:         'Pro',
