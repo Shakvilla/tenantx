@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 
 // Next Imports
 import dynamic from 'next/dynamic'
@@ -16,64 +16,24 @@ import Skeleton from '@mui/material/Skeleton'
 import type { ApexOptions } from 'apexcharts'
 
 // API Imports
-import { getInvoices, type Invoice } from '@/lib/api/invoices'
+// Data: one shared /dashboard/summary fetch — no more full invoice download (audit #1/#2).
+import { useDashboardSummary } from '@views/dashboards/DashboardSummaryContext'
 
 // Styled Component Imports
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
 
-/** Get last N months of paid invoice amounts as a sparkline array */
-function getPaidMonthlyTrend(invoices: Invoice[], months = 12): number[] {
-  const map: Record<string, number> = {}
-
-  invoices.forEach(inv => {
-    if (inv.status !== 'PAID') return
-    const d = new Date(inv.issuedDate)
-
-    if (isNaN(d.getTime())) return
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-
-    map[key] = (map[key] || 0) + inv.amount
-  })
-
-  const sorted = Object.entries(map)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-months)
-    .map(([, v]) => v)
-
-  while (sorted.length < months) sorted.unshift(0)
-
-  return sorted
-}
-
 const RentCollectedCard = () => {
   const infoColor = 'var(--mui-palette-info-main)'
 
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [loading, setLoading] = useState(true)
+  const { summary, loading } = useDashboardSummary()
 
-  useEffect(() => {
-    setLoading(true)
-    getInvoices()
-      .then(setInvoices)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+  // Server-computed (audit #1): sum of PAID invoice amounts issued in the current month.
+  const thisMonthPaid = summary?.paidThisMonth ?? 0
 
-  // Paid this month
-  const thisMonthPaid = useMemo(() => {
-    const now = new Date()
-
-    return invoices
-      .filter(inv => {
-        if (inv.status !== 'PAID') return false
-        const d = new Date(inv.issuedDate)
-
-        return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-      })
-      .reduce((sum, inv) => sum + inv.amount, 0)
-  }, [invoices])
-
-  const trend = useMemo(() => getPaidMonthlyTrend(invoices, 12), [invoices])
+  const trend = useMemo(
+    () => (summary?.monthlyTrend ?? []).map(p => p.paidAmount),
+    [summary]
+  )
 
   const displayAmount = thisMonthPaid >= 1000
     ? `₵${(thisMonthPaid / 1000).toFixed(2)}K`

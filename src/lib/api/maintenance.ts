@@ -275,6 +275,8 @@ export interface CreatePartPayload {
 // Query options
 // ---------------------------------------------------------------------------
 export interface RequestQuery {
+  /** 'summary' returns only the fields the dashboard table renders (audit #7). */
+  view?: 'summary'
   cursor?: string
   size?: number
   sort?: string
@@ -348,6 +350,7 @@ export async function deleteMaintainer(id: string): Promise<void> {
 
 export async function getMaintenanceRequests(query: RequestQuery = {}): Promise<PaginatedResponse<MaintenanceRequest[]>> {
   const params = new URLSearchParams()
+  if (query.view) params.set('view', query.view)
   if (query.cursor) params.set('cursor', query.cursor)
   if (query.size) params.set('size', String(query.size))
   if (query.sort) params.set('sort', query.sort)

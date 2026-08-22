@@ -94,7 +94,7 @@ const MaintenanceRequestsTable = () => {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
 
   useEffect(() => {
-    getMaintenanceRequests({ size: 50 })
+    getMaintenanceRequests({ size: 50, view: 'summary' })
       .then(res => setRequests(res.data ?? []))
       .catch(() => setRequests([]))
       .finally(() => setLoading(false))
