@@ -134,8 +134,25 @@ export async function deleteInvoice(id: string): Promise<void> {
   return apiDelete(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
 }
 
-export async function getInvoiceStats(): Promise<InvoiceStats> {
-  return apiGet(`${BASE}/invoices/stats`, { headers: tenantHeader() })
+/**
+ * Invoice totals, optionally narrowed to a period by issued date.
+ *
+ * Omit the range for all-time figures (the Invoices page). Pass the landlord's chosen range for
+ * the Earnings report — without it, those tiles reported all-time numbers beside charts that
+ * were correctly filtered, so January showed the current figures.
+ */
+export async function getInvoiceStats(params?: {
+  startDate?: string
+  endDate?: string
+}): Promise<InvoiceStats> {
+  const qs = new URLSearchParams()
+
+  if (params?.startDate) qs.set('startDate', params.startDate)
+  if (params?.endDate) qs.set('endDate', params.endDate)
+
+  const query = qs.toString()
+
+  return apiGet(`${BASE}/invoices/stats${query ? `?${query}` : ''}`, { headers: tenantHeader() })
 }
 
 /**
