@@ -12,6 +12,7 @@ import Typography from '@mui/material/Typography'
 import CircularProgress from '@mui/material/CircularProgress'
 
 import { createAgreement, type PaymentFrequency } from '@/lib/api/agreements'
+import { cautionFeesApi } from '@/lib/api/cautionFees'
 import type { OnboardingEntityIds } from '../onboardingTypes'
 
 interface Props {
@@ -45,6 +46,11 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // The lease exists but its caution fee could not be written to the ledger. Not an error —
+  // nothing is lost and the tenancy is real — but the landlord must be told, because the money
+  // he is holding is exactly what he will be asked about when the tenant moves out.
+  const [depositWarning, setDepositWarning] = useState<{ agreementId: string; detail: string } | null>(null)
+
   const valid = Boolean(form.startDate && form.endDate && Number(form.rent) > 0)
 
   const handleSubmit = async () => {
@@ -74,6 +80,37 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
         return
       }
 
+      // Record the caution fee as money HELD, not merely as a number on the lease.
+      //
+      // The agreement's securityDeposit column is a term of the tenancy — what was agreed. The
+      // caution_fees ledger is the money itself: what is held, what has been deducted, what must
+      // be refunded or forfeited at move-out. Onboarding used to write only the former, so the
+      // ledger stayed empty and nothing in the product could answer "how much of my tenants'
+      // money am I holding?". The feature was already built; nothing routed into it.
+      const deposit = form.securityDeposit ? Number(form.securityDeposit) : 0
+
+      if (deposit > 0) {
+        try {
+          await cautionFeesApi.create({
+            occupantId: entityIds.occupantId!,
+            unitId: entityIds.unitId,
+            propertyId: entityIds.propertyId,
+            amount: deposit,
+            currency: 'GHS',
+            collectedAt: form.startDate
+          })
+        } catch (e: any) {
+          // Deliberately NOT swallowed. The lease is good and must not be thrown away, but a
+          // caution fee that silently failed to record is money that goes missing at move-out.
+          setDepositWarning({
+            agreementId: agreement.id,
+            detail: e?.response?.data?.message ?? e?.message ?? 'The caution fee could not be recorded.'
+          })
+
+          return
+        }
+      }
+
       onComplete({ agreementId: agreement.id })
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e?.message ?? 'Could not create the lease. Please try again.')
@@ -87,6 +124,20 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
       {error && (
         <Alert severity='error' sx={{ mb: 3 }}>
           {error}
+        </Alert>
+      )}
+      {depositWarning && (
+        <Alert
+          severity='warning'
+          sx={{ mb: 3 }}
+          action={
+            <Button size='small' onClick={() => onComplete({ agreementId: depositWarning.agreementId })}>
+              Continue anyway
+            </Button>
+          }
+        >
+          The tenancy was created, but the caution fee was not recorded: {depositWarning.detail} You can
+          record it later from the tenant&apos;s Home Details tab. Nothing else is affected.
         </Alert>
       )}
       <Typography variant='body2' color='text.secondary' sx={{ mb: 4 }}>
@@ -107,7 +158,8 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
           <TextField
             fullWidth
             type='number'
-            label='Security deposit (GHS)'
+            label='Caution fee (GHS)'
+            helperText='Held on the tenant&apos;s behalf and refundable, less any damage'
             value={form.securityDeposit}
             onChange={e => setForm({ ...form, securityDeposit: e.target.value })}
           />
