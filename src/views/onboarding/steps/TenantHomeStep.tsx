@@ -56,8 +56,18 @@ function validatePersonFields(f: {
   if (!f.lastName.trim()) e.lastName = 'Last name is required.'
   else if (/\d/.test(f.lastName)) e.lastName = 'Name cannot contain numbers.'
 
-  if (!f.email.trim()) e.email = 'Email is required.'
-  else if (!EMAIL_REGEX.test(f.email.trim())) e.email = 'Enter a valid email address.'
+  // Email is OPTIONAL, deliberately. Most Ghanaian tenants do not have one — a trader at
+  // Adenta market has a phone and nothing else — and demanding it forces the landlord to
+  // invent an address. An invented address is worse than a blank one: it is what the system
+  // will use to "send" her invoices and receipts, and if it happens to belong to a real
+  // stranger it puts a tenant's rent details on their doorstep.
+  //
+  // The backend never wanted it either — CreateOccupantRequest carries @Email (format) with
+  // no @NotBlank. This requirement was invented here. The guarantor and maintainer forms in
+  // this same product get it right: phone required, email optional.
+  //
+  // A value that IS typed must still be a valid address.
+  if (f.email.trim() && !EMAIL_REGEX.test(f.email.trim())) e.email = 'Enter a valid email address.'
 
   if (!f.phone.trim()) e.phone = 'Phone number is required.'
   else if (!PHONE_REGEX.test(f.phone.replace(/\s/g, ''))) e.phone = 'Enter a valid Ghana phone number, e.g. 0244123456.'
@@ -129,7 +139,8 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
   const blocked = noProperties || noUnitsForProperty
 
   const valid = Boolean(
-    form.propertyId && form.unitId && form.firstName && form.lastName && form.email && form.phone && form.moveInDate
+    // No form.email here — the phone is the identity that matters (see validatePersonFields).
+    form.propertyId && form.unitId && form.firstName && form.lastName && form.phone && form.moveInDate
   )
 
   // A hard duplicate — same email as an existing occupant.
@@ -277,7 +288,9 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
       const record = await createOccupant(tenantId, {
         firstName: form.firstName,
         lastName: form.lastName,
-        email: form.email,
+        // Send absent rather than '' when the tenant has no email, so the record carries no
+        // address at all instead of an empty one that later reads as "we have it, it's blank".
+        email: form.email.trim() || undefined,
         phone: form.phone,
         status: 'active',
         propertyId: form.propertyId,
@@ -432,9 +445,8 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
-            required
             type='email'
-            label='Email'
+            label='Email (optional)'
             disabled={personFieldsDisabled}
             error={Boolean(fieldErrors.email)}
             helperText={fieldErrors.email || (checking ? 'Checking…' : ' ')}
