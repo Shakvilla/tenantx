@@ -13,6 +13,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 
 import { createAgreement, type PaymentFrequency } from '@/lib/api/agreements'
 import { cautionFeesApi } from '@/lib/api/cautionFees'
+import { advanceRentsApi } from '@/lib/api/advanceRents'
 import type { OnboardingEntityIds } from '../onboardingTypes'
 
 interface Props {
@@ -39,6 +40,13 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
     securityDeposit: '',
     lateFee: '',
     paymentFrequency: 'MONTHLY' as PaymentFrequency,
+    // Months of rent handed over up front. Distinct from paymentFrequency, which is how often
+    // rent falls due — a tenant on MONTHLY rent can still pay two years of it today, and in
+    // Ghana that is the norm rather than the exception. The form previously had room for only
+    // one of these two facts, so landlords recorded the advance as a large one-off invoice and
+    // nothing downstream knew the months were already paid.
+    advanceMonths: '',
+    advancePaymentMethod: 'CASH',
     startDate: start,
     endDate: addMonths(start, 12)
   })
@@ -51,7 +59,22 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
   // he is holding is exactly what he will be asked about when the tenant moves out.
   const [depositWarning, setDepositWarning] = useState<{ agreementId: string; detail: string } | null>(null)
 
-  const valid = Boolean(form.startDate && form.endDate && Number(form.rent) > 0)
+  // The advance cannot cover months the lease does not. The backend enforces this too, but only
+  // once an agreement is ACTIVE — during onboarding it is not yet, so the guard is skipped there
+  // and the landlord would otherwise learn of the problem much later.
+  const leaseMonths =
+    form.startDate && form.endDate
+      ? Math.max(
+          0,
+          Math.round(
+            (new Date(form.endDate).getTime() - new Date(form.startDate).getTime()) / (1000 * 60 * 60 * 24 * 30.44)
+          )
+        )
+      : 0
+
+  const advanceTooLong = Number(form.advanceMonths || 0) > leaseMonths && leaseMonths > 0
+
+  const valid = Boolean(form.startDate && form.endDate && Number(form.rent) > 0) && !advanceTooLong
 
   const handleSubmit = async () => {
     setError(null)
@@ -87,6 +110,36 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
       // be refunded or forfeited at move-out. Onboarding used to write only the former, so the
       // ledger stayed empty and nothing in the product could answer "how much of my tenants'
       // money am I holding?". The feature was already built; nothing routed into it.
+      // Record the advance through the feature that exists, rather than leaving the landlord to
+      // fake it as an invoice. create() is the offline path: the money is already in hand, so it
+      // writes the advance, generates one PAID invoice per month covered, and credits the wallet.
+      // (initiatePayment() is the other path — it raises a MoMo prompt, which is wrong for cash
+      // a tenant has already handed over.)
+      const advanceMonths = form.advanceMonths ? Number(form.advanceMonths) : 0
+
+      if (advanceMonths > 0) {
+        try {
+          await advanceRentsApi.create({
+            occupantId: entityIds.occupantId!,
+            unitId: entityIds.unitId,
+            propertyId: entityIds.propertyId,
+            monthlyRent: Number(form.rent),
+            monthsCovered: advanceMonths,
+            periodStart: form.startDate,
+            currency: 'GHS',
+            paymentMethod: form.advancePaymentMethod as any
+          })
+        } catch (e: any) {
+          setError(
+            'The tenancy was created, but the advance rent could not be recorded: ' +
+              (e?.response?.data?.message ?? e?.message ?? 'unknown error') +
+              ' You can record it from the tenant\'s Home Details tab.'
+          )
+
+          return
+        }
+      }
+
       const deposit = form.securityDeposit ? Number(form.securityDeposit) : 0
 
       if (deposit > 0) {
@@ -164,6 +217,41 @@ export default function LeaseTermsStep({ entityIds, defaultRent, defaultStartDat
             onChange={e => setForm({ ...form, securityDeposit: e.target.value })}
           />
         </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <TextField
+            fullWidth
+            type='number'
+            label='Months paid in advance'
+            value={form.advanceMonths}
+            onChange={e => setForm({ ...form, advanceMonths: e.target.value })}
+            error={advanceTooLong}
+            helperText={
+              advanceTooLong
+                ? `That is longer than the lease (${leaseMonths} months). Extend the end date or reduce the months.`
+                : form.advanceMonths && Number(form.rent) > 0
+                  ? `${form.advanceMonths} × GHS ${Number(form.rent).toLocaleString()} = GHS ${(
+                      Number(form.advanceMonths) * Number(form.rent)
+                    ).toLocaleString()} received up front`
+                  : 'Leave blank if rent is paid month by month'
+            }
+          />
+        </Grid>
+        {Number(form.advanceMonths || 0) > 0 && (
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              select
+              label='How was the advance paid?'
+              value={form.advancePaymentMethod}
+              onChange={e => setForm({ ...form, advancePaymentMethod: e.target.value })}
+            >
+              <MenuItem value='CASH'>Cash</MenuItem>
+              <MenuItem value='MOBILE_MONEY'>Mobile Money</MenuItem>
+              <MenuItem value='BANK_TRANSFER'>Bank transfer</MenuItem>
+              <MenuItem value='CHEQUE'>Cheque</MenuItem>
+            </TextField>
+          </Grid>
+        )}
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             fullWidth
