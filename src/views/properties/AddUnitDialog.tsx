@@ -138,7 +138,11 @@ type FormDataType = {
 const initialData: FormDataType = {
   unitNumber: '',
   propertyId: '',
-  status: '',
+  // A room being added has nobody in it. Leaving this blank made Status a required
+  // field the landlord had to set by hand on every unit, and rejected an otherwise
+  // complete form with "This field is required" on the one answer that was never in
+  // doubt.
+  status: 'available',
   rent: '',
   currency: 'GHS',
   rentPeriod: 'monthly',
@@ -161,6 +165,14 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
   const { ref } = useReferenceData()
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+
+  // Adding a compound one room at a time. This dialog is the one reached from
+  // "All Unit", so unlike the property-page version it also asks which property —
+  // and re-picking the same property from the same dropdown for every room was the
+  // single most-repeated action in the count. Twelve interactions per room, eight
+  // rooms, and nothing remembered in between.
+  const [addAnother, setAddAnother] = useState(false)
+  const [justAdded, setJustAdded] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
 
@@ -210,6 +222,8 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
       setFormData(getInitialFormData())
       setErrors({})
       setApiError(null)
+      setJustAdded(null)
+      setAddAnother(false)
       setActiveTab(0)
       setExistingImages(editData?.images || [])
       setExistingImageFileIds(editData?.imageFileIds || [])
@@ -370,8 +384,21 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
         if (!response.success) throw new Error(response.error?.message || 'Failed to update unit')
       }
 
-      handleClose()
       onSuccess?.()
+
+      if (addAnother && mode === 'add') {
+        // Everything the next room in the same compound shares — property, type, rent,
+        // size, status — stays. Only the number and the photos are per-room.
+        setFormData(prev => ({ ...prev, unitNumber: '', newImages: [] }))
+        setJustAdded(payload.unitNo)
+        setErrors({})
+        setActiveTab(0)
+        setLoading(false)
+
+        return
+      }
+
+      handleClose()
       setFormData(initialData)
       setErrors({})
     } catch (err) {
@@ -398,6 +425,13 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
           <i className='ri-close-line' />
         </IconButton>
       </DialogTitle>
+      {justAdded && (
+        /* The dialog staying open is the whole point, so it has to say what just
+           happened — otherwise pressing Add Unit looks like it did nothing. */
+        <Alert severity='success' sx={{ mx: 6, mt: 2 }} onClose={() => setJustAdded(null)}>
+          {justAdded} added. The property and the details are kept — change the unit number for the next one.
+        </Alert>
+      )}
       <DialogContent sx={{ p: 0 }}>
         {apiError && (
           <Alert severity='error' sx={{ mx: 3, mt: 2 }} onClose={() => setApiError(null)}>
@@ -760,6 +794,15 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
         </Box>
       </DialogContent>
       <DialogActions className='gap-2 pbs-4'>
+        {mode === 'add' && (
+          <FormControlLabel
+            sx={{ mr: 'auto' }}
+            control={
+              <Checkbox size='small' checked={addAnother} onChange={e => setAddAnother(e.target.checked)} />
+            }
+            label={<Typography variant='body2'>Add another room</Typography>}
+          />
+        )}
         <Button variant='outlined' color='secondary' onClick={handleReset} disabled={loading}>
           Cancel
         </Button>
