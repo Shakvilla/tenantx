@@ -16,6 +16,8 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+
+import Link from 'next/link'
 import Autocomplete from '@mui/material/Autocomplete'
 import InputAdornment from '@mui/material/InputAdornment'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -606,6 +608,14 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
                       <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
                     ))}
                   </Select>
+                  {!loadingInit && categories.length === 0 && (
+                    /* An empty list with no explanation reads as broken rather than unconfigured. */
+                    <Typography variant='caption' color='text.secondary' className='mts-1 mli-3'>
+                      No categories yet — you can log this without one, or set your list up on the{' '}
+                      <Link href='/maintenance/categories' className='text-primary'>Maintenance Categories</Link>{' '}
+                      page.
+                    </Typography>
+                  )}
                 </FormControl>
               </Grid>
             )}
