@@ -48,6 +48,7 @@ import {
   type SubscriptionInvoiceDto,
   type ManualPaymentDetails,
 } from '@/lib/api/subscription-client'
+import { calculateMonthlyCharge, describeMonthlyCharge } from '@/lib/subscription/pricing'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -78,7 +79,7 @@ function statusChipColor(status: string): 'success' | 'warning' | 'error' | 'def
 // Current plan card
 // ---------------------------------------------------------------------------
 
-function CurrentPlanCard() {
+function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
   const { subscription, isLoading, refresh } = useSubscription()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -132,10 +133,20 @@ function CurrentPlanCard() {
                 />
               </Box>
               {!isFree && pricePerUnit > 0 && (
-                <Typography variant='body2' color='text.secondary'>
-                  {formatGHS(pricePerUnit)} / unit / month
-                  {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
-                </Typography>
+                <>
+                  <Typography variant='body2' color='text.secondary'>
+                    {formatGHS(pricePerUnit)} / unit / month
+                    {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
+                  </Typography>
+                  {/*
+                    The rate alone is not the bill. The first units are free, so a
+                    landlord multiplying rate by unit count gets a number the invoice
+                    will contradict. Show the subtraction he can check.
+                  */}
+                  <Typography variant='body2' fontWeight={600} sx={{ mt: 0.5 }}>
+                    {describeMonthlyCharge(calculateMonthlyCharge(unitCount, pricePerUnit, freeUnitCap), formatGHS)}
+                  </Typography>
+                </>
               )}
               {transactionFeePct != null && (
                 <Typography variant='caption' color='text.secondary'>
@@ -655,6 +666,7 @@ function PlanCard({
   unitCount,
   onUpgrade,
   onDowngrade,
+  freeUnitCap,
 }: {
   plan: SubscriptionPlanPublicDto
   currentPlanName: string
@@ -662,6 +674,8 @@ function PlanCard({
   unitCount: number
   onUpgrade: (p: SubscriptionPlanPublicDto) => void
   onDowngrade: (p: SubscriptionPlanPublicDto) => void
+  /** The FREE plan's allowance, which is what billing subtracts on every plan. */
+  freeUnitCap: number | null
 }) {
   const isCurrent = plan.name === currentPlanName
   const isHigher  = PLAN_ORDER[plan.name] > PLAN_ORDER[currentPlanName]
@@ -714,6 +728,13 @@ function PlanCard({
           )}
           {plan.freeUnitCap && (
             <Typography variant='caption' color='text.secondary'>Up to {plan.freeUnitCap} units</Typography>
+          )}
+          {plan.pricePerUnit > 0 && unitCount > 0 && (
+            /* What this landlord, with the units he actually has, would pay here. */
+            <Typography variant='body2' fontWeight={600} color='text.primary' sx={{ mt: 0.5 }}>
+              You would pay {formatGHS(calculateMonthlyCharge(unitCount, plan.pricePerUnit, freeUnitCap).monthlyTotal)} a month
+              {freeUnitCap ? ' — ' + Math.min(unitCount, freeUnitCap) + ' of your ' + unitCount + ' units are free' : ' for ' + unitCount + ' units'}
+            </Typography>
           )}
           {plan.transactionFeePct != null && (
             <Typography variant='caption' color='text.secondary'>
@@ -988,7 +1009,7 @@ export default function SubscriptionPlansListTable() {
 
   return (
     <Box>
-      <CurrentPlanCard />
+      <CurrentPlanCard freeUnitCap={plans.find(p => p.name === 'FREE')?.freeUnitCap ?? null} />
 
       <Typography variant='h6' fontWeight={700} sx={{ mb: 2 }}>Choose a plan</Typography>
 
@@ -1013,6 +1034,7 @@ export default function SubscriptionPlansListTable() {
               unitCount={subscription?.unitCount ?? 0}
               onUpgrade={setUpgradeTarget}
               onDowngrade={handleDowngrade}
+              freeUnitCap={plans.find(p => p.name === 'FREE')?.freeUnitCap ?? null}
             />
           </Grid>
         ))}
