@@ -10,6 +10,34 @@ export const getDateRangeFromPreset = (preset: DateRangePreset): DateRange => {
   const startDate = new Date()
 
   switch (preset) {
+    // Calendar months — a whole month, first to last day, not a rolling window ending today.
+    // "How did August go" is a different question from "the last 30 days", and only one of them
+    // can be compared with the August before it.
+    case 'thismonth': {
+      const first = new Date(today.getFullYear(), today.getMonth(), 1)
+
+      first.setHours(0, 0, 0, 0)
+
+      return { startDate: first, endDate: today, preset }
+    }
+    case 'lastmonth': {
+      const first = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+      const last = new Date(today.getFullYear(), today.getMonth(), 0)
+
+      first.setHours(0, 0, 0, 0)
+      last.setHours(23, 59, 59, 999)
+
+      return { startDate: first, endDate: last, preset }
+    }
+    case 'samemonthlastyear': {
+      const first = new Date(today.getFullYear() - 1, today.getMonth(), 1)
+      const last = new Date(today.getFullYear() - 1, today.getMonth() + 1, 0)
+
+      first.setHours(0, 0, 0, 0)
+      last.setHours(23, 59, 59, 999)
+
+      return { startDate: first, endDate: last, preset }
+    }
     case 'last7days':
       startDate.setDate(today.getDate() - 7)
       break
@@ -91,6 +119,9 @@ export const toApiDateParams = (
 
 export const getPresetLabel = (preset: DateRangePreset): string => {
   const labels: Record<DateRangePreset, string> = {
+    thismonth: 'This month',
+    lastmonth: 'Last month',
+    samemonthlastyear: 'Same month last year',
     last7days: 'Last 7 days',
     last30days: 'Last 30 days',
     last3months: 'Last 3 months',

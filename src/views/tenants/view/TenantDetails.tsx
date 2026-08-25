@@ -73,7 +73,9 @@ const TenantDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tena
     profile: <ProfileInformationTab tenantData={tenantData} />,
     home: <HomeDetailsTab tenantData={tenantData} />,
     payment: <PaymentHistoryTab occupantId={tenantId} />,
-    documentation: <DocumentationTab />
+    // occupantId was never passed, so this tab short-circuited to its empty state for every
+    // tenant — it could not have shown their documents even before there was a way to add one.
+    documentation: <DocumentationTab occupantId={tenantId} occupantName={tenantData?.name} />
   }
 
   return (

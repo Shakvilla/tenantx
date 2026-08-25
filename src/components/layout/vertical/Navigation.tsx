@@ -148,15 +148,21 @@ const Navigation = (props: Props) => {
         <Link href='/'>
           <Logo />
         </Link>
-        {!(isCollapsed && !isHovered) && (
-          <NavCollapseIcons
-            lockedIcon={MenuToggleSvg}
-            unlockedIcon={MenuToggleSvg}
-            closeIcon={<i className='ri-close-line text-xl' />}
-            className='text-textSecondary'
-            onClick={() => updateSettings({ layout: !isCollapsed ? 'collapsed' : 'vertical' })}
-          />
-        )}
+        {/*
+          Always rendered. This used to be hidden whenever the menu was collapsed and not
+          hovered — which is to say, hidden exactly when a landlord needed it. Having pressed the
+          arrow once, there was no visible way back: hovering, clicking, reloading and resizing
+          all failed on the page he was on, and the icon only reappeared by hovering the icon
+          strip on a different page. On a phone, where nothing hovers at all, that is a one-way
+          door out of the navigation.
+        */}
+        <NavCollapseIcons
+          lockedIcon={MenuToggleSvg}
+          unlockedIcon={MenuToggleSvg}
+          closeIcon={<i className='ri-close-line text-xl' />}
+          className='text-textSecondary'
+          onClick={() => updateSettings({ layout: !isCollapsed ? 'collapsed' : 'vertical' })}
+        />
       </NavHeader>
       <StyledBoxForShadow ref={shadowRef} />
       <VerticalMenu scrollMenu={scrollMenu} />

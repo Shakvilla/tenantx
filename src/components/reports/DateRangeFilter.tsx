@@ -106,7 +106,21 @@ const DateRangeFilter = ({ dateRange, onDateRangeChange }: Props) => {
     }
   }
 
-  const presets: DateRangePreset[] = ['last7days', 'last30days', 'last3months', 'last6months', 'lastyear', 'alltime', 'custom']
+  // Calendar months lead: a landlord asks "how did August go" and "August against last August",
+  // and the rolling windows below cannot express either — every month had to be assembled by
+  // hand through Custom range.
+  const presets: DateRangePreset[] = [
+    'thismonth',
+    'lastmonth',
+    'samemonthlastyear',
+    'last7days',
+    'last30days',
+    'last3months',
+    'last6months',
+    'lastyear',
+    'alltime',
+    'custom'
+  ]
 
   return (
     <Box className='flex flex-col gap-4'>
