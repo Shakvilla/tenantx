@@ -235,6 +235,7 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
   const [invoiceId, setInvoiceId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [manualDetails, setManualDetails] = useState<ManualPaymentDetails | null>(null)
+  const [manualDetailsFailed, setManualDetailsFailed] = useState(false)
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
 
   // Reset on close
@@ -261,12 +262,31 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
     return () => { cancelled = true }
   }, [open])
 
-  // Lazily fetch bank details the first time MANUAL is selected
+  // Fetched when the dialog OPENS, not lazily when MANUAL is first selected. Availability has
+  // to be known before the landlord chooses, or the choice is offered and then withdrawn.
   useEffect(() => {
-    if (paymentMethod === 'MANUAL' && !manualDetails) {
-      getManualPaymentDetails().then(setManualDetails).catch(() => {})
-    }
-  }, [paymentMethod, manualDetails])
+    if (!open) return
+
+    setManualDetailsFailed(false)
+    getManualPaymentDetails()
+      .then(setManualDetails)
+      .catch(() => setManualDetailsFailed(true))
+  }, [open])
+
+  // Bank transfer is only real when the platform has switched it on AND published somewhere to
+  // send the money. The endpoint reports both — `enabled: 'false'` with empty fields — and the
+  // page used to ignore it: the option was offered, and choosing it produced
+  // "Transfer GH₵135.00 using the details below" above an empty box. A landlord who dodged the
+  // MoMo error landed on instructions to pay nobody.
+  const manualAvailable =
+    manualDetails?.enabled === 'true' &&
+    Boolean(manualDetails?.bank_name && manualDetails?.account_number)
+
+  // If the landlord is sitting on a method that turns out to be unavailable, move them off it
+  // rather than letting them press a button that cannot work.
+  useEffect(() => {
+    if (paymentMethod === 'MANUAL' && manualDetails && !manualAvailable) setPaymentMethod('MOMO')
+  }, [paymentMethod, manualDetails, manualAvailable])
 
   // Poll for confirmation — applies to MOMO (webhook) and MANUAL (admin confirms) alike.
   // CARD redirects to Paystack checkout instead, so it never reaches this polling state.
@@ -349,10 +369,19 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
               <>
                 <i className='ri-bank-line' style={{ fontSize: '2.5rem', color: 'var(--mui-palette-primary-main)' }} />
                 <Typography variant='body1' fontWeight={600} sx={{ mt: 1 }}>Awaiting your bank transfer</Typography>
-                <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
-                  Transfer <strong>{formatGHS(dueToday)}</strong> using the details below, then wait for an
-                  admin to confirm the payment. This page updates automatically once confirmed.
-                </Typography>
+                {/* Only ever shown WITH the details. The instruction used to render
+                    unconditionally while the card below was guarded on data that was not there. */}
+                {manualAvailable ? (
+                  <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
+                    Transfer <strong>{formatGHS(dueToday)}</strong> using the details below, then wait for an
+                    admin to confirm the payment. This page updates automatically once confirmed.
+                  </Typography>
+                ) : (
+                  <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
+                    Bank transfer is not available yet — no account has been published to pay into.
+                    Please use Mobile Money, or contact support.
+                  </Typography>
+                )}
                 {manualDetails && (
                   <Card variant='outlined' sx={{ textAlign: 'left', maxWidth: 360, mx: 'auto' }}>
                     <CardContent sx={{ py: '12px !important' }}>
@@ -533,7 +562,7 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                   <i className='ri-bank-card-line' />
                   Card
                 </ToggleButton>
-                <ToggleButton value='MANUAL' sx={{ flex: 1, gap: 0.75 }}>
+                <ToggleButton value='MANUAL' disabled={!manualAvailable} sx={{ flex: 1, gap: 0.75 }}>
                   <i className='ri-bank-line' />
                   Bank Transfer
                 </ToggleButton>
@@ -546,6 +575,16 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                   Wallet
                 </ToggleButton>
               </ToggleButtonGroup>
+              {!manualAvailable && manualDetails && (
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.75 }}>
+                  Bank transfer is not available yet — no account has been published to pay into.
+                </Typography>
+              )}
+              {manualDetailsFailed && (
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.75 }}>
+                  Could not check whether bank transfer is available.
+                </Typography>
+              )}
               {walletBalance !== null && (
                 <Typography
                   variant='caption'
