@@ -481,7 +481,15 @@ return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} cl
 
       <AddMaintenanceRequestDialog open={addOpen} handleClose={() => setAddOpen(false)} onSuccess={refresh} mode='add' />
       <AddMaintenanceRequestDialog open={editOpen} handleClose={() => { setEditOpen(false); setRequestToEdit(null) }} onSuccess={refresh} editData={requestToEdit as any} mode='edit' />
-      <ViewMaintenanceRequestDialog open={viewOpen} setOpen={setViewOpen} request={requestToView as any} onEdit={() => { setViewOpen(false); setRequestToEdit(requestToView); setEditOpen(true) }} />
+      <ViewMaintenanceRequestDialog
+        open={viewOpen}
+        setOpen={setViewOpen}
+        request={requestToView as any}
+        onEdit={() => { setViewOpen(false); setRequestToEdit(requestToView); setEditOpen(true) }}
+        // Recording labour changes the request's total, so the row behind the dialog is stale
+        // the moment it is saved. Refetch rather than leave the old figure on screen.
+        onChanged={updated => { setRequestToView(updated as any); void fetchRequests(null) }}
+      />
       <ConfirmationDialog open={deleteOpen} setOpen={setDeleteOpen} type='delete-maintenance-request' onConfirm={handleDeleteConfirm} />
     </>
   )
