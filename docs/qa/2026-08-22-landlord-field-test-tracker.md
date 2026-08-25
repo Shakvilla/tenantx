@@ -194,3 +194,35 @@ B2. None of it requires building a new capability.
   the ₵14,400 advance, the ₵400 cash part-payment, the closed maintenance job.
 - Backend image predates migrations V159–V161. Anything touching those is re-checked
   against source rather than against this deployment.
+
+---
+
+## Re-test findings — 2026-08-25
+
+New findings from the return visit (`2026-08-25-landlord-field-retest.md`). Same rule as
+above: nothing is closed on the reporter's word, and nothing is closed on mine either — each
+row says how it was checked.
+
+| # | Reported | Verified | Status | Fix |
+|---|----------|----------|--------|-----|
+| N1 | Compound House is offered and will not save; 500 with an opaque reference, on create and on edit | **CONFIRMED, root cause found.** Reproduced with a PUT: `ck_property_type` allows five values, `PropertyTypeEnum` offers six. `compound_house` was added to the enum without a migration, so the one option a Ghanaian landlord looks for by name was the only one the database refused. | `FIXED` | `32adffe` — V163 aligns the constraint with the enum; `requireKnownPropertyType` turns future drift into a 400 that names the value. Test reads the migration, not a copy of the list |
+| N2 | "Actual Cost: GHS 180 — Labour plus parts" on ₵180 labour + ₵120 parts | **CONFIRMED as a display bug only.** The database held `actual_cost = 300.00` the whole time. Adding a part never told the dialog, and the list behind it held the same stale row, so reopening did not help. | `FIXED` | `8aa9963` — add/delete part now refetches the request |
+| N3 | "Other (type manually)" gives nowhere to type — third sighting | **CONFIRMED.** The flag was derived from the form ("no config id but an item name"); choosing Other clears both, so it fell straight back to "nothing selected". Unusable on any account with no configured expense items, i.e. every new one. | `FIXED` | `8aa9963` — held as state. Browser-verified: the name field appears, typing sticks, the dropdown holds "Other" |
+| N4 | Mobile: the hamburger will not open; no route off the dashboard | **DOES NOT REPRODUCE.** At 375×812 the menu opens and renders the full nav (screenshot on file). One real defect nearby: on a dev build the drawer took over a second to travel while the backdrop appeared at once — long enough to read as "nothing happened" and invite a second tap, which closes it. | `NOT REPRODUCED` | none — see recommendation below |
+| N5 | Maintenance ACTION column off the right edge at 1440px, table will not scroll | **DOES NOT REPRODUCE.** Table is 1305px wide inside a 1440px viewport, right edge at 1408px, and its container is `overflow-x: auto`. | `NOT REPRODUCED` | none |
+| N6 | Ten minutes of swallowed clicks, replayed later against a moved menu; whole app deaf; half-size render top-left | **HARNESS, on the reporter's own evidence.** He notes that resizing to the *same* size did nothing and only genuinely changing it brought the app back — no browser behaves that way. Same artefact as B16. The occupants rows and their action menus work when driven directly. | `REJECTED` | none — but see below |
+| N7 | Record Advance capped at 12 months while the system holds a 24-month advance | not yet verified | `UNVERIFIED` | |
+| N8 | Expense cannot be linked to the maintenance request it came from | not yet verified — V161 added `expenses.maintenance_request_id`, so this may be a UI gap over an existing column | `UNVERIFIED` | |
+| N9 | Receipt still fails ("Failed to open receipt") — third sighting | not yet verified | `UNVERIFIED` | |
+| N10 | Units list prints `Self_contained` with the underscore | not yet verified | `UNVERIFIED` | |
+
+### The harness problem is now the biggest threat to this method
+
+Three of the ten rows above are the browser pane, not the product, and they are indis-
+tinguishable from the product **from the reporter's chair** — which is exactly why he cannot
+be asked to filter them out. Between them they cost him ten minutes of a run, one Critical on
+the first visit, and the Chapter 3 he had to abandon.
+
+Every future pass should be driven through a real browser rather than the preview pane. Until
+then, any finding of the shape "the click did nothing" has to be re-checked by someone with
+tools before it is treated as a defect — which is the opposite of what a field test is for.
