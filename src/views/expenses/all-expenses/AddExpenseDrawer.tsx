@@ -116,14 +116,30 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
 
   const isEdit = Boolean(editExpense)
 
+  /**
+   * Whether "Other (type manually)" is chosen.
+   *
+   * This used to be DERIVED from the form: other-is-selected meant "no config id but an item
+   * name". Choosing Other clears both — that is what choosing it means — so the derived value
+   * immediately fell back to "nothing selected", the manual name field never rendered, and the
+   * dropdown snapped back to "Select an item". A landlord with no expense items configured, which
+   * is every new landlord, could not record an expense at all. Reported on three separate visits.
+   *
+   * Held as state instead, seeded for edit mode where an expense really can have a typed name and
+   * no config behind it.
+   */
+  const [manualItem, setManualItem] = useState(
+    Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item)
+  )
+
   // The dropdown value: config id, 'other', or ''
   const configSelectValue = formData.expenseConfigId
     ? formData.expenseConfigId
-    : formData.item
-      ? OTHER   // edit mode with a manual item but no config
+    : manualItem
+      ? OTHER
       : ''
 
-  const showManualItem = configSelectValue === OTHER
+  const showManualItem = manualItem
 
   // Load reference data when drawer opens
   useEffect(() => {
@@ -150,6 +166,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   useEffect(() => {
     if (open) {
       setFormData(editExpense ? apiToForm(editExpense) : initialData)
+      setManualItem(Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item))
       setErrors({})
       setApiError(null)
     }
@@ -167,6 +184,8 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   }, [formData.propertyId])
 
   const handleConfigChange = (value: string) => {
+    setManualItem(value === OTHER)
+
     if (value === OTHER) {
       // Clear config link, let user type manually
       setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
@@ -240,6 +259,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   const handleReset = () => {
     handleClose()
     setFormData(initialData)
+    setManualItem(false)
     setErrors({})
     setApiError(null)
   }

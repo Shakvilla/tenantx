@@ -38,6 +38,7 @@ import {
   getComments, addComment, deleteComment,
   getParts, addPart, deletePart,
   updateMaintenanceRequest,
+  getMaintenanceRequestById,
   getMaintenanceCategories,
   getMaintainers,
   assignMaintainerToRequest,
@@ -303,6 +304,27 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
     }
   }, [])
 
+  /**
+   * Pull the request back from the server after a part changes.
+   *
+   * actualCost is derived server-side as labour + parts, so adding a part changes a figure
+   * this dialog is displaying and the client has no business recomputing. Without this the
+   * Details tab kept the request object it was opened with: a repair of GHS 180 labour plus
+   * GHS 120 parts read "Actual Cost: GHS 180" under a label saying "Labour plus parts", and
+   * closing and reopening the dialog did not help, because the list behind it was holding the
+   * same stale row. The database had 300.00 the whole time.
+   */
+  const refreshRequestTotals = useCallback(async () => {
+    if (!request) return
+
+    try {
+      onChanged?.(await getMaintenanceRequestById(request.id))
+    } catch {
+      // A failed refresh must not lose the part that was just saved — the parts table is
+      // already correct and the total catches up on the next open.
+    }
+  }, [request, onChanged])
+
   const handleAddPart = useCallback(async () => {
     if (!request || !newPart.partName.trim() || !newPart.quantity || !newPart.unitCost) return
     setAddingPart(true)
@@ -317,21 +339,23 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
       setParts(prev => [...prev, created])
       setNewPart({ partName: '', quantity: '', unitCost: '', notes: '' })
       setShowAddPart(false)
+      await refreshRequestTotals()
     } catch (err: any) {
       setPartsError(err?.message ?? 'Failed to add part')
     } finally {
       setAddingPart(false)
     }
-  }, [request, newPart])
+  }, [request, newPart, refreshRequestTotals])
 
   const handleDeletePart = useCallback(async (partId: string) => {
     try {
       await deletePart(partId)
       setParts(prev => prev.filter(p => p.id !== partId))
+      await refreshRequestTotals()
     } catch (err: any) {
       setPartsError(err?.message ?? 'Failed to delete part')
     }
-  }, [])
+  }, [refreshRequestTotals])
 
   const handleAssign = useCallback(async () => {
     if (!request || !selectedMaintainerId) return
