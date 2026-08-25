@@ -14,6 +14,8 @@
  */
 
 import { apiClient, API_BASE } from './client'
+import { openBlobDocument } from '@/utils/openBlobDocument'
+import { emitBillingChanged } from './events'
 import type {
   InitiateMoMoRequest,
   RecordManualRequest,
@@ -31,12 +33,20 @@ export const paymentsApi = {
   /** Initiate a Mobile Money payment via Redde (or configured default gateway) */
   initiateMoMo: async (req: InitiateMoMoRequest): Promise<PaymentResponse> => {
     const res = await apiClient.post<PaymentResponse>(`${PAYMENTS_BASE}/initiate-momo`, req)
+
+    emitBillingChanged()
+
     return res.data
   },
 
   /** Record a manual payment (Cash, Cheque, Bank Transfer) */
   recordManual: async (req: RecordManualRequest): Promise<PaymentResponse> => {
     const res = await apiClient.post<PaymentResponse>(`${PAYMENTS_BASE}/record-manual`, req)
+
+    // A cash payment recorded from the invoice drawer moves the tiles on the invoices page and
+    // the dashboard, neither of which knows this happened.
+    emitBillingChanged()
+
     return res.data
   },
 
@@ -67,14 +77,17 @@ export const paymentsApi = {
 
 /**
  * Open a printable payment receipt in a new browser tab.
- * Fetches as a blob so the auth header is sent (a plain window.open(url) would not
- * carry the bearer token). Mirrors openInspectionReport.
+ *
+ * Fetched as a blob so the auth header is sent — a plain window.open(url) would not carry the
+ * bearer token. The window is opened by openBlobDocument BEFORE the fetch, because a
+ * window.open() that happens after an await is silently blocked; see that helper.
  */
 export async function openPaymentReceipt(id: string): Promise<void> {
-  const res = await apiClient.get<string>(`${PAYMENTS_BASE}/${id}/receipt`, { responseType: 'blob' })
-  const href = URL.createObjectURL(res.data as unknown as Blob)
-  window.open(href, '_blank', 'noopener,noreferrer')
-  setTimeout(() => URL.revokeObjectURL(href), 60_000)
+  return openBlobDocument(async () => {
+    const res = await apiClient.get<string>(`${PAYMENTS_BASE}/${id}/receipt`, { responseType: 'blob' })
+
+    return res.data as unknown as Blob
+  })
 }
 
 // ── Gateway config ────────────────────────────────────────────────────────────

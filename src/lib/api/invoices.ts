@@ -3,6 +3,7 @@
  */
 
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete, API_BASE } from './client'
+import { emitBillingChanged } from './events'
 import { getStoredToken, getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
@@ -119,19 +120,32 @@ export async function getInvoiceById(id: string): Promise<Invoice> {
 }
 
 export async function createInvoice(data: CreateInvoicePayload): Promise<Invoice> {
-  return apiPost(`${BASE}/invoices`, data, { headers: tenantHeader() })
+  const created = await apiPost<Invoice>(`${BASE}/invoices`, data, { headers: tenantHeader() })
+
+  emitBillingChanged()
+
+  return created
 }
 
 export async function updateInvoice(id: string, data: UpdateInvoicePayload): Promise<Invoice> {
-  return apiPut(`${BASE}/invoices/${id}`, data, { headers: tenantHeader() })
+  const updated = await apiPut<Invoice>(`${BASE}/invoices/${id}`, data, { headers: tenantHeader() })
+
+  emitBillingChanged()
+
+  return updated
 }
 
 export async function updateInvoiceStatus(id: string, status: string): Promise<Invoice> {
-  return apiPatch(`${BASE}/invoices/${id}/status`, { status }, { headers: tenantHeader() })
+  const updated = await apiPatch<Invoice>(`${BASE}/invoices/${id}/status`, { status }, { headers: tenantHeader() })
+
+  emitBillingChanged()
+
+  return updated
 }
 
 export async function deleteInvoice(id: string): Promise<void> {
-  return apiDelete(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  await apiDelete(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  emitBillingChanged()
 }
 
 /**
