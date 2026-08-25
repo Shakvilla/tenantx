@@ -108,4 +108,35 @@ describe('AddAdvanceRentDrawer', () => {
     expect(await screen.findByText(/enter a valid number of months/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /record advance/i })).toBeDisabled()
   })
+  it('sends the date the money was received, separately from the period start', async () => {
+    /*
+     * The two dates are different questions and the answers routinely differ: an advance is
+     * handed over weeks before the tenancy starts. The server keys "collected this month" on
+     * the payment date, so sending only periodStart reports July's cash as September income.
+     */
+    const { advanceRentsApi } = await import('@/lib/api/advanceRents')
+
+    vi.mocked(advanceRentsApi.create).mockResolvedValue({ id: 'a1' } as never)
+
+    render(<AddAdvanceRentDrawer open onClose={() => {}} occupantId='o1' unitId='u1' />)
+
+    await userEvent.type(screen.getByLabelText(/monthly rent/i), '850')
+
+    const received = screen.getByLabelText(/date received/i)
+    const periodStart = screen.getByLabelText(/advance period start/i)
+
+    await userEvent.clear(received)
+    await userEvent.type(received, '2026-07-20')
+    await userEvent.clear(periodStart)
+    await userEvent.type(periodStart, '2026-08-24')
+
+    await userEvent.click(screen.getByRole('button', { name: /record advance/i }))
+
+    await waitFor(() => expect(advanceRentsApi.create).toHaveBeenCalled())
+
+    const payload = vi.mocked(advanceRentsApi.create).mock.calls[0][0]
+
+    expect(payload.paymentDate).toBe('2026-07-20')
+    expect(payload.periodStart).toBe('2026-08-24')
+  })
 })
