@@ -16,20 +16,36 @@
  * the second one written to "mirror" the first. Hence one helper.
  *
  * The window is opened FIRST, while the gesture is still live, and pointed at the blob once it
- * arrives. If the browser blocked even that, we say so rather than failing quietly.
+ * arrives. If the browser blocked even that, the document is fetched and handed over as a
+ * download instead — a blocked pop-up is a browser setting, not a reason to send a landlord away
+ * without the receipt his tenant is standing there waiting for.
  */
 export async function openBlobDocument(
   fetchBlob: () => Promise<Blob>,
-  options?: { blockedMessage?: string }
+  options?: { blockedMessage?: string; downloadName?: string }
 ): Promise<void> {
   // Synchronous — must happen before any await.
   const win = window.open('', '_blank', 'noopener,noreferrer')
 
   if (!win) {
-    throw new Error(
-      options?.blockedMessage ??
-        'Your browser blocked the document window. Allow pop-ups for this site and try again.'
-    )
+    // Blocked. Do not give up: the document exists and the landlord asked for it. Fetch it and
+    // hand it over as a download instead, which needs no popup.
+    //
+    // This is the third visit on which a landlord pressed "Receipt" and got nothing usable. His
+    // tenant pays cash and asks for paper; for that trade the receipt IS the transaction. A
+    // pop-up setting is not a good enough reason to send him away empty-handed.
+    const blob = await fetchBlob()
+    const href = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+
+    link.href = href
+    link.download = options?.downloadName ?? 'document.html'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(href), 60_000)
+
+    return
   }
 
   // Something to look at while the document is fetched, instead of an inert blank tab.

@@ -58,6 +58,8 @@ import tableStyles from '@core/styles/table.module.css'
 
 // ImageKit does not serve original files on this account; see ikUrl.
 import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { unitTypeLabel } from '@/lib/units/unitTypeLabel'
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -98,6 +100,8 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 const columnHelper = createColumnHelper<UnitWithExtras>()
 
 const UnitsListTable = () => {
+  const { ref } = useReferenceData()
+
   const { refresh: refreshSubscription } = useSubscription()
 
   // States
@@ -306,8 +310,10 @@ const UnitsListTable = () => {
                 {row.original.unitNo}
               </Typography>
               {row.original.type && (
-                <Typography variant='caption' color='text.secondary' className='capitalize'>
-                  {row.original.type}
+                /* Not the raw stored value: `capitalize` on "self_contained" gives
+                   "Self_contained", underscore and all. */
+                <Typography variant='caption' color='text.secondary'>
+                  {unitTypeLabel(row.original.type, ref?.unitTypes)}
                 </Typography>
               )}
             </div>

@@ -83,11 +83,15 @@ export const paymentsApi = {
  * window.open() that happens after an await is silently blocked; see that helper.
  */
 export async function openPaymentReceipt(id: string): Promise<void> {
-  return openBlobDocument(async () => {
-    const res = await apiClient.get<string>(`${PAYMENTS_BASE}/${id}/receipt`, { responseType: 'blob' })
+  return openBlobDocument(
+    async () => {
+      const res = await apiClient.get<string>(`${PAYMENTS_BASE}/${id}/receipt`, { responseType: 'blob' })
 
-    return res.data as unknown as Blob
-  })
+      return res.data as unknown as Blob
+    },
+    // Named so a receipt that arrives as a download is still findable and printable.
+    { downloadName: `receipt-${id.slice(0, 8)}.html` }
+  )
 }
 
 // ── Gateway config ────────────────────────────────────────────────────────────

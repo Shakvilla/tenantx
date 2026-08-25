@@ -92,12 +92,34 @@ describe('AddAdvanceRentDrawer', () => {
     expect(screen.queryByText(/nothing is recorded/i)).not.toBeInTheDocument()
   })
 
-  it('rejects more months than the landlord allows', async () => {
+  /*
+   * The months cap bounds what an occupant may be ASKED to pay through the gateway — the
+   * wording is "you can offer at most", and the backend only enforces it in
+   * initiateGatewayPayment. It used to be applied to "Record advance" as well, which blocked a
+   * landlord from writing down money already in his hand. Two years up front in cash is the
+   * normal Ghanaian arrangement; the system was already holding a 24-month advance created
+   * through that very path, and the form refused to let him record another.
+   *
+   * So the rule is per-mode, and both halves are pinned.
+   */
+  it('rejects more months than allowed when asking the occupant to pay', async () => {
     render(<AddAdvanceRentDrawer open onClose={() => {}} occupantId='o1' unitId='u1' />)
+
+    await userEvent.click(screen.getByRole('radio', { name: /request payment/i }))
     await userEvent.clear(screen.getByLabelText(/months/i))
     await userEvent.type(screen.getByLabelText(/months/i), '24')
 
     expect(await screen.findByText(/at most 12/i)).toBeInTheDocument()
+  })
+
+  it('lets the landlord record a two-year advance he has already been paid', async () => {
+    render(<AddAdvanceRentDrawer open onClose={() => {}} occupantId='o1' unitId='u1' />)
+
+    // "Record advance" is the default mode — money in hand, not an offer.
+    await userEvent.clear(screen.getByLabelText(/months/i))
+    await userEvent.type(screen.getByLabelText(/months/i), '24')
+
+    expect(screen.queryByText(/at most 12/i)).not.toBeInTheDocument()
   })
 
   it('disables submit and shows an error when Months Covered is cleared, rather than silently allowing monthsCovered: 0', async () => {

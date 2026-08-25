@@ -45,9 +45,26 @@ describe('openPaymentReceipt', () => {
     expect(fakeWin.location.href).toBe('blob:mock')
   })
 
-  it('reports a blocked pop-up rather than doing nothing', async () => {
+  it('still produces the receipt when the pop-up is blocked, as a download', async () => {
+    // Blocked pop-ups were the last thing standing between a cash-paying tenant and a piece of
+    // paper — reported on three separate visits, with the server returning a valid receipt
+    // every time.
     window.open = vi.fn(() => null) as any
+    // The fallback still fetches — clearAllMocks in beforeEach wiped the implementation.
+    vi.mocked(apiClient.get).mockResolvedValue({ data: new Blob(['receipt']) } as any)
 
-    await expect(openPaymentReceipt('pay-123')).rejects.toThrow(/blocked/i)
+    const click = vi.fn()
+    const anchor = { href: '', download: '', click, remove: vi.fn() } as any
+    const createElement = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+    const append = vi.spyOn(document.body, 'appendChild').mockImplementation((n: any) => n)
+
+    try {
+      await expect(openPaymentReceipt('pay-123')).resolves.toBeUndefined()
+      expect(click).toHaveBeenCalledTimes(1)
+      expect(anchor.download).toMatch(/^receipt-/)
+    } finally {
+      createElement.mockRestore()
+      append.mockRestore()
+    }
   })
 })

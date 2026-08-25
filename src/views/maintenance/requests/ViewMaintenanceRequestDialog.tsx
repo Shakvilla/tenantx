@@ -627,8 +627,20 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
                       </Typography>
                       {/* Say where the total came from. Before labour existed, "Actual Cost" was
                           parts and nothing else, and a landlord had no way to tell. */}
-                      <Typography variant='caption' color='text.secondary'>
+                      <Typography variant='caption' color='text.secondary' display='block'>
                         Labour plus parts
+                      </Typography>
+                      {/*
+                        And say where the money GOES. The cost is written to Expenses when the
+                        job is closed, and nothing said so — so a landlord looking at his
+                        expenses mid-repair sees nothing, concludes the two ledgers were never
+                        introduced, and types the same money in a second time by hand. Which is
+                        exactly what the field-test landlord was about to do.
+                      */}
+                      <Typography variant='caption' color={isTerminal ? 'success.main' : 'text.secondary'} display='block'>
+                        {isTerminal
+                          ? 'Recorded in Expenses.'
+                          : 'This will be recorded in Expenses when the job is closed — no need to enter it there yourself.'}
                       </Typography>
                     </Grid>
                   )}

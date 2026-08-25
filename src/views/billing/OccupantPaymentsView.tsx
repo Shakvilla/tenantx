@@ -141,7 +141,12 @@ const OccupantPaymentsView = () => {
                 <Button
                   size='small'
                   variant='outlined'
-                  onClick={() => { openPaymentReceipt(p.id).catch(() => setError('Failed to open receipt')) }}
+                  onClick={() => {
+                    // Surface the reason. "Failed to open receipt" was shown even when the
+                    // server had returned a perfectly good one and a pop-up setting was the
+                    // only thing in the way — telling the landlord nothing he could act on.
+                    openPaymentReceipt(p.id).catch(err => setError(err?.message ?? 'Failed to open receipt'))
+                  }}
                   startIcon={<i className='ri-receipt-line' />}
                 >
                   Receipt

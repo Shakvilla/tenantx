@@ -46,10 +46,33 @@ describe('openBlobDocument', () => {
     expect(fakeWin.location.href).toBe('blob:fake')
   })
 
-  it('says so when the browser blocks the window, instead of failing silently', async () => {
+  /*
+   * Throwing "your browser blocked the window" was better than failing silently, but it still
+   * sent the landlord away without the document. Three visits in a row he pressed "Receipt" and
+   * got nothing usable, while the server was returning a perfectly good one — and his tenant
+   * pays cash and is standing there waiting for paper. A pop-up setting is not a good enough
+   * reason to refuse. Blocked now means: fetch it anyway and hand it over as a download.
+   */
+  it('hands the document over as a download when the browser blocks the window', async () => {
     ;(window.open as any).mockReturnValue(null)
 
-    await expect(openBlobDocument(async () => new Blob(['x']))).rejects.toThrow(/blocked/i)
+    const click = vi.fn()
+    const anchor = { href: '', download: '', click, remove: vi.fn() } as any
+    const createElement = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+    const append = vi.spyOn(document.body, 'appendChild').mockImplementation((n: any) => n)
+
+    try {
+      await expect(
+        openBlobDocument(async () => new Blob(['x']), { downloadName: 'receipt-abc.html' })
+      ).resolves.toBeUndefined()
+
+      expect(click).toHaveBeenCalledTimes(1)
+      expect(anchor.download).toBe('receipt-abc.html')
+      expect(anchor.href).toContain('blob:')
+    } finally {
+      createElement.mockRestore()
+      append.mockRestore()
+    }
   })
 
   it('closes the placeholder tab when the document cannot be fetched', async () => {
