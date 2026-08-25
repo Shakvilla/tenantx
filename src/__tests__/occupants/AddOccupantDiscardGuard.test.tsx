@@ -30,7 +30,7 @@ const properties = [{ id: 'p1', name: 'Adenta Compound' }] as any
 const openDialog = () =>
   render(<AddOccupantDialog open handleClose={handleClose} properties={properties} />)
 
-let handleClose: ReturnType<typeof vi.fn>
+let handleClose: ReturnType<typeof vi.fn<() => void>>
 
 describe('AddOccupantDialog — discarding a part-filled form', () => {
   beforeEach(() => {

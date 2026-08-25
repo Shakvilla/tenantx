@@ -49,8 +49,17 @@ export default function OnboardTenantWizard() {
   useEffect(() => {
     const openWizard = () => {
       setTenantId(getStoredTenantId())
-      reset()
-      setOpen(true)
+
+      // Only start a fresh run when there isn't one in progress. Pressing the
+      // launcher while the wizard is already open used to reset() — silently
+      // throwing away the occupant just created and the step reached — and
+      // because the dialog was on screen either way it looked like the button
+      // had done nothing at all. Two different complaints, one cause.
+      setOpen(wasOpen => {
+        if (!wasOpen) reset()
+
+        return true
+      })
     }
 
     window.addEventListener('onboard-tenant:open', openWizard)
