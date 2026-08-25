@@ -20,11 +20,15 @@ import ExportButtons from '@/components/reports/ExportButtons'
 
 // API / Types
 import { getProfitLoss } from '@/lib/api/profitLoss'
+import { getProperties } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
 import type { ProfitLossResponse } from '@/types/profitLoss'
 import type { DateRange, ReportSummary } from '@/types/reports/reportTypes'
 
 // Utils
 import { toApiDateParams } from '@/utils/reports/dateUtils'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 
 type Props = {
   dateRange: DateRange
@@ -40,16 +44,30 @@ const ProfitLossReport = ({ dateRange, onDateRangeChange }: Props) => {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
 
+  // '' means the whole portfolio.
+  const [propertyId, setPropertyId] = useState('')
+  const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    const tenantId = getStoredTenantId()
+
+    if (!tenantId) return
+
+    getProperties(tenantId, { size: 100 })
+      .then(res => setProperties(((res as any)?.data ?? []).map((p: any) => ({ id: p.id, name: p.name }))))
+      .catch(() => setProperties([]))
+  }, [])
+
   useEffect(() => {
     setLoading(true)
     setError(null)
     const { startDate, endDate } = toApiDateParams(dateRange, 'date')
 
-    getProfitLoss(startDate, endDate)
+    getProfitLoss(startDate, endDate, propertyId || undefined)
       .then(setData)
       .catch((err: any) => setError(err?.message ?? 'Failed to load profit & loss report'))
       .finally(() => setLoading(false))
-  }, [dateRange])
+  }, [dateRange, propertyId])
 
   const profitable = (data?.netProfit ?? 0) >= 0
 
@@ -80,6 +98,29 @@ const ProfitLossReport = ({ dateRange, onDateRangeChange }: Props) => {
       </Box>
 
       <DateRangeFilter dateRange={dateRange} onDateRangeChange={onDateRangeChange} />
+
+      {/*
+        Per-property P&L. The GRA report two tabs away already broke down by property; this one
+        added Adenta and East Legon together and offered no way to separate them, so a landlord
+        could not tell which property was carrying the other.
+      */}
+      {properties.length > 1 && (
+        <TextField
+          select
+          size='small'
+          label='Property'
+          value={propertyId}
+          onChange={e => setPropertyId(e.target.value)}
+          sx={{ maxWidth: 280 }}
+        >
+          <MenuItem value=''>All properties</MenuItem>
+          {properties.map(p => (
+            <MenuItem key={p.id} value={p.id}>
+              {p.name}
+            </MenuItem>
+          ))}
+        </TextField>
+      )}
 
       {error && <Alert severity='error' onClose={() => setError(null)}>{error}</Alert>}
 
