@@ -65,6 +65,8 @@ const legacyAgreement = {
   petsAllowed: null,
   noiseRestrictionsApply: null,
   noticePeriodDays: null,
+  rentDueDay: null,
+  maxOccupants: null,
   earlyTerminationAllowed: null,
   witnessName: null,
   createdAt: '2025-01-01T00:00:00Z',
@@ -98,7 +100,7 @@ describe('AddAgreementDialog — structured clauses + witness', () => {
     render(<AddAgreementDialog open handleClose={() => {}} onSaved={() => {}} />)
 
     // Wait for reference data to finish loading (Selects render behind a Skeleton until then).
-    await screen.findByLabelText(/occupant/i)
+    await screen.findByLabelText(/^occupant \*$/i)
 
     // Property → Unit → Occupant (MUI Select: mouseDown to open, then click the option).
     fireEvent.mouseDown(screen.getByLabelText(/property/i))
@@ -107,7 +109,7 @@ describe('AddAgreementDialog — structured clauses + witness', () => {
     fireEvent.mouseDown(screen.getByLabelText(/unit/i))
     fireEvent.click(await screen.findByText('A1'))
 
-    fireEvent.mouseDown(screen.getByLabelText(/occupant/i))
+    fireEvent.mouseDown(screen.getByLabelText(/^occupant \*$/i))
     fireEvent.click(await screen.findByText('Ama Mensah'))
 
     // Required dates.
@@ -118,6 +120,8 @@ describe('AddAgreementDialog — structured clauses + witness', () => {
     fireEvent.click(screen.getByLabelText(/subletting allowed/i))
     fireEvent.click(screen.getByLabelText(/pets allowed/i))
     fireEvent.change(screen.getByLabelText(/notice period/i), { target: { value: '30' } })
+    fireEvent.change(screen.getByLabelText(/rent due day/i), { target: { value: '1' } })
+    fireEvent.change(screen.getByLabelText(/occupants allowed/i), { target: { value: '2' } })
     fireEvent.change(screen.getByLabelText(/witness name/i), { target: { value: 'Kwame Witness' } })
 
     fireEvent.click(screen.getByRole('button', { name: /save now/i }))
@@ -130,13 +134,15 @@ describe('AddAgreementDialog — structured clauses + witness', () => {
     expect(payload.noiseRestrictionsApply).toBeNull()
     expect(payload.earlyTerminationAllowed).toBeNull()
     expect(payload.noticePeriodDays).toBe(30)
+    expect(payload.rentDueDay).toBe(1)
+    expect(payload.maxOccupants).toBe(2)
     expect(payload.witnessName).toBe('Kwame Witness')
   })
 
   it('preserves null clause booleans when editing a legacy agreement without touching them', async () => {
     render(<AddAgreementDialog open handleClose={() => {}} editAgreement={legacyAgreement} onSaved={() => {}} />)
 
-    await screen.findByLabelText(/occupant/i)
+    await screen.findByLabelText(/^occupant \*$/i)
 
     // On edit-open the component's property-change effect clears the pre-selected
     // unit, so re-select it to satisfy validation (target the menu option by role
@@ -155,5 +161,9 @@ describe('AddAgreementDialog — structured clauses + witness', () => {
     expect(payload.petsAllowed).toBeNull()
     expect(payload.noiseRestrictionsApply).toBeNull()
     expect(payload.earlyTerminationAllowed).toBeNull()
+    // Left blank on the form: null ("not recorded"), never 0, which the backend
+    // CHECK constraint would reject outright.
+    expect(payload.rentDueDay).toBeNull()
+    expect(payload.maxOccupants).toBeNull()
   })
 })

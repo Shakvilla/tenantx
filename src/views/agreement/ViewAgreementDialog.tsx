@@ -78,6 +78,24 @@ const decisionLabels: Record<string, string> = {
 
 const yesNo = (v: boolean | null | undefined): string => (v ? 'Yes' : 'No')
 
+/** 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11-13 -> "11th"-"13th", 21 -> "21st". */
+const ordinalDay = (d: number): string => {
+  const rem100 = d % 100
+
+  if (rem100 >= 11 && rem100 <= 13) return `${d}th`
+
+  switch (d % 10) {
+    case 1:
+      return `${d}st`
+    case 2:
+      return `${d}nd`
+    case 3:
+      return `${d}rd`
+    default:
+      return `${d}th`
+  }
+}
+
 const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber }: Props) => {
   if (!agreement) return null
 
@@ -292,6 +310,7 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
               {(agreement.terms || agreement.conditions || agreement.renewalOptions ||
                 agreement.sublettingAllowed != null || agreement.petsAllowed != null ||
                 agreement.noiseRestrictionsApply != null || agreement.noticePeriodDays != null ||
+                agreement.rentDueDay != null || agreement.maxOccupants != null ||
                 agreement.earlyTerminationAllowed != null || agreement.witnessName) && (
                 <>
                   <Grid size={{ xs: 12 }}><Divider /></Grid>
@@ -300,6 +319,7 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
                     <Grid container spacing={6}>
                       {(agreement.sublettingAllowed != null || agreement.petsAllowed != null ||
                         agreement.noiseRestrictionsApply != null || agreement.noticePeriodDays != null ||
+                        agreement.rentDueDay != null || agreement.maxOccupants != null ||
                         agreement.earlyTerminationAllowed != null || agreement.witnessName) && (
                         <Grid size={{ xs: 12 }}>
                           <Typography className='font-medium mbe-2' color='text.primary'>Clauses:</Typography>
@@ -362,6 +382,26 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
                                   <Typography variant='body2'>Notice Period:</Typography>
                                   <Typography className='font-medium' color='text.primary'>
                                     {agreement.noticePeriodDays} days
+                                  </Typography>
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.rentDueDay != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Rent Due Day:</Typography>
+                                  <Typography className='font-medium' color='text.primary'>
+                                    {ordinalDay(agreement.rentDueDay)} of the month
+                                  </Typography>
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.maxOccupants != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Occupants Allowed:</Typography>
+                                  <Typography className='font-medium' color='text.primary'>
+                                    {agreement.maxOccupants}
                                   </Typography>
                                 </div>
                               </Grid>

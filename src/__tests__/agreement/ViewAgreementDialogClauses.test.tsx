@@ -33,6 +33,8 @@ const baseAgreement: Agreement = {
   petsAllowed: null,
   noiseRestrictionsApply: null,
   noticePeriodDays: null,
+  rentDueDay: null,
+  maxOccupants: null,
   earlyTerminationAllowed: null,
   witnessName: null,
   previousAgreementId: null,
@@ -51,6 +53,8 @@ describe('ViewAgreementDialog — structured clauses + witness', () => {
       petsAllowed: false,
       noiseRestrictionsApply: true,
       noticePeriodDays: 30,
+      rentDueDay: 1,
+      maxOccupants: 2,
       earlyTerminationAllowed: false,
       witnessName: 'Kwame Witness'
     }
@@ -60,6 +64,10 @@ describe('ViewAgreementDialog — structured clauses + witness', () => {
     expect(screen.getByText(/subletting/i)).toBeInTheDocument()
     expect(screen.getByText(/notice period/i)).toBeInTheDocument()
     expect(screen.getByText('30 days')).toBeInTheDocument()
+    expect(screen.getByText(/rent due day/i)).toBeInTheDocument()
+    expect(screen.getByText('1st of the month')).toBeInTheDocument()
+    expect(screen.getByText(/occupants allowed/i)).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getAllByText(/witness/i).length).toBeGreaterThan(0)
     expect(screen.getByText('Kwame Witness')).toBeInTheDocument()
   })
@@ -69,5 +77,51 @@ describe('ViewAgreementDialog — structured clauses + witness', () => {
 
     expect(screen.queryAllByText(/witness/i)).toHaveLength(0)
     expect(screen.queryByText(/notice period/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/rent due day/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/occupants allowed/i)).not.toBeInTheDocument()
+  })
+
+  it('opens the clause section for an agreement whose only recorded fact is a new one', () => {
+    // The section guard lists every clause field; a new field left out of it would
+    // leave the value invisible for an agreement that records nothing else.
+    render(
+      <ViewAgreementDialog
+        open
+        handleClose={() => {}}
+        agreement={{ ...baseAgreement, rentDueDay: 15 }}
+      />
+    )
+
+    expect(screen.getByText(/rent due day/i)).toBeInTheDocument()
+    expect(screen.getByText('15th of the month')).toBeInTheDocument()
+  })
+
+  it('renders the ordinal suffix correctly across the awkward days', () => {
+    const cases: Array<[number, string]> = [
+      [1, '1st of the month'],
+      [2, '2nd of the month'],
+      [3, '3rd of the month'],
+      [4, '4th of the month'],
+      [11, '11th of the month'],
+      [12, '12th of the month'],
+      [13, '13th of the month'],
+      [21, '21st of the month'],
+      [22, '22nd of the month'],
+      [23, '23rd of the month'],
+      [31, '31st of the month']
+    ]
+
+    for (const [day, expected] of cases) {
+      const { unmount } = render(
+        <ViewAgreementDialog
+          open
+          handleClose={() => {}}
+          agreement={{ ...baseAgreement, rentDueDay: day }}
+        />
+      )
+
+      expect(screen.getByText(expected)).toBeInTheDocument()
+      unmount()
+    }
   })
 })
