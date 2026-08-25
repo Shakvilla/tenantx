@@ -169,6 +169,7 @@ return
         <DialogContent>
           {completed ? (
             <CompletionScreen
+              entityIds={entityIds}
               onGoToDashboard={() => setOpen(false)}
               onViewInvoice={() => {
                 setOpen(false)

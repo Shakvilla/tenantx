@@ -37,6 +37,7 @@ import type { CreateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 // ImageKit does not serve original files on this account; see ikUrl.
 import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 import { UNIT_AMENITIES } from '@/lib/amenities'
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // ---------------------------------------------------------------------------
 // Styled upload area (matches AddPropertyDialog)
@@ -157,6 +158,7 @@ const initialData: FormDataType = {
 // ---------------------------------------------------------------------------
 
 const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', onSuccess }: Props) => {
+  const { ref } = useReferenceData()
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [loading, setLoading] = useState(false)
@@ -467,14 +469,18 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
                       onChange={e => handleInputChange('type', e.target.value)}
                       disabled={loading}
                     >
-                      <MenuItem value='studio'>Studio</MenuItem>
-                      <MenuItem value='1br'>1 Bedroom</MenuItem>
-                      <MenuItem value='2br'>2 Bedrooms</MenuItem>
-                      <MenuItem value='3br'>3 Bedrooms</MenuItem>
-                      <MenuItem value='4br+'>4+ Bedrooms</MenuItem>
-                      <MenuItem value='commercial'>Commercial</MenuItem>
-                      <MenuItem value='office'>Office</MenuItem>
-                      <MenuItem value='retail'>Retail</MenuItem>
+                      {/*
+                        From the reference API, not a hardcoded list. There are two Add Unit
+                        dialogs; the other one already read `ref.unitTypes`, so this copy silently
+                        ignored any change to the shared list — adding Single Room, Chamber and
+                        Hall and Self-contained on the server would have fixed one form and left
+                        this one wrong.
+                      */}
+                      {ref.unitTypes.map(option => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>
