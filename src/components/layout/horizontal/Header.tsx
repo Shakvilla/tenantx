@@ -14,15 +14,19 @@ import LayoutHeader from '@layouts/components/horizontal/Header'
 
 // Hook Imports
 import useHorizontalNav from '@menu/hooks/useHorizontalNav'
+import useRouteChangePending from '@/hooks/useRouteChangePending'
 
 const Header = () => {
   // Hooks
   const { isBreakpointReached } = useHorizontalNav()
   const { isRefreshing } = useAuth()
 
+  // Same silence on the horizontal layout — see the vertical navbar.
+  const navigating = useRouteChangePending()
+
   return (
     <div className='relative'>
-      {isRefreshing && (
+      {(isRefreshing || navigating) && (
         <LinearProgress 
           className='absolute block-start-0 inline-start-0 is-full' 
           sx={{ height: 2, zIndex: 1000 }}
