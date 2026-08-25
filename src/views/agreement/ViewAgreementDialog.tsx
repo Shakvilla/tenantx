@@ -25,6 +25,7 @@ import type { Agreement, AgreementStatus, AgreementType } from '@/lib/api/agreem
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
 import { formatCurrency } from '@/utils/currency'
+import { assessExecution, listMissing } from '@/lib/agreement/execution'
 
 type Props = {
   open: boolean
@@ -34,6 +35,8 @@ type Props = {
   renewedFromNumber?: string | null
   /** Agreement number this one was renewed TO (its successor), resolved by the parent. */
   renewedToNumber?: string | null
+  /** Opens the edit form for this agreement, so an incomplete record has a route forward. */
+  onEdit?: () => void
 }
 
 const formatDate = (dateString?: string | null): string => {
@@ -78,8 +81,10 @@ const decisionLabels: Record<string, string> = {
 
 const yesNo = (v: boolean | null | undefined): string => (v ? 'Yes' : 'No')
 
-const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber }: Props) => {
+const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber, onEdit }: Props) => {
   if (!agreement) return null
+
+  const execution = assessExecution(agreement)
 
   // ---- Stamp Duty calculation (frontend-only) ----
   // GRA Stamp Duty Act: 0.5% of total lease value
@@ -473,9 +478,32 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
                 <Divider className='border-dashed' />
               </Grid>
               <Grid size={{ xs: 12 }}>
-                <Typography variant='body2' color='text.secondary'>
-                  This agreement is legally binding and enforceable.
-                </Typography>
+                {/*
+                  This used to read "This agreement is legally binding and enforceable"
+                  on every agreement, including one created by onboarding with no
+                  signature date, no witness and no document attached. A landlord who
+                  believes that stops chasing the signature, and discovers at the Rent
+                  Control office that he has a database row.
+                */}
+                {execution.fullyExecuted ? (
+                  <Typography variant='body2' color='text.secondary'>
+                    Signed on {formatDate(agreement.signedDate)}, witnessed by {agreement.witnessName}, with a
+                    copy of the signed agreement attached.
+                  </Typography>
+                ) : (
+                  <Alert severity='warning' variant='outlined'>
+                    <Typography variant='body2' fontWeight={600}>Not fully executed</Typography>
+                    <Typography variant='body2'>
+                      This record is still missing {listMissing(execution.missing)}. Until those are in place it
+                      is a record of what was agreed, not something you can rely on in a dispute.
+                    </Typography>
+                    {onEdit && (
+                      <Button size='small' variant='outlined' color='warning' sx={{ mt: 1.5 }} onClick={onEdit}>
+                        Complete it
+                      </Button>
+                    )}
+                  </Alert>
+                )}
               </Grid>
             </Grid>
           </CardContent>
