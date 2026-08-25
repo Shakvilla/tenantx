@@ -234,12 +234,35 @@ const WalletSummaryCard = ({
                 hint: 'Cash, cheque and bank — not withdrawable',
               },
               {
+                label: 'Total Collected',
+                value: loading ? null : fmt(wallet?.totalCollected ?? 0),
+                icon: 'ri-arrow-down-circle-line',
+                iconColor: '#64748b',
+                iconBg: '#f1f5f9',
+                hint: 'Everything received, earned or not',
+              },
+              /*
+                The tile that used to read "TOTAL EARNED — Lifetime income received" over the
+                whole of a two-year advance. A landlord holding ₵14,400 of rent for months that
+                have not arrived had been told it was income he had made, which is how someone
+                spends rent he owes back. Held and Earned are now separate figures and they sum
+                to Collected.
+              */
+              {
+                label: 'Held for Tenants',
+                value: loading ? null : fmt(wallet?.unearnedAdvanceHeld ?? 0),
+                icon: 'ri-lock-line',
+                iconColor: '#d97706',
+                iconBg: '#fffbeb',
+                hint: 'Advance rent for months not yet lived in — owed back if they leave',
+              },
+              {
                 label: 'Total Earned',
                 value: loading ? null : fmt(wallet?.totalEarned ?? 0),
                 icon: 'ri-arrow-down-circle-line',
                 iconColor: '#16a34a',
                 iconBg: '#f0fdf4',
-                hint: 'Lifetime income received',
+                hint: 'Collected less what is still held — this much is yours',
               },
               {
                 label: 'Total Withdrawn',
