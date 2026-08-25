@@ -363,7 +363,13 @@ return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} cl
 
   return (
     <>
-      <PageBanner title='Maintenance Requests' description='Manage and track maintenance requests from tenants' icon='ri-tools-line' />
+      <PageBanner
+        title='Maintenance Requests'
+        // "requests from tenants" read as a promise the portal was not keeping: tenants can
+        // in fact raise these from the app, but nothing here or on their record said so.
+        description='Repairs you log yourself, and the ones your tenants report from the app'
+        icon='ri-tools-line'
+      />
       <MaintenanceStatsCards />
       <Card className='mbs-6'>
         <CardHeader

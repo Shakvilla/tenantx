@@ -31,7 +31,7 @@ describe('AddMaintenanceRequestDialog — empty category list', () => {
   })
 
   it('says where the list is built, and that the request can be logged without one', async () => {
-    render(<AddMaintenanceRequestDialog open handleClose={vi.fn()} onSaved={vi.fn()} />)
+    render(<AddMaintenanceRequestDialog open handleClose={vi.fn()} onSuccess={vi.fn()} />)
 
     await waitFor(() => expect(screen.getByText(/no categories yet/i)).toBeTruthy())
 
@@ -43,7 +43,7 @@ describe('AddMaintenanceRequestDialog — empty category list', () => {
   it('stays quiet once the landlord has categories', async () => {
     vi.mocked(getMaintenanceCategories).mockResolvedValue([{ id: 'c1', name: 'Plumbing' }] as any)
 
-    render(<AddMaintenanceRequestDialog open handleClose={vi.fn()} onSaved={vi.fn()} />)
+    render(<AddMaintenanceRequestDialog open handleClose={vi.fn()} onSuccess={vi.fn()} />)
 
     await waitFor(() => expect(screen.getByLabelText(/^category$/i)).toBeTruthy())
     expect(screen.queryByText(/no categories yet/i)).toBeNull()
