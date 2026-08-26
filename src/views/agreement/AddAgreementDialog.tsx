@@ -81,6 +81,8 @@ type FormData = {
   noiseRestrictionsApply: boolean | null
   earlyTerminationAllowed: boolean | null
   noticePeriodDays: string
+  rentDueDay: string
+  maxOccupants: string
   witnessName: string
 }
 
@@ -108,6 +110,8 @@ const initialData: FormData = {
   noiseRestrictionsApply: null,
   earlyTerminationAllowed: null,
   noticePeriodDays: '',
+  rentDueDay: '',
+  maxOccupants: '',
   witnessName: ''
 }
 
@@ -136,6 +140,8 @@ function agreementToForm(a: Agreement): FormData {
     noiseRestrictionsApply: a.noiseRestrictionsApply,
     earlyTerminationAllowed: a.earlyTerminationAllowed,
     noticePeriodDays: a.noticePeriodDays != null ? String(a.noticePeriodDays) : '',
+    rentDueDay: a.rentDueDay != null ? String(a.rentDueDay) : '',
+    maxOccupants: a.maxOccupants != null ? String(a.maxOccupants) : '',
     witnessName: a.witnessName ?? ''
   }
 }
@@ -326,6 +332,10 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
       noiseRestrictionsApply: formData.noiseRestrictionsApply,
       earlyTerminationAllowed: formData.earlyTerminationAllowed,
       noticePeriodDays: formData.noticePeriodDays ? parseInt(formData.noticePeriodDays, 10) : null,
+      // Blank stays null rather than 0: the backend treats null as "not recorded" and the
+      // occupant app hides the tile, whereas 0 would fail the CHECK constraint outright.
+      rentDueDay: formData.rentDueDay ? parseInt(formData.rentDueDay, 10) : null,
+      maxOccupants: formData.maxOccupants ? parseInt(formData.maxOccupants, 10) : null,
       witnessName: formData.witnessName || null
     }
 
@@ -686,6 +696,30 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
                         label='Notice Period (Days)'
                         value={formData.noticePeriodDays}
                         onChange={e => handleChange('noticePeriodDays', e.target.value)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        size='small'
+                        fullWidth
+                        type='number'
+                        label='Rent Due Day'
+                        helperText='Day of the month rent falls due, 1-31'
+                        slotProps={{ htmlInput: { min: 1, max: 31 } }}
+                        value={formData.rentDueDay}
+                        onChange={e => handleChange('rentDueDay', e.target.value)}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        size='small'
+                        fullWidth
+                        type='number'
+                        label='Occupants Allowed'
+                        helperText='How many people the tenancy permits'
+                        slotProps={{ htmlInput: { min: 1, max: 99 } }}
+                        value={formData.maxOccupants}
+                        onChange={e => handleChange('maxOccupants', e.target.value)}
                       />
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
