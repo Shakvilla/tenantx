@@ -25,6 +25,9 @@ export type MaintenanceRequestType = {
   entryInstructions?: string | null
   preferredTimeSlots?: string[]
   estimatedCost?: number | null
+  /** The labour half — the plumber's fee, the mason's day. */
+  labourCost?: number | null
+  /** Derived on the server: labourCost + parts. Never sent. */
   actualCost?: number | null
   billableTo?: string | null
   currency?: string | null

@@ -75,7 +75,10 @@ describe('ViewAgreementDialog — structured clauses + witness', () => {
   it('does not render the witness label when all clause fields are absent', () => {
     render(<ViewAgreementDialog open handleClose={() => {}} agreement={baseAgreement} />)
 
-    expect(screen.queryAllByText(/witness/i)).toHaveLength(0)
+    // Scoped to the Witness field label. A bare /witness/i now also matches the
+    // "not fully executed" notice, which names a missing witness on purpose —
+    // that notice is the subject of ViewAgreementDialogExecution.test.tsx.
+    expect(screen.queryByText(/^witness$/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/notice period/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/rent due day/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/occupants allowed/i)).not.toBeInTheDocument()

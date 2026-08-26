@@ -37,6 +37,7 @@ export const FEATURE_PLAN_BADGE: Record<string, { label: string; color: 'info' |
   MAINTENANCE_CONTRACTORS:  { label: 'Basic', color: 'info' },
   PREVENTATIVE_MAINTENANCE: { label: 'Basic', color: 'info' },
   SMS_REMINDERS:            { label: 'Basic', color: 'info' },
+  LATE_FEES:                { label: 'Basic', color: 'info' },
   ADVANCED_REPORTS:         { label: 'Basic', color: 'info' },
   // Pro features → gold badge
   LANDLORD_WALLET:          { label: 'Pro', color: 'warning' },
@@ -185,6 +186,11 @@ const allItems: NavItem[] = [
       { label: 'Notification settings', href: '/settings/notification', requiredFeature: 'SMS_REMINDERS' },
       { label: 'SMS Sender ID',         href: '/settings/sms', requiredFeature: 'SMS_REMINDERS' },
       { label: 'Company Settings',      href: '/settings/company' },
+      // Late fees are a paid feature, and this is the only place to switch them
+      // on. The page shipped without a menu entry, so it could be reached only
+      // by typing the URL — a landlord on Basic could not configure something
+      // he was paying for.
+      { label: 'Payment Settings',      href: '/settings/payment', requiredFeature: 'LATE_FEES' },
       { label: 'Recurring Invoice Settings', href: '/settings/recurring-invoice' },
       { label: 'Security',              href: '/settings/security' },
       { label: 'Team & Roles',          href: '/settings/team' }

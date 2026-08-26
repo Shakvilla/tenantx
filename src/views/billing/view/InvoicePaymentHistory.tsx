@@ -53,8 +53,10 @@ const InvoicePaymentHistory = ({ invoiceId, refreshKey }: Props) => {
   const handleReceipt = async (id: string) => {
     try {
       await openPaymentReceipt(id)
-    } catch {
-      setReceiptError('Failed to open receipt')
+    } catch (err: any) {
+      // The reason, not a shrug. This message was shown even when the server had returned a
+      // perfectly good receipt and a blocked pop-up was the only thing in the way.
+      setReceiptError(err?.message ?? 'Failed to open receipt')
     }
   }
 

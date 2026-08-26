@@ -17,6 +17,7 @@ import classnames from 'classnames'
 
 // API Imports
 import { getInvoiceStats, type InvoiceStats } from '@/lib/api/invoices'
+import { BILLING_CHANGED } from '@/lib/api/events'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -104,16 +105,30 @@ const PLACEHOLDERS: StatItem[] = buildStats({
 const BillingStatsCard = () => {
   const [stats, setStats] = useState<InvoiceStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
 
   const theme = useTheme()
   const isBelowMdScreen = useMediaQuery(theme.breakpoints.down('md'))
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'))
 
   useEffect(() => {
-    getInvoiceStats()
-      .then(setStats)
-      .catch(() => {})
-      .finally(() => setLoading(false))
+    // `[]` alone meant these tiles loaded once and never again: a landlord who created an
+    // invoice while the page was open kept seeing the old counts — "Overdue Invoices: 0" for a
+    // bill seven weeks past due — and Refresh did not help, because Refresh reloads the table
+    // beneath, not the tiles. Only a full page load fixed it.
+    const load = () => {
+      getInvoiceStats()
+        .then(setStats)
+        // Deliberately not `.catch(() => {})`. A silently swallowed failure leaves the previous
+        // numbers on screen looking current, which is how a stale figure gets trusted.
+        .catch(() => setFailed(true))
+        .finally(() => setLoading(false))
+    }
+
+    load()
+    window.addEventListener(BILLING_CHANGED, load)
+
+    return () => window.removeEventListener(BILLING_CHANGED, load)
   }, [])
 
   const data: StatItem[] = stats ? buildStats(stats) : PLACEHOLDERS
@@ -128,6 +143,11 @@ const BillingStatsCard = () => {
   return (
     <Card className='my-6'>
       <CardContent>
+        {failed && (
+          <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mb: 2 }}>
+            These totals could not be refreshed just now, so they may be out of date.
+          </Typography>
+        )}
         <Grid container spacing={6}>
           {data.map((item, index) => {
             const endsRow = (index + 1) % perRow === 0

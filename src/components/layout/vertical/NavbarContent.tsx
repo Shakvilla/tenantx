@@ -11,6 +11,7 @@ import LinearProgress from '@mui/material/LinearProgress'
 import type { ShortcutsType } from '@components/layout/shared/ShortcutsDropdown'
 
 // Component Imports
+import useRouteChangePending from '@/hooks/useRouteChangePending'
 import NavToggle from './NavToggle'
 import NavSearch from '@components/layout/shared/NavSearch'
 import CreateButton from '@components/layout/shared/CreateButton'
@@ -68,9 +69,12 @@ const shortcuts: ShortcutsType[] = [
 const NavbarContent = () => {
   const { isRefreshing } = useAuth()
 
+  // Pressing a menu item used to produce nothing until the next page painted.
+  const navigating = useRouteChangePending()
+
   return (
     <div className={classnames(verticalLayoutClasses.navbarContent, 'flex flex-col is-full relative')}>
-      {isRefreshing && (
+      {(isRefreshing || navigating) && (
         <LinearProgress 
           className='absolute block-start-0 inline-start-0 is-full' 
           sx={{ height: 2, zIndex: 1000 }}
