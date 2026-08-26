@@ -7,6 +7,7 @@
  *   GET  /api/v1/payments/{id}                   → get payment
  *   GET  /api/v1/payments/{id}/status            → poll gateway status
  *   GET  /api/v1/payments/invoice/{invoiceId}    → list payments for invoice
+ *   GET  /api/v1/payments/needs-attention        → payments flagged for reconciliation
  *
  *   GET  /api/v1/payment-gateway/configs         → list gateway configs
  *   POST /api/v1/payment-gateway/configs         → save/update config
@@ -61,6 +62,18 @@ export const paymentsApi = {
   /** List all payments made by an occupant (across all their invoices) */
   getByOccupant: async (occupantId: string): Promise<PaymentResponse[]> => {
     const res = await apiClient.get<PaymentResponse[]>(`${PAYMENTS_BASE}/occupant/${occupantId}`)
+    return res.data
+  },
+
+  /**
+   * Payments in this tenant flagged as needing reconciliation — money that was, or may
+   * have been, taken from a payer without the platform being able to book it.
+   *
+   * Read-only: resolving one credits a wallet and stays a TenantX support action.
+   * Normally returns an empty list.
+   */
+  getNeedingAttention: async (): Promise<PaymentResponse[]> => {
+    const res = await apiClient.get<PaymentResponse[]>(`${PAYMENTS_BASE}/needs-attention`)
     return res.data
   }
 }

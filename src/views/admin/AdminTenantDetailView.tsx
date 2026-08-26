@@ -126,7 +126,6 @@ const FEATURE_LABELS: Record<string, string> = {
   MAINTENANCE_CONTRACTORS: 'Maintenance Contractors',
   RENT_COLLECTION:       'Rent Collection',
   LANDLORD_WALLET:       'Landlord Wallet',
-  AUTOMATED_RECONCILIATION: 'Automated Reconciliation',
   FINANCIAL_REPORTS:     'Financial Reports',
 }
 
