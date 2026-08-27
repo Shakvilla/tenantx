@@ -666,6 +666,7 @@ return transitions[current] ?? []
         open={viewAgreement !== null}
         handleClose={() => setViewAgreement(null)}
         agreement={viewAgreement}
+        onEdit={() => { setEditAgreement(viewAgreement); setViewAgreement(null) }}
         renewedFromNumber={
           viewAgreement?.previousAgreementId
             ? (data.find(a => a.id === viewAgreement.previousAgreementId)?.agreementNumber ?? null)

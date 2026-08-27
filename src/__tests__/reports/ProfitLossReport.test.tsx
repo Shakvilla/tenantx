@@ -35,11 +35,14 @@ describe('ProfitLossReport', () => {
     expect(screen.getAllByText('75%').length).toBeGreaterThan(0)             // margin
   })
 
-  it('passes the date range to the API', async () => {
+  it('passes the date range to the API, with no property filter by default', async () => {
     render(<ProfitLossReport dateRange={dateRange} onDateRangeChange={() => {}} />)
 
     await screen.findByText(/profitable this period/i)
-    expect(getProfitLoss).toHaveBeenCalledWith('2026-07-01', '2026-07-31')
+
+    // The third argument is the property filter. Undefined means "all properties",
+    // which is what an unfiltered report must ask for.
+    expect(getProfitLoss).toHaveBeenCalledWith('2026-07-01', '2026-07-31', undefined)
   })
 
   it('shows a loss state when expenses exceed income', async () => {

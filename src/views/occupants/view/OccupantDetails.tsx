@@ -18,6 +18,7 @@ import Chip from '@mui/material/Chip'
 
 // Component Imports
 import OccupantDetailHeader from './OccupantDetailHeader'
+import AppAccessCard from './AppAccessCard'
 import CustomTabList from '@core/components/mui/TabList'
 import ProfileInformationTab from '@/views/tenants/view/ProfileInformationTab'
 import HomeDetailsTab from '@/views/tenants/view/HomeDetailsTab'
@@ -115,6 +116,11 @@ const OccupantDetails = ({
       <Grid size={{ xs: 12 }}>
         <OccupantDetailHeader tenantData={tenantData} tenantId={tenantId} />
       </Grid>
+      {tenantData && (
+        <Grid size={{ xs: 12 }}>
+          <AppAccessCard name={tenantData.name} email={tenantData.email} phone={tenantData.phone} />
+        </Grid>
+      )}
       {occupiedUnits.length > 0 && (
         <Grid size={{ xs: 12 }}>
           <Card>

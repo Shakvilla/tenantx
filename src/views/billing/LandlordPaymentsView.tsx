@@ -27,6 +27,9 @@ import type { ColumnDef } from '@tanstack/react-table'
 // API Imports
 import { getInvoices, type Invoice } from '@/lib/api/invoices'
 
+// Component Imports
+import PaymentsNeedingAttention from '@/views/billing/PaymentsNeedingAttention'
+
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 import { fuzzyFilter } from '@/utils/tableFilterFns'
@@ -145,6 +148,13 @@ const LandlordPaymentsView = () => {
     <Card>
       <CardHeader title='Payments History' subheader='All billing activity across your properties' />
       <CardContent>
+        {/*
+          Above the history table on purpose: a flagged payment is usually PAID, so it reads
+          as settled in the rows below. If it were mixed into the table it would be one row
+          among many, styled like the rest.
+        */}
+        <PaymentsNeedingAttention />
+
         {error && <Alert severity='error' className='mbe-4'>{error}</Alert>}
 
         <div className='overflow-x-auto'>

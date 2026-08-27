@@ -72,7 +72,12 @@ interface OccupantQuery {
 export interface CreateOccupantPayload {
   firstName: string
   lastName: string
-  email: string
+  /**
+   * Optional. Most Ghanaian tenants have a phone and no email address, and the backend has
+   * never required one — CreateOccupantRequest validates the format if present and nothing
+   * more. Marking it required here forced landlords to invent addresses.
+   */
+  email?: string
   phone: string
   avatar?: string
   avatarFileId?: string

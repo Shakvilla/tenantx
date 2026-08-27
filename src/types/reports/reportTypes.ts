@@ -1,6 +1,21 @@
 // Documentation: /docs/reports/reports-flow.md
 
-export type DateRangePreset = 'last7days' | 'last30days' | 'last3months' | 'last6months' | 'lastyear' | 'alltime' | 'custom'
+/**
+ * `thismonth` / `lastmonth` / `samemonthlastyear` are calendar months, not rolling windows.
+ * A landlord asks "how did August go" and "August against last August" — questions the rolling
+ * presets cannot express, so every calendar month had to be built by hand through Custom range.
+ */
+export type DateRangePreset =
+  | 'thismonth'
+  | 'lastmonth'
+  | 'samemonthlastyear'
+  | 'last7days'
+  | 'last30days'
+  | 'last3months'
+  | 'last6months'
+  | 'lastyear'
+  | 'alltime'
+  | 'custom'
 
 export type DateRange = {
   startDate: Date | null

@@ -37,6 +37,7 @@ import type { CreateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 // ImageKit does not serve original files on this account; see ikUrl.
 import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 import { UNIT_AMENITIES } from '@/lib/amenities'
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 // ---------------------------------------------------------------------------
 // Styled upload area (matches AddPropertyDialog)
@@ -137,7 +138,11 @@ type FormDataType = {
 const initialData: FormDataType = {
   unitNumber: '',
   propertyId: '',
-  status: '',
+  // A room being added has nobody in it. Leaving this blank made Status a required
+  // field the landlord had to set by hand on every unit, and rejected an otherwise
+  // complete form with "This field is required" on the one answer that was never in
+  // doubt.
+  status: 'available',
   rent: '',
   currency: 'GHS',
   rentPeriod: 'monthly',
@@ -157,8 +162,17 @@ const initialData: FormDataType = {
 // ---------------------------------------------------------------------------
 
 const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', onSuccess }: Props) => {
+  const { ref } = useReferenceData()
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
+
+  // Adding a compound one room at a time. This dialog is the one reached from
+  // "All Unit", so unlike the property-page version it also asks which property —
+  // and re-picking the same property from the same dropdown for every room was the
+  // single most-repeated action in the count. Twelve interactions per room, eight
+  // rooms, and nothing remembered in between.
+  const [addAnother, setAddAnother] = useState(false)
+  const [justAdded, setJustAdded] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
 
@@ -208,6 +222,8 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
       setFormData(getInitialFormData())
       setErrors({})
       setApiError(null)
+      setJustAdded(null)
+      setAddAnother(false)
       setActiveTab(0)
       setExistingImages(editData?.images || [])
       setExistingImageFileIds(editData?.imageFileIds || [])
@@ -368,8 +384,21 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
         if (!response.success) throw new Error(response.error?.message || 'Failed to update unit')
       }
 
-      handleClose()
       onSuccess?.()
+
+      if (addAnother && mode === 'add') {
+        // Everything the next room in the same compound shares — property, type, rent,
+        // size, status — stays. Only the number and the photos are per-room.
+        setFormData(prev => ({ ...prev, unitNumber: '', newImages: [] }))
+        setJustAdded(payload.unitNo)
+        setErrors({})
+        setActiveTab(0)
+        setLoading(false)
+
+        return
+      }
+
+      handleClose()
       setFormData(initialData)
       setErrors({})
     } catch (err) {
@@ -396,6 +425,13 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
           <i className='ri-close-line' />
         </IconButton>
       </DialogTitle>
+      {justAdded && (
+        /* The dialog staying open is the whole point, so it has to say what just
+           happened — otherwise pressing Add Unit looks like it did nothing. */
+        <Alert severity='success' sx={{ mx: 6, mt: 2 }} onClose={() => setJustAdded(null)}>
+          {justAdded} added. The property and the details are kept — change the unit number for the next one.
+        </Alert>
+      )}
       <DialogContent sx={{ p: 0 }}>
         {apiError && (
           <Alert severity='error' sx={{ mx: 3, mt: 2 }} onClose={() => setApiError(null)}>
@@ -467,14 +503,18 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
                       onChange={e => handleInputChange('type', e.target.value)}
                       disabled={loading}
                     >
-                      <MenuItem value='studio'>Studio</MenuItem>
-                      <MenuItem value='1br'>1 Bedroom</MenuItem>
-                      <MenuItem value='2br'>2 Bedrooms</MenuItem>
-                      <MenuItem value='3br'>3 Bedrooms</MenuItem>
-                      <MenuItem value='4br+'>4+ Bedrooms</MenuItem>
-                      <MenuItem value='commercial'>Commercial</MenuItem>
-                      <MenuItem value='office'>Office</MenuItem>
-                      <MenuItem value='retail'>Retail</MenuItem>
+                      {/*
+                        From the reference API, not a hardcoded list. There are two Add Unit
+                        dialogs; the other one already read `ref.unitTypes`, so this copy silently
+                        ignored any change to the shared list — adding Single Room, Chamber and
+                        Hall and Self-contained on the server would have fixed one form and left
+                        this one wrong.
+                      */}
+                      {ref.unitTypes.map(option => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -754,6 +794,15 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
         </Box>
       </DialogContent>
       <DialogActions className='gap-2 pbs-4'>
+        {mode === 'add' && (
+          <FormControlLabel
+            sx={{ mr: 'auto' }}
+            control={
+              <Checkbox size='small' checked={addAnother} onChange={e => setAddAnother(e.target.checked)} />
+            }
+            label={<Typography variant='body2'>Add another room</Typography>}
+          />
+        )}
         <Button variant='outlined' color='secondary' onClick={handleReset} disabled={loading}>
           Cancel
         </Button>

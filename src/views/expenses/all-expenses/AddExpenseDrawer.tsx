@@ -13,6 +13,8 @@ import IconButton from '@mui/material/IconButton'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import MenuItem from '@mui/material/MenuItem'
+
+import Link from 'next/link'
 import Select from '@mui/material/Select'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
@@ -114,14 +116,30 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
 
   const isEdit = Boolean(editExpense)
 
+  /**
+   * Whether "Other (type manually)" is chosen.
+   *
+   * This used to be DERIVED from the form: other-is-selected meant "no config id but an item
+   * name". Choosing Other clears both — that is what choosing it means — so the derived value
+   * immediately fell back to "nothing selected", the manual name field never rendered, and the
+   * dropdown snapped back to "Select an item". A landlord with no expense items configured, which
+   * is every new landlord, could not record an expense at all. Reported on three separate visits.
+   *
+   * Held as state instead, seeded for edit mode where an expense really can have a typed name and
+   * no config behind it.
+   */
+  const [manualItem, setManualItem] = useState(
+    Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item)
+  )
+
   // The dropdown value: config id, 'other', or ''
   const configSelectValue = formData.expenseConfigId
     ? formData.expenseConfigId
-    : formData.item
-      ? OTHER   // edit mode with a manual item but no config
+    : manualItem
+      ? OTHER
       : ''
 
-  const showManualItem = configSelectValue === OTHER
+  const showManualItem = manualItem
 
   // Load reference data when drawer opens
   useEffect(() => {
@@ -148,6 +166,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   useEffect(() => {
     if (open) {
       setFormData(editExpense ? apiToForm(editExpense) : initialData)
+      setManualItem(Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item))
       setErrors({})
       setApiError(null)
     }
@@ -165,6 +184,8 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   }, [formData.propertyId])
 
   const handleConfigChange = (value: string) => {
+    setManualItem(value === OTHER)
+
     if (value === OTHER) {
       // Clear config link, let user type manually
       setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
@@ -238,6 +259,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   const handleReset = () => {
     handleClose()
     setFormData(initialData)
+    setManualItem(false)
     setErrors({})
     setApiError(null)
   }
@@ -292,6 +314,18 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
                   {errors.expenseConfigId && (
                     <Typography variant='caption' color='error' className='mts-1 mli-3'>
                       Please select an expense item.
+                    </Typography>
+                  )}
+                  {!errors.expenseConfigId && expenseConfigs.length === 0 && (
+                    /*
+                      A required dropdown that is empty on a new account, with nothing
+                      saying where the list comes from, is a dead end. Say where it is
+                      built and point out the way through in the meantime.
+                    */
+                    <Typography variant='caption' color='text.secondary' className='mts-1 mli-3'>
+                      You have no expense items yet. Choose <em>Other (type manually)</em> to enter one now, or
+                      build your list on the{' '}
+                      <Link href='/expenses/config' className='text-primary'>Expense Config</Link> page.
                     </Typography>
                   )}
                 </FormControl>

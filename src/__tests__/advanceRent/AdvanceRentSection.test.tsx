@@ -124,7 +124,10 @@ describe('AdvanceRentSection — PENDING status rendering', () => {
     await userEvent.type(screen.getByLabelText(/momo number/i), '0244778899')
     await userEvent.click(screen.getByRole('button', { name: /request payment/i }))
 
-    await waitFor(() => expect(advanceRentsApi.getByOccupant).toHaveBeenCalledTimes(2))
+    // Not an exact count: the row is PENDING, so the 5-second poll is armed and can land
+    // a third fetch on a loaded machine. What matters is that the list refetched at all,
+    // without the drawer being reopened.
+    await waitFor(() => expect(vi.mocked(advanceRentsApi.getByOccupant).mock.calls.length).toBeGreaterThanOrEqual(2))
   })
 })
 

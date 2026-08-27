@@ -51,6 +51,11 @@ export interface WalletResponse {
   /** Collected directly by the landlord (cash, cheque, bank, MoMo to their own number). */
   offlineBalance: number
   pendingBalance: number
+  /** Everything that has come in. Previously mislabelled "earned". */
+  totalCollected: number
+  /** Rent held for months not yet arrived — owed back if the tenant leaves. */
+  unearnedAdvanceHeld: number
+  /** totalCollected − unearnedAdvanceHeld: what has actually become the landlord's. */
   totalEarned: number
   totalWithdrawn: number
   linkedMomoNumber: string | null

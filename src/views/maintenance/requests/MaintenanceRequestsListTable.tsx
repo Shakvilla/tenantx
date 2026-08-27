@@ -363,7 +363,13 @@ return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} cl
 
   return (
     <>
-      <PageBanner title='Maintenance Requests' description='Manage and track maintenance requests from tenants' icon='ri-tools-line' />
+      <PageBanner
+        title='Maintenance Requests'
+        // "requests from tenants" read as a promise the portal was not keeping: tenants can
+        // in fact raise these from the app, but nothing here or on their record said so.
+        description='Repairs you log yourself, and the ones your tenants report from the app'
+        icon='ri-tools-line'
+      />
       <MaintenanceStatsCards />
       <Card className='mbs-6'>
         <CardHeader
@@ -481,7 +487,15 @@ return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} cl
 
       <AddMaintenanceRequestDialog open={addOpen} handleClose={() => setAddOpen(false)} onSuccess={refresh} mode='add' />
       <AddMaintenanceRequestDialog open={editOpen} handleClose={() => { setEditOpen(false); setRequestToEdit(null) }} onSuccess={refresh} editData={requestToEdit as any} mode='edit' />
-      <ViewMaintenanceRequestDialog open={viewOpen} setOpen={setViewOpen} request={requestToView as any} onEdit={() => { setViewOpen(false); setRequestToEdit(requestToView); setEditOpen(true) }} />
+      <ViewMaintenanceRequestDialog
+        open={viewOpen}
+        setOpen={setViewOpen}
+        request={requestToView as any}
+        onEdit={() => { setViewOpen(false); setRequestToEdit(requestToView); setEditOpen(true) }}
+        // Recording labour changes the request's total, so the row behind the dialog is stale
+        // the moment it is saved. Refetch rather than leave the old figure on screen.
+        onChanged={updated => { setRequestToView(updated as any); void fetchRequests(null) }}
+      />
       <ConfirmationDialog open={deleteOpen} setOpen={setDeleteOpen} type='delete-maintenance-request' onConfirm={handleDeleteConfirm} />
     </>
   )

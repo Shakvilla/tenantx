@@ -50,6 +50,14 @@ export interface PaymentResponse {
   status: PaymentStatus
   failureReason?: string
   notes?: string
+  /**
+   * True when this payment has, or may have, taken the payer's money without the
+   * platform being able to book it. Independent of `status` — a flagged payment is
+   * usually PAID or PROCESSING, which is exactly what makes it invisible without
+   * this field.
+   */
+  needsReconciliation?: boolean
+  reconciliationReason?: string | null
   paymentDate?: string
   initiatedAt?: string
   completedAt?: string

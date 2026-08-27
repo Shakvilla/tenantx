@@ -101,4 +101,76 @@ describe('OnboardTenantWizard — regression coverage', () => {
     expect(screen.getByText(/lease-terms-step/)).toBeInTheDocument()
     expect(screen.getByText('1500', { exact: false })).toBeInTheDocument()
   })
+  it('does not throw away an in-progress run when the launcher is pressed again', async () => {
+    /*
+     * The launcher used to reset() unconditionally. Pressing "Onboard a Tenant"
+     * while the wizard was already open wiped the occupant just created and the
+     * step reached — and because the dialog was on screen either way, it read as
+     * a button that did nothing. Both of those were reported as separate faults.
+     */
+    vi.resetModules()
+
+    vi.doMock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+    vi.doMock('@/lib/api/storage', () => ({ getStoredTenantId: () => 't1' }))
+    vi.doMock('@/views/onboarding/steps/TenantHomeStep', () => ({
+      default: ({ onComplete }: any) => (
+        <button onClick={() => onComplete(realisticResult)}>complete-home-step</button>
+      ),
+      __esModule: true
+    }))
+    vi.doMock('@/views/onboarding/steps/LeaseTermsStep', () => ({
+      default: () => <div>lease-terms-step</div>,
+      __esModule: true
+    }))
+
+    const { default: Wizard } = await import('@/views/onboarding/OnboardTenantWizard')
+
+    render(<Wizard />)
+    act(() => { window.dispatchEvent(new CustomEvent('onboard-tenant:open')) })
+
+    fireEvent.click(screen.getByText('complete-home-step'))
+    expect(screen.getByText('lease-terms-step')).toBeInTheDocument()
+
+    // Press the launcher again, mid-run.
+    act(() => { window.dispatchEvent(new CustomEvent('onboard-tenant:open')) })
+
+    // Still on step 2 — the run survived.
+    expect(screen.getByText('lease-terms-step')).toBeInTheDocument()
+    expect(screen.queryByText('complete-home-step')).not.toBeInTheDocument()
+
+    // And the occupant is still known, so closing still guards.
+    fireEvent.click(screen.getByLabelText('close onboarding'))
+    expect(screen.getByText(/leave onboarding\?/i)).toBeInTheDocument()
+  })
+
+  it('starts a fresh run when the launcher is pressed after the wizard was closed', async () => {
+    vi.resetModules()
+
+    vi.doMock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+    vi.doMock('@/lib/api/storage', () => ({ getStoredTenantId: () => 't1' }))
+    vi.doMock('@/views/onboarding/steps/TenantHomeStep', () => ({
+      default: ({ onComplete }: any) => (
+        <button onClick={() => onComplete(realisticResult)}>complete-home-step</button>
+      ),
+      __esModule: true
+    }))
+    vi.doMock('@/views/onboarding/steps/LeaseTermsStep', () => ({
+      default: () => <div>lease-terms-step</div>,
+      __esModule: true
+    }))
+
+    const { default: Wizard } = await import('@/views/onboarding/OnboardTenantWizard')
+
+    render(<Wizard />)
+    act(() => { window.dispatchEvent(new CustomEvent('onboard-tenant:open')) })
+    fireEvent.click(screen.getByText('complete-home-step'))
+
+    fireEvent.click(screen.getByLabelText('close onboarding'))
+    fireEvent.click(screen.getByRole('button', { name: /leave/i }))
+
+    act(() => { window.dispatchEvent(new CustomEvent('onboard-tenant:open')) })
+
+    // Back at step 1 with nothing carried over from the abandoned run.
+    expect(screen.getByText('complete-home-step')).toBeInTheDocument()
+  })
 })

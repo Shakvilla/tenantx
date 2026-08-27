@@ -25,6 +25,7 @@ import type { Agreement, AgreementStatus, AgreementType } from '@/lib/api/agreem
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
 import { formatCurrency } from '@/utils/currency'
+import { assessExecution, listMissing } from '@/lib/agreement/execution'
 
 type Props = {
   open: boolean
@@ -34,6 +35,8 @@ type Props = {
   renewedFromNumber?: string | null
   /** Agreement number this one was renewed TO (its successor), resolved by the parent. */
   renewedToNumber?: string | null
+  /** Opens the edit form for this agreement, so an incomplete record has a route forward. */
+  onEdit?: () => void
 }
 
 const formatDate = (dateString?: string | null): string => {
@@ -78,8 +81,28 @@ const decisionLabels: Record<string, string> = {
 
 const yesNo = (v: boolean | null | undefined): string => (v ? 'Yes' : 'No')
 
-const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber }: Props) => {
+/** 1 -> "1st", 2 -> "2nd", 3 -> "3rd", 11-13 -> "11th"-"13th", 21 -> "21st". */
+const ordinalDay = (d: number): string => {
+  const rem100 = d % 100
+
+  if (rem100 >= 11 && rem100 <= 13) return `${d}th`
+
+  switch (d % 10) {
+    case 1:
+      return `${d}st`
+    case 2:
+      return `${d}nd`
+    case 3:
+      return `${d}rd`
+    default:
+      return `${d}th`
+  }
+}
+
+const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber, onEdit }: Props) => {
   if (!agreement) return null
+
+  const execution = assessExecution(agreement)
 
   // ---- Stamp Duty calculation (frontend-only) ----
   // GRA Stamp Duty Act: 0.5% of total lease value
@@ -292,6 +315,7 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
               {(agreement.terms || agreement.conditions || agreement.renewalOptions ||
                 agreement.sublettingAllowed != null || agreement.petsAllowed != null ||
                 agreement.noiseRestrictionsApply != null || agreement.noticePeriodDays != null ||
+                agreement.rentDueDay != null || agreement.maxOccupants != null ||
                 agreement.earlyTerminationAllowed != null || agreement.witnessName) && (
                 <>
                   <Grid size={{ xs: 12 }}><Divider /></Grid>
@@ -300,6 +324,7 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
                     <Grid container spacing={6}>
                       {(agreement.sublettingAllowed != null || agreement.petsAllowed != null ||
                         agreement.noiseRestrictionsApply != null || agreement.noticePeriodDays != null ||
+                        agreement.rentDueDay != null || agreement.maxOccupants != null ||
                         agreement.earlyTerminationAllowed != null || agreement.witnessName) && (
                         <Grid size={{ xs: 12 }}>
                           <Typography className='font-medium mbe-2' color='text.primary'>Clauses:</Typography>
@@ -362,6 +387,26 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
                                   <Typography variant='body2'>Notice Period:</Typography>
                                   <Typography className='font-medium' color='text.primary'>
                                     {agreement.noticePeriodDays} days
+                                  </Typography>
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.rentDueDay != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Rent Due Day:</Typography>
+                                  <Typography className='font-medium' color='text.primary'>
+                                    {ordinalDay(agreement.rentDueDay)} of the month
+                                  </Typography>
+                                </div>
+                              </Grid>
+                            )}
+                            {agreement.maxOccupants != null && (
+                              <Grid size={{ xs: 12, sm: 6 }}>
+                                <div className='flex items-center justify-between'>
+                                  <Typography variant='body2'>Occupants Allowed:</Typography>
+                                  <Typography className='font-medium' color='text.primary'>
+                                    {agreement.maxOccupants}
                                   </Typography>
                                 </div>
                               </Grid>
@@ -473,9 +518,32 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
                 <Divider className='border-dashed' />
               </Grid>
               <Grid size={{ xs: 12 }}>
-                <Typography variant='body2' color='text.secondary'>
-                  This agreement is legally binding and enforceable.
-                </Typography>
+                {/*
+                  This used to read "This agreement is legally binding and enforceable"
+                  on every agreement, including one created by onboarding with no
+                  signature date, no witness and no document attached. A landlord who
+                  believes that stops chasing the signature, and discovers at the Rent
+                  Control office that he has a database row.
+                */}
+                {execution.fullyExecuted ? (
+                  <Typography variant='body2' color='text.secondary'>
+                    Signed on {formatDate(agreement.signedDate)}, witnessed by {agreement.witnessName}, with a
+                    copy of the signed agreement attached.
+                  </Typography>
+                ) : (
+                  <Alert severity='warning' variant='outlined'>
+                    <Typography variant='body2' fontWeight={600}>Not fully executed</Typography>
+                    <Typography variant='body2'>
+                      This record is still missing {listMissing(execution.missing)}. Until those are in place it
+                      is a record of what was agreed, not something you can rely on in a dispute.
+                    </Typography>
+                    {onEdit && (
+                      <Button size='small' variant='outlined' color='warning' sx={{ mt: 1.5 }} onClick={onEdit}>
+                        Complete it
+                      </Button>
+                    )}
+                  </Alert>
+                )}
               </Grid>
             </Grid>
           </CardContent>

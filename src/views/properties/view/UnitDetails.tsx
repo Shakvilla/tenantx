@@ -19,6 +19,7 @@ import InspectionsTab    from './InspectionsTab'
 import VacateTab         from './VacateTab'
 import AdvertiseUnitCard from './AdvertiseUnitCard'
 import RentReviewHistoryTab from './RentReviewHistoryTab'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 // Type Imports
 import type { Property } from '@/types/property'
@@ -116,11 +117,13 @@ const UnitDetails = ({
             <Grid size={{ xs: 12, md: 4 }}>
               <Grid container spacing={6}>
                 <Grid size={{ xs: 12 }}>
-                  <AdvertiseUnitCard
-                    unitId={unitId}
-                    unitNo={unitData?.unitNumber}
-                    propertyName={unitData?.propertyName}
-                  />
+                  <FeatureGate feature='VACANCY_LISTINGS'>
+                    <AdvertiseUnitCard
+                      unitId={unitId}
+                      unitNo={unitData?.unitNumber}
+                      propertyName={unitData?.propertyName}
+                    />
+                  </FeatureGate>
                 </Grid>
               </Grid>
             </Grid>

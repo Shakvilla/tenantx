@@ -15,7 +15,10 @@ import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import Tooltip from '@mui/material/Tooltip'
 
+import Button from '@mui/material/Button'
+
 import { getDocuments, type DocumentItem } from '@/lib/api/documents'
+import AddDocumentDialog from '@/views/documents/AddDocumentDialog'
 
 const STATUS_COLOR: Record<DocumentItem['status'], 'warning' | 'success' | 'error'> = {
   pending: 'warning',
@@ -34,10 +37,16 @@ function prettyType(type: string) {
   return type.replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-const DocumentationTab = ({ occupantId }: { occupantId?: string }) => {
+const DocumentationTab = ({ occupantId, occupantName }: { occupantId?: string; occupantName?: string }) => {
+  // The tab listed documents and offered no way to add one: upload lived only in the top-level
+  // Documents section, so filing a tenant's signed agreement meant leaving the tenant, finding
+  // the section, and picking them out of a list again.
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [documents, setDocuments] = useState<DocumentItem[]>([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState<string | null>(null)
+
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     if (!occupantId) {
@@ -56,7 +65,7 @@ const DocumentationTab = ({ occupantId }: { occupantId?: string }) => {
       .catch(() => { if (!cancelled) setError('Failed to load documents') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [occupantId])
+  }, [occupantId, reloadKey])
 
   const handleDownload = (item: DocumentItem) => {
     if (item.fileUrl) window.open(item.fileUrl, '_blank', 'noopener,noreferrer')
@@ -69,6 +78,19 @@ const DocumentationTab = ({ occupantId }: { occupantId?: string }) => {
           Documents
         </Typography>
 
+        {occupantId && documents.length > 0 && (
+          <Box className='flex justify-end'>
+            <Button
+              size='small'
+              variant='outlined'
+              startIcon={<i className='ri-upload-2-line' />}
+              onClick={() => setUploadOpen(true)}
+            >
+              Upload a document
+            </Button>
+          </Box>
+        )}
+
         {error && <Alert severity='error'>{error}</Alert>}
 
         {loading ? (
@@ -76,10 +98,20 @@ const DocumentationTab = ({ occupantId }: { occupantId?: string }) => {
             <CircularProgress />
           </Box>
         ) : documents.length === 0 ? (
-          <Box className='flex items-center justify-center py-12'>
+          <Box className='flex flex-col items-center justify-center gap-3 py-12'>
             <Typography variant='body2' color='text.secondary'>
-              No documents available
+              No documents yet
             </Typography>
+            {occupantId && (
+              <Button
+                size='small'
+                variant='outlined'
+                startIcon={<i className='ri-upload-2-line' />}
+                onClick={() => setUploadOpen(true)}
+              >
+                Upload a document
+              </Button>
+            )}
           </Box>
         ) : (
           <Box className='flex flex-col gap-4'>
@@ -129,6 +161,15 @@ const DocumentationTab = ({ occupantId }: { occupantId?: string }) => {
           </Box>
         )}
       </CardContent>
+
+      {occupantId && (
+        <AddDocumentDialog
+          open={uploadOpen}
+          setOpen={setUploadOpen}
+          presetOccupant={{ id: occupantId, name: occupantName }}
+          onSuccess={() => { setUploadOpen(false); setReloadKey(k => k + 1) }}
+        />
+      )}
     </Card>
   )
 }
