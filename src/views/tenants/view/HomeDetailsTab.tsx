@@ -134,10 +134,18 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
                     readOnly: true
                   }}
                 />
+                {/*
+                  Renamed, because this and the Caution Fee panel below are the same money under
+                  two names and a landlord entered it twice — ₵600 as a "Security Deposit" on the
+                  lease on Sunday, then ₵600 again as a caution fee. This one is a figure copied
+                  off the agreement; the panel below is the fee actually being held, with its
+                  deductions and its refundable balance.
+                */}
                 <TextField
                   size='small'
-                  label='Security Deposit'
+                  label='Deposit stated on the lease'
                   value={tenantData?.securityDeposit || '-'}
+                  helperText='The caution fee actually held is shown below.'
                   InputProps={{
                     readOnly: true
                   }}
