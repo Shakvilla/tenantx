@@ -86,3 +86,25 @@ export const getDistricts = (region?: string) =>
 
 export const getCities = (district?: string) =>
   fetchList<string>(`/cities${district ? `?district=${encodeURIComponent(district)}` : ''}`)
+
+
+/**
+ * What the platform ALLOWS, as opposed to what it defines.
+ *
+ * Separate call from getAllReferenceData() on purpose: that one is static enums and is cached
+ * hard, this one reads a setting an administrator can change.
+ */
+export interface PlatformPolicy {
+  multiCurrencyEnabled: boolean
+  baseCurrency: string
+}
+
+export async function getPlatformPolicy(): Promise<PlatformPolicy> {
+  // NOT force-cache, unlike /all: an administrator can change this and the change has to be
+  // visible on the next load rather than whenever the browser feels like revalidating.
+  const res = await fetch(`${BASE}/platform-policy`, { cache: 'no-store' })
+
+  if (!res.ok) throw new Error(`Failed to fetch platform policy: ${res.status}`)
+
+  return res.json()
+}

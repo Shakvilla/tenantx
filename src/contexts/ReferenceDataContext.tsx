@@ -15,7 +15,7 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-import { getAllReferenceData } from '@/lib/api/reference'
+import { getAllReferenceData, getPlatformPolicy, type PlatformPolicy } from '@/lib/api/reference'
 import type { AllReferenceData, ReferenceItem, Amenity, Region } from '@/types/reference'
 
 // ---------------------------------------------------------------------------
@@ -58,6 +58,12 @@ const EMPTY: AllReferenceData = {
 interface ReferenceDataContextValue {
   /** All reference data. Empty arrays until loaded. */
   ref: AllReferenceData
+  /**
+   * What the platform allows. Assumed single-currency until the real answer arrives — the safe
+   * default, since the alternative is briefly offering a currency picker that the API will
+   * refuse on save.
+   */
+  policy: PlatformPolicy
   isLoading: boolean
   error: string | null
   /** Manually re-fetch if needed */
@@ -92,6 +98,7 @@ export function useReferenceData(): ReferenceDataContextValue {
 
 export function ReferenceDataProvider({ children }: { children: ReactNode }) {
   const [ref, setRef] = useState<AllReferenceData>(EMPTY)
+  const [policy, setPolicy] = useState<PlatformPolicy>({ multiCurrencyEnabled: false, baseCurrency: 'GHS' })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
@@ -101,6 +108,12 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true)
     setError(null)
+
+    // Failure here must not blank the reference data: a policy we could not read simply stays
+    // at its safe default.
+    getPlatformPolicy()
+      .then(p => { if (!cancelled) setPolicy(p) })
+      .catch(() => {})
 
     getAllReferenceData()
       .then(data => {
@@ -140,7 +153,7 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
 
   return (
     <ReferenceDataContext.Provider
-      value={{ ref, isLoading, error, refresh, getDistricts, getLabel, getAmenity }}
+      value={{ ref, policy, isLoading, error, refresh, getDistricts, getLabel, getAmenity }}
     >
       {children}
     </ReferenceDataContext.Provider>
