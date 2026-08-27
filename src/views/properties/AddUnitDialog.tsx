@@ -162,7 +162,7 @@ const initialData: FormDataType = {
 // ---------------------------------------------------------------------------
 
 const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', onSuccess }: Props) => {
-  const { ref } = useReferenceData()
+  const { ref, policy } = useReferenceData()
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
 
@@ -556,22 +556,30 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
                     disabled={loading}
                   />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth size='small'>
-                    <InputLabel id='currency-label'>Currency</InputLabel>
-                    <Select
-                      size='small'
-                      labelId='currency-label'
-                      label='Currency'
-                      value={formData.currency}
-                      onChange={e => handleInputChange('currency', e.target.value)}
-                      disabled={loading}
-                    >
-                      <MenuItem value='GHS'>GHS — Ghana Cedi (₵)</MenuItem>
-                      <MenuItem value='USD'>USD — US Dollar ($)</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
+                {/*
+                  Only offered when the platform actually supports more than one currency.
+                  Choosing USD used to store a dollar price that every rent total then added to
+                  cedis as though it were the same unit; with the switch off the API refuses it,
+                  so offering the choice would be offering a save that fails.
+                */}
+                {policy.multiCurrencyEnabled && (
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <FormControl fullWidth size='small'>
+                      <InputLabel id='currency-label'>Currency</InputLabel>
+                      <Select
+                        size='small'
+                        labelId='currency-label'
+                        label='Currency'
+                        value={formData.currency}
+                        onChange={e => handleInputChange('currency', e.target.value)}
+                        disabled={loading}
+                      >
+                        <MenuItem value='GHS'>GHS — Ghana Cedi (₵)</MenuItem>
+                        <MenuItem value='USD'>USD — US Dollar ($)</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                )}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth size='small'>
                     <InputLabel id='rent-period-label'>Rent Period</InputLabel>

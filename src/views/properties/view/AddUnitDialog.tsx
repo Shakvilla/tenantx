@@ -46,7 +46,7 @@ interface Props {
 
 const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props) => {
   const isEdit = Boolean(editUnit)
-  const { ref } = useReferenceData()
+  const { ref, policy } = useReferenceData()
 
   // Form state
   const [formData, setFormData] = useState({
@@ -341,12 +341,16 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField select label='Currency' value={formData.currency} onChange={handleChange('currency')} fullWidth>
-                  <MenuItem value='GHS'>GHS — Ghana Cedi (₵)</MenuItem>
-                  <MenuItem value='USD'>USD — US Dollar ($)</MenuItem>
-                </TextField>
-              </Grid>
+              {/* See the All Unit dialog: offered only when the platform supports more than
+                  one currency, because otherwise the API refuses the save. */}
+              {policy.multiCurrencyEnabled && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField select label='Currency' value={formData.currency} onChange={handleChange('currency')} fullWidth>
+                    <MenuItem value='GHS'>GHS — Ghana Cedi (₵)</MenuItem>
+                    <MenuItem value='USD'>USD — US Dollar ($)</MenuItem>
+                  </TextField>
+                </Grid>
+              )}
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField select label='Rent Period' value={formData.rentPeriod} onChange={handleChange('rentPeriod')} fullWidth>

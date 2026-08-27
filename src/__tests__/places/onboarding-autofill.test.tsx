@@ -24,6 +24,9 @@ vi.mock('@/lib/api/places', async importOriginal => ({
 // second option so tests can exercise a hand-edit away from the picked place.
 vi.mock('@/contexts/ReferenceDataContext', () => ({
   useReferenceData: () => ({
+    // The context now also carries what the platform allows; single-currency by
+    // default, which is what these tests assume.
+    policy: { multiCurrencyEnabled: false, baseCurrency: 'GHS' },
     ref: {
       propertyTypes: [{ value: 'house', label: 'House', description: '' }],
       regions: [
