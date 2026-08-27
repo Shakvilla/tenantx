@@ -161,7 +161,10 @@ export interface MaintenanceRequest {
   permissionToEnter?: boolean
   entryInstructions?: string | null
   preferredTimeSlots?: string[]
-  estimatedCost?: number | null
+  estimatedCost?: number
+  /** The labour half — the plumber's fee, the mason's day. Most of a Ghanaian repair bill. */
+  labourCost?: number | null
+  /** Derived on the server as labourCost + parts; never sent by the client. */
   actualCost?: number | null
   billableTo?: string | null
   currency?: string | null
@@ -208,6 +211,11 @@ export interface CreateMaintenanceRequestPayload {
 }
 
 export interface UpdateMaintenanceRequestPayload {
+  /**
+   * What the labour cost. actualCost is NOT part of this payload: the server derives it as
+   * labour + parts, so one place owns the arithmetic and the client cannot disagree with it.
+   */
+  labourCost?: number
   title?: string
   description?: string
   priority?: string

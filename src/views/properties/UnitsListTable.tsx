@@ -58,6 +58,9 @@ import tableStyles from '@core/styles/table.module.css'
 
 // ImageKit does not serve original files on this account; see ikUrl.
 import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { formatCurrency } from '@/utils/currency'
+import { unitTypeLabel } from '@/lib/units/unitTypeLabel'
+import { useReferenceData } from '@/contexts/ReferenceDataContext'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -98,6 +101,8 @@ const unitStatusObj: Record<string, 'success' | 'warning' | 'error' | 'info'> = 
 const columnHelper = createColumnHelper<UnitWithExtras>()
 
 const UnitsListTable = () => {
+  const { ref } = useReferenceData()
+
   const { refresh: refreshSubscription } = useSubscription()
 
   // States
@@ -160,7 +165,11 @@ const UnitsListTable = () => {
         const transformedData: UnitWithExtras[] = responseData.map(unit => ({
           ...unit,
           propertyName: unit.propertyName || unit.property?.propertyName || 'Unknown Property',
-          formattedRent: `₵${unit.rent.toLocaleString()}`,
+          // Not a hardcoded cedi sign. The unit's currency is stored faithfully — a unit
+          // entered in dollars really is USD in the database — and printing ₵ over it told a
+          // landlord his $800 East Legon lease was ₵800, a figure eleven times too small that
+          // then fed the vacancy sum, the forecast and the P&L.
+          formattedRent: formatCurrency(unit.rent, unit.currency ?? 'GHS'),
           formattedSize: unit.sizeSqft ? `${unit.sizeSqft.toLocaleString()} sqft` : '-'
         }))
 
@@ -306,8 +315,10 @@ const UnitsListTable = () => {
                 {row.original.unitNo}
               </Typography>
               {row.original.type && (
-                <Typography variant='caption' color='text.secondary' className='capitalize'>
-                  {row.original.type}
+                /* Not the raw stored value: `capitalize` on "self_contained" gives
+                   "Self_contained", underscore and all. */
+                <Typography variant='caption' color='text.secondary'>
+                  {unitTypeLabel(row.original.type, ref?.unitTypes)}
                 </Typography>
               )}
             </div>
@@ -685,6 +696,9 @@ const UnitsListTable = () => {
                 propertyName: selectedUnit.propertyName,
                 status: selectedUnit.status,
                 rent: selectedUnit.rent?.toString() || '',
+                // Load the stored currency, or the form defaults to GHS and the next save
+                // rewrites a USD unit to cedis without a word.
+                currency: selectedUnit.currency ?? 'GHS',
                 bedrooms: selectedUnit.bedrooms || 0,
                 bathrooms: selectedUnit.bathrooms || 0,
                 size: selectedUnit.sizeSqft?.toString() || '',

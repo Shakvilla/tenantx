@@ -21,6 +21,9 @@ vi.mock('@/lib/api/places', async importOriginal => ({
 
 vi.mock('@/contexts/ReferenceDataContext', () => ({
   useReferenceData: () => ({
+    // The context now also carries what the platform allows; single-currency by
+    // default, which is what these tests assume.
+    policy: { multiCurrencyEnabled: false, baseCurrency: 'GHS' },
     ref: {
       regions: [
         {

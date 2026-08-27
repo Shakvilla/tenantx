@@ -40,7 +40,15 @@ export interface CreateAdvanceRentRequest {
   propertyId?: string
   monthlyRent: number
   monthsCovered: number
-  periodStart: string   // ISO date
+  periodStart: string   // ISO date — when the tenancy the money buys begins
+  /**
+   * When the money actually changed hands. Optional; the server stamps today if absent.
+   *
+   * Separate from periodStart on purpose: a tenant can pay in July for a lease starting in
+   * September, and reporting that cash as September income is what makes a landlord stop
+   * believing the collection figure.
+   */
+  paymentDate?: string  // ISO date
   currency?: string
   paymentMethod?: PaymentMethodType
   paymentReference?: string

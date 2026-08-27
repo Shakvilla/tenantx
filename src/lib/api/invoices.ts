@@ -3,6 +3,7 @@
  */
 
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete, API_BASE } from './client'
+import { emitBillingChanged } from './events'
 import { getStoredToken, getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
@@ -119,23 +120,53 @@ export async function getInvoiceById(id: string): Promise<Invoice> {
 }
 
 export async function createInvoice(data: CreateInvoicePayload): Promise<Invoice> {
-  return apiPost(`${BASE}/invoices`, data, { headers: tenantHeader() })
+  const created = await apiPost<Invoice>(`${BASE}/invoices`, data, { headers: tenantHeader() })
+
+  emitBillingChanged()
+
+  return created
 }
 
 export async function updateInvoice(id: string, data: UpdateInvoicePayload): Promise<Invoice> {
-  return apiPut(`${BASE}/invoices/${id}`, data, { headers: tenantHeader() })
+  const updated = await apiPut<Invoice>(`${BASE}/invoices/${id}`, data, { headers: tenantHeader() })
+
+  emitBillingChanged()
+
+  return updated
 }
 
 export async function updateInvoiceStatus(id: string, status: string): Promise<Invoice> {
-  return apiPatch(`${BASE}/invoices/${id}/status`, { status }, { headers: tenantHeader() })
+  const updated = await apiPatch<Invoice>(`${BASE}/invoices/${id}/status`, { status }, { headers: tenantHeader() })
+
+  emitBillingChanged()
+
+  return updated
 }
 
 export async function deleteInvoice(id: string): Promise<void> {
-  return apiDelete(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  await apiDelete(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  emitBillingChanged()
 }
 
-export async function getInvoiceStats(): Promise<InvoiceStats> {
-  return apiGet(`${BASE}/invoices/stats`, { headers: tenantHeader() })
+/**
+ * Invoice totals, optionally narrowed to a period by issued date.
+ *
+ * Omit the range for all-time figures (the Invoices page). Pass the landlord's chosen range for
+ * the Earnings report — without it, those tiles reported all-time numbers beside charts that
+ * were correctly filtered, so January showed the current figures.
+ */
+export async function getInvoiceStats(params?: {
+  startDate?: string
+  endDate?: string
+}): Promise<InvoiceStats> {
+  const qs = new URLSearchParams()
+
+  if (params?.startDate) qs.set('startDate', params.startDate)
+  if (params?.endDate) qs.set('endDate', params.endDate)
+
+  const query = qs.toString()
+
+  return apiGet(`${BASE}/invoices/stats${query ? `?${query}` : ''}`, { headers: tenantHeader() })
 }
 
 /**

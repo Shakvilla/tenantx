@@ -66,7 +66,10 @@ const EarningsReport = ({ dateRange, onDateRangeChange }: Props) => {
     setLoading(true)
     const { startDate, endDate } = toApiDateParams(dateRange, 'date')
 
-    Promise.all([getInvoiceStats(), getInvoices({ startDate, endDate })])
+    // Both calls take the SAME range. They used not to: the tiles read an unfiltered stats call
+    // while the charts read a filtered list, so choosing January left the four headline figures
+    // showing the current month's numbers over a chart that said "No data available".
+    Promise.all([getInvoiceStats({ startDate, endDate }), getInvoices({ startDate, endDate })])
       .then(([s, inv]) => {
         setStats(s)
         setInvoices(inv)

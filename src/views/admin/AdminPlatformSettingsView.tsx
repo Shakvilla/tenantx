@@ -427,6 +427,35 @@ export default function AdminPlatformSettingsView() {
         Global configuration for the {localValues['branding.platform_name'] || 'Yiliora'} platform. Changes take effect immediately.
       </Typography>
 
+      {/* ── Currency ─────────────────────────────────────────────────────────── */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-money-dollar-circle-line'
+            title='Currency'
+            subtitle='Whether landlords may price anything in a currency other than the cedi. Off unless you have decided otherwise.'
+          />
+          <Divider sx={{ mb: 2 }} />
+
+          <ToggleRow
+            label='Allow currencies other than GHS'
+            description='Off by default. There is no exchange rate in the system, so a portfolio mixing cedis and dollars produces vacancy, forecast and profit figures that silently add the two together. Turn this on only once a rate is configured.'
+            checked={localValues['currency.multi_currency_enabled'] === 'true'}
+            saving={saving.has('currency.multi_currency_enabled')}
+            onChange={v => save('currency.multi_currency_enabled', String(v))}
+          />
+
+          {localValues['currency.multi_currency_enabled'] === 'true' && (
+            <Box sx={{ mt: 2, p: 1.5, bgcolor: 'warning.lighter', borderRadius: 1 }}>
+              <Typography variant='body2' color='warning.dark' fontWeight={600}>
+                Multi-currency is ON — totals that sum rents across currencies are not reliable
+                until an exchange rate is configured.
+              </Typography>
+            </Box>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ── 0. Maintenance Mode ──────────────────────────────────────────────── */}
       <Card sx={{ mb: 3, border: localValues['platform.maintenance.enabled'] === 'true' ? '1px solid' : undefined, borderColor: 'error.main' }}>
         <CardContent>

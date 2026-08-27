@@ -95,12 +95,25 @@ type Props = {
   open:      boolean
   setOpen:   (open: boolean) => void
   onSuccess: () => void
+  /**
+   * Pre-selects the tenant when opened from their own page. Without it the landlord has to pick
+   * from a list the tenant he is already looking at — and picking the wrong one files a document
+   * against the wrong tenancy.
+   */
+  presetOccupant?: { id: string; name?: string }
 }
 
 // ---------------------------------------------------------------------------
 
-const AddDocumentDialog = ({ open, setOpen, onSuccess }: Props) => {
+const AddDocumentDialog = ({ open, setOpen, onSuccess, presetOccupant }: Props) => {
   const [form,       setForm]       = useState<FormData>(EMPTY)
+
+  // Applied on open rather than as an initial value: the dialog is mounted once and reopened,
+  // so an initial value would only ever be right the first time.
+  useEffect(() => {
+    if (!open || !presetOccupant?.id) return
+    setForm(prev => ({ ...prev, occupantId: presetOccupant.id, occupantName: presetOccupant.name ?? '' }))
+  }, [open, presetOccupant?.id, presetOccupant?.name])
   const [upload,     setUpload]     = useState<UploadState>({ status: 'idle' })
   const [submitting, setSubmitting] = useState(false)
   const [errors,     setErrors]     = useState<Partial<Record<keyof FormData, string>>>({})

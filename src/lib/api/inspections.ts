@@ -13,6 +13,7 @@
 
 import { apiClient, API_BASE } from './client'
 import { uploadImages } from '@/lib/imagekit'
+import { openBlobDocument } from '@/utils/openBlobDocument'
 import type {
   InspectionResponse,
   InspectionSummary,
@@ -85,10 +86,13 @@ export async function signOffInspection(id: string, data: InspectionSignOffReque
  * authenticated apiClient and open the resulting HTML as a blob URL instead.
  */
 export async function openInspectionReport(id: string): Promise<void> {
-  const res = await apiClient.get<string>(`${BASE}/${id}/report`, { responseType: 'blob' })
-  const href = URL.createObjectURL(res.data as unknown as Blob)
-  window.open(href, '_blank', 'noopener,noreferrer')
-  setTimeout(() => URL.revokeObjectURL(href), 60_000)
+  // Same popup-blocker trap as the payment receipt — the window must be opened before the
+  // fetch, not after it. See openBlobDocument.
+  return openBlobDocument(async () => {
+    const res = await apiClient.get<string>(`${BASE}/${id}/report`, { responseType: 'blob' })
+
+    return res.data as unknown as Blob
+  })
 }
 
 /**

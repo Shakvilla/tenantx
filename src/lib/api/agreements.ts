@@ -50,6 +50,10 @@ export interface Agreement {
   petsAllowed: boolean | null
   noiseRestrictionsApply: boolean | null
   noticePeriodDays: number | null
+  /** Day of the month rent falls due, 1-31. Null = the landlord has not recorded it. */
+  rentDueDay: number | null
+  /** How many occupants the tenancy permits. Null = not recorded. */
+  maxOccupants: number | null
   earlyTerminationAllowed: boolean | null
   witnessName: string | null
 
@@ -110,6 +114,8 @@ export interface CreateAgreementPayload {
   petsAllowed?: boolean | null
   noiseRestrictionsApply?: boolean | null
   noticePeriodDays?: number | null
+  rentDueDay?: number | null
+  maxOccupants?: number | null
   earlyTerminationAllowed?: boolean | null
   witnessName?: string | null
 }

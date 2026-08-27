@@ -48,6 +48,7 @@ import {
   type SubscriptionInvoiceDto,
   type ManualPaymentDetails,
 } from '@/lib/api/subscription-client'
+import { calculateMonthlyCharge, describeMonthlyCharge } from '@/lib/subscription/pricing'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -78,7 +79,7 @@ function statusChipColor(status: string): 'success' | 'warning' | 'error' | 'def
 // Current plan card
 // ---------------------------------------------------------------------------
 
-function CurrentPlanCard() {
+function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
   const { subscription, isLoading, refresh } = useSubscription()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -132,10 +133,20 @@ function CurrentPlanCard() {
                 />
               </Box>
               {!isFree && pricePerUnit > 0 && (
-                <Typography variant='body2' color='text.secondary'>
-                  {formatGHS(pricePerUnit)} / unit / month
-                  {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
-                </Typography>
+                <>
+                  <Typography variant='body2' color='text.secondary'>
+                    {formatGHS(pricePerUnit)} / unit / month
+                    {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
+                  </Typography>
+                  {/*
+                    The rate alone is not the bill. The first units are free, so a
+                    landlord multiplying rate by unit count gets a number the invoice
+                    will contradict. Show the subtraction he can check.
+                  */}
+                  <Typography variant='body2' fontWeight={600} sx={{ mt: 0.5 }}>
+                    {describeMonthlyCharge(calculateMonthlyCharge(unitCount, pricePerUnit, freeUnitCap), formatGHS)}
+                  </Typography>
+                </>
               )}
               {transactionFeePct != null && (
                 <Typography variant='caption' color='text.secondary'>
@@ -235,6 +246,7 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
   const [invoiceId, setInvoiceId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [manualDetails, setManualDetails] = useState<ManualPaymentDetails | null>(null)
+  const [manualDetailsFailed, setManualDetailsFailed] = useState(false)
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
 
   // Reset on close
@@ -261,12 +273,31 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
     return () => { cancelled = true }
   }, [open])
 
-  // Lazily fetch bank details the first time MANUAL is selected
+  // Fetched when the dialog OPENS, not lazily when MANUAL is first selected. Availability has
+  // to be known before the landlord chooses, or the choice is offered and then withdrawn.
   useEffect(() => {
-    if (paymentMethod === 'MANUAL' && !manualDetails) {
-      getManualPaymentDetails().then(setManualDetails).catch(() => {})
-    }
-  }, [paymentMethod, manualDetails])
+    if (!open) return
+
+    setManualDetailsFailed(false)
+    getManualPaymentDetails()
+      .then(setManualDetails)
+      .catch(() => setManualDetailsFailed(true))
+  }, [open])
+
+  // Bank transfer is only real when the platform has switched it on AND published somewhere to
+  // send the money. The endpoint reports both — `enabled: 'false'` with empty fields — and the
+  // page used to ignore it: the option was offered, and choosing it produced
+  // "Transfer GH₵135.00 using the details below" above an empty box. A landlord who dodged the
+  // MoMo error landed on instructions to pay nobody.
+  const manualAvailable =
+    manualDetails?.enabled === 'true' &&
+    Boolean(manualDetails?.bank_name && manualDetails?.account_number)
+
+  // If the landlord is sitting on a method that turns out to be unavailable, move them off it
+  // rather than letting them press a button that cannot work.
+  useEffect(() => {
+    if (paymentMethod === 'MANUAL' && manualDetails && !manualAvailable) setPaymentMethod('MOMO')
+  }, [paymentMethod, manualDetails, manualAvailable])
 
   // Poll for confirmation — applies to MOMO (webhook) and MANUAL (admin confirms) alike.
   // CARD redirects to Paystack checkout instead, so it never reaches this polling state.
@@ -349,10 +380,19 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
               <>
                 <i className='ri-bank-line' style={{ fontSize: '2.5rem', color: 'var(--mui-palette-primary-main)' }} />
                 <Typography variant='body1' fontWeight={600} sx={{ mt: 1 }}>Awaiting your bank transfer</Typography>
-                <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
-                  Transfer <strong>{formatGHS(dueToday)}</strong> using the details below, then wait for an
-                  admin to confirm the payment. This page updates automatically once confirmed.
-                </Typography>
+                {/* Only ever shown WITH the details. The instruction used to render
+                    unconditionally while the card below was guarded on data that was not there. */}
+                {manualAvailable ? (
+                  <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
+                    Transfer <strong>{formatGHS(dueToday)}</strong> using the details below, then wait for an
+                    admin to confirm the payment. This page updates automatically once confirmed.
+                  </Typography>
+                ) : (
+                  <Typography variant='body2' color='text.secondary' sx={{ mt: 1, mb: 2 }}>
+                    Bank transfer is not available yet — no account has been published to pay into.
+                    Please use Mobile Money, or contact support.
+                  </Typography>
+                )}
                 {manualDetails && (
                   <Card variant='outlined' sx={{ textAlign: 'left', maxWidth: 360, mx: 'auto' }}>
                     <CardContent sx={{ py: '12px !important' }}>
@@ -533,7 +573,7 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                   <i className='ri-bank-card-line' />
                   Card
                 </ToggleButton>
-                <ToggleButton value='MANUAL' sx={{ flex: 1, gap: 0.75 }}>
+                <ToggleButton value='MANUAL' disabled={!manualAvailable} sx={{ flex: 1, gap: 0.75 }}>
                   <i className='ri-bank-line' />
                   Bank Transfer
                 </ToggleButton>
@@ -546,6 +586,16 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                   Wallet
                 </ToggleButton>
               </ToggleButtonGroup>
+              {!manualAvailable && manualDetails && (
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.75 }}>
+                  Bank transfer is not available yet — no account has been published to pay into.
+                </Typography>
+              )}
+              {manualDetailsFailed && (
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.75 }}>
+                  Could not check whether bank transfer is available.
+                </Typography>
+              )}
               {walletBalance !== null && (
                 <Typography
                   variant='caption'
@@ -616,6 +666,7 @@ function PlanCard({
   unitCount,
   onUpgrade,
   onDowngrade,
+  freeUnitCap,
 }: {
   plan: SubscriptionPlanPublicDto
   currentPlanName: string
@@ -623,6 +674,8 @@ function PlanCard({
   unitCount: number
   onUpgrade: (p: SubscriptionPlanPublicDto) => void
   onDowngrade: (p: SubscriptionPlanPublicDto) => void
+  /** The FREE plan's allowance, which is what billing subtracts on every plan. */
+  freeUnitCap: number | null
 }) {
   const isCurrent = plan.name === currentPlanName
   const isHigher  = PLAN_ORDER[plan.name] > PLAN_ORDER[currentPlanName]
@@ -675,6 +728,13 @@ function PlanCard({
           )}
           {plan.freeUnitCap && (
             <Typography variant='caption' color='text.secondary'>Up to {plan.freeUnitCap} units</Typography>
+          )}
+          {plan.pricePerUnit > 0 && unitCount > 0 && (
+            /* What this landlord, with the units he actually has, would pay here. */
+            <Typography variant='body2' fontWeight={600} color='text.primary' sx={{ mt: 0.5 }}>
+              You would pay {formatGHS(calculateMonthlyCharge(unitCount, plan.pricePerUnit, freeUnitCap).monthlyTotal)} a month
+              {freeUnitCap ? ' — ' + Math.min(unitCount, freeUnitCap) + ' of your ' + unitCount + ' units are free' : ' for ' + unitCount + ' units'}
+            </Typography>
           )}
           {plan.transactionFeePct != null && (
             <Typography variant='caption' color='text.secondary'>
@@ -949,7 +1009,7 @@ export default function SubscriptionPlansListTable() {
 
   return (
     <Box>
-      <CurrentPlanCard />
+      <CurrentPlanCard freeUnitCap={plans.find(p => p.name === 'FREE')?.freeUnitCap ?? null} />
 
       <Typography variant='h6' fontWeight={700} sx={{ mb: 2 }}>Choose a plan</Typography>
 
@@ -974,6 +1034,7 @@ export default function SubscriptionPlansListTable() {
               unitCount={subscription?.unitCount ?? 0}
               onUpgrade={setUpgradeTarget}
               onDowngrade={handleDowngrade}
+              freeUnitCap={plans.find(p => p.name === 'FREE')?.freeUnitCap ?? null}
             />
           </Grid>
         ))}

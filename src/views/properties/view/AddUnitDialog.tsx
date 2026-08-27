@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 // MUI Imports
 import Dialog from '@mui/material/Dialog'
@@ -46,7 +46,7 @@ interface Props {
 
 const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props) => {
   const isEdit = Boolean(editUnit)
-  const { ref } = useReferenceData()
+  const { ref, policy } = useReferenceData()
 
   // Form state
   const [formData, setFormData] = useState({
@@ -69,6 +69,12 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
   })
 
   const [activeTab, setActiveTab] = useState(0)
+
+  // "Add another" keeps the dialog open between rooms. A compound is added one room at a time
+  // and every room shares its type, rent and size with the last.
+  const [addAnother, setAddAnother] = useState(false)
+  const [justAdded, setJustAdded] = useState<string | null>(null)
+  const unitNoRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -240,6 +246,25 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
       }
 
       onSuccess()
+
+      if (addAnother && !isEdit) {
+        // Keep everything a compound's rooms have in common — type, rent, deposit, floor,
+        // bedrooms, bathrooms, size, status — and clear only what differs. Adding eight rooms
+        // meant roughly 55 actions before, because the form forgot all of it between every save.
+        setFormData(prev => ({
+          ...prev,
+          unitNo: '',
+          newImages: [],
+          existingImages: []
+        }))
+        setJustAdded(payload.unitNo)
+        setActiveTab(0)
+        // The unit number is the only thing left to type, so put the cursor in it.
+        unitNoRef.current?.focus()
+
+        return
+      }
+
       onClose()
     } catch (err) {
       console.warn('Error saving unit:', err)
@@ -256,6 +281,13 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
   return (
     <Dialog open={open} onClose={onClose} maxWidth='sm' fullWidth>
       <DialogTitle>{isEdit ? 'Edit Unit' : 'Add New Unit'}</DialogTitle>
+      {justAdded && (
+        /* The dialog staying open is the whole point, so it has to say what just happened —
+           otherwise pressing Add Unit looks like it did nothing. */
+        <Alert severity='success' sx={{ mx: 3, mt: 2 }} onClose={() => setJustAdded(null)}>
+          {justAdded} added. The details are kept — change the unit number for the next one.
+        </Alert>
+      )}
       {error && (
         <Alert severity='error' sx={{ mx: 3, mt: 2 }}>
           {error}
@@ -281,6 +313,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
                   fullWidth
                   required
                   placeholder='e.g., Unit 101'
+                  inputRef={unitNoRef}
                 />
               </Grid>
 
@@ -308,12 +341,16 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
                 />
               </Grid>
 
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField select label='Currency' value={formData.currency} onChange={handleChange('currency')} fullWidth>
-                  <MenuItem value='GHS'>GHS — Ghana Cedi (₵)</MenuItem>
-                  <MenuItem value='USD'>USD — US Dollar ($)</MenuItem>
-                </TextField>
-              </Grid>
+              {/* See the All Unit dialog: offered only when the platform supports more than
+                  one currency, because otherwise the API refuses the save. */}
+              {policy.multiCurrencyEnabled && (
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField select label='Currency' value={formData.currency} onChange={handleChange('currency')} fullWidth>
+                    <MenuItem value='GHS'>GHS — Ghana Cedi (₵)</MenuItem>
+                    <MenuItem value='USD'>USD — US Dollar ($)</MenuItem>
+                  </TextField>
+                </Grid>
+              )}
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField select label='Rent Period' value={formData.rentPeriod} onChange={handleChange('rentPeriod')} fullWidth>
@@ -489,6 +526,13 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         <Button onClick={onClose} disabled={loading}>
           Cancel
         </Button>
+        {!isEdit && (
+          <FormControlLabel
+            sx={{ mr: 'auto', ml: 1 }}
+            control={<Checkbox size='small' checked={addAnother} onChange={e => setAddAnother(e.target.checked)} />}
+            label={<Typography variant='body2'>Add another room</Typography>}
+          />
+        )}
         <Button
           variant='contained'
           onClick={handleSubmit}

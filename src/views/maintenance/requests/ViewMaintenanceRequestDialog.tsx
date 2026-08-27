@@ -37,6 +37,8 @@ import MenuItem from '@mui/material/MenuItem'
 import {
   getComments, addComment, deleteComment,
   getParts, addPart, deletePart,
+  updateMaintenanceRequest,
+  getMaintenanceRequestById,
   getMaintenanceCategories,
   getMaintainers,
   assignMaintainerToRequest,
@@ -63,6 +65,8 @@ type Props = {
   onEdit: () => void
   /** Called with the updated request after the occupant confirms or disputes. */
   onDecision?: (updated: MaintenanceRequest) => void
+  /** Called after any other edit made from inside this dialog — currently the labour cost. */
+  onChanged?: (updated: MaintenanceRequest) => void
 }
 
 const formatDate = (d?: string | null) => {
@@ -146,7 +150,7 @@ const COMPLAINT_CATEGORY_LABELS: Record<string, string> = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecision }: Props) => {
+const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecision, onChanged }: Props) => {
   const { user } = useAuth()
   const [tab, setTab] = useState(0)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
@@ -189,6 +193,32 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
   const [addingPart, setAddingPart] = useState(false)
   const [showAddPart, setShowAddPart] = useState(false)
   const [partsError, setPartsError] = useState<string | null>(null)
+
+  // Labour — the half of a repair bill that had nowhere to go.
+  const [labourInput, setLabourInput] = useState<string>('')
+  const [savingLabour, setSavingLabour] = useState(false)
+  const [labourError, setLabourError] = useState<string | null>(null)
+
+  const saveLabour = async () => {
+    if (!request) return
+
+    setSavingLabour(true)
+    setLabourError(null)
+
+    try {
+      // actualCost is NOT sent: the server derives it as labour + parts, so there is one place
+      // that owns the arithmetic and the client cannot disagree with it.
+      const updated = await updateMaintenanceRequest(request.id, { labourCost: Number(labourInput) })
+
+      onChanged?.(updated)
+    } catch (e: any) {
+      // Not swallowed — a labour cost that silently failed to save is money missing from the
+      // landlord's books with nothing on screen to say so.
+      setLabourError(e?.response?.data?.message ?? e?.message ?? 'Could not save the labour cost.')
+    } finally {
+      setSavingLabour(false)
+    }
+  }
 
   // Load comments + parts + unit when dialog opens
   useEffect(() => {
@@ -274,6 +304,27 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
     }
   }, [])
 
+  /**
+   * Pull the request back from the server after a part changes.
+   *
+   * actualCost is derived server-side as labour + parts, so adding a part changes a figure
+   * this dialog is displaying and the client has no business recomputing. Without this the
+   * Details tab kept the request object it was opened with: a repair of GHS 180 labour plus
+   * GHS 120 parts read "Actual Cost: GHS 180" under a label saying "Labour plus parts", and
+   * closing and reopening the dialog did not help, because the list behind it was holding the
+   * same stale row. The database had 300.00 the whole time.
+   */
+  const refreshRequestTotals = useCallback(async () => {
+    if (!request) return
+
+    try {
+      onChanged?.(await getMaintenanceRequestById(request.id))
+    } catch {
+      // A failed refresh must not lose the part that was just saved — the parts table is
+      // already correct and the total catches up on the next open.
+    }
+  }, [request, onChanged])
+
   const handleAddPart = useCallback(async () => {
     if (!request || !newPart.partName.trim() || !newPart.quantity || !newPart.unitCost) return
     setAddingPart(true)
@@ -288,21 +339,23 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
       setParts(prev => [...prev, created])
       setNewPart({ partName: '', quantity: '', unitCost: '', notes: '' })
       setShowAddPart(false)
+      await refreshRequestTotals()
     } catch (err: any) {
       setPartsError(err?.message ?? 'Failed to add part')
     } finally {
       setAddingPart(false)
     }
-  }, [request, newPart])
+  }, [request, newPart, refreshRequestTotals])
 
   const handleDeletePart = useCallback(async (partId: string) => {
     try {
       await deletePart(partId)
       setParts(prev => prev.filter(p => p.id !== partId))
+      await refreshRequestTotals()
     } catch (err: any) {
       setPartsError(err?.message ?? 'Failed to delete part')
     }
-  }, [])
+  }, [refreshRequestTotals])
 
   const handleAssign = useCallback(async () => {
     if (!request || !selectedMaintainerId) return
@@ -558,11 +611,36 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
                       </Typography>
                     </Grid>
                   )}
+                  {!isComplaint && request.labourCost != null && (
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant='body2' color='text.secondary'>Labour</Typography>
+                      <Typography variant='body1' className='font-medium'>
+                        {request.currency ?? 'GHS'} {Number(request.labourCost).toLocaleString()}
+                      </Typography>
+                    </Grid>
+                  )}
                   {!isComplaint && request.actualCost != null && (
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant='body2' color='text.secondary'>Actual Cost</Typography>
                       <Typography variant='body1' className='font-medium'>
                         {request.currency ?? 'GHS'} {Number(request.actualCost).toLocaleString()}
+                      </Typography>
+                      {/* Say where the total came from. Before labour existed, "Actual Cost" was
+                          parts and nothing else, and a landlord had no way to tell. */}
+                      <Typography variant='caption' color='text.secondary' display='block'>
+                        Labour plus parts
+                      </Typography>
+                      {/*
+                        And say where the money GOES. The cost is written to Expenses when the
+                        job is closed, and nothing said so — so a landlord looking at his
+                        expenses mid-repair sees nothing, concludes the two ledgers were never
+                        introduced, and types the same money in a second time by hand. Which is
+                        exactly what the field-test landlord was about to do.
+                      */}
+                      <Typography variant='caption' color={isTerminal ? 'success.main' : 'text.secondary'} display='block'>
+                        {isTerminal
+                          ? 'Recorded in Expenses.'
+                          : 'This will be recorded in Expenses when the job is closed — no need to enter it there yourself.'}
                       </Typography>
                     </Grid>
                   )}
@@ -792,6 +870,42 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
         {tab === 2 && (
           <Box className='flex flex-col gap-3'>
             {partsError && <Alert severity='error' onClose={() => setPartsError(null)}>{partsError}</Alert>}
+
+            {/*
+              Labour sits above parts because it is usually the larger half of a Ghanaian repair
+              bill. Until this field existed the only place a number could go was the parts list
+              below, so recording a plumber's fee meant entering a man as a part with a quantity
+              and a unit cost.
+            */}
+            <Card variant='outlined'>
+              <CardContent className='flex flex-col gap-2'>
+                <Typography variant='subtitle2' className='font-medium'>Labour</Typography>
+                <Box className='flex items-end gap-2'>
+                  <TextField
+                    size='small'
+                    type='number'
+                    label={`Labour cost (${request.currency ?? 'GHS'})`}
+                    placeholder='e.g. 250'
+                    value={labourInput}
+                    onChange={e => setLabourInput(e.target.value)}
+                    helperText="The tradesman's fee — not counted as a part"
+                    sx={{ maxWidth: 240 }}
+                  />
+                  <Button
+                    size='small'
+                    variant='outlined'
+                    disabled={savingLabour || labourInput === ''}
+                    onClick={saveLabour}
+                    sx={{ mb: 3 }}
+                  >
+                    {savingLabour ? 'Saving…' : 'Save'}
+                  </Button>
+                </Box>
+                {labourError && (
+                  <Typography variant='caption' color='error'>{labourError}</Typography>
+                )}
+              </CardContent>
+            </Card>
 
             <Box className='flex items-center justify-between'>
               <Typography variant='subtitle2' className='font-medium'>

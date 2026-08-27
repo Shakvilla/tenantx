@@ -109,6 +109,15 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, string>>>({})
   const [expanded, setExpanded] = useState<string | false>('occupant-info')
   const [isSaving, setIsSaving] = useState(false)
+
+  // Escape used to throw away a part-filled form without a word. The onboarding
+  // wizard already confirms before discarding ("Leave onboarding?"); this form
+  // did not, so the same key did opposite things two screens apart.
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+
+  // Whatever the form held the moment it opened, so "dirty" means the user typed
+  // something rather than merely that the form was populated from a record.
+  const baselineRef = useRef<string>('')
   const [apiError, setApiError] = useState<string | null>(null)
   const [availableUnits, setAvailableUnits] = useState<Array<{ id: string; unitNo: string }>>([])
   const [isLoadingUnits, setIsLoadingUnits] = useState(false)
@@ -177,7 +186,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
       if (mode === 'edit' && editData) {
         const ec = editData.emergencyContact || {}
 
-        setFormData({
+        const hydrated: FormDataType = {
           firstName: editData.firstName || '',
           lastName: editData.lastName || '',
           email: editData.email || '',
@@ -209,11 +218,23 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
           unitNo: editData.unitNo || '',
           moveInDate: editData.moveInDate ? editData.moveInDate.split('T')[0] : '',
           moveOutDate: editData.moveOutDate ? editData.moveOutDate.split('T')[0] : ''
-        })
+        }
+
+        setFormData(hydrated)
+
+        // Same object, so the baseline is exactly what the user was shown.
+        baselineRef.current = JSON.stringify(hydrated)
         setExistingAvatarUrl(editData.avatar || null)
         setExistingAvatarFileId(editData.avatarFileId || null)
       } else {
-        setFormData({ ...initialData, previousAddress: { ...emptyAddress }, permanentAddress: { ...emptyAddress } })
+        const blank: FormDataType = {
+          ...initialData,
+          previousAddress: { ...emptyAddress },
+          permanentAddress: { ...emptyAddress }
+        }
+
+        setFormData(blank)
+        baselineRef.current = JSON.stringify(blank)
         setExistingAvatarUrl(null)
         setExistingAvatarFileId(null)
       }
@@ -226,6 +247,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
       setErrors({})
       setExpanded('occupant-info')
       setApiError(null)
+      setConfirmDiscard(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editData, mode])
@@ -389,13 +411,28 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
     }
   }
 
-  const handleReset = () => {
+  const discard = () => {
     if (newAvatarPreview) URL.revokeObjectURL(newAvatarPreview)
     setNewAvatarFile(null)
     setNewAvatarPreview(null)
+    setConfirmDiscard(false)
     handleClose()
     setFormData({ ...initialData, previousAddress: { ...emptyAddress }, permanentAddress: { ...emptyAddress } })
     setErrors({})
+  }
+
+  /** True once the form differs from what it held when it opened. */
+  const isDirty = () =>
+    Boolean(newAvatarFile) || JSON.stringify(formData) !== baselineRef.current
+
+  const handleReset = () => {
+    if (isDirty()) {
+      setConfirmDiscard(true)
+
+      return
+    }
+
+    discard()
   }
 
   const addressFields: Array<{ key: keyof AddressType; label: string; sm: number }> = [
@@ -407,6 +444,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
   ]
 
   return (
+    <>
     <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Occupant' : 'Add Occupant'}</span>
@@ -840,6 +878,30 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
         </Button>
       </DialogActions>
     </Dialog>
+
+    {/*
+      Escape on a part-filled form used to close everything and throw the typing
+      away silently. This is the same shape as the onboarding wizard's
+      "Leave onboarding?", so the key does the same thing on both screens.
+    */}
+    <Dialog open={confirmDiscard} onClose={() => setConfirmDiscard(false)} maxWidth='xs' fullWidth>
+      <DialogTitle>Discard what you have entered?</DialogTitle>
+      <DialogContent>
+        <Typography variant='body2'>
+          You have filled in part of this {mode === 'edit' ? 'occupant' : 'new occupant'} and it has not been
+          saved. Closing now loses it.
+        </Typography>
+      </DialogContent>
+      <DialogActions className='gap-2'>
+        <Button variant='outlined' color='secondary' onClick={() => setConfirmDiscard(false)}>
+          Keep editing
+        </Button>
+        <Button variant='contained' color='error' onClick={discard}>
+          Discard
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   )
 }
 

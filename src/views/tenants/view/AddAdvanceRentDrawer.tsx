@@ -87,6 +87,7 @@ const AddAdvanceRentDrawer = ({
   const [periodStart, setPeriodStart]       = useState(() => new Date().toISOString().split('T')[0])
 
   // "Already received" fields
+  const [paymentDate, setPaymentDate]       = useState(() => new Date().toISOString().split('T')[0])
   const [paymentMethod, setPaymentMethod]   = useState<PaymentMethodType | ''>('')
   const [paymentReference, setPaymentReference] = useState('')
   const [notes, setNotes]                   = useState('')
@@ -122,7 +123,15 @@ const AddAdvanceRentDrawer = ({
     // monthsCovered: 0 to the backend if the browser's native required/step
     // constraints ever get bypassed (e.g. programmatic submit, autofill).
     if (!monthsValid) return 'Enter a valid number of months'
-    if (!limits) return null
+
+    // The limits bound what an occupant may be ASKED to pay through the gateway — the wording
+    // is "you can offer at most", and the backend only enforces them on initiateGatewayPayment.
+    // Applying them to "Record advance" blocked a landlord from writing down money already in
+    // his hand: two years paid up front in cash is the normal Ghanaian arrangement, the system
+    // was already holding a 24-month advance created through this very path, and the form
+    // refused to let him record another. Recording is a statement of fact, not an offer.
+    if (!limits || mode === 'record') return null
+
     if (monthsNum > limits.maxMonths) return `You can offer at most ${limits.maxMonths} months`
     if (monthsNum < limits.minMonths) return `You must offer at least ${limits.minMonths} months`
 
@@ -161,6 +170,7 @@ const AddAdvanceRentDrawer = ({
       monthlyRent: parseFloat(monthlyRent),
       monthsCovered: monthsNum,
       periodStart,
+      paymentDate: paymentDate || undefined,
       currency: 'GHS',
       paymentMethod: paymentMethod || undefined,
       paymentReference: paymentReference || undefined,
@@ -343,7 +353,12 @@ const AddAdvanceRentDrawer = ({
                 value={monthsCovered}
                 onChange={e => setMonthsCovered(e.target.value)}
                 error={!!monthsError}
-                helperText={monthsError ?? (limits ? `Allowed range: ${limits.minMonths}–${limits.maxMonths} months` : ' ')}
+                helperText={
+                  monthsError ??
+                  (mode === 'request' && limits
+                    ? `Allowed range: ${limits.minMonths}–${limits.maxMonths} months`
+                    : ' ')
+                }
               />
 
               {/* Period start */}
@@ -361,6 +376,19 @@ const AddAdvanceRentDrawer = ({
 
               {mode === 'record' ? (
                 <>
+                  {/* Date received — separate from the period start, and it is the one that
+                      decides which month the money is reported in. Advances are routinely
+                      handed over weeks before the tenancy begins. */}
+                  <TextField
+                    label='Date Received'
+                    size='small'
+                    type='date'
+                    value={paymentDate}
+                    onChange={e => setPaymentDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    helperText='When the money reached you — not when the tenancy starts'
+                  />
+
                   {/* Payment method */}
                   <FormControl size='small'>
                     <InputLabel id='payment-method-label'>Payment Method</InputLabel>

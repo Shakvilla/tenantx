@@ -43,6 +43,44 @@ describe('TenantHomeStep', () => {
     )
   })
 
+  /**
+   * The case that matters in Ghana. A trader at Adenta market has a phone and no email
+   * address; demanding one forces the landlord to invent it, and an invented address is what
+   * the system will then use to "send" her invoices and receipts. The backend never required
+   * it — CreateOccupantRequest validates format only.
+   */
+  it('onboards a tenant who has no email address', async () => {
+    setup()
+
+    await selectPropertyAndUnit()
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Akosua' } })
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Boateng' } })
+    fireEvent.change(screen.getByLabelText(/phone/i), { target: { value: '0244118227' } })
+    fireEvent.change(screen.getByLabelText(/move-in date/i), { target: { value: '2026-08-23' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /^continue$/i }))
+
+    await waitFor(() => expect(createOccupant).toHaveBeenCalled())
+    // Absent, not '' — a blank string later reads as "we hold an address and it is empty".
+    expect(vi.mocked(createOccupant).mock.calls[0][1].email).toBeUndefined()
+  })
+
+  it('still rejects an email that was typed but malformed', async () => {
+    setup()
+
+    await selectPropertyAndUnit()
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: 'Akosua' } })
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: 'Boateng' } })
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'not-an-address' } })
+    fireEvent.change(screen.getByLabelText(/phone/i), { target: { value: '0244118227' } })
+    fireEvent.change(screen.getByLabelText(/move-in date/i), { target: { value: '2026-08-23' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /^continue$/i }))
+
+    expect(await screen.findByText(/enter a valid email address/i)).toBeInTheDocument()
+    expect(createOccupant).not.toHaveBeenCalled()
+  })
+
   it('creates the occupant and reports rent + name on continue', async () => {
     const { onComplete } = setup()
 
