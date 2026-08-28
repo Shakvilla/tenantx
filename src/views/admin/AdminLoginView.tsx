@@ -14,6 +14,7 @@ import Logo from '@components/layout/shared/Logo'
 import Link from '@components/Link'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import OtpChallengeForm from '@/components/auth/OtpChallengeForm'
+import { VAGUE_CREDENTIAL_MESSAGE } from '@/lib/api/admin-login-errors'
 
 export default function AdminLoginView() {
   const [email, setEmail] = useState('')
@@ -44,8 +45,12 @@ export default function AdminLoginView() {
     if (result.success) {
       router.push('/admin')
     } else {
-      // Deliberately vague — don't reveal whether the email exists
-      setError('Invalid credentials. This portal is for platform administrators only.')
+      // Deliberately vague for a 401 — don't reveal whether the email exists — but ONLY for a
+      // 401. adminLogin now maps everything else (rate limiting, device identification, SMS
+      // delivery, an unreachable server) to what actually happened, because telling an admin
+      // their credentials were wrong when the password was accepted sends them to reset a
+      // working password and, for OTP_RATE_LIMITED, to retry in a way that extends the wait.
+      setError(result.error ?? VAGUE_CREDENTIAL_MESSAGE)
     }
 
     setIsSubmitting(false)
