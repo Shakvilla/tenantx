@@ -4,7 +4,6 @@
 import Grid from '@mui/material/Grid2'
 
 // Component Imports
-import PageBanner from '@/components/banner/PageBanner'
 import { DashboardSummaryProvider } from '@views/dashboards/DashboardSummaryContext'
 import DashboardStatsCards from '@views/dashboards/DashboardStatsCards'
 import RentCollectedCard from '@views/dashboards/RentCollectedCard'
@@ -13,8 +12,8 @@ import ExpensesOverviewCard from '@views/dashboards/ExpensesOverviewCard'
 import MaintenanceRequestsTable from '@views/dashboards/MaintenanceRequestsTable'
 import RecentActivity from '@views/dashboards/RecentActivity'
 import RentsExpiringSoonCard from '@views/dashboards/RentsExpiringSoonCard'
+import ReservedUnitsCard from '@views/dashboards/ReservedUnitsCard'
 import TenantsTable from '@views/dashboards/TenantsTable'
-import { useAuth } from '@/contexts/AuthContext'
 
 // DASHBOARD-P5-01 (2026-08-20 dashboard audit): the old full-page DashboardSkeleton was
 // rendered ABOVE the real grid (both trees in the DOM at once) and dismissed on the FIRST of
@@ -26,48 +25,44 @@ import { useAuth } from '@/contexts/AuthContext'
 const CHART_CARD_MIN_HEIGHT = 220
 
 const DashboardPage = () => {
-  const { tenant } = useAuth()
-
-  // Use tenant name or fallback to default
-  const welcomeTitle = tenant?.name ? `Welcome to ${tenant.name}` : ''
-
   return (
     <DashboardSummaryProvider>
       <Grid container spacing={6}>
-        {/* Banner */}
-        <Grid size={{ xs: 12 }}>
-          <PageBanner
-            title={welcomeTitle}
-            description='Manage your properties, tenants, and finances all in one place. Get insights into your rental business with real-time analytics and comprehensive reporting.'
-            icon='ri-dashboard-line'
-          />
-        </Grid>
-
-        {/* Row 1: Summary Cards (from the shared summary fetch) */}
-        <DashboardStatsCards />
-
-        {/* Row 2: Financial Cards with Charts — heights reserved so data arrival never shifts layout */}
+        {/* Row 1: money first. The landlord who field-tested this opens the app to find out
+            what came in and what is outstanding; the portfolio counts are the last thing he
+            reads, and they used to sit above the cedis. Rent collected and pending lead the
+            row, then the two operational cards. Four md-3 cells, so the row closes cleanly;
+            every card is height:100% and the row stretches to the tallest. Heights are
+            reserved so data arrival never shifts layout. */}
         <Grid size={{ xs: 12, sm: 6, md: 3 }} sx={{ minHeight: CHART_CARD_MIN_HEIGHT }}>
           <RentCollectedCard />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }} sx={{ minHeight: CHART_CARD_MIN_HEIGHT }}>
           <PendingPaymentCard />
         </Grid>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ minHeight: CHART_CARD_MIN_HEIGHT }}>
-          <ExpensesOverviewCard />
+        <Grid size={{ xs: 12, sm: 6, md: 3 }} sx={{ minHeight: CHART_CARD_MIN_HEIGHT }}>
+          <ReservedUnitsCard />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }} sx={{ minHeight: CHART_CARD_MIN_HEIGHT }}>
+          <RentsExpiringSoonCard />
         </Grid>
 
-        {/* Row 3: Maintenance Requests and Recent Activity */}
-        <Grid size={{ xs: 12, md: 8 }} sx={{ minHeight: 360 }}>
-          <MaintenanceRequestsTable />
+        {/* Row 2: Portfolio tiles — four across, one full 12-column row */}
+        <DashboardStatsCards />
+
+        {/* Row 3: two half-width panels. Expenses used to sit here alone (six empty columns);
+            Recent Activity partners it instead — its entries are long sentences and read
+            better at half width than in the old quarter-width rail. */}
+        <Grid size={{ xs: 12, md: 6 }} sx={{ minHeight: 360 }}>
+          <ExpensesOverviewCard />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }} sx={{ minHeight: 360 }}>
+        <Grid size={{ xs: 12, md: 6 }} sx={{ minHeight: 360 }}>
           <RecentActivity />
         </Grid>
 
-        {/* Row 4: Rents Expiring Soon */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <RentsExpiringSoonCard />
+        {/* Row 4: Maintenance Requests — a wide table, so it takes the full row */}
+        <Grid size={{ xs: 12 }} sx={{ minHeight: 360 }}>
+          <MaintenanceRequestsTable />
         </Grid>
 
         {/* Row 5: Occupants Table */}
