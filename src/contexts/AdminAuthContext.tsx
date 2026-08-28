@@ -14,6 +14,7 @@ import {
 import { isOtpChallenge, type OtpChallenge } from '@/lib/api/auth-client'
 import { getStoredAdminToken, clearStoredAdminToken } from '@/lib/api/admin-storage'
 import { otpErrorMessage } from '@/lib/api/otp-errors'
+import { adminLoginErrorMessage } from '@/lib/api/admin-login-errors'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -141,8 +142,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       return { success: true }
     } catch (err: any) {
       setState(prev => ({ ...prev, isAdminLoading: false }))
-      const msg = err?.response?.data?.message ?? err?.message ?? 'Admin login failed'
-      return { success: false, error: msg }
+
+      // The RAW error is mapped, not err.response.data.message: the backend's own message for a
+      // 401 is "Invalid password"/"Invalid email", which names which half was wrong and is exactly
+      // the oracle the login form must not expose. adminLoginErrorMessage decides what is safe to
+      // say per status/code — see its module comment.
+      return { success: false, error: adminLoginErrorMessage(err).message }
     }
   }, [])
 
