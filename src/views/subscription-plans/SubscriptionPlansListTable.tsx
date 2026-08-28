@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -807,6 +807,18 @@ function InvoiceTable() {
   const [loading, setLoading]       = useState(true)
   const [retrying, setRetrying]     = useState<string | null>(null)
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [actionNotice, setActionNotice] = useState<string | null>(null)
+
+  // The feedback banner sits above the table while the buttons are in rows below it, so on a
+  // phone — or anywhere the billing history is scrolled to — the answer landed off-screen and
+  // both Verify and Pay from wallet read as doing nothing at all. Bring it into view.
+  const noticeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (retryError || actionNotice) {
+      noticeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [retryError, actionNotice])
   const [verifying, setVerifying]   = useState<Record<string, boolean>>({})
   const [payingId, setPayingId]     = useState<string | null>(null)
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
@@ -842,9 +854,11 @@ function InvoiceTable() {
   async function handleVerify(invoiceId: string) {
     setVerifying(v => ({ ...v, [invoiceId]: true }))
     setRetryError(null)
+    setActionNotice(null)
     try {
       const { confirmed } = await verifySubscriptionPayment(invoiceId)
       if (confirmed) {
+        setActionNotice('Payment confirmed. The bill is settled.')
         fetchInvoices()
       } else {
         setRetryError('Payment not yet confirmed by the gateway. Approve the MoMo prompt first, then try again.')
@@ -859,8 +873,12 @@ function InvoiceTable() {
   async function handlePayFromWallet(invoiceId: string) {
     setPayingId(invoiceId)
     setRetryError(null)
+    setActionNotice(null)
     try {
       await payInvoiceFromWallet(invoiceId)
+      // Success said out loud. A row quietly changing from PENDING to PAID is not an answer to
+      // "did my money move".
+      setActionNotice('Paid from your wallet. The bill is settled and your balance is updated.')
       fetchInvoices()
       // Refresh the cached balance so any other PENDING row re-gates against the post-debit amount.
       walletApi.getWallet()
@@ -882,9 +900,14 @@ function InvoiceTable() {
 
   return (
     <>
-      {retryError && (
-        <Alert severity='error' sx={{ mb: 2 }} onClose={() => setRetryError(null)}>{retryError}</Alert>
-      )}
+      <div ref={noticeRef}>
+        {retryError && (
+          <Alert severity='error' sx={{ mb: 2 }} onClose={() => setRetryError(null)}>{retryError}</Alert>
+        )}
+        {actionNotice && !retryError && (
+          <Alert severity='success' sx={{ mb: 2 }} onClose={() => setActionNotice(null)}>{actionNotice}</Alert>
+        )}
+      </div>
       <Table size='small'>
         <TableHead>
           <TableRow>

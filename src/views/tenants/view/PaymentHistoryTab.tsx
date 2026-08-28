@@ -38,6 +38,8 @@ import type { PaymentResponse, PaymentStatus } from '@/types/payment'
 
 // Styles
 import tableStyles from '@core/styles/table.module.css'
+import AdvanceRentSection from './AdvanceRentSection'
+import CautionFeeSection from './CautionFeeSection'
 
 declare module '@tanstack/table-core' {
   interface FilterFns { fuzzy: FilterFn<unknown> }
@@ -46,6 +48,10 @@ declare module '@tanstack/table-core' {
 
 type Props = {
   occupantId?: string
+  /** Needed by the advance-rent and caution-fee panels this tab now hosts. */
+  occupantName?: string
+  unitId?: string
+  propertyId?: string
 }
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
@@ -74,7 +80,7 @@ const methodLabel: Record<string, string> = {
 
 const columnHelper = createColumnHelper<PaymentResponse>()
 
-const PaymentHistoryTab = ({ occupantId }: Props) => {
+const PaymentHistoryTab = ({ occupantId, occupantName, unitId, propertyId }: Props) => {
   const [payments, setPayments]     = useState<PaymentResponse[]>([])
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
@@ -219,6 +225,24 @@ const PaymentHistoryTab = ({ occupantId }: Props) => {
   }
 
   return (
+    <div className='flex flex-col gap-6'>
+      {/*
+        The advance and the caution fee moved here from Home Details. They were correct and they
+        looked right — but Home Details is where a landlord looks for the PROPERTY, and this is
+        the tab about the tenant's money. He found them by accident.
+      */}
+      {occupantId && (
+        <AdvanceRentSection
+          occupantId={occupantId}
+          occupantName={occupantName}
+          unitId={unitId}
+          propertyId={propertyId}
+        />
+      )}
+      {occupantId && (
+        <CautionFeeSection occupantId={occupantId} unitId={unitId} propertyId={propertyId} />
+      )}
+
     <Card elevation={0}>
       <CardHeader
         title='Payment History'
@@ -335,6 +359,7 @@ const PaymentHistoryTab = ({ occupantId }: Props) => {
         />
       </CardContent>
     </Card>
+    </div>
   )
 }
 
