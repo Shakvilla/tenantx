@@ -193,28 +193,17 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
         </Card>
       </Grid>
 
-      {/* Advance Rent Section */}
-      {tenantData?.id && (
-        <Grid size={{ xs: 12 }}>
-          <AdvanceRentSection
-            occupantId={tenantData.id}
-            occupantName={tenantData.name}
-            unitId={tenantData.unitId}
-            propertyId={tenantData.propertyId}
-          />
-        </Grid>
-      )}
+      {/*
+        Advance rent and the caution fee used to sit here. They moved to Payment History, which
+        is the tab about this tenant's money — a landlord looking for them on the tab about the
+        PROPERTY found them by accident.
+      */}
+      <Grid size={{ xs: 12 }}>
+        <Typography variant='body2' color='text.secondary'>
+          Advance rent and the caution fee are on the <strong>Payment History</strong> tab.
+        </Typography>
+      </Grid>
 
-      {/* Caution Fee (Security Deposit) Section */}
-      {tenantData?.id && (
-        <Grid size={{ xs: 12 }}>
-          <CautionFeeSection
-            occupantId={tenantData.id}
-            unitId={tenantData.unitId}
-            propertyId={tenantData.propertyId}
-          />
-        </Grid>
-      )}
     </Grid>
   )
 }
