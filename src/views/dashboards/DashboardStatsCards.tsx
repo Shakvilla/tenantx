@@ -23,8 +23,7 @@ const DashboardStatsCards = () => {
 
     // Read directly rather than as totalUnits - occupiedUnits: that subtraction
     // counted units under maintenance and units awaiting move-in as vacant.
-    vacantUnits: summary?.properties?.vacantUnits ?? 0,
-    reservedUnits: summary?.properties?.reservedUnits ?? 0
+    vacantUnits: summary?.properties?.vacantUnits ?? 0
   }
 
   if (loading) {
@@ -81,15 +80,6 @@ const DashboardStatsCards = () => {
           description='Total number of vacant units'
           icon='ri-home-line'
           iconColor='error'
-        />
-      </Grid>
-      <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-        <PropertyStatsCard
-          title='Reserved Units'
-          value={stats.reservedUnits.toString()}
-          description='Awaiting move-in — activate the agreement to occupy'
-          icon='ri-calendar-check-line'
-          iconColor='success'
         />
       </Grid>
     </>
