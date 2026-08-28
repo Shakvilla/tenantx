@@ -134,10 +134,18 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
                     readOnly: true
                   }}
                 />
+                {/*
+                  Renamed, because this and the Caution Fee panel below are the same money under
+                  two names and a landlord entered it twice — ₵600 as a "Security Deposit" on the
+                  lease on Sunday, then ₵600 again as a caution fee. This one is a figure copied
+                  off the agreement; the panel below is the fee actually being held, with its
+                  deductions and its refundable balance.
+                */}
                 <TextField
                   size='small'
-                  label='Security Deposit'
+                  label='Deposit stated on the lease'
                   value={tenantData?.securityDeposit || '-'}
+                  helperText='The caution fee actually held is shown below.'
                   InputProps={{
                     readOnly: true
                   }}
@@ -185,28 +193,17 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
         </Card>
       </Grid>
 
-      {/* Advance Rent Section */}
-      {tenantData?.id && (
-        <Grid size={{ xs: 12 }}>
-          <AdvanceRentSection
-            occupantId={tenantData.id}
-            occupantName={tenantData.name}
-            unitId={tenantData.unitId}
-            propertyId={tenantData.propertyId}
-          />
-        </Grid>
-      )}
+      {/*
+        Advance rent and the caution fee used to sit here. They moved to Payment History, which
+        is the tab about this tenant's money — a landlord looking for them on the tab about the
+        PROPERTY found them by accident.
+      */}
+      <Grid size={{ xs: 12 }}>
+        <Typography variant='body2' color='text.secondary'>
+          Advance rent and the caution fee are on the <strong>Payment History</strong> tab.
+        </Typography>
+      </Grid>
 
-      {/* Caution Fee (Security Deposit) Section */}
-      {tenantData?.id && (
-        <Grid size={{ xs: 12 }}>
-          <CautionFeeSection
-            occupantId={tenantData.id}
-            unitId={tenantData.unitId}
-            propertyId={tenantData.propertyId}
-          />
-        </Grid>
-      )}
     </Grid>
   )
 }

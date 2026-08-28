@@ -105,7 +105,14 @@ const OccupantDetails = ({
     profile: <ProfileInformationTab tenantData={tenantData} />,
     home: <HomeDetailsTab tenantData={tenantData} />,
     guarantor: <GuarantorTab occupantId={tenantId} />,
-    payment: <PaymentHistoryTab occupantId={tenantId} />,
+    payment: (
+      <PaymentHistoryTab
+        occupantId={tenantId}
+        occupantName={tenantData?.name}
+        unitId={tenantData?.unitId}
+        propertyId={tenantData?.propertyId}
+      />
+    ),
     documentation: <DocumentationTab occupantId={tenantId} />,
     notices: <NoticesTab occupantId={tenantId} />,
     violations: <ViolationsTab occupantId={tenantId} />

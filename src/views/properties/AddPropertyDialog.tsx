@@ -33,6 +33,7 @@ import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import { styled } from '@mui/material/styles'
+import Alert from '@mui/material/Alert'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -320,6 +321,15 @@ const AddPropertyDialog = ({
 
   const [canWaiveCity, setCanWaiveCity] = useState(false)
 
+  /**
+   * Buildings whose room counts belong to their units, not to the building.
+   *
+   * A compound house IS a set of separately-let rooms — asking how many bedrooms the compound
+   * has, right after the landlord has said it is a compound, is asking for a number that does
+   * not exist. He answered with nonsense, which is what a form gets when it insists.
+   */
+  const isMultiUnitBuilding = formData.propertyType === 'compound_house'
+
   // Reset form when dialog opens/closes or editData changes
   useEffect(() => {
     if (open) {
@@ -450,9 +460,15 @@ const AddPropertyDialog = ({
       if (formData.district && !formData.city && !canWaiveCity) newErrors.city = true
     } else if (step === 1) {
       // Validate Step 2: Property Features
-      if (!formData.bedrooms) newErrors.bedrooms = true
-      if (!formData.bathrooms) newErrors.bathrooms = true
-      if (!formData.rooms) newErrors.rooms = true
+      // A compound house is a set of separately-let rooms, and the room counts that mean
+      // anything live on each unit — not on the building. Demanding one bedroom figure for the
+      // whole compound asked the landlord for a number that does not exist, immediately after
+      // he had told the form it was a compound.
+      if (!isMultiUnitBuilding) {
+        if (!formData.bedrooms) newErrors.bedrooms = true
+        if (!formData.bathrooms) newErrors.bathrooms = true
+        if (!formData.rooms) newErrors.rooms = true
+      }
 
       // Optional, but a figure that is present must be a real one: a number
       // input still accepts "e" and "-", and the column is unsigned in meaning
@@ -897,6 +913,15 @@ const AddPropertyDialog = ({
       case 1:
         return (
           <div className='flex flex-col gap-6'>
+            {isMultiUnitBuilding && (
+              /* Says why the counts are suddenly optional, rather than leaving the landlord to
+                 wonder whether the form has forgotten what he told it on the last step. */
+              <Alert severity='info' variant='outlined'>
+                A compound house is made up of separately-let rooms, so the bedroom, bathroom and
+                room counts belong to each unit rather than the building. Leave these blank and
+                record them when you add the rooms.
+              </Alert>
+            )}
             <Grid container spacing={4}>
               <Grid size={{ xs: 12, sm: 4 }}>
                 <FormControl fullWidth error={Boolean(errors.bedrooms)} size='small'>
@@ -963,6 +988,11 @@ const AddPropertyDialog = ({
                       </MenuItem>
                     ))}
                   </Select>
+                  {!errors.rooms && (
+                    <Typography variant='caption' color='text.secondary' className='mts-1'>
+                      Total rooms in the building, including those that are not bedrooms.
+                    </Typography>
+                  )}
                   {errors.rooms && (
                     <Typography variant='caption' color='error' className='mts-1'>
                       This field is required.
