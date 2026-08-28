@@ -7,6 +7,7 @@ import { useMemo } from 'react'
 import dynamic from 'next/dynamic'
 
 // MUI Imports
+import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
@@ -21,6 +22,9 @@ import { useDashboardSummary } from '@views/dashboards/DashboardSummaryContext'
 
 // Styled Component Imports
 const AppReactApexCharts = dynamic(() => import('@/libs/styles/AppReactApexCharts'))
+
+/** Floor for the sparkline area, so the chart still reads when the card is at its own height. */
+const CHART_MIN_HEIGHT = 100
 
 const RentCollectedCard = () => {
   const infoColor = 'var(--mui-palette-info-main)'
@@ -79,16 +83,15 @@ const RentCollectedCard = () => {
       axisBorder: { show: false }
     },
     yaxis: { labels: { show: false } },
-    responsive: [
-      {
-        breakpoint: 1296,
-        options: { chart: { height: 88 } }
-      }
-    ]
+    // No fixed-height responsive override: the chart fills the card, and the card's height is
+    // set by its row. Pinning 88px below 1296 put the dead space back on medium screens.
   }
 
   return (
-    <Card sx={{ height: '100%' }}>
+    // The card sits in a row whose height is set by its tallest sibling, so the sparkline
+    // takes whatever is left rather than a fixed 100px — otherwise a taller neighbour leaves
+    // dead space under the chart.
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardContent className='flex flex-col gap-4'>
         <div className='flex flex-col gap-1'>
           <Typography variant='h5' className='font-semibold' color='text.primary'>
@@ -106,9 +109,16 @@ const RentCollectedCard = () => {
           </Typography>
         )}
       </CardContent>
-      <CardContent className='pt-0'>
+      <CardContent sx={{ pt: 0, flex: 1, minHeight: CHART_MIN_HEIGHT, display: 'flex', flexDirection: 'column' }}>
         {!loading && (
-          <AppReactApexCharts type='line' height={100} width='100%' options={options} series={series} />
+          // Absolute fill: ApexCharts resolves a percentage height against its parent's
+          // definite height, and a plain flex child has none — the canvas would keep the
+          // height it measured at mount and leave a gap under the line.
+          <Box sx={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            <Box sx={{ position: 'absolute', inset: 0, '& > div': { height: '100%' } }}>
+              <AppReactApexCharts type='line' height='100%' width='100%' options={options} series={series} />
+            </Box>
+          </Box>
         )}
       </CardContent>
     </Card>

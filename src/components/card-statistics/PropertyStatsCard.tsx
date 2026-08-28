@@ -15,12 +15,22 @@ type PropertyStatsCardProps = {
   description: string
   icon: string
   iconColor: ThemeColor
+
+  /**
+   * Spread the content over the card's full height instead of hugging the top. Opt-in, for
+   * the few places where this tile shares a row with much taller cards (the dashboard's
+   * second strip) and would otherwise sit in a pool of white space.
+   */
+  fill?: boolean
 }
 
-const PropertyStatsCard = ({ title, value, description, icon, iconColor }: PropertyStatsCardProps) => {
+const PropertyStatsCard = ({ title, value, description, icon, iconColor, fill }: PropertyStatsCardProps) => {
   return (
     <Card sx={{ height: '100%' }}>
-      <CardContent className='flex flex-col gap-3'>
+      <CardContent
+        className='flex flex-col gap-3'
+        sx={fill ? { height: '100%', justifyContent: 'space-between' } : undefined}
+      >
         <div className='flex items-start justify-between'>
           <Typography variant='body2' color='text.secondary' className='font-medium'>
             {title}
