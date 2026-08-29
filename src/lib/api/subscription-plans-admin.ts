@@ -103,7 +103,13 @@ export interface PlanImpact {
 export interface PriceCurvePoint {
   quantity: number
   amount: string
+
+  /** An AVERAGE across all units, including free ones — not a rate. See unitRate. */
   effectiveUnitPrice: string
+
+  /** What one more unit costs at this size. Zero for a free or flat-only band. */
+  unitRate: string
+
   salesLed: boolean
 }
 
