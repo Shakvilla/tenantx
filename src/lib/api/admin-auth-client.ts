@@ -26,7 +26,12 @@ const API_V1_BASE = ADMIN_API_BASE.replace(/\/admin$/, '')
 // Axios instance
 // ---------------------------------------------------------------------------
 
-const adminClient: AxiosInstance = axios.create({
+/**
+ * Exported so sibling admin modules reuse this instance rather than building their own: it
+ * carries the admin token, the X-Device-Id header and the 401 -> ADMIN_SESSION_EXPIRED handling.
+ * A second axios instance would silently miss all three.
+ */
+export const adminClient: AxiosInstance = axios.create({
   baseURL: ADMIN_API_BASE,
   headers: { 'Content-Type': 'application/json' }
 })
