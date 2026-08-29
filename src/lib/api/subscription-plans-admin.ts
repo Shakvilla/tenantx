@@ -87,6 +87,13 @@ export interface PlanSummary {
 }
 
 /** The 409 body: what would change, whom it touches, and a token over both. */
+/** A capability a plan may grant, as the registry defines it. */
+export interface GrantableFeature {
+  key: string
+  label: string
+  note: string | null
+}
+
 export interface PlanImpact {
   warnings: string[]
   affectedSubscribers: number
@@ -125,6 +132,19 @@ export class PlanImpactRequired extends Error {
 
 export async function getAdminPlans(): Promise<PlanSummary[]> {
   const res = await adminClient.get('/subscription-plans')
+
+  return res.data
+}
+
+/**
+ * The keys a plan may grant, from the server's own registry.
+ *
+ * Never hardcode this list. The editor previously carried a copied array of ten: six real
+ * capabilities were missing and two entries were not FeatureKeys at all, so ticking either
+ * produced a 422 on save. A copied list drifts the moment the enum changes; this one cannot.
+ */
+export async function getGrantableFeatures(): Promise<GrantableFeature[]> {
+  const res = await adminClient.get('/subscription-plans/grantable-features')
 
   return res.data
 }
