@@ -26,7 +26,12 @@ const API_V1_BASE = ADMIN_API_BASE.replace(/\/admin$/, '')
 // Axios instance
 // ---------------------------------------------------------------------------
 
-const adminClient: AxiosInstance = axios.create({
+/**
+ * Exported so sibling admin modules reuse this instance rather than building their own: it
+ * carries the admin token, the X-Device-Id header and the 401 -> ADMIN_SESSION_EXPIRED handling.
+ * A second axios instance would silently miss all three.
+ */
+export const adminClient: AxiosInstance = axios.create({
   baseURL: ADMIN_API_BASE,
   headers: { 'Content-Type': 'application/json' }
 })
@@ -670,30 +675,7 @@ export interface SubscriptionPlanDto {
   annualDiscountPct: number | null   // e.g. 0.15 = 15% off for annual billing; null = no annual option
 }
 
-export interface UpdatePlanRequestDto {
-  displayName: string
-  pricePerUnit: number
-  freeUnitCap: number | null
-  transactionFeePct: number | null
-  featureFlags: Record<string, boolean>
-  active: boolean
-  popular?: boolean
-  marketingFeatures?: string[]
-  annualDiscountPct?: number | null
-}
 
-export interface CreatePlanRequestDto {
-  name: string
-  displayName: string
-  pricePerUnit: number
-  freeUnitCap: number | null
-  transactionFeePct: number | null
-  featureFlags: Record<string, boolean>
-  active?: boolean
-  popular?: boolean
-  marketingFeatures?: string[]
-  annualDiscountPct?: number | null
-}
 
 export interface TenantSubscriptionDto {
   plan: string
@@ -709,17 +691,8 @@ export interface TenantSubscriptionDto {
   features: Record<string, boolean>
 }
 
-export async function getSubscriptionPlans(): Promise<SubscriptionPlanDto[]> {
-  return adminGet<SubscriptionPlanDto[]>('/subscription-plans')
-}
 
-export async function updateSubscriptionPlan(planId: string, payload: UpdatePlanRequestDto): Promise<SubscriptionPlanDto> {
-  return adminPut<SubscriptionPlanDto>(`/subscription-plans/${planId}`, payload)
-}
 
-export async function createSubscriptionPlan(payload: CreatePlanRequestDto): Promise<SubscriptionPlanDto> {
-  return adminPost<SubscriptionPlanDto>('/subscription-plans', payload)
-}
 
 export async function getAdminTenantSubscription(tenantId: string): Promise<TenantSubscriptionDto> {
   return adminGet<TenantSubscriptionDto>(`/subscription-plans/tenants/${tenantId}/subscription`)
