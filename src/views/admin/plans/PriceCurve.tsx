@@ -17,6 +17,9 @@ import Typography from '@mui/material/Typography'
 // API Imports
 import { getPriceCurve, type PriceCurve as PriceCurveData } from '@/lib/api/subscription-plans-admin'
 
+// Util Imports
+import { formatCurrency } from '@/utils/currency'
+
 /**
  * What a portfolio of each size would pay, and whether the shape is sane.
  *
@@ -107,9 +110,11 @@ const PriceCurve = ({ planId }: PriceCurveProps) => {
             <TableRow key={point.quantity} selected={curve.risingAt.includes(point.quantity)}>
               <TableCell>{point.quantity}</TableCell>
               <TableCell align='right'>
-                {point.salesLed ? 'Talk to sales' : point.amount}
+                {point.salesLed ? 'Talk to sales' : formatCurrency(Number(point.amount))}
               </TableCell>
-              <TableCell align='right'>{point.salesLed ? '—' : point.effectiveUnitPrice}</TableCell>
+              <TableCell align='right'>
+                {point.salesLed ? '—' : formatCurrency(Number(point.effectiveUnitPrice))}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
