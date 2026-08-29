@@ -20,6 +20,8 @@ const body = {
   selfServeMaxQty: null,
   isPublic: true,
   sortOrder: 0,
+  trialDays: 0,
+  isSignupDefault: false,
   tiers: [{ fromQty: 1, toQty: null, flatPrice: '0.00', perUnitPrice: '30.00' }],
   cycles: [{ cycle: 'MONTHLY', discountPct: '0.0000', enabled: true }],
   featureKeys: ['EXPENSES'],
