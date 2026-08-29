@@ -6,6 +6,9 @@ import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Typography from '@mui/material/Typography'
 
+// Type Imports
+import type { GrantableFeature } from '@/lib/api/subscription-plans-admin'
+
 /**
  * Which capabilities a plan grants.
  *
@@ -20,7 +23,9 @@ import Typography from '@mui/material/Typography'
 
 interface FeatureMatrixProps {
   value: string[]
-  available: string[]
+
+  /** From the server's registry — never a literal. See getGrantableFeatures. */
+  available: GrantableFeature[]
   onChange: (keys: string[]) => void
 }
 
@@ -31,17 +36,17 @@ const FeatureMatrix = ({ value, available, onChange }: FeatureMatrixProps) => {
   return (
     <Box>
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' } }}>
-        {available.map(key => (
+        {available.map(feature => (
           <FormControlLabel
-            key={key}
+            key={feature.key}
             control={
               <Checkbox
-                checked={value.includes(key)}
-                inputProps={{ 'aria-label': key }}
-                onChange={e => toggle(key, e.target.checked)}
+                checked={value.includes(feature.key)}
+                inputProps={{ 'aria-label': feature.key }}
+                onChange={e => toggle(feature.key, e.target.checked)}
               />
             }
-            label={<Typography variant='body2'>{key.replaceAll('_', ' ')}</Typography>}
+            label={<Typography variant='body2'>{feature.label}</Typography>}
           />
         ))}
       </Box>
