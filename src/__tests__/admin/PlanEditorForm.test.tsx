@@ -45,6 +45,8 @@ const detail = {
   selfServeMaxQty: null,
   isPublic: true,
   sortOrder: 1,
+  trialDays: 14,
+  isSignupDefault: true,
   tiers: [{ fromQty: 1, toQty: null, flatPrice: '0.00', perUnitPrice: '30.00' }],
   cycles: [{ cycle: 'MONTHLY' as const, discountPct: '0.0000', enabled: true }],
   featureKeys: ['EXPENSES'],
@@ -185,4 +187,37 @@ it('duplicating prefills from the source plan but clears its identity', async ()
     expect((savePlan as any).mock.calls[0][0]).toBeNull()
     expect(getPlanDetail).not.toHaveBeenCalled()
   })
+
+  it('loads the trial settings and sends them back unchanged on save', async () => {
+    render(<PlanEditorForm planId='plan-1' />)
+
+    // Loaded from the server, not defaulted.
+    const trial = (await screen.findByLabelText(/trial length/i)) as HTMLInputElement
+
+    expect(trial.value).toBe('14')
+    expect(screen.getByLabelText(/new signups land on this plan/i)).toBeChecked()
+
+    // Save without touching them. A field that loads but is not sent back resets silently on
+    // every save — the shape of the cycles data-loss bug from slice A.
+    fireEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() => expect(savePlan).toHaveBeenCalled())
+
+    // savePlan is called with (planId, body); find the body without assuming its position.
+    const body = (savePlan as any).mock.calls[0]
+      .find((arg: any) => typeof arg === 'object' && arg !== null && 'trialDays' in arg)
+
+    expect(body.trialDays).toBe(14)
+    expect(body.isSignupDefault).toBe(true)
+  })
+
+  it('says plainly when a plan grants no trial, rather than showing a bare zero', async () => {
+    ;(getPlanDetail as any).mockResolvedValue({ ...detail, trialDays: 0, isSignupDefault: false })
+
+    render(<PlanEditorForm planId='plan-1' />)
+
+    expect(await screen.findByText(/no trial — subscriptions start active and billable/i))
+      .toBeInTheDocument()
+  })
+
 })
