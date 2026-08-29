@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 // Next Imports
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
 import Alert from '@mui/material/Alert'
@@ -103,22 +103,43 @@ interface PlanEditorFormProps {
 
 const PlanEditorForm = ({ planId }: PlanEditorFormProps) => {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Duplicate arrives as ?from=<id> on the create route: same pricing, new identity.
+  const duplicateOf = planId ? null : searchParams.get('from')
 
   const [form, setForm] = useState<PlanWriteBody>(BLANK)
-  const [loading, setLoading] = useState(Boolean(planId))
+  const [loading, setLoading] = useState(Boolean(planId) || Boolean(duplicateOf))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [impact, setImpact] = useState<PlanImpact | null>(null)
   const [stale, setStale] = useState(false)
 
   useEffect(() => {
-    if (!planId) return
+    const source = planId ?? duplicateOf
 
-    getPlanDetail(planId)
-      .then(detail => setForm(toWriteBody(detail)))
+    if (!source) return
+
+    getPlanDetail(source)
+      .then(detail => {
+        const body = toWriteBody(detail)
+
+        if (!duplicateOf) {
+          setForm(body)
+
+          return
+        }
+
+        // A duplicate copies the PRICING — the tier table, cycles, features and limits, which is
+        // the part worth reusing — and clears the identity. The code is blanked because it is
+        // immutable once created and reusing it would be refused as a duplicate anyway; the
+        // status drops to DRAFT so a clone cannot reach the pricing page before anyone has
+        // looked at it.
+        setForm({ ...body, code: '', name: '', displayName: `${body.displayName} (copy)`, status: 'DRAFT' })
+      })
       .catch(() => setError('Could not load this plan.'))
       .finally(() => setLoading(false))
-  }, [planId])
+  }, [planId, duplicateOf])
 
   const set = <K extends keyof PlanWriteBody>(key: K, value: PlanWriteBody[K]) =>
     setForm(prev => ({ ...prev, [key]: value }))

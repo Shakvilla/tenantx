@@ -675,30 +675,7 @@ export interface SubscriptionPlanDto {
   annualDiscountPct: number | null   // e.g. 0.15 = 15% off for annual billing; null = no annual option
 }
 
-export interface UpdatePlanRequestDto {
-  displayName: string
-  pricePerUnit: number
-  freeUnitCap: number | null
-  transactionFeePct: number | null
-  featureFlags: Record<string, boolean>
-  active: boolean
-  popular?: boolean
-  marketingFeatures?: string[]
-  annualDiscountPct?: number | null
-}
 
-export interface CreatePlanRequestDto {
-  name: string
-  displayName: string
-  pricePerUnit: number
-  freeUnitCap: number | null
-  transactionFeePct: number | null
-  featureFlags: Record<string, boolean>
-  active?: boolean
-  popular?: boolean
-  marketingFeatures?: string[]
-  annualDiscountPct?: number | null
-}
 
 export interface TenantSubscriptionDto {
   plan: string
@@ -714,17 +691,8 @@ export interface TenantSubscriptionDto {
   features: Record<string, boolean>
 }
 
-export async function getSubscriptionPlans(): Promise<SubscriptionPlanDto[]> {
-  return adminGet<SubscriptionPlanDto[]>('/subscription-plans')
-}
 
-export async function updateSubscriptionPlan(planId: string, payload: UpdatePlanRequestDto): Promise<SubscriptionPlanDto> {
-  return adminPut<SubscriptionPlanDto>(`/subscription-plans/${planId}`, payload)
-}
 
-export async function createSubscriptionPlan(payload: CreatePlanRequestDto): Promise<SubscriptionPlanDto> {
-  return adminPost<SubscriptionPlanDto>('/subscription-plans', payload)
-}
 
 export async function getAdminTenantSubscription(tenantId: string): Promise<TenantSubscriptionDto> {
   return adminGet<TenantSubscriptionDto>(`/subscription-plans/tenants/${tenantId}/subscription`)

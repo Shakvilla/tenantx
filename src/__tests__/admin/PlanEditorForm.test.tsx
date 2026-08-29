@@ -3,7 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 const push = vi.fn()
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }))
+let searchParams = new URLSearchParams()
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => searchParams
+}))
 
 vi.mock('@/lib/api/subscription-plans-admin', async () => {
   const actual = await vi.importActual<any>('@/lib/api/subscription-plans-admin')
@@ -52,6 +57,7 @@ const save = () => fireEvent.click(screen.getByRole('button', { name: /save/i })
 describe('PlanEditorForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    searchParams = new URLSearchParams()
     ;(getPlanDetail as any).mockResolvedValue(detail)
     ;(getPriceCurve as any).mockResolvedValue({ points: [], monotonic: true, risingAt: [] })
   })
@@ -133,6 +139,30 @@ describe('PlanEditorForm', () => {
     // A hard block is not consent-able. Offering Confirm would be a button that cannot work.
     expect(await screen.findByText(/gap between 10 and 20/i)).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+it('duplicating prefills from the source plan but clears its identity', async () => {
+    searchParams = new URLSearchParams('from=plan-1')
+
+    render(<PlanEditorForm planId={null} />)
+
+    // The pricing is what is worth copying; the code and name are not, and reusing the
+    // code would be refused as a duplicate anyway.
+    expect(await screen.findByDisplayValue('30.00')).toBeInTheDocument()
+    expect(screen.getByLabelText(/^code/i)).toHaveValue('')
+    expect(screen.getByLabelText(/^status/i)).toHaveTextContent('DRAFT')
+  })
+
+  it('a duplicate POSTs a new plan rather than overwriting the source', async () => {
+    searchParams = new URLSearchParams('from=plan-1')
+    ;(savePlan as any).mockResolvedValue(detail)
+
+    render(<PlanEditorForm planId={null} />)
+    await screen.findByDisplayValue('30.00')
+    save()
+
+    await waitFor(() => expect(savePlan).toHaveBeenCalled())
+    expect((savePlan as any).mock.calls[0][0]).toBeNull()
   })
 
   it('posts a new plan when there is no id', async () => {
