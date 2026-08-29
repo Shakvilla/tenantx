@@ -42,7 +42,6 @@ import {
   reactivateAdminTenant,
   getAdminTenantSubscription,
   overrideTenantSubscription,
-  getSubscriptionPlans,
   getAdminTenantSnapshot,
   getTenantNotes,
   addTenantNote,
@@ -86,7 +85,6 @@ import {
   type TenantRecord,
   type UpdateTenantPayload,
   type TenantSubscriptionDto,
-  type SubscriptionPlanDto,
   type AdminTenantSnapshotDto,
   type TenantNoteDto,
   type FeatureFlagStatus,
@@ -106,6 +104,7 @@ import {
   type AdminInspectionSummary,
   type AdminMaintenanceSummary,
 } from '@/lib/api/admin-auth-client'
+import { getAdminPlans, type PlanSummary } from '@/lib/api/subscription-plans-admin'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { fuzzyFilter } from '@/utils/tableFilterFns'
 import AdminReconciliationQueue from '@/views/admin/AdminReconciliationQueue'
@@ -343,14 +342,14 @@ interface OverrideDialogProps {
 }
 
 function OverrideDialog({ open, tenantRecord, currentPlan, onClose, onOverridden }: OverrideDialogProps) {
-  const [plans, setPlans]       = useState<SubscriptionPlanDto[]>([])
+  const [plans, setPlans]       = useState<PlanSummary[]>([])
   const [selected, setSelected] = useState('')
   const [saving, setSaving]     = useState(false)
   const [error, setError]       = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    getSubscriptionPlans().then(setPlans).catch(() => {})
+    getAdminPlans().then(setPlans).catch(() => {})
     setSelected(currentPlan)
     setError(null)
   }, [open, currentPlan])
