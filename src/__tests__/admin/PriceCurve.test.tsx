@@ -8,8 +8,8 @@ import PriceCurve from '@/views/admin/plans/PriceCurve'
 
 const falling = {
   points: [
-    { quantity: 10, amount: '150.00', effectiveUnitPrice: '15.0000', salesLed: false },
-    { quantity: 25, amount: '240.00', effectiveUnitPrice: '9.6000', salesLed: false }
+    { quantity: 10, amount: '150.00', effectiveUnitPrice: '15.0000', unitRate: '0.0000', salesLed: false },
+    { quantity: 25, amount: '240.00', effectiveUnitPrice: '9.6000', unitRate: '9.0000', salesLed: false }
   ],
   monotonic: true,
   risingAt: []
@@ -17,11 +17,23 @@ const falling = {
 
 const rising = {
   points: [
-    { quantity: 10, amount: '50.00', effectiveUnitPrice: '5.0000', salesLed: false },
-    { quantity: 25, amount: '800.00', effectiveUnitPrice: '32.0000', salesLed: false }
+    { quantity: 10, amount: '50.00', effectiveUnitPrice: '5.0000', unitRate: '5.0000', salesLed: false },
+    { quantity: 25, amount: '800.00', effectiveUnitPrice: '32.0000', unitRate: '32.0000', salesLed: false }
   ],
   monotonic: false,
   risingAt: [25]
+}
+
+// PRO's real table: five units free, then 30. The average climbs while the rate never moves —
+// the shape that misled three readers and produced two wrong monotonicity implementations.
+const freeAllowance = {
+  points: [
+    { quantity: 5, amount: '0.00', effectiveUnitPrice: '0.0000', unitRate: '0.0000', salesLed: false },
+    { quantity: 10, amount: '150.00', effectiveUnitPrice: '15.0000', unitRate: '30.0000', salesLed: false },
+    { quantity: 250, amount: '7350.00', effectiveUnitPrice: '29.4000', unitRate: '30.0000', salesLed: false }
+  ],
+  monotonic: true,
+  risingAt: []
 }
 
 describe('PriceCurve', () => {
@@ -67,4 +79,23 @@ describe('PriceCurve', () => {
     expect(getPriceCurve).not.toHaveBeenCalled()
     expect(screen.getByText(/once the plan is saved/i)).toBeInTheDocument()
   })
+
+  it('labels the average as an average and shows the flat rate beside it', async () => {
+    ;(getPriceCurve as any).mockResolvedValue(freeAllowance)
+
+    render(<PriceCurve planId='plan-1' />)
+
+    // "Per unit" over an average is what caused the misreading. The header must not promise
+    // a rate, and the real rate has to be visible rather than inferred from a rising column.
+    expect(await screen.findByRole('columnheader', { name: /average per unit/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /^rate$/i })).toBeInTheDocument()
+
+    // Flat rate where the average climbs — the whole point of the second column.
+    expect(screen.getAllByText('GH₵30.00')).toHaveLength(2)
+
+    // The averages still render, so nothing was replaced.
+    expect(screen.getByText('GH₵15.00')).toBeInTheDocument()
+    expect(screen.getByText('GH₵29.40')).toBeInTheDocument()
+  })
+
 })

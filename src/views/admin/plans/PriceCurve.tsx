@@ -102,7 +102,8 @@ const PriceCurve = ({ planId }: PriceCurveProps) => {
           <TableRow>
             <TableCell>Units</TableCell>
             <TableCell align='right'>Total</TableCell>
-            <TableCell align='right'>Per unit</TableCell>
+            <TableCell align='right'>Average per unit</TableCell>
+            <TableCell align='right'>Rate</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -115,10 +116,18 @@ const PriceCurve = ({ planId }: PriceCurveProps) => {
               <TableCell align='right'>
                 {point.salesLed ? '—' : formatCurrency(Number(point.effectiveUnitPrice))}
               </TableCell>
+              <TableCell align='right'>
+                {point.salesLed ? '—' : formatCurrency(Number(point.unitRate))}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+
+      <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 2 }}>
+        The average includes any free units, so it rises toward the rate as a portfolio grows.
+        The rate is what one more unit costs.
+      </Typography>
     </Box>
   )
 }
