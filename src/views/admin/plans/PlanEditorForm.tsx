@@ -31,9 +31,11 @@ import TierTableEditor from './TierTableEditor'
 
 // API Imports
 import {
+  getGrantableFeatures,
   getPlanDetail,
   savePlan,
   PlanImpactRequired,
+  type GrantableFeature,
   type PlanDetail,
   type PlanImpact,
   type PlanWriteBody
@@ -55,20 +57,6 @@ import {
  * a refusal no acknowledgement can clear, so rendering it as confirmable would put a button in
  * front of the admin that cannot possibly work.
  */
-
-/** The feature keys the write API accepts — ANNOTATION-mode only; anything else is a 422. */
-const WRITABLE_FEATURE_KEYS = [
-  'EXPENSES',
-  'ADVANCE_RENT',
-  'AGENT_MANAGEMENT',
-  'COMMUNICATION',
-  'UTILITIES_MANAGEMENT',
-  'FINANCIAL_REPORTS',
-  'LATE_FEES',
-  'RENT_COLLECTION',
-  'DOCUMENT_MANAGEMENT',
-  'MAINTENANCE_TRACKING'
-]
 
 const BLANK: PlanWriteBody = {
   code: '',
@@ -114,6 +102,17 @@ const PlanEditorForm = ({ planId }: PlanEditorFormProps) => {
   const [error, setError] = useState<string | null>(null)
   const [impact, setImpact] = useState<PlanImpact | null>(null)
   const [stale, setStale] = useState(false)
+
+  // Fetched, never listed here. A copied list drifts the moment FeatureKey changes — and the
+  // one this replaced was already wrong in both directions: six real capabilities missing, and
+  // two entries that were not FeatureKeys at all and would have 422'd on save.
+  const [grantable, setGrantable] = useState<GrantableFeature[]>([])
+
+  useEffect(() => {
+    getGrantableFeatures()
+      .then(setGrantable)
+      .catch(() => setError('Could not load the list of grantable features.'))
+  }, [])
 
   useEffect(() => {
     const source = planId ?? duplicateOf
@@ -325,7 +324,7 @@ const PlanEditorForm = ({ planId }: PlanEditorFormProps) => {
         <CardContent>
           <FeatureMatrix
             value={form.featureKeys}
-            available={WRITABLE_FEATURE_KEYS}
+            available={grantable}
             onChange={keys => set('featureKeys', keys)}
           />
         </CardContent>

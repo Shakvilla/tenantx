@@ -17,11 +17,18 @@ vi.mock('@/lib/api/subscription-plans-admin', async () => {
     ...actual,
     getPlanDetail: vi.fn(),
     savePlan: vi.fn(),
-    getPriceCurve: vi.fn()
+    getPriceCurve: vi.fn(),
+    getGrantableFeatures: vi.fn()
   }
 })
 
-import { getPlanDetail, savePlan, getPriceCurve, PlanImpactRequired } from '@/lib/api/subscription-plans-admin'
+import {
+  getPlanDetail,
+  savePlan,
+  getPriceCurve,
+  getGrantableFeatures,
+  PlanImpactRequired
+} from '@/lib/api/subscription-plans-admin'
 import PlanEditorForm from '@/views/admin/plans/PlanEditorForm'
 
 const detail = {
@@ -60,6 +67,9 @@ describe('PlanEditorForm', () => {
     searchParams = new URLSearchParams()
     ;(getPlanDetail as any).mockResolvedValue(detail)
     ;(getPriceCurve as any).mockResolvedValue({ points: [], monotonic: true, risingAt: [] })
+    ;(getGrantableFeatures as any).mockResolvedValue([
+      { key: 'EXPENSES', label: 'Expenses', note: null }
+    ])
   })
 
   it('loads the plan, including the marketing fields the backend prerequisite restored', async () => {

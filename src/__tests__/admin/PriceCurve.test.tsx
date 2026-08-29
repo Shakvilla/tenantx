@@ -27,7 +27,7 @@ const rising = {
 describe('PriceCurve', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('names the offending quantity when the per-unit cost rises', async () => {
+  it('names the band where the rate goes up', async () => {
     ;(getPriceCurve as any).mockResolvedValue(rising)
 
     render(<PriceCurve planId='plan-1' />)
@@ -37,8 +37,8 @@ describe('PriceCurve', () => {
     // warning itself rather than merely somewhere on the page.
     const warning = await screen.findByRole('alert')
 
-    expect(warning).toHaveTextContent(/more per unit/i)
-    expect(warning).toHaveTextContent(/25 units/)
+    expect(warning).toHaveTextContent(/goes up/i)
+    expect(warning).toHaveTextContent(/25 unit/)
   })
 
   it('stays quiet when the curve falls', async () => {
@@ -46,7 +46,8 @@ describe('PriceCurve', () => {
 
     render(<PriceCurve planId='plan-1' />)
 
-    expect(await screen.findByText(/15.0000/)).toBeInTheDocument()
+    // Rendered as money, not as the raw NUMERIC(12,4) the wire carries.
+    expect(await screen.findByText('GH₵15.00')).toBeInTheDocument()
     expect(screen.queryByText(/more per unit/i)).not.toBeInTheDocument()
   })
 
