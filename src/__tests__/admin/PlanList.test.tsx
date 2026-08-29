@@ -49,6 +49,16 @@ describe('PlanList', () => {
     expect(screen.getByText('DRAFT')).toBeInTheDocument()
   })
 
+  it('shows a price that tells plans apart, not a zero for every one', async () => {
+    // The column previously quoted each plan at ONE unit, and every plan's first unit is
+    // free — so it read 0 for all three and distinguished nothing.
+    render(<PlanList />)
+
+    const pro = (await screen.findByText('Pro')).closest('tr')
+
+    expect(pro).toHaveTextContent('GH₵30.00/unit')
+  })
+
   it('shows the live subscriber count per plan', async () => {
     render(<PlanList />)
 

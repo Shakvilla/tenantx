@@ -46,7 +46,8 @@ describe('PriceCurve', () => {
 
     render(<PriceCurve planId='plan-1' />)
 
-    expect(await screen.findByText(/15.0000/)).toBeInTheDocument()
+    // Rendered as money, not as the raw NUMERIC(12,4) the wire carries.
+    expect(await screen.findByText('GH₵15.00')).toBeInTheDocument()
     expect(screen.queryByText(/more per unit/i)).not.toBeInTheDocument()
   })
 

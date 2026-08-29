@@ -25,6 +25,9 @@ import Typography from '@mui/material/Typography'
 // API Imports
 import { getAdminPlans, type PlanSummary, type PlanStatus } from '@/lib/api/subscription-plans-admin'
 
+// Util Imports
+import { headlinePrice } from './headlinePrice'
+
 /**
  * Every plan, whatever its status.
  *
@@ -75,7 +78,7 @@ const PlanList = () => {
           <TableRow>
             <TableCell>Plan</TableCell>
             <TableCell>Status</TableCell>
-            <TableCell align='right'>From</TableCell>
+            <TableCell align='right'>Price</TableCell>
             <TableCell align='right'>Subscribers</TableCell>
             <TableCell align='right'>Actions</TableCell>
           </TableRow>
@@ -97,7 +100,7 @@ const PlanList = () => {
               <TableCell>
                 <Chip size='small' label={plan.status} color={STATUS_COLOUR[plan.status]} variant='tonal' />
               </TableCell>
-              <TableCell align='right'>{plan.entryPrice}</TableCell>
+              <TableCell align='right'>{headlinePrice(plan)}</TableCell>
               <TableCell align='right'>{plan.subscriberCount}</TableCell>
               <TableCell align='right'>
                 <IconButton
