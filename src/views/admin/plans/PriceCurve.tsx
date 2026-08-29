@@ -21,9 +21,14 @@ import { getPriceCurve, type PriceCurve as PriceCurveData } from '@/lib/api/subs
  * What a portfolio of each size would pay, and whether the shape is sane.
  *
  * This is not decoration. A tier table is easy to get subtly wrong in a way that punishes growth —
- * a larger landlord paying MORE per unit than a smaller one — and that is the mistake the endpoint
- * exists to catch. So a rising curve is stated in words, naming the quantity, rather than left for
- * an admin to notice in a column of numbers.
+ * a later band charging MORE per unit than an earlier one — and that is the mistake the endpoint
+ * exists to catch. It is stated in words, naming the band where the rate goes up, rather than left
+ * for an admin to notice in a column of numbers.
+ *
+ * The numbers in the table below are averages, and an average legitimately climbs whenever a plan
+ * has a free allowance: PRO gives five units free and then charges 30, so it reads 15 per unit at
+ * ten and 29.40 at 250 without anyone being punished for growing. That is why the warning is
+ * driven by the tier table's rates and not by this column.
  *
  * It prices the plan as SAVED, not the table being edited: the endpoint is reached through a plan
  * id, and slice A deliberately shipped no preview for an unsaved table. The label says so, because
@@ -83,9 +88,9 @@ const PriceCurve = ({ planId }: PriceCurveProps) => {
 
       {!curve.monotonic && (
         <Alert severity='warning' sx={{ mb: 2 }}>
-          This plan charges bigger portfolios <strong>more per unit</strong> at{' '}
-          {curve.risingAt.join(', ')} units. A landlord who grows would pay a higher rate than a
-          smaller one.
+          The per-unit rate <strong>goes up</strong> from {curve.risingAt.join(' and ')} unit
+          {curve.risingAt.length === 1 && curve.risingAt[0] === 1 ? '' : 's'}. A landlord who
+          crosses that threshold pays more for every further unit than a smaller one does.
         </Alert>
       )}
 

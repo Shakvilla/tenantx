@@ -27,7 +27,7 @@ const rising = {
 describe('PriceCurve', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('names the offending quantity when the per-unit cost rises', async () => {
+  it('names the band where the rate goes up', async () => {
     ;(getPriceCurve as any).mockResolvedValue(rising)
 
     render(<PriceCurve planId='plan-1' />)
@@ -37,8 +37,8 @@ describe('PriceCurve', () => {
     // warning itself rather than merely somewhere on the page.
     const warning = await screen.findByRole('alert')
 
-    expect(warning).toHaveTextContent(/more per unit/i)
-    expect(warning).toHaveTextContent(/25 units/)
+    expect(warning).toHaveTextContent(/goes up/i)
+    expect(warning).toHaveTextContent(/25 unit/)
   })
 
   it('stays quiet when the curve falls', async () => {
