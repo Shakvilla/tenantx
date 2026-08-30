@@ -111,7 +111,7 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
     )
   }
 
-  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, transactionFeePct, currentPeriodEnd, pendingDowngradePlan } = subscription
+  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, currentPeriodEnd, pendingDowngradePlan } = subscription
   const isFree = plan === 'FREE'
   const unitProgress = unitCap ? Math.min((unitCount / unitCap) * 100, 100) : 0
   const atCap = unitCap !== null && unitCount >= unitCap
@@ -742,11 +742,12 @@ function PlanCard({
               {freeUnitCap ? ' — ' + Math.min(unitCount, freeUnitCap) + ' of your ' + unitCount + ' units are free' : ' for ' + unitCount + ' units'}
             </Typography>
           )}
-          {plan.transactionFeePct != null && (
-            <Typography variant='caption' color='text.secondary'>
-              {(Number(plan.transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
-            </Typography>
-          )}
+          {/*
+            The third site of the same false claim, on the plan comparison cards. Missed in the
+            first pass because that pass acted on the two matches it had looked at rather than on
+            the whole grep. No fee is taken on collected rent — see the note on the subscription
+            row above.
+          */}
         </Box>
 
         <Divider sx={{ mb: 1.5 }} />
