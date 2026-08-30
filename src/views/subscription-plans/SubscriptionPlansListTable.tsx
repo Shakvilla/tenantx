@@ -148,11 +148,17 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
                   </Typography>
                 </>
               )}
-              {transactionFeePct != null && (
-                <Typography variant='caption' color='text.secondary'>
-                  {(Number(transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
-                </Typography>
-              )}
+              {/*
+                No fee is taken on collected rent. Every caller of TransactionFeeService.recordFee
+                records against a SUBSCRIPTION invoice or an SMS credit top-up, and the resulting
+                ledger row is read by one admin report — it never touches a landlord's wallet or
+                invoice. This line told every landlord they were paying a commission they were not.
+
+                Removed rather than corrected: charging a share of collected rent is a real feature
+                with money moving through it, and it is meant to be switchable on or off. When it
+                exists and is enabled, the figure belongs here again — sourced from whatever
+                actually bills it, not from a column nothing reads.
+              */}
             </Box>
             {!isFree && !pendingDowngradePlan && (
               <Button size='small' color='error' variant='outlined' onClick={() => setCancelOpen(true)}>
@@ -518,9 +524,9 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                     : []),
                   ['Paid units', billableUnits + (freeCap > 0 ? ' (' + totalUnits + ' total − ' + freeCap + ' free)' : '')],
                   ['Rate',       formatGHS(plan.pricePerUnit) + ' / unit / mo'],
-                  ...(plan.transactionFeePct
-                    ? [['Transaction fee', (Number(plan.transactionFeePct) * 100).toFixed(1) + '% on collected rent']]
-                    : []),
+                  // Deliberately absent: see the note above on the subscription row. No fee is
+                  // taken on collected rent, so advertising one on the plan cards was false too.
+
                   billingCycle === 'ANNUAL' ? ['Billing period', '12 months'] : ['Billing period', '1 month'],
                   ...(billingCycle === 'ANNUAL' && hasAnnual
                     ? [['Annual discount (' + Math.round(discount * 100) + '% off)', '−' + formatGHS(annualSavings)]]
