@@ -55,6 +55,16 @@ export interface PlanWriteBody {
   selfServeMaxQty: number | null
   isPublic: boolean
   sortOrder: number
+
+  /** Days of trial a subscription starting on this plan gets. 0 means no trial. */
+  trialDays: number
+
+  /**
+   * Whether new signups land on this plan. Exactly one plan may hold it — a partial unique
+   * index enforces that, and the server refuses to archive whichever plan it is.
+   */
+  isSignupDefault: boolean
+
   tiers: PlanTier[]
   /**
    * Never omit this. The server replaces cycle rows wholesale, so an empty or missing list

@@ -111,7 +111,7 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
     )
   }
 
-  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, transactionFeePct, currentPeriodEnd, pendingDowngradePlan } = subscription
+  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, currentPeriodEnd, pendingDowngradePlan } = subscription
   const isFree = plan === 'FREE'
   const unitProgress = unitCap ? Math.min((unitCount / unitCap) * 100, 100) : 0
   const atCap = unitCap !== null && unitCount >= unitCap
@@ -148,11 +148,17 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
                   </Typography>
                 </>
               )}
-              {transactionFeePct != null && (
-                <Typography variant='caption' color='text.secondary'>
-                  {(Number(transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
-                </Typography>
-              )}
+              {/*
+                No fee is taken on collected rent. Every caller of TransactionFeeService.recordFee
+                records against a SUBSCRIPTION invoice or an SMS credit top-up, and the resulting
+                ledger row is read by one admin report — it never touches a landlord's wallet or
+                invoice. This line told every landlord they were paying a commission they were not.
+
+                Removed rather than corrected: charging a share of collected rent is a real feature
+                with money moving through it, and it is meant to be switchable on or off. When it
+                exists and is enabled, the figure belongs here again — sourced from whatever
+                actually bills it, not from a column nothing reads.
+              */}
             </Box>
             {!isFree && !pendingDowngradePlan && (
               <Button size='small' color='error' variant='outlined' onClick={() => setCancelOpen(true)}>
@@ -518,9 +524,9 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                     : []),
                   ['Paid units', billableUnits + (freeCap > 0 ? ' (' + totalUnits + ' total − ' + freeCap + ' free)' : '')],
                   ['Rate',       formatGHS(plan.pricePerUnit) + ' / unit / mo'],
-                  ...(plan.transactionFeePct
-                    ? [['Transaction fee', (Number(plan.transactionFeePct) * 100).toFixed(1) + '% on collected rent']]
-                    : []),
+                  // Deliberately absent: see the note above on the subscription row. No fee is
+                  // taken on collected rent, so advertising one on the plan cards was false too.
+
                   billingCycle === 'ANNUAL' ? ['Billing period', '12 months'] : ['Billing period', '1 month'],
                   ...(billingCycle === 'ANNUAL' && hasAnnual
                     ? [['Annual discount (' + Math.round(discount * 100) + '% off)', '−' + formatGHS(annualSavings)]]
@@ -736,11 +742,12 @@ function PlanCard({
               {freeUnitCap ? ' — ' + Math.min(unitCount, freeUnitCap) + ' of your ' + unitCount + ' units are free' : ' for ' + unitCount + ' units'}
             </Typography>
           )}
-          {plan.transactionFeePct != null && (
-            <Typography variant='caption' color='text.secondary'>
-              {(Number(plan.transactionFeePct) * 100).toFixed(1)}% transaction fee on collected rent
-            </Typography>
-          )}
+          {/*
+            The third site of the same false claim, on the plan comparison cards. Missed in the
+            first pass because that pass acted on the two matches it had looked at rather than on
+            the whole grep. No fee is taken on collected rent — see the note on the subscription
+            row above.
+          */}
         </Box>
 
         <Divider sx={{ mb: 1.5 }} />

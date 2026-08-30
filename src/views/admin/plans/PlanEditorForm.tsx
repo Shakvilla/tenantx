@@ -71,6 +71,8 @@ const BLANK: PlanWriteBody = {
   selfServeMaxQty: null,
   isPublic: true,
   sortOrder: 0,
+  trialDays: 0,
+  isSignupDefault: false,
   tiers: [{ fromQty: 1, toQty: null, flatPrice: '0.00', perUnitPrice: '0.00' }],
   cycles: [{ cycle: 'MONTHLY', discountPct: '0.0000', enabled: true }],
   featureKeys: [],
@@ -288,6 +290,36 @@ const PlanEditorForm = ({ planId }: PlanEditorFormProps) => {
                 value={form.sortOrder}
                 onChange={e => set('sortOrder', Number(e.target.value))}
               />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                type='number'
+                label='Trial length (days)'
+                value={form.trialDays}
+                onChange={e => set('trialDays', Number(e.target.value))}
+                slotProps={{ htmlInput: { min: 0, max: 365 } }}
+                helperText={
+                  form.trialDays > 0
+                    ? `New subscriptions get ${form.trialDays} days free`
+                    : 'No trial — subscriptions start active and billable'
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 8 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={form.isSignupDefault}
+                    onChange={e => set('isSignupDefault', e.target.checked)}
+                  />
+                }
+                label='New signups land on this plan'
+              />
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block' }}>
+                Exactly one plan can hold this. The server refuses to archive whichever plan it
+                is, because doing so would leave new tenants with nowhere to land.
+              </Typography>
             </Grid>
           </Grid>
         </CardContent>
