@@ -7,8 +7,6 @@ import { getStoredToken, getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
 
-const tenantHeader = () => ({ 'X-Tenant-ID': getStoredTenantId() })
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -111,31 +109,31 @@ export async function getInvoices(params?: {
 
   const qs = query.toString()
 
-  return apiGet(`${BASE}/invoices${qs ? `?${qs}` : ''}`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/invoices${qs ? `?${qs}` : ''}`)
 }
 
 export async function getInvoiceById(id: string): Promise<Invoice> {
-  return apiGet(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/invoices/${id}`)
 }
 
 export async function createInvoice(data: CreateInvoicePayload): Promise<Invoice> {
-  return apiPost(`${BASE}/invoices`, data, { headers: tenantHeader() })
+  return apiPost(`${BASE}/invoices`, data)
 }
 
 export async function updateInvoice(id: string, data: UpdateInvoicePayload): Promise<Invoice> {
-  return apiPut(`${BASE}/invoices/${id}`, data, { headers: tenantHeader() })
+  return apiPut(`${BASE}/invoices/${id}`, data)
 }
 
 export async function updateInvoiceStatus(id: string, status: string): Promise<Invoice> {
-  return apiPatch(`${BASE}/invoices/${id}/status`, { status }, { headers: tenantHeader() })
+  return apiPatch(`${BASE}/invoices/${id}/status`, { status })
 }
 
 export async function deleteInvoice(id: string): Promise<void> {
-  return apiDelete(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  return apiDelete(`${BASE}/invoices/${id}`)
 }
 
 export async function getInvoiceStats(): Promise<InvoiceStats> {
-  return apiGet(`${BASE}/invoices/stats`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/invoices/stats`)
 }
 
 /**

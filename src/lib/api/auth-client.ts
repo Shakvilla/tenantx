@@ -592,17 +592,22 @@ export async function getCurrentUser(tenantId: string): Promise<ApiResponse<User
 }
 
 /**
- * Logout — revokes the refresh token on the server, then clears stored tokens
+ * Logout — best-effort server-side refresh-token revocation, then clears stored tokens.
+ *
+ * The server call is fire-and-forget (not awaited): local logout must never be blocked by
+ * the network. Whether revocation succeeds or the request hangs, errors are swallowed and
+ * `clearStoredTokens()` always runs, so the local session is wiped unconditionally.
  */
 export async function logoutUser(): Promise<ApiResponse<null>> {
   const refreshToken = getStoredRefreshToken()
 
   if (refreshToken) {
-    try {
-      await apiPost<void>(`${API_BASE}/auth/logout`, { refreshToken })
-    } catch {
+    // POST /auth/logout — the backend looks the token family up from the request body and
+    // revokes it. apiClient has no timeout, so a never-settling request must not be awaited
+    // or it would wedge the logout flow (AuthContext's logout awaits this function).
+    apiPost<void>(`${API_BASE}/auth/logout`, { refreshToken }).catch(() => {
       // Ignore — proceed to clear local session regardless of server-side outcome
-    }
+    })
   }
 
   clearStoredTokens()

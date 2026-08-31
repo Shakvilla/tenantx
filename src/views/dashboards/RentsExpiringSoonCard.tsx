@@ -23,6 +23,13 @@ import type { AdvanceRentResponse } from '@/types/advanceRent'
 const fmt = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
 /**
+ * Deliberately a hair under three rows: enough to read at a glance, short enough to keep the
+ * dashboard row height even, and it clips the third entry so the list reads as scrollable
+ * rather than complete.
+ */
+const LIST_MAX_HEIGHT = 240
+
+/**
  * Portfolio-wide "Rents Expiring Soon" widget.
  *
  * Sources data from GET /api/v1/advance-rents/expiring (dedicated backend endpoint)
@@ -45,7 +52,7 @@ const RentsExpiringSoonCard = () => {
     <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardHeader
         title='Rents Expiring Soon'
-        subheader='Advance rent periods ending within 2 months'
+        subheader='Advance periods ending within 2 months'
         action={
           !loading && records.length > 0 ? (
             <Chip label={records.length} size='small' color='warning' variant='tonal' />
@@ -53,7 +60,11 @@ const RentsExpiringSoonCard = () => {
         }
       />
       <Divider />
-      <CardContent sx={{ flex: 1, p: 0, '&:last-child': { pb: 0 } }}>
+      {/* The list is capped and scrolls. It sits in a four-card row on the dashboard, and the
+          record count is unbounded — one card that grows with its data stretches every card
+          beside it, so a busy month turned the whole row into three mostly-empty cards. The
+          header chip carries the true total, so nothing is hidden without a signal. */}
+      <CardContent sx={{ flex: 1, p: 0, maxHeight: LIST_MAX_HEIGHT, overflowY: 'auto', '&:last-child': { pb: 0 } }}>
         {loading && (
           <Box className='flex flex-col gap-3 p-4'>
             {[0, 1, 2].map(i => (

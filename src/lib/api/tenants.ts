@@ -165,54 +165,42 @@ export async function getTenants(tenantId: string, query: TenantQuery = {}): Pro
   if (query.status) params.set('status', query.status)
   if (query.propertyId) params.set('propertyId', query.propertyId)
 
-  return apiGet(`${API_BASE}/tenants?${params.toString()}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/tenants?${params.toString()}`)
 }
 
 /**
  * Get a single tenant by ID
  */
 export async function getTenantById(tenantId: string, id: string): Promise<ApiResponse<TenantRecord>> {
-  return apiGet(`${API_BASE}/tenants/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/tenants/${id}`)
 }
 
 /**
  * Create a new tenant
  */
 export async function createTenant(tenantId: string, data: CreateTenantPayload): Promise<ApiResponse<TenantRecord>> {
-  return apiPost(`${API_BASE}/tenants`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiPost(`${API_BASE}/tenants`, data)
 }
 
 /**
  * Update an existing tenant
  */
 export async function updateTenant(tenantId: string, id: string, data: UpdateTenantPayload): Promise<ApiResponse<TenantRecord>> {
-  return apiPatch(`${API_BASE}/tenants/${id}`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiPatch(`${API_BASE}/tenants/${id}`, data)
 }
 
 /**
  * Delete a tenant
  */
 export async function deleteTenant(tenantId: string, id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/tenants/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiDelete(`${API_BASE}/tenants/${id}`)
 }
 
 /**
  * Get tenant statistics
  */
 export async function getTenantStats(tenantId: string): Promise<ApiResponse<TenantStats>> {
-  return apiGet(`${API_BASE}/tenants/stats`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/tenants/stats`)
 }
 
 /**

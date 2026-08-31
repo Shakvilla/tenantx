@@ -1,5 +1,4 @@
-import { apiGet, apiPost, apiPatch, apiDelete } from './client'
-import { API_BASE } from './client'
+import { apiGet, apiPost, apiPatch, apiDelete, API_BASE } from './client'
 import type {
   AgentType,
   AgentCommission,
@@ -54,9 +53,9 @@ export async function getCommissionStats(agentId?: string): Promise<AgentCommiss
 }
 
 export async function markCommissionPaid(commissionId: string): Promise<AgentCommission> {
-  return apiPost<AgentCommission>(`${BASE}/commissions/${commissionId}/pay`)
+  return apiPost<AgentCommission>(`${BASE}/commissions/${commissionId}/pay`, undefined)
 }
 
 export async function cancelCommission(commissionId: string): Promise<AgentCommission> {
-  return apiPost<AgentCommission>(`${BASE}/commissions/${commissionId}/cancel`)
+  return apiPost<AgentCommission>(`${BASE}/commissions/${commissionId}/cancel`, undefined)
 }
