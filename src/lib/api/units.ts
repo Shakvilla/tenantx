@@ -70,9 +70,7 @@ export async function getUnitsByProperty(
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/properties/${propertyId}/units${qs ? `?${qs}` : ''}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/properties/${propertyId}/units${qs ? `?${qs}` : ''}`)
 }
 
 /**
@@ -96,9 +94,7 @@ export async function getAllUnits(tenantId: string, query: UnitQuery = {}): Prom
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/units${qs ? `?${qs}` : ''}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/units${qs ? `?${qs}` : ''}`)
 }
 
 /**
@@ -114,9 +110,7 @@ export async function getAvailableUnits(tenantId: string, query: UnitQuery = {})
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/units/available${qs ? `?${qs}` : ''}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/units/available${qs ? `?${qs}` : ''}`)
 }
 
 /**
@@ -124,9 +118,7 @@ export async function getAvailableUnits(tenantId: string, query: UnitQuery = {})
  */
 export async function getUnitById(tenantId: string, id: string): Promise<ApiResponse<Unit>> {
   try {
-    const response = await apiGet<any>(`${API_BASE}/units/${id}`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const response = await apiGet<any>(`${API_BASE}/units/${id}`)
 
     if (response && response.success === false) return response as ApiResponse<Unit>
     if (response && response.id) return { success: true, data: response as Unit }
@@ -145,9 +137,7 @@ export async function getUnitById(tenantId: string, id: string): Promise<ApiResp
  */
 export async function getUnitsByOccupant(tenantId: string, occupantId: string): Promise<Unit[]> {
   try {
-    const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`)
 
     return Array.isArray(res) ? res : []
   } catch {
@@ -165,9 +155,7 @@ export async function createUnit(
   data: Partial<Unit>
 ): Promise<ApiResponse<Unit>> {
   try {
-    const response = await apiPost<any>(`${API_BASE}/properties/${propertyId}/units`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const response = await apiPost<any>(`${API_BASE}/properties/${propertyId}/units`, data)
 
     if (response && response.success === false) return response as ApiResponse<Unit>
 
@@ -187,9 +175,7 @@ export async function createUnit(
  */
 export async function updateUnit(tenantId: string, id: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
   try {
-    const response = await apiPatch<any>(`${API_BASE}/units/${id}`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const response = await apiPatch<any>(`${API_BASE}/units/${id}`, data)
 
     if (response && response.success === false) return response as ApiResponse<Unit>
 
@@ -207,9 +193,7 @@ export async function updateUnit(tenantId: string, id: string, data: Partial<Uni
  * Delete a unit
  */
 export async function deleteUnit(tenantId: string, id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/units/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiDelete(`${API_BASE}/units/${id}`)
 }
 
 // ---------------------------------------------------------------------------

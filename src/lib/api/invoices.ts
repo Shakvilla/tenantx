@@ -8,8 +8,6 @@ import { getStoredToken, getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
 
-const tenantHeader = () => ({ 'X-Tenant-ID': getStoredTenantId() })
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -112,15 +110,15 @@ export async function getInvoices(params?: {
 
   const qs = query.toString()
 
-  return apiGet(`${BASE}/invoices${qs ? `?${qs}` : ''}`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/invoices${qs ? `?${qs}` : ''}`)
 }
 
 export async function getInvoiceById(id: string): Promise<Invoice> {
-  return apiGet(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/invoices/${id}`)
 }
 
 export async function createInvoice(data: CreateInvoicePayload): Promise<Invoice> {
-  const created = await apiPost<Invoice>(`${BASE}/invoices`, data, { headers: tenantHeader() })
+  const created = await apiPost<Invoice>(`${BASE}/invoices`, data)
 
   emitBillingChanged()
 
@@ -128,7 +126,7 @@ export async function createInvoice(data: CreateInvoicePayload): Promise<Invoice
 }
 
 export async function updateInvoice(id: string, data: UpdateInvoicePayload): Promise<Invoice> {
-  const updated = await apiPut<Invoice>(`${BASE}/invoices/${id}`, data, { headers: tenantHeader() })
+  const updated = await apiPut<Invoice>(`${BASE}/invoices/${id}`, data)
 
   emitBillingChanged()
 
@@ -136,7 +134,7 @@ export async function updateInvoice(id: string, data: UpdateInvoicePayload): Pro
 }
 
 export async function updateInvoiceStatus(id: string, status: string): Promise<Invoice> {
-  const updated = await apiPatch<Invoice>(`${BASE}/invoices/${id}/status`, { status }, { headers: tenantHeader() })
+  const updated = await apiPatch<Invoice>(`${BASE}/invoices/${id}/status`, { status })
 
   emitBillingChanged()
 
@@ -144,7 +142,7 @@ export async function updateInvoiceStatus(id: string, status: string): Promise<I
 }
 
 export async function deleteInvoice(id: string): Promise<void> {
-  await apiDelete(`${BASE}/invoices/${id}`, { headers: tenantHeader() })
+  await apiDelete(`${BASE}/invoices/${id}`)
   emitBillingChanged()
 }
 
@@ -166,7 +164,7 @@ export async function getInvoiceStats(params?: {
 
   const query = qs.toString()
 
-  return apiGet(`${BASE}/invoices/stats${query ? `?${query}` : ''}`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/invoices/stats${query ? `?${query}` : ''}`)
 }
 
 /**

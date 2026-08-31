@@ -6,7 +6,6 @@ import { apiGet, apiPost, apiPut, apiPatch, apiDelete, API_BASE } from './client
 import { getStoredToken, getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
-const tenantHeader = () => ({ 'X-Tenant-ID': getStoredTenantId() })
 
 // ---------------------------------------------------------------------------
 // Types (aligned with AgreementDto.Response)
@@ -132,27 +131,27 @@ export async function getAgreements(params?: { status?: string; type?: string; o
   if (params?.type) q.set('type', params.type)
   if (params?.occupantId) q.set('occupantId', params.occupantId)
   const query = q.toString() ? `?${q}` : ''
-  return apiGet(`${BASE}/agreements${query}`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/agreements${query}`)
 }
 
 export async function getAgreementById(id: string): Promise<Agreement> {
-  return apiGet(`${BASE}/agreements/${id}`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/agreements/${id}`)
 }
 
 export async function createAgreement(data: CreateAgreementPayload): Promise<Agreement> {
-  return apiPost(`${BASE}/agreements`, data, { headers: tenantHeader() })
+  return apiPost(`${BASE}/agreements`, data)
 }
 
 export async function updateAgreement(id: string, data: UpdateAgreementPayload): Promise<Agreement> {
-  return apiPut(`${BASE}/agreements/${id}`, data, { headers: tenantHeader() })
+  return apiPut(`${BASE}/agreements/${id}`, data)
 }
 
 export async function updateAgreementStatus(id: string, status: AgreementStatus): Promise<Agreement> {
-  return apiPatch(`${BASE}/agreements/${id}/status`, { status }, { headers: tenantHeader() })
+  return apiPatch(`${BASE}/agreements/${id}/status`, { status })
 }
 
 export async function deleteAgreement(id: string): Promise<void> {
-  return apiDelete(`${BASE}/agreements/${id}`, { headers: tenantHeader() })
+  return apiDelete(`${BASE}/agreements/${id}`)
 }
 
 /**
@@ -160,16 +159,16 @@ export async function deleteAgreement(id: string): Promise<void> {
  * previousAgreementId and marks this one RENEWED. Returns the new successor agreement.
  */
 export async function renewAgreement(id: string, data: RenewAgreementPayload): Promise<Agreement> {
-  return apiPost(`${BASE}/agreements/${id}/renew`, data, { headers: tenantHeader() })
+  return apiPost(`${BASE}/agreements/${id}/renew`, data)
 }
 
 /** Terminates an agreement — records the decision and a TERMINATION notice. */
 export async function terminateAgreement(id: string, notes?: string): Promise<Agreement> {
-  return apiPost(`${BASE}/agreements/${id}/terminate`, { notes }, { headers: tenantHeader() })
+  return apiPost(`${BASE}/agreements/${id}/terminate`, { notes })
 }
 
 export async function getAgreementStats(): Promise<AgreementStats> {
-  return apiGet(`${BASE}/agreements/stats`, { headers: tenantHeader() })
+  return apiGet(`${BASE}/agreements/stats`)
 }
 
 /**

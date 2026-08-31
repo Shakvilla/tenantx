@@ -61,6 +61,17 @@ export function otpErrorMessage(error: unknown): OtpErrorDisplay {
     }
   }
 
+  // signupStart also routes through this module — not because signup errors are OTP errors,
+  // but because Register.tsx calls otpErrorMessage for every auth failure. Without this guard
+  // an EMAIL_ALREADY_EXISTS (status 400, code EMAIL_ALREADY_EXISTS) fell into the OTP catch-all
+  // below and told the user "That code isn't valid" for something unrelated to any code.
+  if (code === 'EMAIL_ALREADY_EXISTS') {
+    return {
+      message: 'An account with this email already exists. Please sign in or use a different email.',
+      startOver: false
+    }
+  }
+
   if (code === 'OTP_INVALID' || status === 400) {
     return {
       message: 'That code isn\'t valid. It may be wrong, expired, or already used. Start over to get a new one.',

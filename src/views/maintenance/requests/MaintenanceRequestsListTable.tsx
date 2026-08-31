@@ -219,7 +219,12 @@ const MaintenanceRequestsListTable = () => {
     fetchRequests(prevCursor)
   }
 
-  const refresh = useCallback(() => fetchRequests(cursorStack[pageIndex]), [fetchRequests, cursorStack, pageIndex])
+  const [statsRefreshKey, setStatsRefreshKey] = useState(0)
+
+  const refresh = useCallback(() => {
+    setStatsRefreshKey(k => k + 1)
+    return fetchRequests(cursorStack[pageIndex])
+  }, [fetchRequests, cursorStack, pageIndex])
 
   // Load categories once for filter + display
   useEffect(() => {
@@ -370,7 +375,7 @@ return <Chip variant='tonal' label={cfg.label} size='small' color={cfg.color} cl
         description='Repairs you log yourself, and the ones your tenants report from the app'
         icon='ri-tools-line'
       />
-      <MaintenanceStatsCards />
+      <MaintenanceStatsCards refreshKey={statsRefreshKey} />
       <Card className='mbs-6'>
         <CardHeader
           title='Maintenance Requests List'

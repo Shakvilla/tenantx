@@ -33,7 +33,11 @@ function buildCsp(nonce: string, isHttps: boolean): string {
     .filter(Boolean)
     .join(' ')
 
-  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://images.unsplash.com']
+  // https://ik.imagekit.io is listed unconditionally, not only via the env-derived origin:
+  // every stored document/photo URL in the DB points at the ik.imagekit.io delivery host, so a
+  // build where NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT is unset (imageKitOrigin drops out via
+  // filter(Boolean)) would otherwise CSP-block every property, unit and maintenance image.
+  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://ik.imagekit.io', 'https://images.unsplash.com']
     .filter(Boolean)
     .join(' ')
 
