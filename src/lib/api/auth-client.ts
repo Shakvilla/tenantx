@@ -291,6 +291,13 @@ export interface SignupStartPayload {
 
   /** Optional. Validated locally with /^\+?[0-9()\s-]{7,16}$/ before this is ever called. */
   phoneNumber?: string
+
+  /**
+   * Optional. The subscription plan the user picked on the pricing page (e.g. BASIC, PRO).
+   * Read from the `?plan=` query param on the register page and passed through so the backend
+   * assigns the correct plan at account creation; omitted when no plan was selected.
+   */
+  selectedPlanName?: string
 }
 
 /**

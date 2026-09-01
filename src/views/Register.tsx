@@ -1,10 +1,10 @@
 'use client'
 
 // React Imports
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 // Next Imports
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
 import Typography from '@mui/material/Typography'
@@ -64,6 +64,37 @@ const Register = ({ mode }: { mode: Mode }) => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // The subscription plan the user picked on the pricing page, carried here via the `?plan=`
+  // query param (e.g. `?plan=basic`). Uppercased to match the backend's plan names (FREE/BASIC/PRO).
+  const searchParams = useSearchParams()
+  const planParam = searchParams.get('plan')?.toUpperCase() ?? null
+
+  // Fetch active plans (public, no auth) to resolve the selected plan's display name and trial
+  // days for the badge. Fails silently — the badge falls back to the raw plan name.
+  const [plans, setPlans] = useState<{ name: string; displayName: string; trialDays?: number }[]>([])
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api/v1', '')}/api/v1/public/plans`)
+      .then(r => (r.ok ? r.json() : []))
+      .then(data => setPlans(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
+
+  const planBadge = useMemo(() => {
+    if (!planParam) return null
+    const matched = plans.find(p => p.name.toUpperCase() === planParam)
+
+    return matched ?? { name: planParam, displayName: planParam, trialDays: 0 }
+  }, [planParam, plans])
+
+  // Rendered above both the registration form and the OTP view so the user remembers which plan
+  // they're signing up for.
+  const planBadgeAlert = planBadge ? (
+    <Alert severity='info' icon={<i className='ri-medal-line' />}>
+      Signing up for <strong>{planBadge.displayName}</strong>
+      {(planBadge.trialDays ?? 0) > 0 && ` — ${planBadge.trialDays}-day free trial`}
+    </Alert>
+  ) : null
 
   // The email-verification challenge from /auth/signup/start. Non-null means the code step is
   // showing instead of the registration form — same otpRequired-gated shape every other login-OTP
@@ -149,7 +180,8 @@ const Register = ({ mode }: { mode: Mode }) => {
       password: validation.data.password,
       fullName: validation.data.fullName,
       companyName: validation.data.companyName,
-      ...(trimmedPhone ? { phoneNumber: trimmedPhone } : {})
+      ...(trimmedPhone ? { phoneNumber: trimmedPhone } : {}),
+      ...(planParam ? { selectedPlanName: planParam } : {})
     })
 
     if (result.success && result.data) {
@@ -226,6 +258,7 @@ const Register = ({ mode }: { mode: Mode }) => {
         <div className='flex flex-col gap-5 is-full sm:is-auto md:is-full sm:max-is-[400px] md:max-is-[unset] mbs-11 sm:mbs-14 md:mbs-0'>
           {challenge ? (
             <>
+              {planBadgeAlert}
               {success && <Alert severity='success'>{success}</Alert>}
               <OtpChallengeForm
                 channel={challenge.channel}
@@ -249,6 +282,8 @@ const Register = ({ mode }: { mode: Mode }) => {
               {error}
             </Alert>
           )}
+
+          {planBadgeAlert}
 
           {success && <Alert severity='success'>{success}</Alert>}
 
