@@ -175,7 +175,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   }, [formData.propertyId])
 
   const handleConfigChange = (value: string) => {
-    setManualItem(value === OTHER)
+    setManualMode(value === OTHER)
 
     if (value === OTHER) {
       // Clear config link, let user type manually
@@ -253,7 +253,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   const handleReset = () => {
     handleClose()
     setFormData(initialData)
-    setManualItem(false)
+    setManualMode(false)
     setErrors({})
     setApiError(null)
   }
