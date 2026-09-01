@@ -130,7 +130,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
         ? OTHER   // edit mode with a manual item but no config
         : ''
 
-  const showManualItem = manualItem
+  const showManualItem = manualMode
 
   // Load reference data when drawer opens
   useEffect(() => {
