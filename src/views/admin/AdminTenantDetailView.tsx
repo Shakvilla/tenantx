@@ -480,7 +480,20 @@ function OffboardDialog({ open, tenant, onClose, onOffboarded }: OffboardDialogP
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {error && <Alert severity='error'>{error}</Alert>}
             <Typography variant='body2'>
-              Type the tenant ID <strong style={{ fontFamily: 'monospace' }}>{tenant.tenant_id}</strong> to confirm deletion:
+              Type the tenant ID{' '}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                <strong style={{ fontFamily: 'monospace' }}>{tenant.tenant_id}</strong>
+                <IconButton
+                  size='small'
+                  onClick={() => {
+                    navigator.clipboard.writeText(tenant.tenant_id)
+                  }}
+                  title='Copy to clipboard'
+                >
+                  <i className='ri-file-copy-line' style={{ fontSize: '1rem' }} />
+                </IconButton>
+              </span>{' '}
+              to confirm deletion:
             </Typography>
             <TextField
               fullWidth
