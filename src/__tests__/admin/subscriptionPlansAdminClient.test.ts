@@ -20,6 +20,7 @@ const body = {
   selfServeMaxQty: null,
   isPublic: true,
   sortOrder: 0,
+  transactionFeePct: null,
   trialDays: 0,
   isSignupDefault: false,
   tiers: [{ fromQty: 1, toQty: null, flatPrice: '0.00', perUnitPrice: '30.00' }],

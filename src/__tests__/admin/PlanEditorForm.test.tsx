@@ -45,6 +45,7 @@ const detail = {
   selfServeMaxQty: null,
   isPublic: true,
   sortOrder: 1,
+  transactionFeePct: 0.015,
   trialDays: 14,
   isSignupDefault: true,
   tiers: [{ fromQty: 1, toQty: null, flatPrice: '0.00', perUnitPrice: '30.00' }],

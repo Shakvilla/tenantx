@@ -56,6 +56,13 @@ export interface PlanWriteBody {
   isPublic: boolean
   sortOrder: number
 
+  /**
+   * Per-plan platform transaction fee as a decimal fraction (0.015 = 1.5%), charged on top of
+   * every paid invoice instead of the global `billing.transaction_fee_rate`. Null means "use the
+   * global rate".
+   */
+  transactionFeePct: number | null
+
   /** Days of trial a subscription starting on this plan gets. 0 means no trial. */
   trialDays: number
 

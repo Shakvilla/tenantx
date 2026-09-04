@@ -71,6 +71,7 @@ const BLANK: PlanWriteBody = {
   selfServeMaxQty: null,
   isPublic: true,
   sortOrder: 0,
+  transactionFeePct: null,
   trialDays: 0,
   isSignupDefault: false,
   tiers: [{ fromQty: 1, toQty: null, flatPrice: '0.00', perUnitPrice: '0.00' }],
@@ -304,6 +305,19 @@ const PlanEditorForm = ({ planId }: PlanEditorFormProps) => {
                     ? `New subscriptions get ${form.trialDays} days free`
                     : 'No trial — subscriptions start active and billable'
                 }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                type='number'
+                label='Transaction fee (rate)'
+                value={form.transactionFeePct ?? ''}
+                onChange={e =>
+                  set('transactionFeePct', e.target.value === '' ? null : Number(e.target.value))
+                }
+                slotProps={{ htmlInput: { min: 0, max: 1, step: 0.0001 } }}
+                helperText='Decimal fraction charged on paid invoices, e.g. 0.015 = 1.5%. Blank uses the platform default.'
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
