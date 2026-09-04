@@ -18,6 +18,7 @@ import Tooltip from '@mui/material/Tooltip'
 import Button from '@mui/material/Button'
 
 import { getDocuments, type DocumentItem } from '@/lib/api/documents'
+import { getDocumentDownloadUrl } from '@/lib/document-storage'
 import AddDocumentDialog from '@/views/documents/AddDocumentDialog'
 
 const STATUS_COLOR: Record<DocumentItem['status'], 'warning' | 'success' | 'error'> = {
@@ -57,18 +58,28 @@ const DocumentationTab = ({ occupantId, occupantName }: { occupantId?: string; o
     let cancelled = false
     setLoading(true)
     setError(null)
-    // Backend /documents filters by status/type only, so filter to this occupant client-side.
-    getDocuments()
-      .then(all => {
-        if (!cancelled) setDocuments((all ?? []).filter(d => d.occupantId === occupantId))
+    // The backend filters by occupantId (and status/type); ask for this
+    // occupant's documents directly instead of pulling every document in the
+    // tenant and filtering client-side.
+    getDocuments({ occupantId, size: 100 })
+      .then(page => {
+        if (!cancelled) setDocuments(page.content ?? [])
       })
       .catch(() => { if (!cancelled) setError('Failed to load documents') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [occupantId, reloadKey])
 
-  const handleDownload = (item: DocumentItem) => {
-    if (item.fileUrl) window.open(item.fileUrl, '_blank', 'noopener,noreferrer')
+  const handleDownload = async (item: DocumentItem) => {
+    if (!item.fileUrl) return
+    try {
+      // Files are private on ImageKit — the stored URL 401s. Mint a signed,
+      // expiring link first (mirrors DocumentsListTable's download flow).
+      const url = await getDocumentDownloadUrl(item.id)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      setError('Could not open the document. Please try again.')
+    }
   }
 
   return (
