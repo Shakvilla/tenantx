@@ -2,12 +2,16 @@
  * Admin navigation menu definition.
  * Each item can require one or more permissions from AdminAuthContext.
  * Items without `permissions` are visible to all authenticated admins.
+ *
+ * `section` groups consecutive items under a header when the sidebar is expanded.
+ * Section headers are hidden in the collapsed (icon-only) sidebar mode.
  */
 
 export interface AdminNavItem {
   label: string
   href: string
   icon: string          // Remix Icon class
+  section?: string      // Section header shown in the expanded sidebar
   permissions?: string[] // ANY of these permissions shows the item
   children?: AdminNavItem[]
 }
@@ -17,112 +21,131 @@ export const adminNavItems: AdminNavItem[] = [
     label: 'Dashboard',
     href: '/admin',
     icon: 'ri-dashboard-line',
+    section: 'Overview',
   },
   {
     label: 'Tenants',
     href: '/admin/tenants',
     icon: 'ri-building-2-line',
+    section: 'Management',
     permissions: ['platform:tenants:read'],
   },
   {
     label: 'Users',
     href: '/admin/users',
     icon: 'ri-group-line',
+    section: 'Management',
     permissions: ['platform:users:read'],
   },
   {
     label: 'System Admins',
     href: '/admin/admins',
     icon: 'ri-shield-user-line',
+    section: 'Management',
     permissions: ['platform:admins:read'],
   },
   {
     label: 'Roles & Permissions',
     href: '/admin/roles',
     icon: 'ri-shield-keyhole-line',
+    section: 'Management',
     permissions: ['platform:roles:read'],
   },
   {
     label: 'Subscription Plans',
     href: '/admin/subscriptions',
     icon: 'ri-price-tag-3-line',
+    section: 'Billing',
     permissions: ['platform:plans:read'],
   },
   {
     label: 'Billing',
     href: '/admin/invoices',
     icon: 'ri-file-list-3-line',
+    section: 'Billing',
     permissions: ['platform:billing:read'],
   },
   {
     label: 'Fee Ledger',
     href: '/admin/fee-ledger',
     icon: 'ri-coins-line',
+    section: 'Billing',
     permissions: ['platform:billing:read'],
   },
   {
     label: 'Announcements',
     href: '/admin/announcements',
     icon: 'ri-megaphone-line',
+    section: 'Engagement',
     permissions: ['platform:announcements:read'],
   },
   {
     label: 'Messaging',
     href: '/admin/messaging',
     icon: 'ri-message-3-line',
+    section: 'Engagement',
     permissions: ['platform:messaging:read'],
-  },
-  {
-    label: 'Reports',
-    href: '/admin/reports',
-    icon: 'ri-bar-chart-2-line',
-    permissions: ['platform:reports:read'],
   },
   {
     label: 'Support',
     href: '/admin/support',
     icon: 'ri-customer-service-2-line',
+    section: 'Engagement',
     permissions: ['platform:support:read'],
+  },
+  {
+    label: 'Reports',
+    href: '/admin/reports',
+    icon: 'ri-bar-chart-2-line',
+    section: 'Operations',
+    permissions: ['platform:reports:read'],
   },
   {
     label: 'System Health',
     href: '/admin/system',
     icon: 'ri-heart-pulse-line',
+    section: 'Operations',
     permissions: ['platform:health:read'],
   },
   {
     label: 'Payment Gateway',
     href: '/admin/payment-gateway',
     icon: 'ri-bank-card-line',
+    section: 'Operations',
     permissions: ['platform:gateway:read'],
   },
   {
     label: 'Platform Settings',
     href: '/admin/platform-settings',
     icon: 'ri-settings-3-line',
+    section: 'System',
     permissions: ['platform:settings:read'],
   },
   {
     label: 'Audit Log',
     href: '/admin/audit-log',
     icon: 'ri-file-shield-2-line',
+    section: 'System',
     permissions: ['platform:audit:read'],
   },
   {
     label: 'Impersonation Log',
     href: '/admin/impersonation-log',
     icon: 'ri-spy-line',
+    section: 'System',
     permissions: ['platform:impersonate'],
   },
   {
     label: 'SMS Sender IDs',
     href: '/admin/sms-sender-ids',
     icon: 'ri-message-3-line',
+    section: 'System',
     permissions: ['platform:sms:read'],
   },
   {
     label: 'My Profile',
     href: '/admin/profile',
     icon: 'ri-user-settings-line',
+    section: 'Account',
   },
 ]
