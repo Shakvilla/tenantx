@@ -122,6 +122,13 @@ export const adminNavItems: AdminNavItem[] = [
     permissions: ['platform:settings:read'],
   },
   {
+    label: 'Storage Provider',
+    href: '/admin/platform/storage',
+    icon: 'ri-database-2-line',
+    section: 'System',
+    permissions: ['platform:settings:read'],
+  },
+  {
     label: 'Audit Log',
     href: '/admin/audit-log',
     icon: 'ri-file-shield-2-line',

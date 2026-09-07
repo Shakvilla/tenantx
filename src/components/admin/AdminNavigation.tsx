@@ -378,6 +378,7 @@ const ROUTE_TITLES: Array<{ match: (p: string) => boolean; title: string }> = [
   { match: p => p === '/admin/reports',                    title: 'Reports' },
   { match: p => p === '/admin/support',                    title: 'Support & Feedback' },
   { match: p => p === '/admin/platform-settings',          title: 'Platform Settings' },
+  { match: p => p === '/admin/platform/storage',           title: 'Storage Provider' },
   { match: p => p === '/admin/audit-log',                  title: 'Audit Log' },
   { match: p => p === '/admin/fee-ledger',                 title: 'Fee Ledger' },
 ]
