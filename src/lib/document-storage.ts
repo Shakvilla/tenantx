@@ -1,5 +1,5 @@
 /**
- * Document upload — ImageKit, private files.
+ * Document upload — provider-agnostic, private files.
  *
  * Replaces the Supabase Storage path this used to take. That one routed bytes
  * through a Next route handler holding a service-role key with full storage
@@ -8,27 +8,29 @@
  * was also dead in every Docker deployment, because docker-compose never passed
  * the Supabase keys to the web container.
  *
- * The flow now matches how every other file in this product is stored:
+ * The flow now matches how every other file in this product is stored, with the
+ * storage backend abstracted behind Spring:
  *
- *   1. Spring signs a short-lived upload token   GET /api/v1/imagekit/auth
- *   2. the browser uploads straight to ImageKit  (bytes never touch our server)
+ *   1. Spring signs a short-lived upload auth  GET /api/v1/documents/storage/auth
+ *   2. the browser uploads straight to the provider (bytes never touch our server)
  *   3. the file is stored PRIVATE, so its URL 401s on its own
  *   4. reading one goes through  GET /api/v1/documents/{id}/download-url,
  *      which checks the caller owns the document and signs a link that expires
  *
- * The trade-off worth naming: `isPrivateFile` is set by the browser, and the
- * upload signature covers only the token and its expiry, so a hand-built
- * request could omit it. That is the same trust this app already extends for
- * the `folder` of every property and occupant image. Closing it means proxying
- * uploads through Spring, which buys server-controlled flags at the cost of
- * streaming 10 MB files through Java — worth doing if documents ever carry
- * something stricter than they do today.
+ * Two upload modes are supported, decided by the auth response:
+ *
+ *   - Presigned PUT  (S3, R2, GCS, …) — the auth response carries `uploadUrl`
+ *     and no `formData`; the file body goes straight to the provider.
+ *   - Form POST      (ImageKit) — the auth response carries `uploadUrl` plus a
+ *     `formData` map of signature fields (token, signature, expire, …) that
+ *     are appended to a multipart form alongside the file.
  *
  * XHR rather than fetch, because the dialog shows a real progress bar and fetch
  * cannot report upload progress.
  */
 
 import { apiGet, API_BASE } from './api/client'
+import { getStoredToken } from './api/storage'
 
 export type StorageUploadResult = {
   path: string
@@ -38,15 +40,6 @@ export type StorageUploadResult = {
   bytes: number
   mimeType: string
 }
-
-type ImageKitAuthParams = {
-  token: string
-  expire: number
-  signature: string
-}
-
-const PUBLIC_KEY = process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY ?? ''
-const IK_UPLOAD_URL = 'https://upload.imagekit.io/api/v1/files/upload'
 
 /**
  * Upload a document file.
@@ -60,56 +53,106 @@ export async function uploadDocument(
   tenantId: string,
   onProgress?: (percent: number) => void
 ): Promise<StorageUploadResult> {
-  // Fail here rather than sending publicKey='' and letting ImageKit answer
-  // "Your request is missing publicKey parameter." — that reads as a bug in the
-  // upload code when the cause is a build-time config gap. NEXT_PUBLIC_* values
-  // are inlined at build time, so a container built without this cannot be
-  // fixed by restarting it; it needs a rebuild.
-  if (!PUBLIC_KEY) {
-    throw new Error(
-      'Document upload is not configured: NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY was empty when this app was built. Rebuild with the key set.'
-    )
+  // 1. Get presigned upload auth from the backend (provider-agnostic)
+  const token = getStoredToken() ?? ''
+
+  const authResponse = await fetch(
+    `${API_BASE}/documents/storage/auth?fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`,
+    {
+      headers: {
+        'X-Tenant-ID': tenantId,
+        'Authorization': `Bearer ${token}`
+      }
+    }
+  )
+
+  if (!authResponse.ok) {
+    throw new Error('Failed to get upload auth')
   }
 
-  const auth = await apiGet<ImageKitAuthParams>(`${API_BASE}/imagekit/auth`)
+  const { uploadUrl, filePath, fileId, formData } = await authResponse.json()
 
+  // 2. Upload via presigned PUT (works for S3, R2, GCS, etc.)
+  //    or via form POST (works for ImageKit)
+  if (formData && Object.keys(formData).length > 0) {
+    return uploadViaForm(uploadUrl, formData, file, filePath, fileId, onProgress)
+  } else {
+    return uploadViaPut(uploadUrl, file, filePath, fileId, onProgress)
+  }
+}
+
+function uploadViaPut(
+  url: string,
+  file: File,
+  filePath: string,
+  fileId: string,
+  onProgress?: (percent: number) => void
+): Promise<StorageUploadResult> {
   return new Promise((resolve, reject) => {
-    const body = new FormData()
+    const xhr = new XMLHttpRequest()
 
-    body.append('file', file)
-    body.append('fileName', file.name)
-    body.append('publicKey', PUBLIC_KEY)
-    body.append('signature', auth.signature)
-    body.append('expire', String(auth.expire))
-    body.append('token', auth.token)
-    body.append('folder', `/yiliora/${tenantId}/documents`)
-    body.append('useUniqueFileName', 'true')
+    xhr.upload.addEventListener('progress', e => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    })
 
-    // The point of the whole migration. Without this the file is world-readable
-    // to anyone who learns its URL.
-    body.append('isPrivateFile', 'true')
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({
+          path: filePath,
+          publicUrl: url.split('?')[0],
+          fileName: file.name,
+          fileId,
+          bytes: file.size,
+          mimeType: file.type
+        })
+      } else {
+        reject(new Error(`Upload failed: ${xhr.status}`))
+      }
+    })
+
+    xhr.addEventListener('error', () => reject(new Error('Upload failed')))
+    xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')))
+
+    xhr.open('PUT', url)
+    xhr.setRequestHeader('Content-Type', file.type)
+    xhr.send(file)
+  })
+}
+
+function uploadViaForm(
+  url: string,
+  formData: Record<string, string>,
+  file: File,
+  filePath: string,
+  fileId: string,
+  onProgress?: (percent: number) => void
+): Promise<StorageUploadResult> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData()
+    Object.entries(formData).forEach(([k, v]) => form.append(k, v))
+    form.append('file', file)
 
     const xhr = new XMLHttpRequest()
 
-    xhr.open('POST', IK_UPLOAD_URL)
-
-    if (onProgress) {
-      xhr.upload.addEventListener('progress', e => {
-        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100))
-      })
-    }
+    xhr.upload.addEventListener('progress', e => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    })
 
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const data = JSON.parse(xhr.responseText)
+          const resp = JSON.parse(xhr.responseText)
 
           resolve({
-            path: data.filePath,
-            publicUrl: data.url,
-            fileName: data.name ?? file.name,
-            fileId: data.fileId,
-            bytes: data.size ?? file.size,
+            path: resp.filePath ?? filePath,
+            publicUrl: resp.url ?? url.split('?')[0],
+            fileName: resp.name ?? file.name,
+            fileId: resp.fileId ?? fileId,
+            bytes: resp.size ?? file.size,
             mimeType: file.type
           })
         } catch {
@@ -127,7 +170,8 @@ export async function uploadDocument(
     xhr.addEventListener('error', () => reject(new Error('Network error — upload could not complete.')))
     xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')))
 
-    xhr.send(body)
+    xhr.open('POST', url)
+    xhr.send(form)
   })
 }
 
