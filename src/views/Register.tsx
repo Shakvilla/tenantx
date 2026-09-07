@@ -7,10 +7,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 // MUI Imports
-import Box from '@mui/material/Box'
-import Card from '@mui/material/Card'
-import CardContent from '@mui/material/CardContent'
-import Grid from '@mui/material/Grid2'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import IconButton from '@mui/material/IconButton'
@@ -52,146 +48,6 @@ import { useAuth } from '@/contexts/AuthContext'
  */
 const PHONE_PATTERN = /^\+?[0-9()\s-]{7,16}$/
 
-/**
- * A plan as returned by the public `/plans` endpoint (no auth). The shape is kept loose — the
- * badge and the picker only read the fields they render, so a missing price or feature list
- * degrades to a readable card rather than a crash.
- */
-interface PublicPlan {
-  name: string
-  displayName: string
-  trialDays?: number
-  monthlyPrice?: number
-  annualPrice?: number
-  currency?: string
-  unitLimit?: number
-  features?: string[]
-}
-
-/** GHS renders as the cedi symbol; any other currency code is shown as-is. */
-const currencySymbol = (currency?: string) => (currency === 'GHS' ? 'GH₵' : (currency ?? ''))
-
-/**
- * A selectable plan card for the picker step. Keyboard-activatable and announces itself as a
- * radio so screen readers treat the three cards as one "pick one" group.
- */
-const PlanCard = ({ plan, selected, onSelect }: { plan: PublicPlan; selected: boolean; onSelect: () => void }) => {
-  const trialDays = plan.trialDays ?? 0
-  const monthly = plan.monthlyPrice
-  const symbol = currencySymbol(plan.currency)
-  const features = (plan.features ?? []).slice(0, 3)
-
-  return (
-    <Card
-      variant='outlined'
-      role='radio'
-      aria-checked={selected}
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onSelect()
-        }
-      }}
-      sx={{
-        position: 'relative',
-        height: '100%',
-        cursor: 'pointer',
-        userSelect: 'none',
-        borderWidth: 2,
-        borderColor: selected ? 'primary.main' : 'divider',
-        bgcolor: selected ? 'primary.lighter' : 'background.paper',
-        transition: 'border-color 0.2s ease, background-color 0.2s ease',
-        '&:hover': {
-          borderColor: selected ? 'primary.main' : 'primary.light',
-          bgcolor: selected ? 'primary.lighter' : 'action.hover'
-        },
-        '&:focus-visible': {
-          outline: '2px solid',
-          outlineColor: 'primary.main',
-          outlineOffset: 2
-        }
-      }}
-    >
-      {selected && (
-        <Box
-          aria-hidden
-          sx={{
-            position: 'absolute',
-            top: 10,
-            right: 10,
-            display: 'inline-flex',
-            color: 'primary.main',
-            lineHeight: 0
-          }}
-        >
-          <i className='ri-checkbox-circle-fill' style={{ fontSize: 18 }} />
-        </Box>
-      )}
-
-      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-        <Typography variant='subtitle2' sx={{ fontWeight: 600, pr: selected ? 3 : 0 }}>
-          {plan.displayName}
-        </Typography>
-
-        <Box className='flex items-baseline gap-1 mbs-1'>
-          <Typography variant='h6' sx={{ fontSize: '1.125rem', fontWeight: 700, lineHeight: 1.2 }}>
-            {symbol ? `${symbol} ` : ''}
-            {monthly != null ? monthly.toLocaleString() : '—'}
-          </Typography>
-          <Typography variant='caption' color='text.secondary'>
-            /mo
-          </Typography>
-        </Box>
-
-        {plan.annualPrice != null && plan.annualPrice > 0 && (
-          <Typography variant='caption' color='text.secondary' className='block mbs-0.5'>
-            or {symbol ? `${symbol} ` : ''}
-            {plan.annualPrice.toLocaleString()}/yr
-          </Typography>
-        )}
-
-        {trialDays > 0 && (
-          <Box
-            className='mbs-1.5'
-            sx={{
-              display: 'inline-block',
-              px: 1,
-              py: 0.25,
-              borderRadius: 999,
-              bgcolor: 'primary.lighter',
-              color: 'primary.main',
-              fontSize: '0.6875rem',
-              fontWeight: 600,
-              lineHeight: 1.4
-            }}
-          >
-            {trialDays}-day free trial
-          </Box>
-        )}
-
-        {features.length > 0 && (
-          <Box
-            component='ul'
-            className='mbs-1.5'
-            sx={{ listStyle: 'none', m: 0, p: 0, display: 'flex', flexDirection: 'column', gap: 0.75 }}
-          >
-            {features.map(f => (
-              <Box component='li' key={f} className='flex gap-1 items-start'>
-                <Box component='i' className='ri-check-line' sx={{ fontSize: 13, mt: '2px', color: 'primary.main' }} />
-                <Typography variant='caption' color='text.secondary' sx={{ lineHeight: 1.45 }}>
-                  {f}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
 const Register = ({ mode }: { mode: Mode }) => {
   // States
   const [isPasswordShown, setIsPasswordShown] = useState(false)
@@ -214,39 +70,29 @@ const Register = ({ mode }: { mode: Mode }) => {
   const searchParams = useSearchParams()
   const planParam = searchParams.get('plan')?.toUpperCase() ?? null
 
-  // Active plans from the public endpoint (no auth). Used to resolve the selected plan's display
-  // name and trial days for the badge, and to render the plan picker when no `?plan=` was given.
-  // Fails silently — the badge falls back to the raw plan name, the picker shows a retry.
-  const [plans, setPlans] = useState<PublicPlan[]>([])
-  const [plansLoading, setPlansLoading] = useState(true)
+  // No plan selected — redirect to the landing site pricing page so the user picks one.
+  useEffect(() => {
+    if (!planParam) {
+      window.location.href = 'https://yiliora.cloud/pricing'
+    }
+  }, [planParam])
 
-  const loadPlans = () => {
-    setPlansLoading(true)
-
+  // Fetch active plans (public, no auth) to resolve the selected plan's display name and trial
+  // days for the badge. Fails silently — the badge falls back to the raw plan name.
+  const [plans, setPlans] = useState<{ name: string; displayName: string; trialDays?: number }[]>([])
+  useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api/v1', '')}/api/v1/public/plans`)
       .then(r => (r.ok ? r.json() : []))
       .then(data => setPlans(Array.isArray(data) ? data : []))
-      .catch(() => setPlans([]))
-      .finally(() => setPlansLoading(false))
-  }
-
-  useEffect(() => {
-    loadPlans()
+      .catch(() => {})
   }, [])
 
-  // The plan the user is signing up for: from the URL when one was given, otherwise the plan they
-  // highlight in the picker and confirm with Continue. `pickerSelection` is just the highlighted
-  // card; `confirmedPlan` is what actually flows into signupStart.
-  const [pickerSelection, setPickerSelection] = useState<string | null>(null)
-  const [confirmedPlan, setConfirmedPlan] = useState<string | null>(null)
-  const effectivePlanName = planParam ?? confirmedPlan
-
   const planBadge = useMemo(() => {
-    if (!effectivePlanName) return null
-    const matched = plans.find(p => p.name.toUpperCase() === effectivePlanName)
+    if (!planParam) return null
+    const matched = plans.find(p => p.name.toUpperCase() === planParam)
 
-    return matched ?? { name: effectivePlanName, displayName: effectivePlanName, trialDays: 0 }
-  }, [effectivePlanName, plans])
+    return matched ?? { name: planParam, displayName: planParam, trialDays: 0 }
+  }, [planParam, plans])
 
   // Rendered above both the registration form and the OTP view so the user remembers which plan
   // they're signing up for.
@@ -342,7 +188,7 @@ const Register = ({ mode }: { mode: Mode }) => {
       fullName: validation.data.fullName,
       companyName: validation.data.companyName,
       ...(trimmedPhone ? { phoneNumber: trimmedPhone } : {}),
-      ...(effectivePlanName ? { selectedPlanName: effectivePlanName } : {})
+      ...(planParam ? { selectedPlanName: planParam } : {})
     })
 
     if (result.success && result.data) {
@@ -431,172 +277,116 @@ const Register = ({ mode }: { mode: Mode }) => {
                 hideRememberDevice
               />
             </>
-          ) : !planParam && !confirmedPlan ? (
-            <>
-              <div>
-                <Typography variant='h4'>Choose your plan</Typography>
-                <Typography className='mbs-1'>Select a plan to get started. You can change this later.</Typography>
-              </div>
-
-              {plansLoading ? (
-                <Box className='flex justify-center py-8'>
-                  <CircularProgress size={28} />
-                </Box>
-              ) : plans.length === 0 ? (
-                <Alert
-                  severity='error'
-                  action={
-                    <Button size='small' onClick={loadPlans}>
-                      Retry
-                    </Button>
-                  }
-                >
-                  Couldn&apos;t load plans. Please try again.
-                </Alert>
-              ) : (
-                <>
-                  <Grid container spacing={2}>
-                    {plans.map(plan => (
-                      <Grid key={plan.name} size={{ xs: 12, md: 4 }}>
-                        <PlanCard
-                          plan={plan}
-                          selected={pickerSelection === plan.name.toUpperCase()}
-                          onSelect={() => setPickerSelection(plan.name.toUpperCase())}
-                        />
-                      </Grid>
-                    ))}
-                  </Grid>
-
-                  {pickerSelection && (
-                    <Button
-                      fullWidth
-                      variant='contained'
-                      onClick={() => setConfirmedPlan(pickerSelection)}
-                      className='mt-2'
-                      sx={{
-                        animation: 'register-plan-fade-in 0.25s ease',
-                        '@keyframes register-plan-fade-in': {
-                          from: { opacity: 0, transform: 'translateY(4px)' },
-                          to: { opacity: 1, transform: 'none' }
-                        }
-                      }}
-                    >
-                      Continue
-                    </Button>
-                  )}
-                </>
-              )}
-            </>
           ) : (
-            <>
-              <div>
-                <Typography variant='h4'>{`Join ${themeConfig.templateName}! 🚀`}</Typography>
-                <Typography className='mbs-1'>Create your account and start managing your properties</Typography>
-              </div>
+          <>
+          <div>
+            <Typography variant='h4'>{`Join ${themeConfig.templateName}! 🚀`}</Typography>
+            <Typography className='mbs-1'>Create your account and start managing your properties</Typography>
+          </div>
 
-              {error && (
-                <Alert severity='error' onClose={() => setError(null)}>
-                  {error}
-                </Alert>
-              )}
+          {error && (
+            <Alert severity='error' onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
 
-              {planBadgeAlert}
+          {planBadgeAlert}
 
-              {success && <Alert severity='success'>{success}</Alert>}
+          {success && <Alert severity='success'>{success}</Alert>}
 
-              <form noValidate autoComplete='off' onSubmit={handleSubmit} className='flex flex-col gap-4'>
-                <TextField
-                  autoFocus
-                  fullWidth
-                  label='Full Name'
-                  size='small'
-                  value={formData.fullName}
-                  onChange={handleChange('fullName')}
-                  disabled={isSubmitting}
-                  required
-                />
-                <TextField
-                  fullWidth
-                  label='Email'
-                  size='small'
-                  type='email'
-                  value={formData.email}
-                  onChange={handleChange('email')}
-                  disabled={isSubmitting}
-                  required
-                />
-                <TextField
-                  fullWidth
-                  label='Company / Organization Name'
-                  size='small'
-                  value={formData.companyName}
-                  onChange={handleChange('companyName')}
-                  disabled={isSubmitting}
-                  required
-                  helperText='This will be your workspace name'
-                />
-                <TextField
-                  fullWidth
-                  label='Phone Number'
-                  size='small'
-                  value={formData.phoneNumber}
-                  onChange={handleChange('phoneNumber')}
-                  disabled={isSubmitting}
-                  helperText='Optional — used to send login codes by SMS'
-                />
-                <TextField
-                  fullWidth
-                  label='Password'
-                  size='small'
-                  type={isPasswordShown ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={handleChange('password')}
-                  disabled={isSubmitting}
-                  required
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position='end'>
-                          <IconButton
-                            size='small'
-                            edge='end'
-                            onClick={handleClickShowPassword}
-                            onMouseDown={e => e.preventDefault()}
-                          >
-                            <i className={isPasswordShown ? 'ri-eye-off-line' : 'ri-eye-line'} />
-                          </IconButton>
-                        </InputAdornment>
-                      )
-                    }
-                  }}
-                />
-                <TextField
-                  fullWidth
-                  label='Confirm Password'
-                  size='small'
-                  type={isPasswordShown ? 'text' : 'password'}
-                  value={formData.confirmPassword}
-                  onChange={handleChange('confirmPassword')}
-                  disabled={isSubmitting}
-                  required
-                />
-                <Button
-                  fullWidth
-                  variant='contained'
-                  type='submit'
-                  disabled={isSubmitting || !isFormValid}
-                  className='mt-2'
-                >
-                  {isSubmitting ? <CircularProgress size={24} color='inherit' /> : 'Create Account'}
-                </Button>
-                <div className='flex justify-center items-center flex-wrap gap-2'>
-                  <Typography>Already have an account?</Typography>
-                  <Typography component={Link} href='/login' color='primary.main'>
-                    Sign in instead
-                  </Typography>
-                </div>
-              </form>
-            </>
+          <form noValidate autoComplete='off' onSubmit={handleSubmit} className='flex flex-col gap-4'>
+            <TextField
+              autoFocus
+              fullWidth
+              label='Full Name'
+              size='small'
+              value={formData.fullName}
+              onChange={handleChange('fullName')}
+              disabled={isSubmitting}
+              required
+            />
+            <TextField
+              fullWidth
+              label='Email'
+              size='small'
+              type='email'
+              value={formData.email}
+              onChange={handleChange('email')}
+              disabled={isSubmitting}
+              required
+            />
+            <TextField
+              fullWidth
+              label='Company / Organization Name'
+              size='small'
+              value={formData.companyName}
+              onChange={handleChange('companyName')}
+              disabled={isSubmitting}
+              required
+              helperText='This will be your workspace name'
+            />
+            <TextField
+              fullWidth
+              label='Phone Number'
+              size='small'
+              value={formData.phoneNumber}
+              onChange={handleChange('phoneNumber')}
+              disabled={isSubmitting}
+              helperText='Optional — used to send login codes by SMS'
+            />
+            <TextField
+              fullWidth
+              label='Password'
+              size='small'
+              type={isPasswordShown ? 'text' : 'password'}
+              value={formData.password}
+              onChange={handleChange('password')}
+              disabled={isSubmitting}
+              required
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position='end'>
+                      <IconButton
+                        size='small'
+                        edge='end'
+                        onClick={handleClickShowPassword}
+                        onMouseDown={e => e.preventDefault()}
+                      >
+                        <i className={isPasswordShown ? 'ri-eye-off-line' : 'ri-eye-line'} />
+                      </IconButton>
+                    </InputAdornment>
+                  )
+                }
+              }}
+            />
+            <TextField
+              fullWidth
+              label='Confirm Password'
+              size='small'
+              type={isPasswordShown ? 'text' : 'password'}
+              value={formData.confirmPassword}
+              onChange={handleChange('confirmPassword')}
+              disabled={isSubmitting}
+              required
+            />
+            <Button
+              fullWidth
+              variant='contained'
+              type='submit'
+              disabled={isSubmitting || !isFormValid}
+              className='mt-2'
+            >
+              {isSubmitting ? <CircularProgress size={24} color='inherit' /> : 'Create Account'}
+            </Button>
+            <div className='flex justify-center items-center flex-wrap gap-2'>
+              <Typography>Already have an account?</Typography>
+              <Typography component={Link} href='/login' color='primary.main'>
+                Sign in instead
+              </Typography>
+            </div>
+          </form>
+          </>
           )}
         </div>
       </div>
