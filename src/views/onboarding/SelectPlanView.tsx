@@ -213,7 +213,11 @@ const SelectPlanView = () => {
     setPlansLoading(true)
     setFetchError(null)
 
-    apiGet<PublicPlan[]>(`${API_BASE}/public/plans`)
+    // Public endpoint — use fetch() directly to avoid the authenticated apiClient
+    const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1')
+      .replace(/\/api\/v1$/, '')
+    fetch(`${baseUrl}/api/v1/public/plans`)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('Failed to load plans'))))
       .then(data => setPlans(Array.isArray(data) ? data : []))
       .catch(err => setFetchError(err instanceof Error ? err.message : 'Failed to load plans. Please try again.'))
       .finally(() => setPlansLoading(false))
