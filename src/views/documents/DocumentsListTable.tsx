@@ -30,7 +30,7 @@ import type { ColumnDef, FilterFn, SortingState } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 import type { DocumentType } from '@/types/documents/documentTypes'
-import { getDocuments, deleteDocument, updateDocumentStatus, type DocumentItem } from '@/lib/api/documents'
+import { getDocuments, deleteDocument, updateDocumentStatus, getDocumentStats, type DocumentItem, type DocumentStats } from '@/lib/api/documents'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
 import { getDocumentDownloadUrl } from '@/lib/document-storage'
@@ -139,6 +139,7 @@ const DocumentsListTable = () => {
   const [replaceFileOpen,     setReplaceFileOpen]     = useState(false)
   const [selectedDocument,    setSelectedDocument]    = useState<DocumentType | null>(null)
   const [actionError,         setActionError]         = useState<string | null>(null)
+  const [storageStats,       setStorageStats]        = useState<DocumentStats | null>(null)
 
   // ---- Property dropdown (server-side list, loaded once) ----
 
@@ -191,6 +192,11 @@ const DocumentsListTable = () => {
   }, [selectedStatus, selectedProperty, search, page, pageSize, sortParam])
 
   useEffect(() => { fetchDocuments() }, [fetchDocuments])
+
+  // ---- Storage stats (loaded once on mount) ----
+  useEffect(() => {
+    getDocumentStats().then(setStorageStats).catch(() => setStorageStats(null))
+  }, [])
 
   // A new filter or sort targets page 0, not wherever the user had scrolled to.
   const changeFilter = (setter: (v: string) => void) => (value: string) => {
@@ -432,6 +438,36 @@ const DocumentsListTable = () => {
         <CardContent className='flex flex-col gap-4'>
           {actionError && (
             <Alert severity='error' onClose={() => setActionError(null)}>{actionError}</Alert>
+          )}
+          {/* Storage usage bar */}
+          {storageStats && (
+            <Box sx={{ p: 2, borderRadius: 1, bgcolor: 'action.hover' }}>
+              <Box className='flex items-center justify-between mb-1'>
+                <Typography variant='body2' fontWeight={500}>Storage</Typography>
+                <Typography variant='body2' color='text.secondary'>
+                  {storageStats.storageQuotaMb != null
+                    ? `${storageStats.storageUsedMb} / ${storageStats.storageQuotaMb} MB`
+                    : `${storageStats.storageUsedMb} MB used (unlimited)`}
+                </Typography>
+              </Box>
+              {storageStats.storageQuotaMb != null && storageStats.storageQuotaMb > 0 && (
+                <Box sx={{ height: 6, borderRadius: 3, bgcolor: 'grey.300', overflow: 'hidden' }}>
+                  <Box
+                    sx={{
+                      height: '100%',
+                      borderRadius: 3,
+                      width: `${Math.min((storageStats.storageUsedMb / storageStats.storageQuotaMb) * 100, 100)}%`,
+                      bgcolor: (storageStats.storageUsedMb / storageStats.storageQuotaMb) > 0.9
+                        ? 'error.main'
+                        : (storageStats.storageUsedMb / storageStats.storageQuotaMb) > 0.7
+                          ? 'warning.main'
+                          : 'success.main',
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                </Box>
+              )}
+            </Box>
           )}
           {/* Filters */}
           <div className='flex flex-wrap gap-4'>

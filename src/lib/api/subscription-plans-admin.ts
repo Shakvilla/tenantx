@@ -63,6 +63,11 @@ export interface PlanWriteBody {
    */
   transactionFeePct: number | null
 
+  /**
+   * Per-tenant document storage allowance in megabytes. Null means unlimited.
+   */
+  storageQuotaMb: number | null
+
   /** Days of trial a subscription starting on this plan gets. 0 means no trial. */
   trialDays: number
 

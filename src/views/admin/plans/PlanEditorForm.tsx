@@ -72,6 +72,7 @@ const BLANK: PlanWriteBody = {
   isPublic: true,
   sortOrder: 0,
   transactionFeePct: null,
+  storageQuotaMb: null,
   trialDays: 0,
   isSignupDefault: false,
   tiers: [{ fromQty: 1, toQty: null, flatPrice: '0.00', perUnitPrice: '0.00' }],
@@ -318,6 +319,19 @@ const PlanEditorForm = ({ planId }: PlanEditorFormProps) => {
                 }
                 slotProps={{ htmlInput: { min: 0, max: 1, step: 0.0001 } }}
                 helperText='Decimal fraction charged on paid invoices, e.g. 0.015 = 1.5%. Blank uses the platform default.'
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                type='number'
+                label='Storage quota (MB)'
+                value={form.storageQuotaMb ?? ''}
+                onChange={e =>
+                  set('storageQuotaMb', e.target.value === '' ? null : Number(e.target.value))
+                }
+                slotProps={{ htmlInput: { min: 0, max: 10000, step: 1 } }}
+                helperText='Maximum document storage per tenant in MB. Blank = unlimited.'
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>

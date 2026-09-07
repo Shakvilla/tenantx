@@ -18,7 +18,7 @@ import LinearProgress from '@mui/material/LinearProgress'
 import Chip from '@mui/material/Chip'
 import Alert from '@mui/material/Alert'
 
-import { createDocument } from '@/lib/api/documents'
+import { createDocument, getDocumentStats } from '@/lib/api/documents'
 import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
@@ -221,6 +221,22 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess, presetOccupant }: Props) 
     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
       setUpload({ status: 'error', message: `File is too large. Maximum size is ${MAX_FILE_SIZE_MB} MB.` })
       return
+    }
+
+    // Pre-upload storage quota check
+    try {
+      const stats = await getDocumentStats()
+      if (stats.storageQuotaMb != null && stats.storageUsedMb >= stats.storageQuotaMb) {
+        setUpload({ status: 'error', message: `Storage quota exceeded. Your plan allows ${stats.storageQuotaMb} MB. Upgrade your plan or delete old documents to continue uploading.` })
+        return
+      }
+      const fileMbEstimate = Math.ceil(file.size / (1024 * 1024)) || 1
+      if (stats.storageQuotaMb != null && stats.storageUsedMb + fileMbEstimate > stats.storageQuotaMb) {
+        setUpload({ status: 'error', message: `This upload may exceed your storage quota. You have ${stats.storageQuotaMb - stats.storageUsedMb} MB remaining out of ${stats.storageQuotaMb} MB.` })
+        return
+      }
+    } catch {
+      // If stats fetch fails, allow upload — backend is the authoritative gate
     }
 
     setUpload({ status: 'uploading', progress: 0, fileName: file.name })

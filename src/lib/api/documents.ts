@@ -68,6 +68,8 @@ export type DocumentStats = {
   pending: number
   accepted: number
   rejected: number
+  storageUsedMb: number
+  storageQuotaMb: number | null
 }
 
 export type GetDocumentsParams = {
