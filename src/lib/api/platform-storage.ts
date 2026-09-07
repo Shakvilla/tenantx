@@ -1,14 +1,14 @@
 /**
  * Platform storage settings API client.
  *
- * Endpoints (backend: StorageSettingsController, /api/v1/platform/storage):
- *   GET  /api/v1/platform/storage/providers   → ProviderInfo[]
- *   GET  /api/v1/platform/storage/settings    → { activeProvider, configured }
- *   PUT  /api/v1/platform/storage/settings    → updates active provider + config
- *   POST /api/v1/platform/storage/test/{id}   → tests provider connection
+ * Endpoints (backend: StorageSettingsController, /api/v1/admin/storage):
+ *   GET  /api/v1/admin/storage/providers   → ProviderInfo[]
+ *   GET  /api/v1/admin/storage/settings    → { activeProvider, configured }
+ *   PUT  /api/v1/admin/storage/settings    → updates active provider + config
+ *   POST /api/v1/admin/storage/test/{id}   → tests provider connection
  */
 
-import { apiGet, apiPost, apiPut, API_BASE } from './client'
+import { adminClient } from './admin-auth-client'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,22 +46,25 @@ export interface TestResult {
 // ---------------------------------------------------------------------------
 
 export async function listProviders(): Promise<ProviderInfo[]> {
-  return apiGet<ProviderInfo[]>(`${API_BASE}/platform/storage/providers`)
+  const res = await adminClient.get<ProviderInfo[]>('/storage/providers')
+  return res.data
 }
 
 export async function getStorageSettings(): Promise<StorageSettings> {
-  return apiGet<StorageSettings>(`${API_BASE}/platform/storage/settings`)
+  const res = await adminClient.get<StorageSettings>('/storage/settings')
+  return res.data
 }
 
 export async function updateStorageSettings(
   activeProvider: string,
   config: Record<string, string>
 ): Promise<void> {
-  await apiPut<void>(`${API_BASE}/platform/storage/settings`, { activeProvider, config })
+  await adminClient.put('/storage/settings', { activeProvider, config })
 }
 
 export async function testProviderConnection(
   providerId: string
 ): Promise<TestResult> {
-  return apiPost<TestResult>(`${API_BASE}/platform/storage/test/${providerId}`)
+  const res = await adminClient.post<TestResult>(`/storage/test/${providerId}`)
+  return res.data
 }
