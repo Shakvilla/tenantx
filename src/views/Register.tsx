@@ -70,13 +70,6 @@ const Register = ({ mode }: { mode: Mode }) => {
   const searchParams = useSearchParams()
   const planParam = searchParams.get('plan')?.toUpperCase() ?? null
 
-  // No plan selected — redirect to the landing site pricing page so the user picks one.
-  useEffect(() => {
-    if (!planParam) {
-      window.location.href = 'https://yiliora.cloud/pricing'
-    }
-  }, [planParam])
-
   // Fetch active plans (public, no auth) to resolve the selected plan's display name and trial
   // days for the badge. Fails silently — the badge falls back to the raw plan name.
   const [plans, setPlans] = useState<{ name: string; displayName: string; trialDays?: number }[]>([])
