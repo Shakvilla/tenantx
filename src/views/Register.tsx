@@ -65,7 +65,7 @@ interface PublicPlan {
   annualPrice?: number
   currency?: string
   unitLimit?: number
-  features?: string[]
+  features?: Record<string, unknown> | string[]
 }
 
 /** GHS renders as the cedi symbol; any other currency code is shown as-is. */
@@ -79,7 +79,10 @@ const PlanCard = ({ plan, selected, onSelect }: { plan: PublicPlan; selected: bo
   const trialDays = plan.trialDays ?? 0
   const monthly = plan.monthlyPrice
   const symbol = currencySymbol(plan.currency)
-  const features = (plan.features ?? []).slice(0, 3)
+  const featureEntries = Array.isArray(plan.features)
+    ? plan.features
+    : Object.keys(plan.features ?? {})
+  const features = featureEntries.slice(0, 3)
 
   return (
     <Card
