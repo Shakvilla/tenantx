@@ -210,10 +210,13 @@ const Register = ({ mode }: { mode: Mode }) => {
     })
 
     if (result.success) {
-      setSuccess('Account created! Taking you to your dashboard...')
+      // If the user came through a pricing card (?plan=), go straight to the dashboard.
+      // Otherwise, send them to the plan selection page so they pick a plan before entering.
+      const destination = planParam ? '/dashboard' : '/onboarding/select-plan'
+      setSuccess('Account created!')
 
       setTimeout(() => {
-        router.push('/dashboard')
+        router.push(destination)
       }, 1500)
     } else {
       setError(result.error || 'Verification failed. Please try again.')
