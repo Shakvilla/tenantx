@@ -28,11 +28,12 @@ type PublicPlan = {
   name: string
   displayName: string
   trialDays: number
-  monthlyPrice: number
-  annualPrice: number
-  currency: string
-  unitLimit: number
+  entryPrice: number | string
+  maxQty: number
+  annualDiscountPct: number | string | null
   features: Record<string, { enabled: boolean }>
+  popular: boolean
+  marketingFeatures: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -74,9 +75,9 @@ function PlanCard({
   selected: boolean
   onSelect: () => void
 }) {
-  const symbol = currencySymbol(plan.currency)
   const trialDays = plan.trialDays ?? 0
   const features = enabledFeatureLabels(plan)
+  const price = Number(plan.entryPrice) || 0
 
   return (
     <Card
@@ -147,21 +148,15 @@ function PlanCard({
 
         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
           <Typography variant='h4' fontWeight={800} sx={{ fontSize: '2rem', lineHeight: 1.1 }}>
-            {symbol} {plan.monthlyPrice.toLocaleString()}
+            GH₵ {price.toLocaleString()}
           </Typography>
           <Typography variant='caption' color='text.secondary'>
-            /mo
+            /mo per unit
           </Typography>
         </Box>
 
-        {plan.annualPrice > 0 && (
-          <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 0.25 }}>
-            or {symbol} {plan.annualPrice.toLocaleString()}/yr
-          </Typography>
-        )}
-
         <Typography variant='body2' color='text.secondary' sx={{ mt: 1.5 }}>
-          Up to {plan.unitLimit} units
+          Up to {plan.maxQty} units
         </Typography>
 
         <Box component='ul' sx={{ listStyle: 'none', m: 0, p: 0, mt: 2, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
