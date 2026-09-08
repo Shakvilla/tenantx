@@ -19,22 +19,47 @@ import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 
 // API Imports
-import { apiGet, apiPost, API_BASE } from '@/lib/api/client'
+import { apiPost, API_BASE } from '@/lib/api/client'
 
 // ---------------------------------------------------------------------------
 // Types — mirror of GET /api/v1/public/plans (no auth)
 // ---------------------------------------------------------------------------
 
+type BillingCycle = 'monthly' | 'annual'
+
+const CYCLE_OPTIONS: { value: BillingCycle; label: string }[] = [
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'annual', label: 'Annual' }
+]
+
+type FeatureInfo = {
+  label: string
+  enabled: boolean
+}
+
+type PlanTier = {
+  fromQty: number
+  toQty: number | null
+  flatPrice: number
+  perUnitPrice: number
+}
+
 type PublicPlan = {
+  id: string
   name: string
   displayName: string
-  trialDays: number
-  entryPrice: number | string
-  maxQty: number
-  annualDiscountPct: number | string | null
-  features: Record<string, { enabled: boolean }>
+  pricePerUnit: number
+  freeUnitCap: number | null
+  maxQty: number | null
+  entryPrice: number
+  tiers: PlanTier[]
+  transactionFeePct: number | null
+  storageQuotaMb: number | null
   popular: boolean
+  features: Record<string, FeatureInfo>
   marketingFeatures: string[]
+  annualDiscountPct: number | null
+  trialDays: number
 }
 
 // ---------------------------------------------------------------------------
@@ -62,26 +87,115 @@ const HEADING_FONT = 'var(--font-bricolage-grotesque), sans-serif'
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** INVOICING → "Invoicing", TENANT_NOTICES → "Tenant Notices", etc. */
-function formatFeatureKey(key: string): string {
-  return key
-    .toLowerCase()
-    .split('_')
-    .filter(Boolean)
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+/** Storage quota the way the marketing site formats it: "1 GB", "500 MB", "Unlimited". */
+function formatStorageQuota(mb: number | null): string {
+  if (mb == null) return 'Unlimited'
+
+  if (mb >= 1024) {
+    const gb = mb / 1024
+
+    return gb === Math.floor(gb) ? `${gb} GB` : `${gb.toFixed(1)} GB`
+  }
+
+  return `${mb} MB`
 }
 
-/** GHS renders as the cedi symbol; any other currency code is shown as-is. */
-function currencySymbol(currency: string): string {
-  return currency === 'GHS' ? 'GH₵' : currency
+/**
+ * The features a plan advertises, straight from the CMS — mirror of the marketing site's
+ * `planFeatureList`: `marketingFeatures` when the admin wrote a bespoke list (the pricing
+ * page's preferred source, in CMS order), otherwise the feature-flag map with its display
+ * names, alphabetised. "Document Storage" picks up the plan's quota label.
+ */
+function planFeatureList(plan: PublicPlan): FeatureInfo[] {
+  const storageQuota = formatStorageQuota(plan.storageQuotaMb ?? null)
+
+  const injectStorage = (label: string): string =>
+    /document\s*storage/i.test(label) ? `Document Storage: ${storageQuota}` : label
+
+  const marketingFeatures = plan.marketingFeatures ?? []
+
+  if (marketingFeatures.length > 0) {
+    return marketingFeatures.map(label => ({ label: injectStorage(label), enabled: true }))
+  }
+
+  return Object.values(plan.features ?? {})
+    .map(f => ({ label: injectStorage(f.label), enabled: f.enabled }))
+    .sort((a, b) => a.label.localeCompare(b.label))
 }
 
-/** The features a plan actually grants, as human-readable labels. */
-function enabledFeatureLabels(plan: PublicPlan): string[] {
-  return Object.entries(plan.features)
-    .filter(([, info]) => info.enabled)
-    .map(([key]) => formatFeatureKey(key))
+// ---------------------------------------------------------------------------
+// Billing cycle toggle — visual match of the landing page's Monthly/Annual pill
+// ---------------------------------------------------------------------------
+
+function BillingToggle({
+  cycle,
+  onChange
+}: {
+  cycle: BillingCycle
+  onChange: (cycle: BillingCycle) => void
+}) {
+  return (
+    <Box
+      role='group'
+      aria-label='Billing cycle'
+      sx={{
+        display: 'flex',
+        width: 'fit-content',
+        mx: 'auto',
+        mb: 5,
+        alignItems: 'center',
+        gap: 0.5,
+        p: 0.5,
+        borderRadius: '999px',
+        border: `1px solid ${INK(0.1)}`,
+        bgcolor: 'rgba(255, 255, 255, 0.72)'
+      }}
+    >
+      {CYCLE_OPTIONS.map(option => {
+        const selected = cycle === option.value
+
+        return (
+          <Box
+            key={option.value}
+            component='button'
+            type='button'
+            aria-pressed={selected}
+            onClick={() => onChange(option.value)}
+            sx={{
+              border: 0,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              borderRadius: '999px',
+              px: 2.5,
+              py: 1,
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: '-0.01em',
+              transition: 'background-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease',
+              ...(selected
+                ? {
+                    bgcolor: BRAND.ink,
+                    color: BRAND.sand,
+                    boxShadow: '0 8px 24px -10px rgba(11, 13, 16, 0.55)'
+                  }
+                : {
+                    bgcolor: 'transparent',
+                    color: INK(0.55),
+                    '&:hover': { color: BRAND.ink }
+                  }),
+              '&:focus-visible': {
+                outline: '2px solid',
+                outlineColor: BRAND.primary,
+                outlineOffset: 2
+              }
+            }}
+          >
+            {option.label}
+          </Box>
+        )
+      })}
+    </Box>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -91,16 +205,32 @@ function enabledFeatureLabels(plan: PublicPlan): string[] {
 function PlanCard({
   plan,
   selected,
-  onSelect,
+  billingCycle,
+  onSelect
 }: {
   plan: PublicPlan
   selected: boolean
+  billingCycle: BillingCycle
   onSelect: () => void
 }) {
   const trialDays = plan.trialDays ?? 0
-  const features = enabledFeatureLabels(plan)
+  const features = planFeatureList(plan)
   const price = Number(plan.entryPrice) || 0
   const isPopular = plan.popular
+  const isFree = (Number(plan.pricePerUnit) || 0) === 0 && price === 0
+  const annualDiscountPct = Number(plan.annualDiscountPct) || 0
+  const isAnnual = billingCycle === 'annual' && !isFree
+  const annualPrice = isAnnual ? Math.round(price * 12 * (1 - annualDiscountPct)) : 0
+  const showDiscountBadge = isAnnual && annualDiscountPct > 0
+  const savePct = Math.round(annualDiscountPct * 100)
+  const momoFee = `${((Number(plan.transactionFeePct) || 0) * 100).toFixed(1)}% MoMo fee`
+
+  const unitLabel =
+    plan.freeUnitCap !== null && plan.freeUnitCap !== undefined
+      ? `Up to ${plan.freeUnitCap} units`
+      : plan.maxQty != null
+        ? `Up to ${plan.maxQty} units`
+        : 'Unlimited units'
 
   return (
     <Card
@@ -245,26 +375,63 @@ function PlanCard({
 
         {/* Price */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 0.75, rowGap: 0.5 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 500, color: isPopular ? SAND(0.8) : INK(0.65) }}>
-            GH₵
-          </Typography>
-          <Typography
-            sx={{
-              fontFamily: HEADING_FONT,
-              fontSize: 44,
-              fontWeight: 600,
-              lineHeight: 1,
-              letterSpacing: '-0.04em'
-            }}
-          >
-            {price.toLocaleString()}
-          </Typography>
-          <Typography sx={{ fontSize: 14, color: isPopular ? SAND(0.8) : INK(0.65) }}>/unit · mo</Typography>
+          {isFree ? (
+            <Typography
+              sx={{
+                fontFamily: HEADING_FONT,
+                fontSize: 44,
+                fontWeight: 600,
+                lineHeight: 1,
+                letterSpacing: '-0.04em'
+              }}
+            >
+              Free
+            </Typography>
+          ) : (
+            <>
+              <Typography sx={{ fontSize: 14, fontWeight: 500, color: isPopular ? SAND(0.8) : INK(0.65) }}>
+                GH₵
+              </Typography>
+              <Typography
+                sx={{
+                  fontFamily: HEADING_FONT,
+                  fontSize: 44,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                  letterSpacing: '-0.04em'
+                }}
+              >
+                {(isAnnual ? annualPrice : price).toLocaleString()}
+              </Typography>
+              <Typography sx={{ fontSize: 14, color: isPopular ? SAND(0.8) : INK(0.65) }}>
+                {isAnnual ? '/year' : '/month'}
+              </Typography>
+              {showDiscountBadge && (
+                <Typography
+                  component='span'
+                  sx={{
+                    ml: 0.75,
+                    borderRadius: '999px',
+                    bgcolor: BRAND.kente,
+                    color: BRAND.sand,
+                    px: 1.25,
+                    py: 0.5,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  Save {savePct}%
+                </Typography>
+              )}
+            </>
+          )}
         </Box>
 
         {/* Sub-line */}
         <Typography sx={{ mt: 1, fontSize: 14, color: isPopular ? SAND(0.8) : INK(0.65) }}>
-          Up to {plan.maxQty} units
+          {unitLabel} · {momoFee}
         </Typography>
 
         {/* Features */}
@@ -283,12 +450,32 @@ function PlanCard({
           }}
         >
           {features.map(feature => (
-            <Box component='li' key={feature} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
-              <i
-                className='ri-check-line'
-                style={{ fontSize: 16, color: isPopular ? BRAND.primary : BRAND.kente, marginTop: 1, flexShrink: 0 }}
-              />
-              <Typography sx={{ fontSize: 14, color: isPopular ? SAND(0.9) : INK(0.75) }}>{feature}</Typography>
+            <Box component='li' key={feature.label} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+              {feature.enabled ? (
+                <i
+                  className='ri-check-line'
+                  style={{ fontSize: 16, color: isPopular ? BRAND.primary : BRAND.kente, marginTop: 1, flexShrink: 0 }}
+                />
+              ) : (
+                <i
+                  className='ri-close-line'
+                  style={{ fontSize: 16, color: isPopular ? SAND(0.4) : INK(0.4), marginTop: 1, flexShrink: 0 }}
+                />
+              )}
+              <Typography
+                sx={{
+                  fontSize: 14,
+                  color: feature.enabled
+                    ? isPopular
+                      ? SAND(0.9)
+                      : INK(0.75)
+                    : isPopular
+                      ? SAND(0.45)
+                      : INK(0.45)
+                }}
+              >
+                {feature.label}
+              </Typography>
             </Box>
           ))}
         </Box>
@@ -349,6 +536,9 @@ const SelectPlanView = () => {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
+
+  const hasAnnualPlans = plans.some(p => (Number(p.annualDiscountPct) || 0) > 0)
 
   const loadPlans = () => {
     setPlansLoading(true)
@@ -356,6 +546,7 @@ const SelectPlanView = () => {
 
     // Public endpoint — use fetch() directly to avoid the authenticated apiClient
     const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080/api/v1').replace(/\/api\/v1$/, '')
+
     fetch(`${baseUrl}/api/v1/public/plans`)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error('Failed to load plans'))))
       .then(data => setPlans(Array.isArray(data) ? data : []))
@@ -448,6 +639,7 @@ const SelectPlanView = () => {
           </Alert>
         ) : (
           <>
+            {hasAnnualPlans && <BillingToggle cycle={billingCycle} onChange={setBillingCycle} />}
             <Grid container spacing={2}>
               {plans.map((plan, index) => (
                 <Grid
@@ -465,6 +657,7 @@ const SelectPlanView = () => {
                   <PlanCard
                     plan={plan}
                     selected={selectedPlan === plan.name}
+                    billingCycle={billingCycle}
                     onSelect={() => setSelectedPlan(plan.name)}
                   />
                 </Grid>
