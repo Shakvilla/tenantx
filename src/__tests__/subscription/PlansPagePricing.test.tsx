@@ -61,16 +61,21 @@ vi.mock('@/contexts/SubscriptionContext', () => ({
 import SubscriptionPlansListTable from '@/views/subscription-plans/SubscriptionPlansListTable'
 import { getAvailablePlans, getMyInvoices } from '@/lib/api/subscription-client'
 
-const plan = (name: string, displayName: string, pricePerUnit: number, freeUnitCap: number | null) => ({
+const plan = (name: string, displayName: string, entryPrice: number, freeUnitCap: number | null) => ({
   id: name.toLowerCase(),
   name,
   displayName,
-  pricePerUnit,
+  pricePerUnit: 0,          // deprecated — always 0 for FLAT plans, never rendered
+  entryPrice,
   freeUnitCap,
   transactionFeePct: 0.01,
   active: true,
   features: {},
-  annualDiscountPct: null
+  annualDiscountPct: null,
+  status: 'ACTIVE',
+  popular: false,
+  pricingMode: 'FLAT',
+  tiers: []
 })
 
 describe('Subscription plans — what the landlord will pay', () => {
@@ -78,7 +83,7 @@ describe('Subscription plans — what the landlord will pay', () => {
     // mockReset in vitest.config wipes factory implementations; set them here.
     vi.mocked(getAvailablePlans).mockResolvedValue([
       plan('FREE', 'Free Plan', 0, 5),
-      plan('BASIC', 'Basic Plan', 15, null),
+      plan('GROWTH', 'Growth Plan', 15, null),
       plan('PRO', 'Pro Plan', 30, null)
     ] as any)
     vi.mocked(getMyInvoices).mockResolvedValue([] as any)

@@ -48,7 +48,7 @@ const VerticalMenu = ({ scrollMenu }: Props) => {
   const theme = useTheme()
   const verticalNavOptions = useVerticalNav()
   const { user } = useAuth()
-  const { features } = useSubscription()
+  const { features, featurePlans } = useSubscription()
 
   // Vars
   const { isBreakpointReached, transitionDuration } = verticalNavOptions
@@ -78,7 +78,7 @@ const VerticalMenu = ({ scrollMenu }: Props) => {
         renderExpandedMenuItemIcon={{ icon: <i className='ri-circle-fill' /> }}
         menuSectionStyles={menuSectionStyles(verticalNavOptions, theme)}
       >
-        <GenerateVerticalMenu menuData={verticalMenuData(user?.userType, features)} />
+        <GenerateVerticalMenu menuData={verticalMenuData(user?.userType, features, featurePlans)} />
       </Menu>
     </ScrollWrapper>
   )

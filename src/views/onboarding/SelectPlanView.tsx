@@ -6,6 +6,9 @@ import { useEffect, useState } from 'react'
 // Next Imports
 import { useRouter } from 'next/navigation'
 
+// Third-party Imports
+import Cookies from 'js-cookie'
+
 // MUI Imports
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
@@ -372,6 +375,10 @@ const SelectPlanView = () => {
 
     try {
       await apiPost(`${API_BASE}/subscription/select-plan`, { planName: selectedPlan })
+
+      // Plan selection is complete — clear the guard cookie so the middleware stops confining
+      // the tenant to this page and lets them reach the rest of the app.
+      Cookies.remove('plan_selection_required', { path: '/' })
 
       router.push('/dashboard')
     } catch (err) {

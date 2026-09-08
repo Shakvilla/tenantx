@@ -300,6 +300,7 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
   // routing gate, the backend still verifies the signature on every call.
   const isAdminAuthenticated  = hasUnexpiredJwt(adminToken)
   const isTenantAuthenticated = !!authToken && !!tenantId
+  const planSelectionRequired = request.cookies.get('plan_selection_required')?.value === 'true'
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ADMIN ROUTES  /admin/**
@@ -384,6 +385,20 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
 
     if (userType !== 'LANDLORD') {
       return NextResponse.redirect(new URL('/dashboard?error=access_denied', request.url))
+    }
+  }
+
+  // 2b. Tenant session that still needs plan selection → confine to /onboarding/select-plan.
+  //
+  // Reaching here means the user is tenant-authenticated and NOT on a public route (auth pages,
+  // vacancies and /admin/** all returned above), so only the select-plan route itself needs to be
+  // exempt — that self-exclusion is what prevents a redirect loop: an unplanned tenant is bounced
+  // exactly once per request, and once on select-plan the route renders normally.
+  if (planSelectionRequired && isTenantAuthenticated) {
+    const isOnSelectPlan = pathname.startsWith('/onboarding/select-plan')
+
+    if (!isOnSelectPlan) {
+      return NextResponse.redirect(new URL('/onboarding/select-plan', request.url))
     }
   }
 

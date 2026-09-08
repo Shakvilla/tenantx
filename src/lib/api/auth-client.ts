@@ -1,5 +1,6 @@
 /* eslint-disable lines-around-comment */
 import { AxiosError } from 'axios'
+import Cookies from 'js-cookie'
 
 import { apiGet, apiPost, apiClient, API_BASE, getErrorMessage } from './client'
 import { getDeviceId } from './device-id'
@@ -42,6 +43,13 @@ export interface SelectTenantResponse {
   expiresIn: number
   expiresAt: string
   user: UserProfile
+
+  /**
+   * Whether this tenant has already completed subscription plan selection. When false, the
+   * frontend confines the user to `/onboarding/select-plan` (persisted as a `plan_selection_required`
+   * cookie that middleware reads) until they pick a plan.
+   */
+  planSelectionCompleted: boolean
 }
 
 /** Response from POST /global/auth/verify-otp */
@@ -201,6 +209,16 @@ export async function selectTenant(
     // Replace tokens with tenant-scoped ones and set cookies
     setStoredTokens(data.accessToken, data.refreshToken)
     setStoredTenantId(tenantId)
+
+    // Persist the plan-selection state in a cookie the middleware reads. A tenant that hasn't
+    // completed plan selection is confined to /onboarding/select-plan until they do (see
+    // SelectPlanView, which clears this cookie on a successful pick). Mirrored in
+    // AuthContext.establishTenantSession so the OTP verify path sets it too.
+    if (!data.planSelectionCompleted) {
+      Cookies.set('plan_selection_required', 'true', { expires: 7, path: '/' })
+    } else {
+      Cookies.remove('plan_selection_required', { path: '/' })
+    }
 
     return { success: true, data }
   } catch (error: unknown) {

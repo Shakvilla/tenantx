@@ -5,6 +5,8 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, ty
 
 import { useRouter } from 'next/navigation'
 
+import Cookies from 'js-cookie'
+
 import {
   globalLogin,
   selectTenant,
@@ -67,6 +69,9 @@ interface AuthState {
   needsPasswordSetup: boolean
   needsOtp: boolean
 
+  /** True when the tenant session is established but subscription plan selection is unfinished. */
+  planSelectionRequired: boolean
+
   /** The live challenge plus the workspace it was raised for, so resend and verify can finish it. */
   otpChallenge: (OtpChallenge & { workspace: Workspace }) | null
 }
@@ -81,6 +86,7 @@ interface AuthContextValue extends AuthState {
     requiresWorkspaceSelection?: boolean
     needsPasswordSetup?: boolean
     otpRequired?: boolean
+    planSelectionRequired?: boolean
   }>
   /**
    * Completes the email-verified signup challenge `signupStart` raised (Register.tsx owns that
@@ -96,10 +102,10 @@ interface AuthContextValue extends AuthState {
     rememberDevice: boolean
     fullName: string
   }) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
-  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean }>
+  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean }>
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
-  verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
+  verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean; planSelectionRequired?: boolean }>
   resendOtp: (channel?: 'EMAIL' | 'SMS') => Promise<{ success: boolean; error?: string }>
   cancelOtp: () => void
 }
@@ -136,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     needsWorkspaceSelection: false,
     needsPasswordSetup: false,
     needsOtp: false,
+    planSelectionRequired: false,
     otpChallenge: null
   })
 
@@ -223,6 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           needsWorkspaceSelection: false,
           needsPasswordSetup: false,
           needsOtp: false,
+          planSelectionRequired: Cookies.get('plan_selection_required') === 'true',
           otpChallenge: null
         })
         return
@@ -241,6 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               needsWorkspaceSelection: false,
               needsPasswordSetup: false,
               needsOtp: false,
+              planSelectionRequired: Cookies.get('plan_selection_required') === 'true',
               otpChallenge: null
             })
           } else {
@@ -359,7 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // ---- Select Workspace ----
   const handleSelectWorkspace = async (
     workspace: Workspace
-  ): Promise<{ success: boolean; error?: string; otpRequired?: boolean }> => {
+  ): Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean }> => {
     setState(prev => ({ ...prev, isLoading: true }))
 
     const result = await selectTenant(workspace.tenantId)
@@ -389,7 +398,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     establishTenantSession(tenantData, workspace)
 
-    return { success: true }
+    return { success: true, planSelectionRequired: !tenantData.planSelectionCompleted }
   }
 
   /**
@@ -406,6 +415,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredUserRole(workspace.role)
     setStoredUserType(workspace.userType)
 
+    // Persist the plan-selection state for the middleware. This is the one place every tenant
+    // session is established (unchallenged /select-tenant and post-OTP /verify-otp alike), so
+    // writing the cookie here keeps both login paths consistent — selectTenant (auth-client) sets
+    // the same cookie for the unchallenged path; this covers the OTP path that never reaches it.
+    if (!tenantData.planSelectionCompleted) {
+      Cookies.set('plan_selection_required', 'true', { expires: 7, path: '/' })
+    } else {
+      Cookies.remove('plan_selection_required', { path: '/' })
+    }
+
     setState({
       user: tenantData.user
         ? mapProfileToUser(tenantData.user, workspace.role, workspace.userType)
@@ -418,6 +437,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       needsWorkspaceSelection: false,
       needsPasswordSetup: false,
       needsOtp: false,
+      planSelectionRequired: !tenantData.planSelectionCompleted,
       otpChallenge: null
     })
   }
@@ -455,7 +475,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     establishTenantSession(result.data, challenge.workspace)
 
-    return { success: true }
+    return { success: true, planSelectionRequired: !result.data.planSelectionCompleted }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -540,6 +560,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         needsWorkspaceSelection: false,
         needsPasswordSetup:    false,
         needsOtp:              false,
+        planSelectionRequired: false,
         otpChallenge:          null,
       })
 
@@ -562,6 +583,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         needsWorkspaceSelection: false,
         needsPasswordSetup: false,
         needsOtp: false,
+        planSelectionRequired: false,
         otpChallenge: null
       })
 

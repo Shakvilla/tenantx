@@ -3,6 +3,7 @@ import React from 'react'
 
 // Type Imports
 import type { VerticalMenuDataType } from '@/types/menuTypes'
+import { planTierColor, type RequiredPlan } from '@/lib/subscription/planTiers'
 
 /**
  * Landlord-side vertical navigation.
@@ -15,9 +16,10 @@ import type { VerticalMenuDataType } from '@/types/menuTypes'
  * Items without `allowedUserTypes` are visible to everyone.
  * Items WITH `allowedUserTypes` are only shown to users whose userType is in that list.
  *
- * Items with `requiredFeature` show a plan badge (Basic / Pro) when that feature
- * is not included in the tenant's current subscription. Badge injection happens
- * in VerticalMenu.tsx which reads from the SubscriptionContext.
+ * Items with `requiredFeature` show a plan badge (the CMS plan that unlocks the
+ * feature) when that feature is not included in the tenant's current
+ * subscription. Badge injection happens in VerticalMenu.tsx which reads from
+ * the SubscriptionContext.
  */
 
 // VerticalMenuDataType is a union (item | submenu | section), and an interface cannot
@@ -28,22 +30,28 @@ type NavItem = VerticalMenuDataType & {
   children?: NavItem[]
 }
 
-/** Maps feature key → nav badge shown when the feature is locked */
-export const FEATURE_PLAN_BADGE: Record<string, { label: string; color: 'info' | 'warning' }> = {
-  // Basic features → blue badge
-  COMMUNICATION:            { label: 'Basic', color: 'info' },
-  EXPENSES:                 { label: 'Basic', color: 'info' },
-  RENT_REVIEWS:             { label: 'Basic', color: 'info' },
-  MAINTENANCE_CONTRACTORS:  { label: 'Basic', color: 'info' },
-  PREVENTATIVE_MAINTENANCE: { label: 'Basic', color: 'info' },
-  SMS_REMINDERS:            { label: 'Basic', color: 'info' },
-  LATE_FEES:                { label: 'Basic', color: 'info' },
-  ADVANCED_REPORTS:         { label: 'Basic', color: 'info' },
-  // Pro features → gold badge
-  LANDLORD_WALLET:          { label: 'Pro', color: 'warning' },
-  UTILITIES_MANAGEMENT:     { label: 'Pro', color: 'warning' },
-  RENT_COLLECTION:          { label: 'Pro', color: 'warning' },
-  AGENT_MANAGEMENT:         { label: 'Pro', color: 'warning' },
+export type BadgeColor = 'default' | 'info' | 'warning' | 'success'
+
+/**
+ * Resolves the nav badge for a locked feature from the CMS plan matrix.
+ *
+ * `featurePlans` maps each featureKey to the minimum plan (displayName + tier
+ * rank) that enables it, derived from `getAvailablePlans()` in the
+ * SubscriptionContext. The badge label is that plan's CMS display name and its
+ * color follows the tier (Starter=default, Growth=info, Pro=warning).
+ *
+ * Returns null when the feature is unlocked or no plan data is available, so
+ * callers show no badge in those cases.
+ */
+export function getFeaturePlanBadge(
+  featureKey: string,
+  featurePlans: Record<string, RequiredPlan>
+): { label: string; color: BadgeColor } | null {
+  const required = featurePlans[featureKey]
+
+  if (!required) return null
+
+  return { label: required.displayName, color: planTierColor(required.rank) }
 }
 
 const allItems: NavItem[] = [
@@ -53,6 +61,7 @@ const allItems: NavItem[] = [
     href: '/dashboard',
     icon: 'ri-dashboard-line'
   },
+
   // Notifications is deliberately absent: the topbar bell owns it, and its
   // "View All" button is the way through to /notifications.
   {
@@ -186,6 +195,7 @@ const allItems: NavItem[] = [
       { label: 'Notification settings', href: '/settings/notification', requiredFeature: 'SMS_REMINDERS' },
       { label: 'SMS Sender ID',         href: '/settings/sms', requiredFeature: 'SMS_REMINDERS' },
       { label: 'Company Settings',      href: '/settings/company' },
+
       // Late fees are a paid feature, and this is the only place to switch them
       // on. The page shipped without a menu entry, so it could be reached only
       // by typing the URL — a landlord on Basic could not configure something
@@ -204,10 +214,13 @@ const allItems: NavItem[] = [
  *
  * @param userType - from AuthContext (LANDLORD | STAFF | OCCUPANT | MAINTAINER)
  * @param features - from SubscriptionContext e.g. { COMMUNICATION: true, LANDLORD_WALLET: false, ... }
+ * @param featurePlans - from SubscriptionContext; featureKey → the CMS plan
+ *   (displayName + tier rank) that unlocks it. Used to label locked badges.
  */
 const verticalMenuData = (
   userType?: string,
-  features: Record<string, boolean> = {}
+  features: Record<string, boolean> = {},
+  featurePlans: Record<string, RequiredPlan> = {}
 ): VerticalMenuDataType[] => {
   const role = userType || 'LANDLORD'
 
@@ -216,10 +229,11 @@ const verticalMenuData = (
       .filter(item => !item.allowedUserTypes || item.allowedUserTypes.includes(role))
       .map(({ allowedUserTypes: _a, requiredFeature, children, ...item }) => {
         const locked = !!requiredFeature && !features[requiredFeature]
-        const badge  = requiredFeature ? FEATURE_PLAN_BADGE[requiredFeature] : undefined
+        const badge  = requiredFeature ? getFeaturePlanBadge(requiredFeature, featurePlans) : null
 
         return {
           ...item,
+
           // Inject lock icon prefix + plan badge chip when the feature is locked
           ...(locked && badge
             ? {
@@ -232,9 +246,11 @@ const verticalMenuData = (
                 } as any
               }
             : {}),
+
           // Recurse into children
           ...(children ? { children: process(children as NavItem[]) } : {})
         }
+
         // TS cannot re-narrow to the union after the rest/spread rebuild above.
       }) as VerticalMenuDataType[]
 

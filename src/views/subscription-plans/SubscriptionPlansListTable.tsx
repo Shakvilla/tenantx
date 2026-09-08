@@ -54,9 +54,15 @@ import { calculateMonthlyCharge, describeMonthlyCharge } from '@/lib/subscriptio
 // Helpers
 // ---------------------------------------------------------------------------
 
-const PLAN_ORDER: Record<string, number> = { FREE: 0, BASIC: 1, PRO: 2 }
+// FREE ranks below every paid tier: tenants default onto it and the page must
+// keep offering upgrades from it, so dropping it from the map would remove the
+// Upgrade button for every free-tier landlord.
+const PLAN_ORDER: Record<string, number> = { FREE: -1, STARTER: 0, GROWTH: 1, PRO: 2 }
 const PLAN_COLOR: Record<string, 'default' | 'primary' | 'success'> = {
-  FREE: 'default', BASIC: 'primary', PRO: 'success',
+  FREE: 'default',
+  STARTER: 'default',
+  GROWTH: 'primary',
+  PRO: 'success'
 }
 
 function formatGHS(amount: number) {
@@ -79,7 +85,7 @@ function statusChipColor(status: string): 'success' | 'warning' | 'error' | 'def
 // Current plan card
 // ---------------------------------------------------------------------------
 
-function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
+function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublicDto[]; freeUnitCap: number | null }) {
   const { subscription, isLoading, refresh } = useSubscription()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
@@ -111,8 +117,15 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
     )
   }
 
-  const { plan, displayName, status, unitCount, unitCap, pricePerUnit, currentPeriodEnd, pendingDowngradePlan } = subscription
-  const isFree = plan === 'FREE'
+  const { plan, displayName, status, unitCount, unitCap, currentPeriodEnd, pendingDowngradePlan } = subscription
+  // The subscription DTO does not carry pricing — look the plan up from the list
+  // the page already loaded. `pricePerUnit` is derived and 0 for FLAT plans, so
+  // the price must come from `entryPrice`.
+  const currentPlan = plans.find(p => p.name === plan)
+  const entryPrice = Number(currentPlan?.entryPrice) || 0
+  const pricingMode = currentPlan?.pricingMode ?? 'FLAT'
+  const tiers = currentPlan?.tiers ?? []
+  const isFree = entryPrice === 0
   const unitProgress = unitCap ? Math.min((unitCount / unitCap) * 100, 100) : 0
   const atCap = unitCap !== null && unitCount >= unitCap
 
@@ -132,10 +145,10 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
                   variant='outlined'
                 />
               </Box>
-              {!isFree && pricePerUnit > 0 && (
+              {!isFree && (
                 <>
                   <Typography variant='body2' color='text.secondary'>
-                    {formatGHS(pricePerUnit)} / unit / month
+                    {formatGHS(entryPrice)} / unit / month
                     {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
                   </Typography>
                   {/*
@@ -144,7 +157,7 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
                     will contradict. Show the subtraction he can check.
                   */}
                   <Typography variant='body2' fontWeight={600} sx={{ mt: 0.5 }}>
-                    {describeMonthlyCharge(calculateMonthlyCharge(unitCount, pricePerUnit, freeUnitCap), formatGHS)}
+                    {describeMonthlyCharge(calculateMonthlyCharge(unitCount, { entryPrice, pricingMode, tiers }, freeUnitCap), formatGHS)}
                   </Typography>
                 </>
               )}
@@ -166,6 +179,31 @@ function CurrentPlanCard({ freeUnitCap }: { freeUnitCap: number | null }) {
               </Button>
             )}
           </Box>
+
+          {/* Trial Communication Banner */}
+          {subscription.status === 'TRIALING' && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'info.light', borderRadius: 1, border: '1px solid', borderColor: 'info.main' }}>
+              <Typography variant='body2' color='info.dark' fontWeight={600}>
+                {subscription.planSelectionCompleted
+                  ? `You're on the ${displayName} plan — your trial ends ${formatDate(subscription.trialEndsAt)}.`
+                  : `You're on the ${displayName} plan — you didn't select a plan during signup. Your trial ends ${formatDate(subscription.trialEndsAt)}.`
+                }
+              </Typography>
+              <Typography variant='body2' color='info.dark' sx={{ mt: 0.5 }}>
+                Choose a plan below to continue after your trial ends, or change to a different plan anytime.
+              </Typography>
+              <Button
+                variant='contained'
+                color='primary'
+                sx={{ mt: 2 }}
+                onClick={() => {
+                  document.getElementById('choose-plan-section')?.scrollIntoView({ behavior: 'smooth' })
+                }}
+              >
+                Change Plan
+              </Button>
+            </Box>
+          )}
 
           {pendingDowngradePlan && (
             <Alert severity='info' sx={{ mb: 2 }} icon={<i className='ri-information-line' />}>
@@ -328,8 +366,13 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
 
   const discount       = plan.annualDiscountPct ?? 0
   const hasAnnual      = discount > 0
-  const billableUnits  = Math.max(0, totalUnits - freeCap)
-  const unitCost       = billableUnits * plan.pricePerUnit
+  const charge         = calculateMonthlyCharge(
+    totalUnits,
+    { entryPrice: Number(plan.entryPrice) || 0, pricingMode: plan.pricingMode, tiers: plan.tiers },
+    freeCap
+  )
+  const billableUnits  = charge.billableUnits
+  const unitCost       = charge.monthlyTotal
   const annualTotal    = unitCost * 12 * (1 - discount)
   const annualSavings  = unitCost * 12 - annualTotal
   const dueToday       = billingCycle === 'ANNUAL' ? annualTotal : unitCost
@@ -523,7 +566,7 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                     ? [['Free units (first ' + freeCap + ')', freeCap + ' unit' + (freeCap !== 1 ? 's' : '') + ' — no charge']]
                     : []),
                   ['Paid units', billableUnits + (freeCap > 0 ? ' (' + totalUnits + ' total − ' + freeCap + ' free)' : '')],
-                  ['Rate',       formatGHS(plan.pricePerUnit) + ' / unit / mo'],
+                  ['Rate',       formatGHS(charge.pricePerUnit) + ' / unit / mo'],
                   // Deliberately absent: see the note above on the subscription row. No fee is
                   // taken on collected rent, so advertising one on the plan cards was false too.
 
@@ -688,6 +731,9 @@ function PlanCard({
   const isLower   = PLAN_ORDER[plan.name] < PLAN_ORDER[currentPlanName]
   const isPro     = plan.name === 'PRO'
 
+  const price  = Number(plan.entryPrice) || 0
+  const isFree = price === 0
+
   // The server refuses a downgrade that would leave the landlord above the
   // target plan's cap. Saying so on the card is the difference between a
   // decision and an error message: a null cap means unlimited.
@@ -723,22 +769,22 @@ function PlanCard({
         </Typography>
 
         <Box sx={{ mb: 2 }}>
-          {plan.pricePerUnit === 0 ? (
+          {isFree ? (
             <Typography variant='h4' fontWeight={800}>Free</Typography>
           ) : (
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
               <Typography variant='caption' color='text.secondary' sx={{ alignSelf: 'flex-start', mt: 1 }}>GH₵</Typography>
-              <Typography variant='h4' fontWeight={800}>{plan.pricePerUnit}</Typography>
+              <Typography variant='h4' fontWeight={800}>{price.toFixed(2)}</Typography>
               <Typography variant='caption' color='text.secondary'>/unit/mo</Typography>
             </Box>
           )}
           {plan.freeUnitCap && (
             <Typography variant='caption' color='text.secondary'>Up to {plan.freeUnitCap} units</Typography>
           )}
-          {plan.pricePerUnit > 0 && unitCount > 0 && (
+          {!isFree && unitCount > 0 && (
             /* What this landlord, with the units he actually has, would pay here. */
             <Typography variant='body2' fontWeight={600} color='text.primary' sx={{ mt: 0.5 }}>
-              You would pay {formatGHS(calculateMonthlyCharge(unitCount, plan.pricePerUnit, freeUnitCap).monthlyTotal)} a month
+              You would pay {formatGHS(calculateMonthlyCharge(unitCount, { entryPrice: price, pricingMode: plan.pricingMode, tiers: plan.tiers }, freeUnitCap).monthlyTotal)} a month
               {freeUnitCap ? ' — ' + Math.min(unitCount, freeUnitCap) + ' of your ' + unitCount + ' units are free' : ' for ' + unitCount + ' units'}
             </Typography>
           )}
@@ -1039,9 +1085,11 @@ export default function SubscriptionPlansListTable() {
 
   return (
     <Box>
-      <CurrentPlanCard freeUnitCap={plans.find(p => p.name === 'FREE')?.freeUnitCap ?? null} />
+      <CurrentPlanCard plans={plans} freeUnitCap={plans.find(p => p.name === 'FREE')?.freeUnitCap ?? null} />
 
-      <Typography variant='h6' fontWeight={700} sx={{ mb: 2 }}>Choose a plan</Typography>
+      <Box id='choose-plan-section'>
+        <Typography variant='h6' fontWeight={700} sx={{ mb: 2 }}>Choose a plan</Typography>
+      </Box>
 
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {plansLoading || isLoading ? (
