@@ -14,6 +14,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Avatar from '@mui/material/Avatar'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third-party Imports
 import classnames from 'classnames'

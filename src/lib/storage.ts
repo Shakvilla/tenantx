@@ -254,15 +254,26 @@ export async function confirmUpload(
 // ─── Reads & deletes ──────────────────────────────────────────────────────────
 
 /**
- * The URL to use for reading a stored file.
- *
- * Today most stored files resolve directly (ImageKit CDN URLs and public
- * object URLs), so this passes the path through.  As soon as the backend
- * exposes a generic signed-download endpoint for private buckets, this should
- * round-trip through it instead.
+ * Returns a presigned download URL for a stored file.
+ * For private buckets (MEGA S4, S3), the raw stored path returns 403 —
+ * this calls the backend to mint a temporary signed URL.
+ * Falls back to the raw path for public providers (ImageKit).
  */
-export function getDownloadUrl(filePath: string): string {
-  return filePath
+export async function getDownloadUrl(filePath: string): Promise<string> {
+  if (!filePath) return ''
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/storage/download-url?filePath=${encodeURIComponent(filePath)}`,
+      { headers: authHeaders() }
+    )
+
+    if (!res.ok) return filePath
+    const data = await res.json()
+    return data?.url ?? filePath
+  } catch {
+    return filePath
+  }
 }
 
 /**

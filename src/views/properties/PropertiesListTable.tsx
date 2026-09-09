@@ -20,6 +20,7 @@ import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Avatar from '@mui/material/Avatar'
+import { StorageAvatar } from '@/components/StorageAvatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 

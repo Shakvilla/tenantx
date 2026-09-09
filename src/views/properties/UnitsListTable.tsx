@@ -18,6 +18,7 @@ import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third-party Imports
 import classnames from 'classnames'
