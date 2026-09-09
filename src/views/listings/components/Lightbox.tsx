@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_FULL } from '@/lib/imagekit'
+import { ikUrl, IK_FULL } from '@/lib/image-urls'
 
 interface LightboxProps {
   images: string[]

@@ -241,20 +241,17 @@ export interface AvatarUploadResult {
 }
 
 /**
- * Upload a single avatar image for an occupant via ImageKit.
+ * Upload a single avatar image for an occupant through the active storage
+ * provider (see lib/storage.ts).
  */
 export async function uploadOccupantAvatar(
   tenantId: string,
   file: File,
-  occupantId?: string
+  _occupantId?: string
 ): Promise<AvatarUploadResult> {
-  const { uploadImages } = await import('@/lib/imagekit')
+  const { uploadFile } = await import('@/lib/storage')
 
-  const folder = occupantId
-    ? `/yiliora/${tenantId}/occupants/${occupantId}`
-    : `/yiliora/${tenantId}/occupants`
+  const uploaded = await uploadFile(file, 'occupant')
 
-  const [uploaded] = await uploadImages([file], { folder })
-
-  return { url: uploaded.url, fileId: uploaded.fileId }
+  return { url: uploaded.url, fileId: uploaded.fileId ?? uploaded.filePath }
 }

@@ -323,34 +323,32 @@ interface UploadResponse {
 }
 
 /**
- * Upload property images to ImageKit CDN.
- * Files are uploaded directly from the browser to ImageKit using a
- * short-lived auth token from the Spring Boot backend.
+ * Upload property images through the active storage provider.
+ * Files are uploaded directly from the browser using auth from the
+ * Spring Boot backend (see lib/storage.ts).
  *
- * @param tenantId  - Used to scope the folder path (not sent to ImageKit)
+ * @param tenantId  - Scopes the storage folder (the backend applies it)
  * @param files     - Array of image files to upload
- * @param propertyId - Optional property ID for sub-folder organisation
  */
 export async function uploadPropertyImages(
   tenantId: string,
   files: File[],
-  propertyId?: string
+  _propertyId?: string
 ): Promise<UploadResponse> {
   try {
-    const { uploadImages } = await import('@/lib/imagekit')
+    const { uploadFile } = await import('@/lib/storage')
 
-    const folder = propertyId
-      ? `/yiliora/${tenantId}/properties/${propertyId}`
-      : `/yiliora/${tenantId}/properties`
+    const images: UploadedImage[] = []
 
-    const uploaded = await uploadImages(files, { folder })
+    for (const file of files) {
+      const uploaded = await uploadFile(file, 'property')
+
+      images.push({ path: uploaded.filePath, url: uploaded.url, fileId: uploaded.fileId ?? uploaded.filePath })
+    }
 
     return {
       success: true,
-      data: {
-        images: uploaded.map(f => ({ path: f.filePath, url: f.url, fileId: f.fileId })),
-        count: uploaded.length
-      }
+      data: { images, count: images.length }
     }
   } catch (error: any) {
     return {

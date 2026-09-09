@@ -56,7 +56,7 @@ import { getStoredTenantId } from '@/lib/api/storage'
 import { useAuth } from '@/contexts/AuthContext'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/imagekit'
+import { ikUrl, IK_CARD } from '@/lib/image-urls'
 
 type Props = {
   open: boolean

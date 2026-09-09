@@ -15,7 +15,7 @@ import AdvanceRentSection from './AdvanceRentSection'
 import CautionFeeSection from './CautionFeeSection'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/imagekit'
+import { ikUrl, IK_CARD } from '@/lib/image-urls'
 
 type TenantData = {
   id: string

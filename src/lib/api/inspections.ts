@@ -12,7 +12,7 @@
  */
 
 import { apiClient, API_BASE } from './client'
-import { uploadImages } from '@/lib/imagekit'
+import { uploadFile } from '@/lib/storage'
 import { openBlobDocument } from '@/utils/openBlobDocument'
 import type {
   InspectionResponse,
@@ -96,20 +96,26 @@ export async function openInspectionReport(id: string): Promise<void> {
 }
 
 /**
- * Upload inspection item photos to ImageKit.
+ * Upload inspection item photos through the active storage provider.
  *
- * Folder: /yiliora/{tenantId}/inspections/{inspectionId}
+ * The backend scopes the folder by tenant + file kind.
  *
- * @returns array of CDN URLs ready to store in ItemUpsert.photoUrls
+ * @returns array of URLs ready to store in ItemUpsert.photoUrls
  */
 export async function uploadInspectionPhotos(
   files: File[],
-  tenantId: string,
-  inspectionId: string
+  _tenantId: string,
+  _inspectionId: string
 ): Promise<string[]> {
-  const folder = `/yiliora/${tenantId}/inspections/${inspectionId}`
-  const uploaded = await uploadImages(files, { folder })
-  return uploaded.map(f => f.url)
+  const urls: string[] = []
+
+  for (const file of files) {
+    const uploaded = await uploadFile(file, 'inspection')
+
+    urls.push(uploaded.url)
+  }
+
+  return urls
 }
 
 /**

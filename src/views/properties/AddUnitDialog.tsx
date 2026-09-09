@@ -35,7 +35,7 @@ import { getStoredTenantId } from '@/lib/api/storage'
 import type { CreateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 import { UNIT_AMENITIES } from '@/lib/amenities'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
 

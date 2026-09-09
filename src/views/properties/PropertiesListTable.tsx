@@ -65,7 +65,7 @@ import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 import tableStyles from '@core/styles/table.module.css'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {

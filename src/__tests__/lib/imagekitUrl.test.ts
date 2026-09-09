@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { ikUrl, IK_THUMB, IK_CARD, IK_FULL } from '@/lib/imagekit'
+import { ikUrl, IK_THUMB, IK_CARD, IK_FULL } from '@/lib/image-urls'
 
 const STORED = 'https://ik.imagekit.io/ixtkw2ixq/yiliora/atkaada-company-ltd/properties/2bedroom_r3hTiIeuL.jpeg'
 

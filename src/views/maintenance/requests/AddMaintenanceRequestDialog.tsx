@@ -53,7 +53,7 @@ import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 
 // ─── Styled Components ────────────────────────────────────────────────────────
 

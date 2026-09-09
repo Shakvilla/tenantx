@@ -13,7 +13,7 @@ import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
 
 // ImageKit does not serve original files on this account.
-import { ikUrl, IK_FULL, IK_THUMB } from '@/lib/imagekit'
+import { ikUrl, IK_FULL, IK_THUMB } from '@/lib/image-urls'
 
 type UnitViewData = {
   images: string[]

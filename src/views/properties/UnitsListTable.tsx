@@ -57,7 +57,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 import tableStyles from '@core/styles/table.module.css'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 import { formatCurrency } from '@/utils/currency'
 import { unitTypeLabel } from '@/lib/units/unitTypeLabel'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'

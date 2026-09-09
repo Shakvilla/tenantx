@@ -47,7 +47,7 @@ import type {
 import type { UtilityMeterResponse } from '@/types/utility'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 

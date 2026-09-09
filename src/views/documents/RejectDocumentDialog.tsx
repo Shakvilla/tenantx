@@ -22,7 +22,7 @@ import CardContent from '@mui/material/CardContent'
 import type { DocumentType } from '@/types/documents/documentTypes'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/imagekit'
+import { ikUrl, IK_CARD } from '@/lib/image-urls'
 
 type RejectDocumentDialogProps = {
   open: boolean

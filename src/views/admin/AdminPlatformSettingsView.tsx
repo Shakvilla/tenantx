@@ -264,26 +264,19 @@ export default function AdminPlatformSettingsView() {
   }
 
   /**
-   * Uploaded to ImageKit, and deliberately NOT as a private file: this is the
-   * platform's own logo, rendered on the login page and in emails, so it must
-   * be readable without a signed link. Documents are the opposite case and are
-   * uploaded private — see lib/document-storage.ts.
+   * Uploaded through the active storage provider, and deliberately NOT as a
+   * private file: this is the platform's own logo, rendered on the login page
+   * and in emails, so it must be readable without a signed link. Documents are
+   * the opposite case and are uploaded private — see lib/document-storage.ts.
    *
    * Previously posted to a Next route holding a Supabase service-role key.
    */
   async function handleLogoUpload(file: File) {
     setLogoUploading(true)
     try {
-      const { uploadImage } = await import('@/lib/imagekit')
-      const { getAdminImageKitAuth } = await import('@/lib/api/admin-auth-client')
+      const { uploadFile } = await import('@/lib/storage')
 
-      // getAuth is required here, not optional: the default signs through the
-      // tenant-scoped endpoint, and an administrator has no tenant, so it fails
-      // with "Missing X-Tenant-ID header" before the upload starts.
-      const uploaded = await uploadImage(file, {
-        folder: '/yiliora/platform/branding',
-        getAuth: getAdminImageKitAuth
-      })
+      const uploaded = await uploadFile(file, 'platform')
 
       await save('branding.logo_url', uploaded.url)
     } catch (e: unknown) {

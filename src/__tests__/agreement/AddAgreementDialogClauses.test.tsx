@@ -22,8 +22,8 @@ vi.mock('@/lib/api/storage', () => ({
   getStoredTenantId: vi.fn()
 }))
 
-vi.mock('@/lib/imagekit', () => ({
-  uploadImage: vi.fn()
+vi.mock('@/lib/storage', () => ({
+  uploadFile: vi.fn()
 }))
 
 import AddAgreementDialog from '@/views/agreement/AddAgreementDialog'

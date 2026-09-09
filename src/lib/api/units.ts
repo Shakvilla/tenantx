@@ -219,30 +219,29 @@ interface UploadResponse {
 }
 
 /**
- * Upload unit images to ImageKit CDN.
- * Files are uploaded directly from the browser to ImageKit using a
- * short-lived auth token from the Spring Boot backend.
+ * Upload unit images through the active storage provider.
+ * Files are uploaded directly from the browser using auth from the
+ * Spring Boot backend (see lib/storage.ts).
  */
 export async function uploadUnitImages(
   tenantId: string,
   files: File[],
-  unitId?: string
+  _unitId?: string
 ): Promise<UploadResponse> {
   try {
-    const { uploadImages } = await import('@/lib/imagekit')
+    const { uploadFile } = await import('@/lib/storage')
 
-    const folder = unitId
-      ? `/yiliora/${tenantId}/units/${unitId}`
-      : `/yiliora/${tenantId}/units`
+    const images: UploadedImage[] = []
 
-    const uploaded = await uploadImages(files, { folder })
+    for (const file of files) {
+      const uploaded = await uploadFile(file, 'unit')
+
+      images.push({ path: uploaded.filePath, url: uploaded.url, fileId: uploaded.fileId ?? uploaded.filePath })
+    }
 
     return {
       success: true,
-      data: {
-        images: uploaded.map(f => ({ path: f.filePath, url: f.url, fileId: f.fileId })),
-        count: uploaded.length
-      }
+      data: { images, count: images.length }
     }
   } catch (error: any) {
     return {

@@ -557,17 +557,23 @@ export interface MaintenanceImageUploadResult {
 }
 
 /**
- * Upload one or more images for a maintenance request via ImageKit.
+ * Upload one or more images for a maintenance request through the active
+ * storage provider (see lib/storage.ts).
  */
 export async function uploadMaintenanceImages(
   tenantId: string,
   files: File[],
-  requestId?: string
+  _requestId?: string
 ): Promise<MaintenanceImageUploadResult[]> {
-  const { uploadImages } = await import('@/lib/imagekit')
-  const folder = requestId
-    ? `/yiliora/${tenantId}/maintenance/${requestId}`
-    : `/yiliora/${tenantId}/maintenance`
-  const uploaded = await uploadImages(files, { folder })
-  return uploaded.map(u => ({ url: u.url, fileId: u.fileId }))
+  const { uploadFile } = await import('@/lib/storage')
+
+  const uploaded: MaintenanceImageUploadResult[] = []
+
+  for (const file of files) {
+    const result = await uploadFile(file, 'maintenance')
+
+    uploaded.push({ url: result.url, fileId: result.fileId ?? result.filePath })
+  }
+
+  return uploaded
 }

@@ -61,7 +61,7 @@ import PropertyAddressFields from '@/components/address/PropertyAddressFields'
 import type { AddressValue, AddressCoordinates } from '@/components/address/PropertyAddressFields'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 
 type PropertyEditData = {
   id?: string

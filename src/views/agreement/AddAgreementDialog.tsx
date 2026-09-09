@@ -45,7 +45,7 @@ import { getProperties } from '@/lib/api/properties'
 import { getAllUnits } from '@/lib/api/units'
 import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
 import { getStoredTenantId } from '@/lib/api/storage'
-import { uploadImage } from '@/lib/imagekit'
+import { uploadFile } from '@/lib/storage'
 
 // Component Imports
 import RichTextEditor from '@/components/form/RichTextEditor'
@@ -255,7 +255,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
     setDocUploadError(null)
     setDocUploading(true)
     try {
-      const result = await uploadImage(file, { folder: '/yiliora/agreements' })
+      const result = await uploadFile(file, 'agreement')
       setFormData(prev => ({ ...prev, documentUrl: result.url }))
     } catch (err: any) {
       setDocUploadError(err?.message ?? 'Upload failed. Please try again.')
