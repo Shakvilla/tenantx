@@ -66,6 +66,11 @@ type PublicPlan = {
 // Brand palette — mirrors tenantx-landing/src/index.css so these pricing cards
 // match the marketing site's pricing section (pink accents on ink/sand).
 // The webapp theme has no pink/kente/ink tokens, so they are fixed here.
+//
+// Typography is NOT hardcoded here: headings use the app theme's Bricolage
+// Grotesque face and body text uses Proxima Nova Rg via the standard MUI
+// variants (h1, body1, overline). Only brand colour and the display price
+// size are tuned with sx.
 // ---------------------------------------------------------------------------
 
 const BRAND = {
@@ -79,9 +84,6 @@ const BRAND = {
 
 const INK = (opacity: number) => `rgba(11, 13, 16, ${opacity})`
 const SAND = (opacity: number) => `rgba(247, 242, 233, ${opacity})`
-
-/** Bricolage Grotesque — the marketing site's heading face, loaded app-wide via next/font. */
-const HEADING_FONT = 'var(--font-bricolage-grotesque), sans-serif'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -343,9 +345,8 @@ function PlanCard({
           }}
         >
           <Typography
+            variant='overline'
             sx={{
-              fontSize: 12,
-              fontWeight: 700,
               letterSpacing: '0.2em',
               textTransform: 'uppercase',
               color: isPopular ? BRAND.primary : INK(0.65)
@@ -377,38 +378,37 @@ function PlanCard({
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 0.75, rowGap: 0.5 }}>
           {isFree ? (
             <Typography
+              variant='h1'
+              component='span'
               sx={{
-                fontFamily: HEADING_FONT,
-                fontSize: 44,
-                fontWeight: 600,
                 lineHeight: 1,
-                letterSpacing: '-0.04em'
+                color: isPopular ? BRAND.sand : BRAND.ink
               }}
             >
               Free
             </Typography>
           ) : (
             <>
-              <Typography sx={{ fontSize: 14, fontWeight: 500, color: isPopular ? SAND(0.8) : INK(0.65) }}>
+              <Typography variant='body1' sx={{ color: isPopular ? SAND(0.8) : INK(0.65) }}>
                 GH₵
               </Typography>
               <Typography
+                variant='h1'
+                component='span'
                 sx={{
-                  fontFamily: HEADING_FONT,
-                  fontSize: 44,
-                  fontWeight: 600,
                   lineHeight: 1,
-                  letterSpacing: '-0.04em'
+                  color: isPopular ? BRAND.sand : BRAND.ink
                 }}
               >
                 {(isAnnual ? annualPrice : price).toLocaleString()}
               </Typography>
-              <Typography sx={{ fontSize: 14, color: isPopular ? SAND(0.8) : INK(0.65) }}>
+              <Typography variant='body1' sx={{ color: isPopular ? SAND(0.8) : INK(0.65) }}>
                 {isAnnual ? '/year' : '/month'}
               </Typography>
               {showDiscountBadge && (
                 <Typography
                   component='span'
+                  variant='overline'
                   sx={{
                     ml: 0.75,
                     borderRadius: '999px',
@@ -416,8 +416,6 @@ function PlanCard({
                     color: BRAND.sand,
                     px: 1.25,
                     py: 0.5,
-                    fontSize: 11,
-                    fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em'
                   }}
@@ -430,7 +428,7 @@ function PlanCard({
         </Box>
 
         {/* Sub-line */}
-        <Typography sx={{ mt: 1, fontSize: 14, color: isPopular ? SAND(0.8) : INK(0.65) }}>
+        <Typography variant='body1' sx={{ mt: 1, color: isPopular ? SAND(0.8) : INK(0.65) }}>
           {unitLabel} · {momoFee}
         </Typography>
 
@@ -463,8 +461,8 @@ function PlanCard({
                 />
               )}
               <Typography
+                variant='body1'
                 sx={{
-                  fontSize: 14,
                   color: feature.enabled
                     ? isPopular
                       ? SAND(0.9)
@@ -490,9 +488,6 @@ function PlanCard({
           sx={{
             borderRadius: '999px',
             py: 1.5,
-            fontSize: 15,
-            fontWeight: 600,
-            letterSpacing: '-0.01em',
             textTransform: 'none',
             ...(isPopular
               ? {
@@ -598,21 +593,20 @@ const SelectPlanView = () => {
       <Box sx={{ width: '100%', maxWidth: 900 }}>
         {/* Header */}
         <Box sx={{ textAlign: 'center', mb: { xs: 5, md: 8 }, px: { xs: 1, sm: 2 } }}>
-          <Typography sx={{ mb: 2, fontSize: 18, fontWeight: 500, color: BRAND.kente }}>Pricing</Typography>
+          <Typography variant='body1' sx={{ mb: 2, fontSize: '1.125rem', fontWeight: 500, color: BRAND.kente }}>
+            Pricing
+          </Typography>
           <Typography
             component='h1'
+            variant='h1'
             sx={{
-              fontFamily: HEADING_FONT,
-              fontSize: { xs: 36, sm: 48 },
-              fontWeight: 600,
-              lineHeight: 1,
-              letterSpacing: '-0.04em',
+              fontSize: { xs: '2.25rem', sm: '3rem' },
               color: BRAND.ink
             }}
           >
             Choose your plan
           </Typography>
-          <Typography sx={{ mt: 2, fontSize: 16, color: INK(0.65) }}>
+          <Typography variant='body1' sx={{ mt: 2, color: INK(0.65) }}>
             All plans include a 14-day free trial. You can change this later from Settings.
           </Typography>
         </Box>
@@ -681,9 +675,6 @@ const SelectPlanView = () => {
                   borderRadius: '999px',
                   px: 8,
                   py: 2,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  letterSpacing: '-0.01em',
                   textTransform: 'none',
                   bgcolor: BRAND.primaryDeep,
                   boxShadow: '0 8px 30px -8px rgba(214, 28, 118, 0.55)',
