@@ -24,12 +24,13 @@ import { type NextRequest, NextResponse } from 'next/server'
 function buildCsp(nonce: string, isHttps: boolean): string {
   const isProd = process.env.NODE_ENV === 'production'
 
-  // Where the browser is allowed to send requests: our own API, and ImageKit,
-  // which the browser uploads to directly and reads signed document links from.
+  // Where the browser is allowed to send requests: our own API, ImageKit,
+  // and the active storage provider endpoint (MEGA S4, S3, etc.).
   const apiOrigin = originOf(process.env.NEXT_PUBLIC_API_BASE_URL)
   const imageKitOrigin = originOf(process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT)
+  const storageOrigin = originOf(process.env.NEXT_PUBLIC_STORAGE_ENDPOINT)
 
-  const connect = ["'self'", apiOrigin, imageKitOrigin, 'https://upload.imagekit.io']
+  const connect = ["'self'", apiOrigin, imageKitOrigin, 'https://upload.imagekit.io', storageOrigin]
     .filter(Boolean)
     .join(' ')
 
@@ -37,7 +38,7 @@ function buildCsp(nonce: string, isHttps: boolean): string {
   // every stored document/photo URL in the DB points at the ik.imagekit.io delivery host, so a
   // build where NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT is unset (imageKitOrigin drops out via
   // filter(Boolean)) would otherwise CSP-block every property, unit and maintenance image.
-  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://ik.imagekit.io', 'https://images.unsplash.com']
+  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://ik.imagekit.io', 'https://images.unsplash.com', storageOrigin]
     .filter(Boolean)
     .join(' ')
 
