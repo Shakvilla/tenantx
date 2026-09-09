@@ -28,9 +28,10 @@ function buildCsp(nonce: string, isHttps: boolean): string {
   // and the active storage provider endpoint (MEGA S4, S3, etc.).
   const apiOrigin = originOf(process.env.NEXT_PUBLIC_API_BASE_URL)
   const imageKitOrigin = originOf(process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT)
-  const storageOrigin = originOf(process.env.NEXT_PUBLIC_STORAGE_ENDPOINT)
 
-  const connect = ["'self'", apiOrigin, imageKitOrigin, 'https://upload.imagekit.io', storageOrigin]
+  // MEGA S4 domains follow the pattern *.s3.*.megas4.com — listed unconditionally
+  // like ik.imagekit.io because the exact endpoint depends on bucket/region config.
+  const connect = ["'self'", apiOrigin, imageKitOrigin, 'https://upload.imagekit.io', 'https://*.megas4.com']
     .filter(Boolean)
     .join(' ')
 
@@ -38,7 +39,7 @@ function buildCsp(nonce: string, isHttps: boolean): string {
   // every stored document/photo URL in the DB points at the ik.imagekit.io delivery host, so a
   // build where NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT is unset (imageKitOrigin drops out via
   // filter(Boolean)) would otherwise CSP-block every property, unit and maintenance image.
-  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://ik.imagekit.io', 'https://images.unsplash.com', storageOrigin]
+  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://ik.imagekit.io', 'https://images.unsplash.com', 'https://*.megas4.com']
     .filter(Boolean)
     .join(' ')
 
