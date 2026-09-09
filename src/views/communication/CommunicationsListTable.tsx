@@ -21,6 +21,9 @@ import TablePagination from '@mui/material/TablePagination'
 import Skeleton from '@mui/material/Skeleton'
 import Box from '@mui/material/Box'
 import type { TextFieldProps } from '@mui/material/TextField'
+import IconButton from '@mui/material/IconButton'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -173,6 +176,9 @@ type CommunicationTypeWithAction = CommunicationType & { action?: string }
 // ---------------------------------------------------------------------------
 
 const CommunicationsListTable = () => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // ---- Data state ----
   const [data, setData] = useState<CommunicationType[]>([])
   const [loading, setLoading] = useState(true)
@@ -528,8 +534,96 @@ return <Chip variant='tonal' label={row.original.status} size='small' color={cfg
             />
           </div>
 
-          {/* Table */}
-          {loading ? (
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex flex-col gap-2'>
+                {[0, 1, 2, 3, 4].map(i => <Skeleton key={i} variant='rectangular' height={60} />)}
+              </Box>
+            ) : table.getFilteredRowModel().rows.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No communications found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const c = row.original
+                  const typeCfg = TYPE_CONFIG[c.type] ?? { color: 'secondary', icon: 'ri-file-line' }
+                  const statusCfg = STATUS_CONFIG[c.status] ?? { color: 'secondary' }
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='min-w-0'>
+                            <Typography color='text.primary' className='font-medium truncate'>
+                              {c.subject || '-'}
+                            </Typography>
+                            <Typography variant='body2' color='text.secondary' className='truncate'>
+                              {c.from ? `From: ${c.from}` : ''}
+                              {c.to ? ` · To: ${c.to}` : ''}
+                            </Typography>
+                          </div>
+                          <Chip
+                            variant='tonal'
+                            label={c.status}
+                            size='small'
+                            color={statusCfg.color}
+                            className='capitalize shrink-0'
+                          />
+                        </div>
+
+                        <div className='flex flex-wrap items-center gap-x-6 gap-y-2'>
+                          <Chip
+                            variant='tonal'
+                            label={c.type}
+                            size='small'
+                            color={typeCfg.color}
+                            icon={<i className={typeCfg.icon} />}
+                            className='capitalize'
+                          />
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Date</Typography>
+                            <Typography variant='body2'>{formatDate(c.date)}</Typography>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2 flex-wrap'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-eye-line' />}
+                            onClick={() => { setCommunicationToView(c); setViewCommunicationOpen(true) }}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            View
+                          </Button>
+                          <Button
+                            size='small'
+                            variant='outlined'
+                            startIcon={<i className='ri-reply-line' />}
+                            onClick={() => { setCommunicationToReply(c); setReplyOpen(true) }}
+                            sx={{ minHeight: 44 }}
+                          >
+                            Reply
+                          </Button>
+                          <IconButton
+                            size='small'
+                            onClick={() => { setSelectedCommunication(c); setDeleteOpen(true) }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Delete communication'
+                          >
+                            <i className='ri-delete-bin-line' />
+                          </IconButton>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
+          loading ? (
             <Box className='flex flex-col gap-2'>
               {[0, 1, 2, 3, 4].map(i => <Skeleton key={i} variant='rectangular' height={44} />)}
             </Box>
@@ -579,6 +673,7 @@ return <Chip variant='tonal' label={row.original.status} size='small' color={cfg
                 )}
               </table>
             </div>
+          )
           )}
 
           <TablePagination

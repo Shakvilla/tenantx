@@ -71,7 +71,7 @@ export default function SubscriptionWarningBanner() {
             size='small'
             color='inherit'
             variant='outlined'
-            sx={{ whiteSpace: 'nowrap', fontWeight: 600, borderColor: 'currentColor' }}
+            sx={{ fontWeight: 600, borderColor: 'currentColor' }}
           >
             {config.cta}
           </Button>
@@ -80,6 +80,19 @@ export default function SubscriptionWarningBanner() {
           borderRadius: 0,
           borderBottom: '1px solid',
           borderColor: `${config.severity}.dark`,
+
+          // Stack on mobile: message on top, action button full-width below so the
+          // banner never forces a horizontal scroll on narrow screens.
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          flexWrap: 'wrap',
+          '& .MuiAlert-message': { flex: '1 1 auto', minWidth: 0 },
+          '& .MuiAlert-action': {
+            paddingTop: { xs: 0, sm: 2 },
+            width: { xs: '100%', sm: 'auto' }
+          },
+          '& .MuiAlert-action .MuiButton-root': {
+            width: { xs: '100%', sm: 'auto' }
+          }
         }}
       >
         {config.message}

@@ -22,6 +22,9 @@ import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
+import IconButton from '@mui/material/IconButton'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -106,6 +109,8 @@ const agreementTypeObj: Record<string, { label: string; color: 'primary' | 'info
 const AgreementsListTable = () => {
   const { user } = useAuth()
   const isOccupant = user?.userType === 'OCCUPANT'
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const [data, setData] = useState<Agreement[]>([])
   const [loading, setLoading] = useState(true)
@@ -581,7 +586,119 @@ return transitions[current] ?? []
             </div>
           </Box>
 
-          {/* Table */}
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex justify-center items-center py-10'>
+                <CircularProgress />
+              </Box>
+            ) : table.getFilteredRowModel().rows.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No agreements found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const a = row.original as AgreementWithAction
+                  const s = agreementStatusObj[a.status] ?? { label: a.status, color: 'default' }
+                  const t = agreementTypeObj[a.type] ?? { label: a.type, color: 'secondary' }
+                  const decision = a.renewalDecision
+                  const decisionAddsInfo = decision && decision !== a.status
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='min-w-0'>
+                            <div className='flex items-center gap-2 flex-wrap'>
+                              <Typography color='text.primary' className='font-medium truncate'>
+                                {a.agreementNumber}
+                              </Typography>
+                              <Chip variant='tonal' label={t.label} size='small' color={t.color} />
+                            </div>
+                            <Typography variant='body2' color='text.secondary' className='truncate'>
+                              {a.occupantName ?? '—'}
+                            </Typography>
+                          </div>
+                          <div className='flex flex-col items-end gap-1 shrink-0'>
+                            <Chip variant='tonal' label={s.label} size='small' color={s.color} />
+                            {decisionAddsInfo && (
+                              <Chip
+                                variant='tonal'
+                                size='small'
+                                label={decision === 'RENEWED' ? 'Renewed' : 'Terminated'}
+                                color={decision === 'RENEWED' ? 'success' : 'error'}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                          <div className='flex flex-col gap-0.5 min-w-0'>
+                            <Typography variant='caption' color='text.secondary'>Property / Unit</Typography>
+                            <Typography variant='body2' className='truncate'>
+                              {a.propertyName ?? '—'}
+                              {a.unitNo ? ` · Unit ${a.unitNo}` : ''}
+                            </Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Period</Typography>
+                            <Typography variant='body2'>
+                              {a.startDate ? new Date(a.startDate).toLocaleDateString() : '—'} –{' '}
+                              {a.endDate ? new Date(a.endDate).toLocaleDateString() : '—'}
+                            </Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Amount</Typography>
+                            <Typography variant='body2' className='font-medium'>
+                              {a.totalAmount != null || a.rent != null
+                                ? formatCurrency(a.totalAmount ?? a.rent ?? undefined)
+                                : '—'}
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-eye-line' />}
+                            onClick={() => setViewAgreement(a)}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            View
+                          </Button>
+                          {!isOccupant && (
+                            <>
+                              <IconButton
+                                size='small'
+                                onClick={() => setEditAgreement(a)}
+                                sx={{ minWidth: 44, minHeight: 44 }}
+                                aria-label='Edit agreement'
+                              >
+                                <i className='ri-pencil-line' />
+                              </IconButton>
+                              <IconButton
+                                size='small'
+                                onClick={() => {
+                                  setSelectedAgreement(a)
+                                  setDeleteOpen(true)
+                                }}
+                                sx={{ minWidth: 44, minHeight: 44 }}
+                                aria-label='Delete agreement'
+                              >
+                                <i className='ri-delete-bin-line' />
+                              </IconButton>
+                            </>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
           <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             <table className={tableStyles.table}>
               <thead>
@@ -638,6 +755,7 @@ return transitions[current] ?? []
               )}
             </table>
           </div>
+          )}
 
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}

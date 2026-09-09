@@ -17,7 +17,7 @@ const NavSearch = () => {
       placeholder='Search for anything here'
       value={searchValue}
       onChange={e => setSearchValue(e.target.value)}
-      className='is-[300px]'
+      className='is-[300px] max-sm:is-full'
       InputProps={{
         startAdornment: (
           <InputAdornment position='start'>

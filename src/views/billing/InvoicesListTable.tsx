@@ -22,6 +22,7 @@ import MenuItem from '@mui/material/MenuItem'
 import Tooltip from '@mui/material/Tooltip'
 import TablePagination from '@mui/material/TablePagination'
 import IconButton from '@mui/material/IconButton'
+import Box from '@mui/material/Box'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
@@ -30,6 +31,8 @@ import Alert from '@mui/material/Alert'
 import Skeleton from '@mui/material/Skeleton'
 import CircularProgress from '@mui/material/CircularProgress'
 import type { TextFieldProps } from '@mui/material/TextField'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -182,6 +185,8 @@ const InvoicesListTable = () => {
 
   // Export state
   const [exporting, setExporting] = useState(false)
+
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   // Prefill carried over from the onboarding wizard's "Create first invoice" action
   const [invoicePrefill, setInvoicePrefill] = useState<
@@ -542,6 +547,122 @@ const InvoicesListTable = () => {
           </CardContent>
         )}
 
+        {/* Table (desktop) / stacked cards (mobile) */}
+        {isMobile ? (
+          loading ? (
+            <div className='p-4 flex flex-col gap-3'>
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} variant='text' height={48} />
+              ))}
+            </div>
+          ) : table.getFilteredRowModel().rows.length === 0 ? (
+            <Box className='py-10 text-center'>
+              <Typography color='text.secondary'>No invoices found</Typography>
+            </Box>
+          ) : (
+            <div className='flex flex-col gap-3 p-4'>
+              {table.getRowModel().rows.map(row => {
+                const inv = row.original
+                const cfg = statusConfigFor(inv.status)
+                const available = getAvailableStatuses(inv.status)
+
+                return (
+                  <Card key={row.id} variant='outlined'>
+                    <CardContent className='flex flex-col gap-3'>
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <Typography
+                            component={Link}
+                            href={`/billing/invoices/${inv.id}`}
+                            color='primary.main'
+                            className='font-medium truncate block'
+                          >
+                            {inv.invoiceNumber}
+                          </Typography>
+                          <Typography variant='body2' color='text.secondary'>
+                            {inv.occupantName ?? '-'}
+                          </Typography>
+                        </div>
+                        <Chip
+                          size='small'
+                          variant='tonal'
+                          color={cfg.color}
+                          label={cfg.label}
+                          icon={<i className={classnames('text-base', cfg.icon)} />}
+                          className='shrink-0'
+                        />
+                      </div>
+
+                      <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Amount</Typography>
+                          <Typography className='font-medium'>{formatCurrency(inv.amount, inv.currency)}</Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Balance</Typography>
+                          {inv.balance === 0 ? (
+                            <Chip variant='tonal' label='Paid' color='success' size='small' sx={{ alignSelf: 'flex-start' }} />
+                          ) : (
+                            <Typography color='text.primary' className='font-medium'>
+                              {formatCurrency(inv.balance, inv.currency)}
+                            </Typography>
+                          )}
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Due</Typography>
+                          <Typography variant='body2'>{formatDate(inv.dueDate)}</Typography>
+                        </div>
+                      </div>
+
+                      <div className='flex items-center gap-2'>
+                        <Button
+                          size='small'
+                          variant='contained'
+                          startIcon={<i className='ri-eye-line' />}
+                          href={`/billing/invoices/${inv.id}`}
+                          sx={{ flex: 1, minHeight: 44 }}
+                        >
+                          View
+                        </Button>
+                        {available.length > 0 && (
+                          <Button
+                            size='small'
+                            variant='outlined'
+                            startIcon={<i className='ri-edit-line' />}
+                            onClick={() => handleEditClick(inv)}
+                            sx={{ minHeight: 44 }}
+                          >
+                            Update
+                          </Button>
+                        )}
+                        <IconButton
+                          size='small'
+                          onClick={() => {
+                            setEditInvoice(inv)
+                            setInvoicePrefill(undefined)
+                            setAddInvoiceOpen(true)
+                          }}
+                          sx={{ minWidth: 44, minHeight: 44 }}
+                          aria-label='Edit invoice'
+                        >
+                          <i className='ri-pencil-line' />
+                        </IconButton>
+                        <IconButton
+                          size='small'
+                          onClick={() => handleDelete(inv.id)}
+                          sx={{ minWidth: 44, minHeight: 44 }}
+                          aria-label='Delete invoice'
+                        >
+                          <i className='ri-delete-bin-line' />
+                        </IconButton>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )
+        ) : (
         <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
           {loading ? (
             <div className='p-4 flex flex-col gap-3'>
@@ -598,6 +719,7 @@ const InvoicesListTable = () => {
             </table>
           )}
         </div>
+        )}
 
         <TablePagination
           rowsPerPageOptions={[10, 25, 50]}

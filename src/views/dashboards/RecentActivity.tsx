@@ -92,14 +92,16 @@ const RecentActivity = () => {
                   <TimelineDot color={dotColor(item.entityType)} />
                   {index < items.length - 1 && <TimelineConnector />}
                 </TimelineSeparator>
-                <TimelineContent>
+                <TimelineContent sx={{ minWidth: 0 }}>
                   <div className='flex flex-wrap items-center justify-between gap-x-2 mbe-2.5'>
-                    <Typography className='font-medium' color='text.primary'>
+                    <Typography className='font-medium min-w-0 flex-1' color='text.primary'>
                       {item.title}
                     </Typography>
-                    <Typography variant='caption'>{relativeTime(item.createdAt)}</Typography>
+                    <Typography variant='caption' sx={{ flexShrink: 0 }}>
+                      {relativeTime(item.createdAt)}
+                    </Typography>
                   </div>
-                  {item.body && <Typography>{item.body}</Typography>}
+                  {item.body && <Typography sx={{ overflowWrap: 'anywhere' }}>{item.body}</Typography>}
                 </TimelineContent>
               </TimelineItem>
             ))}

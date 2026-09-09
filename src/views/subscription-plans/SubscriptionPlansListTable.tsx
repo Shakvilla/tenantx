@@ -30,6 +30,8 @@ import Skeleton from '@mui/material/Skeleton'
 import InputAdornment from '@mui/material/InputAdornment'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import { walletApi } from '@/lib/api/wallet'
 import { canPayFromWallet } from '@/utils/canPayFromWallet'
@@ -856,6 +858,9 @@ function PlanCard({
 // ---------------------------------------------------------------------------
 
 function InvoiceTable() {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [invoices, setInvoices]     = useState<SubscriptionInvoiceDto[]>([])
   const [loading, setLoading]       = useState(true)
   const [retrying, setRetrying]     = useState<string | null>(null)
@@ -961,6 +966,82 @@ function InvoiceTable() {
           <Alert severity='success' sx={{ mb: 2 }} onClose={() => setActionNotice(null)}>{actionNotice}</Alert>
         )}
       </div>
+      {/* Table (desktop) / stacked cards (mobile) */}
+      {isMobile ? (
+        <div className='flex flex-col gap-3'>
+          {invoices.map(inv => (
+            <Card key={inv.id} variant='outlined'>
+              <CardContent className='flex flex-col gap-3'>
+                <div className='flex items-start justify-between gap-3'>
+                  <div className='min-w-0'>
+                    <Typography variant='body2' className='font-medium truncate'>
+                      {formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}
+                    </Typography>
+                    <Typography variant='caption' color='text.secondary'>
+                      {inv.invoiceType} · {inv.unitCount} unit{inv.unitCount !== 1 ? 's' : ''}
+                    </Typography>
+                  </div>
+                  <Chip label={inv.status} size='small' color={statusChipColor(inv.status)} className='shrink-0' />
+                </div>
+
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <div className='flex flex-col gap-0.5'>
+                    <Typography variant='caption' color='text.secondary'>Amount</Typography>
+                    <Typography variant='body2' fontWeight={600}>{formatGHS(inv.totalAmount)}</Typography>
+                  </div>
+                  <div className='flex flex-col gap-0.5'>
+                    <Typography variant='caption' color='text.secondary'>Date</Typography>
+                    <Typography variant='body2' color='text.secondary'>{formatDate(inv.paidAt ?? inv.createdAt)}</Typography>
+                  </div>
+                </div>
+
+                {(inv.status === 'FAILED' || inv.status === 'PENDING') && (
+                  <div className='flex items-center gap-2 flex-wrap'>
+                    {inv.status === 'FAILED' && (
+                      <Button
+                        size='small'
+                        variant='contained'
+                        color='error'
+                        disabled={retrying === inv.id}
+                        onClick={() => handleRetry(inv.id)}
+                        startIcon={retrying === inv.id ? <CircularProgress size={12} color='inherit' /> : <i className='ri-refresh-line' />}
+                        sx={{ flex: 1, minHeight: 44 }}
+                      >
+                        {retrying === inv.id ? 'Retrying…' : 'Pay Now'}
+                      </Button>
+                    )}
+                    {inv.status === 'PENDING' && (
+                      <>
+                        <Button
+                          size='small'
+                          variant='outlined'
+                          disabled={!!verifying[inv.id]}
+                          onClick={() => handleVerify(inv.id)}
+                          startIcon={verifying[inv.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
+                          sx={{ flex: 1, minHeight: 44 }}
+                        >
+                          {verifying[inv.id] ? 'Checking…' : 'Verify'}
+                        </Button>
+                        <Button
+                          size='small'
+                          variant='outlined'
+                          color='primary'
+                          disabled={payingId === inv.id || walletBalance === null || !canPayFromWallet(walletBalance, inv.totalAmount)}
+                          onClick={() => handlePayFromWallet(inv.id)}
+                          startIcon={payingId === inv.id ? <CircularProgress size={12} /> : <i className='ri-wallet-3-line' />}
+                          sx={{ flex: 1, minHeight: 44 }}
+                        >
+                          {payingId === inv.id ? 'Paying…' : 'Pay from wallet'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
       <Table size='small'>
         <TableHead>
           <TableRow>
@@ -1031,6 +1112,7 @@ function InvoiceTable() {
           ))}
         </TableBody>
       </Table>
+      )}
     </>
   )
 }
