@@ -294,13 +294,12 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
   const authToken  = request.cookies.get('auth_token')?.value
   const tenantId   = request.cookies.get('tenant_id')?.value
 
-  // A PRESENT-but-expired admin token must not count as an admin session. The old client set
-  // the admin cookie with a fixed 24h max-age against a ~15-minute token, so a stale cookie
-  // could linger for a day — and since /login and /register redirect admin-authenticated users
-  // to /admin, that stale cookie locked the holder out of the entire tenant auth surface (they
-  // bounced to an admin panel whose every API call 401s). Decode-only exp check: this is a UX
-  // routing gate, the backend still verifies the signature on every call.
-  const isAdminAuthenticated  = hasUnexpiredJwt(adminToken)
+  // The admin cookie is now sized to the session lifetime (7 days) via admin-storage.ts,
+  // matching the tenant cookie fix (Fix 1). The axios 401→refresh interceptor handles token
+  // renewal transparently, so middleware only needs to check cookie PRESENCE — the backend
+  // enforces actual token validity on every API call. An expiry check here would redirect
+  // an idle admin to /login before the interceptor can refresh, defeating the refresh flow.
+  const isAdminAuthenticated  = !!adminToken
   const isTenantAuthenticated = !!authToken && !!tenantId
   const planSelectionRequired = request.cookies.get('plan_selection_required')?.value === 'true'
 

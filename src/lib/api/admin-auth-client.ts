@@ -4,14 +4,20 @@
  * Key differences from the landlord apiClient:
  *  - Attaches admin_token (not auth_token)
  *  - Never sends X-Tenant-ID header
- *  - No refresh-token flow (admin sessions are non-refreshable for now)
- *  - 401 on admin routes → clear admin token + dispatch ADMIN_SESSION_EXPIRED
+ *  - 401 on admin routes → attempt a refresh via the admin refresh token; on failure clear the
+ *    admin token + dispatch ADMIN_SESSION_EXPIRED
  */
 
 import axios from 'axios'
-import type { AxiosInstance } from 'axios'
+import type { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 
-import { getStoredAdminToken, setStoredAdminToken, clearStoredAdminToken } from './admin-storage'
+import {
+  getStoredAdminToken,
+  setStoredAdminToken,
+  clearStoredAdminToken,
+  getStoredAdminRefreshToken,
+  setStoredAdminRefreshToken
+} from './admin-storage'
 import { isOtpChallenge } from './auth-client'
 import type { OtpChallenge } from './auth-client'
 import { getDeviceId } from './device-id'
@@ -51,25 +57,112 @@ adminClient.interceptors.request.use(config => {
 return config
 })
 
+// ---------------------------------------------------------------------------
+// 401 → refresh (mirrors the tenant apiClient interceptor in client.ts)
+// ---------------------------------------------------------------------------
+
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void
+  reject: (reason?: unknown) => void
+}> = []
+
+function processQueue(error: unknown | null) {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error)
+    } else {
+      resolve()
+    }
+  })
+  failedQueue = []
+}
+
+/** Clears all admin token material and tells AdminAuthContext the session is gone. */
+function expireAdminSession(): void {
+  clearStoredAdminToken()
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ADMIN_SESSION_EXPIRED'))
+  }
+}
+
+/**
+ * Exchanges the stored admin refresh token for a new session. Uses a bare axios.post (no auth
+ * header — the stored access token is expired — and adminClient's own interceptors never run
+ * here), mirroring {@link adminLogin} and {@link verifyAdminLoginOtp}.
+ */
+async function refreshAdminSession(): Promise<AdminLoginResponse> {
+  const refreshToken = getStoredAdminRefreshToken()
+
+  if (!refreshToken) throw new Error('No admin refresh token')
+
+  const { data } = await axios.post<AdminLoginResponse>(
+    `${ADMIN_API_BASE}/auth/refresh`,
+    { refreshToken }
+  )
+
+  if (!data.accessToken) throw new Error('Admin refresh returned no access token')
+
+  setStoredAdminToken(data.accessToken)
+  if (data.refreshToken) setStoredAdminRefreshToken(data.refreshToken)
+
+  return data
+}
+
 adminClient.interceptors.response.use(
   res => res,
-  error => {
+  async (error: AxiosError) => {
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
+
     // Only /api/v1/admin/** calls (the default baseURL) represent the admin's own session.
     // Calls that override baseURL to API_V1_BASE (e.g. getSystemNotifications) hit tenant-scoped
     // endpoints outside AdminJwtAuthenticationFilter's scope and will always 401 for an admin
     // token — that's a misrouted-request error, not proof the admin's session has expired.
-    const isAdminScopedRequest = (error.config?.baseURL ?? ADMIN_API_BASE) === ADMIN_API_BASE
+    const isAdminScopedRequest = (originalRequest?.baseURL ?? ADMIN_API_BASE) === ADMIN_API_BASE
 
-    if (error.response?.status === 401 && isAdminScopedRequest) {
-      clearStoredAdminToken()
+    if (error.response?.status === 401 && isAdminScopedRequest && !originalRequest?._retry) {
+      // No refresh token → the session cannot be recovered; treat it as a hard expiry.
+      if (!getStoredAdminRefreshToken()) {
+        expireAdminSession()
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('ADMIN_SESSION_EXPIRED'))
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        // Queue until the in-flight refresh completes. Queued requests replay on success and
+        // settle to a never-resolving promise on failure (the redirect is already in flight).
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(
+          () => adminClient(originalRequest!),
+          () => new Promise(() => {})
+        )
+      }
+
+      isRefreshing = true
+
+      try {
+        const data = await refreshAdminSession()
+
+        originalRequest!.headers.Authorization = `Bearer ${data.accessToken}`
+        originalRequest!._retry = true
+
+        processQueue(null)
+
+        return adminClient(originalRequest!)
+      } catch (refreshError) {
+        processQueue(refreshError)
+        expireAdminSession()
+
+        // Never-settle: the redirect is in flight and will unmount the admin console.
+        return new Promise(() => {})
+      } finally {
+        isRefreshing = false
       }
     }
 
-
-return Promise.reject(error)
+    return Promise.reject(error)
   }
 )
 
@@ -243,6 +336,7 @@ export async function adminLogin(email: string, password: string): Promise<Admin
   if (isOtpChallenge(res.data)) return res.data
 
   setStoredAdminToken(res.data.accessToken)
+  if (res.data.refreshToken) setStoredAdminRefreshToken(res.data.refreshToken)
 
 return res.data
 }
@@ -262,6 +356,7 @@ export async function verifyAdminLoginOtp(
   )
 
   setStoredAdminToken(res.data.accessToken)
+  if (res.data.refreshToken) setStoredAdminRefreshToken(res.data.refreshToken)
 
   return res.data
 }

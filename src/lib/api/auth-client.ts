@@ -60,6 +60,7 @@ export interface VerifyOtpResponse {
 /** Response from POST /auth/signup/complete — mirrors OnboardingResponseDto */
 export interface SignupResponse {
   token: string
+  refreshToken: string
   expiresIn: number
   tenantId: string
   tenantName: string
@@ -362,7 +363,7 @@ export async function signupComplete(
     })
 
     // Store the tenant-scoped token so middleware allows dashboard navigation.
-    setStoredTokens(response.data.token, '')
+    setStoredTokens(response.data.token, response.data.refreshToken)
     setStoredTenantId(response.data.tenantId)
 
     return { success: true, data: response.data }

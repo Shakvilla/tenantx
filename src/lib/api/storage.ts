@@ -9,6 +9,20 @@ const TENANT_ID_KEY = 'tenant_id'
 const USER_ROLE_KEY = 'user_role'
 const USER_TYPE_KEY = 'user_type'
 
+/**
+ * Session-cookie lifetime (seconds). The `auth_token` / `tenant_id` cookies are middleware's
+ * "does this browser have a session" signal, so they must live as long as the SESSION — the
+ * refresh token (`security.jwt.refresh-expiration` = 7 days) — NOT the short-lived access token.
+ *
+ * Tying them to the access token (the old `maxAgeForToken` behaviour) made the cookie expire at
+ * the same instant the 15-minute access token expired, so middleware redirected an active user to
+ * /login on the next navigation before the axios interceptor could run its 401 → refresh flow.
+ *
+ * Each successful refresh re-issues this cookie via `setStoredTokens`, so the 7-day window slides
+ * forward with activity, up to the backend's 30-day absolute cap.
+ */
+const SESSION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7 // 604800s
+
 /** Returns true only if the string has exactly the header.payload.signature structure of a JWT */
 function isValidJwt(value: string | null | undefined): value is string {
   return typeof value === 'string' && value.split('.').length === 3
@@ -37,6 +51,11 @@ function decodeJwtExpiry(token: string): number | null {
  * Cookie max-age (seconds) that matches the token's real expiry, with a 60s floor and a 24h fallback.
  * Exported so admin-storage sizes its cookie the same way (AUTH-L7-04: the admin cookie was a fixed
  * 86400s against a 900s token — a 96× overrun with no refresh flow to renew it).
+ *
+ * NOTE: This is now admin-only. Tenant-side cookies use SESSION_COOKIE_MAX_AGE_SECONDS (7 days)
+ * because the middleware gates navigation on cookie presence, and the axios interceptor needs the
+ * cookie to survive until a 401 triggers a refresh. Tying the cookie to the 15-min access token
+ * caused sessions to hard-cap at 15 min even with a valid 7-day refresh token.
  */
 export function maxAgeForToken(token: string): number {
   const exp = decodeJwtExpiry(token)
@@ -137,16 +156,18 @@ export function setStoredTokens(token: string, refreshToken: string): void {
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)
 
-  const maxAge = maxAgeForToken(token)
+  // Cookie lifetime must match the SESSION (refresh token = 7 days), not the access token (15 min).
+  // The cookie is middleware's "is this browser logged in?" signal — if it expires at the same
+  // instant as the access token, middleware redirects to /login before the axios 401 → refresh
+  // interceptor can fire. Each successful refresh re-issues this cookie, sliding the 7-day window.
+  setCookie(TOKEN_KEY, token, SESSION_COOKIE_MAX_AGE_SECONDS)
 
-  setCookie(TOKEN_KEY, token, maxAge)
-
-  // Also refresh the tenant_id cookie if it exists, matching the token's real expiry —
-  // both cookies gate middleware auth together, so they must expire together too.
+  // Also refresh the tenant_id cookie if it exists — both cookies gate middleware auth together,
+  // so they must live as long as the session too.
   const currentTenantId = getStoredTenantId()
 
   if (currentTenantId) {
-    setCookie(TENANT_ID_KEY, currentTenantId, maxAge)
+    setCookie(TENANT_ID_KEY, currentTenantId, SESSION_COOKIE_MAX_AGE_SECONDS)
   }
 }
 
@@ -154,11 +175,9 @@ export function setStoredTenantId(tenantId: string): void {
   if (typeof window === 'undefined') return
   localStorage.setItem(TENANT_ID_KEY, tenantId)
 
-  // Match whatever token is currently stored so both cookies expire together —
-  // falls back to the default if no token is available yet (e.g. called before login completes).
-  const currentToken = getStoredToken()
-
-  setCookie(TENANT_ID_KEY, tenantId, currentToken ? maxAgeForToken(currentToken) : undefined)
+  // Session-cookie lifetime: 7 days, matching the refresh token — not the 15-min access token.
+  // See SESSION_COOKIE_MAX_AGE_SECONDS comment for rationale.
+  setCookie(TENANT_ID_KEY, tenantId, SESSION_COOKIE_MAX_AGE_SECONDS)
 }
 
 export function getStoredUserRole(): string {
