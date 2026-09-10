@@ -472,7 +472,7 @@ const OccupantsListTable = () => {
                   setGlobalFilter(e.target.value)
                   setPage(0)
                 }}
-                className='w-full sm:min-w-[200px]'
+                className='flex-1 min-w-0 sm:min-w-[200px]'
               />
 
               <div className='flex items-center gap-2 sm:ml-auto'>

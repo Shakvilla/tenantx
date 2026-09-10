@@ -217,7 +217,7 @@ const MaintenanceRequestsTable = () => {
             placeholder='Search requests'
             value={globalFilter}
             onChange={e => setGlobalFilter(e.target.value)}
-            className='is-full sm:is-[200px]'
+            className='flex-1 min-w-0 sm:min-w-[200px]'
           />
           <TextField
             select

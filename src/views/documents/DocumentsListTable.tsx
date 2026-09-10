@@ -429,7 +429,7 @@ const DocumentsListTable = () => {
                 value={search}
                 onChange={v => changeFilter(setSearch)(String(v))}
                 placeholder='Search…'
-                className='min-is-[220px]'
+                className='flex-1 min-w-0 min-is-[220px]'
               />
               <Button
                 variant='contained'

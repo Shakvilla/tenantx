@@ -686,7 +686,7 @@ const LedgerTable = () => {
               placeholder='Search by description, occupant, invoice…'
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className='flex-1 sm:min-w-[200px]'
+              className='flex-1 min-w-0 sm:min-w-[200px]'
               slotProps={{
                 input: {
                   endAdornment: (

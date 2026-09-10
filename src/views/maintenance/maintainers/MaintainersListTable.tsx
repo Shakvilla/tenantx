@@ -329,7 +329,7 @@ return <Chip variant='tonal' label={s} size='small' color={STATUS_COLORS[s] ?? '
                 </Select>
               </FormControl>
             </div>
-            <DebouncedInput value={globalFilter ?? ''} onChange={v => setGlobalFilter(String(v))} placeholder='Search maintainers...' className='sm:is-auto min-is-[200px]' />
+            <DebouncedInput value={globalFilter ?? ''} onChange={v => setGlobalFilter(String(v))} placeholder='Search maintainers...' className='flex-1 min-w-0 sm:is-auto min-is-[200px]' />
           </div>
 
           <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>

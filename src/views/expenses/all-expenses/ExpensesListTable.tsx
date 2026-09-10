@@ -456,7 +456,7 @@ const ExpensesListTable = () => {
               value={globalFilter ?? ''}
               onChange={value => setGlobalFilter(String(value))}
               placeholder='Search:'
-              className='is-full sm:is-auto min-is-[200px]'
+              className='is-full sm:flex-1 min-w-0 min-is-[200px]'
             />
           </div>
 

@@ -486,10 +486,10 @@ const TenantsListTable = () => {
                   setGlobalFilter(e.target.value)
                   setPage(0)
                 }}
-                className='is-full sm:flex-1 sm:min-w-[200px]'
+                className='flex-1 min-w-0 sm:min-w-[200px]'
               />
 
-              <div className='flex items-center gap-2 flex-wrap sm:ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'

@@ -483,7 +483,7 @@ const InvoicesListTable = () => {
   return (
     <>
       <Card>
-        <CardContent className='flex justify-between flex-col sm:flex-row gap-4 flex-wrap items-start sm:items-center'>
+        <CardContent className='flex justify-between flex-col sm:flex-row gap-4 items-start sm:items-center'>
           <div className='flex items-center gap-2'>
             <Button
               variant='contained'
@@ -515,7 +515,7 @@ const InvoicesListTable = () => {
               value={globalFilter ?? ''}
               onChange={value => setGlobalFilter(String(value))}
               placeholder='Search Invoice'
-              className='max-sm:is-full min-is-[250px]'
+              className='flex-1 min-w-0 max-sm:is-full min-is-[250px]'
             />
             <FormControl fullWidth size='small' className='max-sm:is-full min-is-[175px]'>
               <InputLabel id='status-select'>Invoice Status</InputLabel>

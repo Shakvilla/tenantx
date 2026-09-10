@@ -578,7 +578,7 @@ const PropertiesListTable = () => {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className='w-full sm:min-w-[200px]'
+                className='flex-1 min-w-0 sm:min-w-[200px]'
                   slotProps={{
                     input: {
                       endAdornment: (
@@ -592,7 +592,7 @@ const PropertiesListTable = () => {
                   }}
               />
 
-              <div className='flex items-center gap-2 flex-wrap sm:ml-auto'>
+              <div className='flex items-center gap-2 sm:ml-auto'>
                 <TextField
                   select
                   size='small'

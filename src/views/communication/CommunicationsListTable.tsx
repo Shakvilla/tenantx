@@ -530,7 +530,7 @@ return <Chip variant='tonal' label={row.original.status} size='small' color={cfg
               value={globalFilter ?? ''}
               onChange={value => setGlobalFilter(String(value))}
               placeholder='Search:'
-              className='sm:is-auto min-is-[200px]'
+              className='flex-1 min-w-0 sm:is-auto min-is-[200px]'
             />
           </div>
 

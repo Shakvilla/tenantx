@@ -354,7 +354,7 @@ const CustomersListTable = ({ tableData }: { tableData?: CustomerType[] }) => {
         <CardContent className='flex flex-col gap-4'>
           {/* Export Buttons and Search */}
           <div className='flex justify-between gap-4 flex-col items-start sm:flex-row sm:items-center'>
-            <div className='flex items-center gap-2 flex-wrap'>
+            <div className='flex items-center gap-2'>
               <Button variant='contained' color='primary' size='small' onClick={() => handleExport('copy')}>
                 Copy
               </Button>
@@ -376,7 +376,7 @@ const CustomersListTable = ({ tableData }: { tableData?: CustomerType[] }) => {
                 value={globalFilter ?? ''}
                 onChange={value => setGlobalFilter(String(value))}
                 placeholder='Search:'
-                className='sm:is-auto min-is-[200px]'
+                className='flex-1 min-w-0 sm:is-auto min-is-[200px]'
               />
               <Button
                 variant='contained'

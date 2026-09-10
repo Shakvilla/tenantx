@@ -157,13 +157,13 @@ const TenantsTable = () => {
       <CardHeader
         title='Recent Occupants'
         action={
-          <div className='flex flex-wrap items-center gap-2'>
+          <div className='flex items-center gap-2'>
             <TextField
               size='small'
               placeholder='Search'
               value={globalFilter}
               onChange={e => setGlobalFilter(e.target.value)}
-              className='is-full sm:is-[200px]'
+              className='flex-1 min-w-0 is-full sm:is-[200px]'
             />
             <Link
               href='/occupants'
