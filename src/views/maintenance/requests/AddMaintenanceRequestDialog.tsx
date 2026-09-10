@@ -51,9 +51,7 @@ import type { Property, Unit } from '@/types/property'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/image-urls'
+import { useStorageUrls } from '@/hooks/useStorageUrls'
 
 // ─── Styled Components ────────────────────────────────────────────────────────
 
@@ -143,6 +141,9 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
   const [newImages, setNewImages] = useState<NewImageItem[]>([])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Resolve stored image URLs (ImageKit transforms + MEGA/S4 presigned).
+  const resolvedExistingImages = useStorageUrls(existingImages)
 
   // Dropdown data
   const [properties, setProperties] = useState<Property[]>([])
@@ -749,7 +750,7 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
                     <ImagePreviewCard key={`existing-${idx}`}>
                       <Box
                         component='img'
-                        src={ikUrl(url, IK_THUMB)}
+                        src={resolvedExistingImages[url] || url}
                         alt={`Image ${idx + 1}`}
                         sx={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
                       />

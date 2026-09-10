@@ -11,7 +11,6 @@ import MenuItem from '@mui/material/MenuItem'
 import Button from '@mui/material/Button'
 import TablePagination from '@mui/material/TablePagination'
 import Chip from '@mui/material/Chip'
-import Avatar from '@mui/material/Avatar'
 import Skeleton from '@mui/material/Skeleton'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
@@ -19,6 +18,7 @@ import type { TextFieldProps } from '@mui/material/TextField'
 import IconButton from '@mui/material/IconButton'
 import { useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 import classnames from 'classnames'
 import { rankItem } from '@tanstack/match-sorter-utils'
@@ -309,9 +309,9 @@ const DocumentsListTable = () => {
       header: 'Tenant',
       cell: ({ row }) => (
         <div className='flex items-center gap-3'>
-          <Avatar src={row.original.tenantAvatar} sx={{ width: 30, height: 30 }}>
+          <StorageAvatar src={row.original.tenantAvatar} sx={{ width: 30, height: 30 }}>
             {row.original.tenantName?.charAt(0) ?? '?'}
-          </Avatar>
+          </StorageAvatar>
           <Typography color='text.primary'>{row.original.tenantName || '-'}</Typography>
         </div>
       )

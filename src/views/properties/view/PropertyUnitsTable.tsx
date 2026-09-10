@@ -13,7 +13,6 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
-import Avatar from '@mui/material/Avatar'
 import IconButton from '@mui/material/IconButton'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import type { Theme } from '@mui/material/styles'
@@ -51,9 +50,6 @@ import { formatCurrency } from '@/utils/currency'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
@@ -280,13 +276,13 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar
+            <StorageAvatar
               variant='rounded'
               sx={{ width: 34, height: 34 }}
-              src={ikUrl(row.original.images?.[0], IK_THUMB) || undefined}
+              src={row.original.images?.[0]}
             >
               <i className='ri-home-3-line text-base' />
-            </Avatar>
+            </StorageAvatar>
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>
                 {row.original.unitNumber}
@@ -442,13 +438,13 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
                     <CardContent className='flex flex-col gap-3'>
                       <div className='flex items-center justify-between gap-3'>
                         <div className='flex items-center gap-3 min-w-0'>
-                          <Avatar
+                          <StorageAvatar
                             variant='rounded'
                             sx={{ width: 38, height: 38, flexShrink: 0 }}
-                            src={ikUrl(unit.images?.[0], IK_THUMB) || undefined}
+                            src={unit.images?.[0]}
                           >
                             <i className='ri-home-3-line text-base' />
-                          </Avatar>
+                          </StorageAvatar>
                           <div className='min-w-0'>
                             <Typography color='text.primary' className='font-medium truncate'>
                               {unit.unitNumber}

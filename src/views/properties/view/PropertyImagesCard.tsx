@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -13,51 +13,11 @@ import Grid from '@mui/material/Grid2'
 
 // ImageKit does not serve original files on this account.
 import { ikUrl, IK_FULL, IK_THUMB } from '@/lib/image-urls'
-import { useStorageUrl } from '@/hooks/useStorageUrl'
+import { useStorageUrls } from '@/hooks/useStorageUrls'
 
 type PropertyData = {
   images: string[]
   thumbnailIndex: number
-}
-
-/**
- * Batch-resolve an array of raw stored paths to presigned URLs.
- * Returns a map of original path → resolved URL.
- */
-function useStorageUrls(paths: string[]): Record<string, string> {
-  const [resolved, setResolved] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    if (!paths.length) return
-
-    let cancelled = false
-
-    // Resolve each path via the backend presigned-URL endpoint
-    Promise.all(
-      paths.map(async path => {
-        try {
-          // Skip ImageKit URLs — they work as-is
-          if (path.includes('imagekit.io')) return [path, path] as const
-
-          const { getDownloadUrl } = await import('@/lib/storage')
-          const url = await getDownloadUrl(path)
-          return [path, url] as const
-        } catch {
-          return [path, path] as const
-        }
-      })
-    ).then(results => {
-      if (!cancelled) {
-        setResolved(Object.fromEntries(results))
-      }
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [paths.join(',')])
-
-  return resolved
 }
 
 const PropertyImagesCard = ({ propertyData }: { propertyData?: PropertyData }) => {

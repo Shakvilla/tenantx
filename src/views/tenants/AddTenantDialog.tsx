@@ -21,9 +21,9 @@ import Accordion from '@mui/material/Accordion'
 import AccordionSummary from '@mui/material/AccordionSummary'
 import AccordionDetails from '@mui/material/AccordionDetails'
 import Box from '@mui/material/Box'
-import Avatar from '@mui/material/Avatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // API Imports
 import {
@@ -703,7 +703,7 @@ const AddTenantDialog = ({
                   <Box className='flex items-center gap-4'>
                     {previewImages.tenantPicture ? (
                       <>
-                        <Avatar
+                        <StorageAvatar
                           src={previewImages.tenantPicture}
                           sx={{ width: 100, height: 100 }}
                           onClick={() => tenantPictureRef.current?.click()}

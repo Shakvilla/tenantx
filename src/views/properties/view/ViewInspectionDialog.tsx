@@ -11,7 +11,7 @@
  *  - Print / PDF export via window.print() with a dedicated @media print stylesheet
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -39,8 +39,8 @@ import type {
   InspectionStatus,
 } from '@/types/inspection'
 
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/image-urls'
+// Resolves presigned URLs for MEGA S4/S3 and applies ImageKit transforms.
+import { useStorageUrls } from '@/hooks/useStorageUrls'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,6 +162,13 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
 
   const roomGroups = data ? groupByRoom(data.items) : new Map<InspectionRoom, InspectionItemResponse[]>()
 
+  // Resolve every photo URL in the report once (ImageKit transforms + MEGA/S4 presigned).
+  const allPhotoUrls = useMemo(
+    () => (data ? data.items.flatMap(item => item.photoUrls ?? []) : []),
+    [data]
+  )
+  const resolvedPhotos = useStorageUrls(allPhotoUrls)
+
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth>
@@ -272,24 +279,28 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
                       {/* Photo grid */}
                       {item.photoUrls?.length > 0 && (
                         <Box className='flex flex-wrap gap-2 mbs-1'>
-                          {item.photoUrls.map((url, idx) => (
-                            <Box
-                              key={idx}
-                              component='img'
-                              src={ikUrl(url, IK_CARD)}
-                              alt={`photo-${idx + 1}`}
-                              sx={{
-                                width: 80, height: 60,
-                                borderRadius: 1,
-                                objectFit: 'cover',
-                                cursor: 'pointer',
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                '&:hover': { opacity: 0.85 },
-                              }}
-                              onClick={() => window.open(url, '_blank')}
-                            />
-                          ))}
+                          {item.photoUrls.map((url, idx) => {
+                            const resolved = resolvedPhotos[url] || url
+
+                            return (
+                              <Box
+                                key={idx}
+                                component='img'
+                                src={resolved}
+                                alt={`photo-${idx + 1}`}
+                                sx={{
+                                  width: 80, height: 60,
+                                  borderRadius: 1,
+                                  objectFit: 'cover',
+                                  cursor: 'pointer',
+                                  border: '1px solid',
+                                  borderColor: 'divider',
+                                  '&:hover': { opacity: 0.85 },
+                                }}
+                                onClick={() => window.open(resolved, '_blank')}
+                              />
+                            )
+                          })}
                         </Box>
                       )}
 

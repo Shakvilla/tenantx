@@ -38,7 +38,7 @@ import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
 import { getStoredTenantId } from '@/lib/api/storage'
 
 // Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
+import { StorageCustomAvatar } from '@/components/StorageCustomAvatar'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -81,9 +81,9 @@ const TenantsTable = () => {
         return (
           <Link href={`/occupants/${row.original.id}`} style={{ textDecoration: 'none' }}>
             <div className='flex items-center gap-3'>
-              <CustomAvatar skin='light' size={34} src={row.original.avatar || undefined}>
+              <StorageCustomAvatar skin='light' size={34} src={row.original.avatar || undefined}>
                 {!row.original.avatar ? getInitials(fullName) : undefined}
-              </CustomAvatar>
+              </StorageCustomAvatar>
               <div>
                 <Typography color='text.primary' className='font-medium hover:text-primary'>
                   {fullName}
@@ -202,9 +202,9 @@ const TenantsTable = () => {
                     <div className='flex items-center justify-between gap-3'>
                       <Link href={`/occupants/${o.id}`} style={{ textDecoration: 'none' }} className='min-w-0'>
                         <div className='flex items-center gap-3'>
-                          <CustomAvatar skin='light' size={34} src={o.avatar || undefined}>
+                          <StorageCustomAvatar skin='light' size={34} src={o.avatar || undefined}>
                             {!o.avatar ? getInitials(fullName) : undefined}
-                          </CustomAvatar>
+                          </StorageCustomAvatar>
                           <div className='min-w-0'>
                             <Typography color='text.primary' className='font-medium truncate'>
                               {fullName}

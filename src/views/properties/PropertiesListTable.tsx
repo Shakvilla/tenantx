@@ -19,7 +19,6 @@ import MenuItem from '@mui/material/MenuItem'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
-import Avatar from '@mui/material/Avatar'
 import { StorageAvatar } from '@/components/StorageAvatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
@@ -66,9 +65,6 @@ import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -316,10 +312,10 @@ const PropertiesListTable = () => {
         header: 'PROPERTY NAME',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar
+            <StorageAvatar
               variant='rounded'
               sx={{ width: 30, height: 30 }}
-              src={ikUrl(row.original.images?.[row.original.thumbnailIndex ?? 0], IK_THUMB)}
+              src={row.original.images?.[row.original.thumbnailIndex ?? 0]}
             />
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>
@@ -659,10 +655,10 @@ const PropertiesListTable = () => {
                       <CardContent className='flex flex-col gap-3'>
                         <div className='flex items-start justify-between gap-3'>
                           <div className='flex items-center gap-3 min-w-0'>
-                            <Avatar
+                            <StorageAvatar
                               variant='rounded'
                               sx={{ width: 38, height: 38, flexShrink: 0 }}
-                              src={ikUrl(p.images?.[p.thumbnailIndex ?? 0], IK_THUMB)}
+                              src={p.images?.[p.thumbnailIndex ?? 0]}
                             />
                             <div className='min-w-0'>
                               <Typography color='text.primary' className='font-medium truncate'>

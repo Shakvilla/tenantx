@@ -16,9 +16,9 @@ import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
-import Avatar from '@mui/material/Avatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -175,7 +175,7 @@ const TenantsHistoryTable = () => {
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
             {row.original.avatar ? (
-              <Avatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
+              <StorageAvatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
             ) : (
               <CustomAvatar skin='light' color='primary' size={34}>
                 {getInitials(row.original.name)}

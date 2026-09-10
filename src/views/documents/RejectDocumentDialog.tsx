@@ -14,15 +14,12 @@ import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
-import Avatar from '@mui/material/Avatar'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 
 // Type Imports
 import type { DocumentType } from '@/types/documents/documentTypes'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/image-urls'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 type RejectDocumentDialogProps = {
   open: boolean
@@ -82,9 +79,9 @@ return
           <Grid size={{ xs: 12, sm: 6 }}>
             <Card className='relative'>
               <Box className='relative'>
-                <Avatar
+                <StorageAvatar
                   variant='rounded'
-                  src={ikUrl(documentData.documentImage, IK_CARD)}
+                  src={documentData.documentImage}
                   alt={documentData.documentType}
                   sx={{
                     width: '100%',
@@ -94,7 +91,7 @@ return
                   }}
                 >
                   <i className='ri-file-line text-6xl' />
-                </Avatar>
+                </StorageAvatar>
                 <IconButton
                   className='absolute top-2 right-2'
                   sx={{
@@ -114,7 +111,7 @@ return
           <Grid size={{ xs: 12, sm: 6 }}>
             <Card className='relative'>
               <Box className='relative'>
-                <Avatar
+                <StorageAvatar
                   variant='rounded'
                   src={documentData.tenantAvatar || documentData.documentImage}
                   alt='Additional Document'
@@ -126,7 +123,7 @@ return
                   }}
                 >
                   <i className='ri-file-line text-6xl' />
-                </Avatar>
+                </StorageAvatar>
                 <IconButton
                   className='absolute top-2 right-2'
                   sx={{

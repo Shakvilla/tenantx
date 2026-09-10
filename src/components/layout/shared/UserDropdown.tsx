@@ -10,7 +10,6 @@ import { useRouter } from 'next/navigation'
 // MUI Imports
 import { styled } from '@mui/material/styles'
 import Badge from '@mui/material/Badge'
-import Avatar from '@mui/material/Avatar'
 import Popper from '@mui/material/Popper'
 import Fade from '@mui/material/Fade'
 import Paper from '@mui/material/Paper'
@@ -20,6 +19,7 @@ import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import MenuItem from '@mui/material/MenuItem'
 import Button from '@mui/material/Button'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Hook Imports
 import { useSettings } from '@core/hooks/useSettings'
@@ -82,7 +82,7 @@ const UserDropdown = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         className='mis-2'
       >
-        <Avatar
+        <StorageAvatar
           ref={anchorRef}
           alt={userName}
           src={userAvatar}
@@ -119,7 +119,7 @@ const UserDropdown = () => {
               <ClickAwayListener onClickAway={e => handleDropdownClose(e as MouseEvent | TouchEvent)}>
                 <MenuList>
                   <div className='flex items-center plb-2 pli-4 gap-2' tabIndex={-1}>
-                    <Avatar alt={userName} src={userAvatar} />
+                    <StorageAvatar alt={userName} src={userAvatar} />
                     <div className='flex items-start flex-col'>
                       <Typography variant='body2' className='font-medium' color='text.primary'>
                         {userName}

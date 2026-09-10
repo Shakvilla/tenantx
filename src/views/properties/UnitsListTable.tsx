@@ -17,7 +17,6 @@ import TablePagination from '@mui/material/TablePagination'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import Avatar from '@mui/material/Avatar'
 import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third-party Imports
@@ -57,8 +56,6 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
 
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/image-urls'
 import { formatCurrency } from '@/utils/currency'
 import { unitTypeLabel } from '@/lib/units/unitTypeLabel'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
@@ -304,13 +301,13 @@ const UnitsListTable = () => {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar
+            <StorageAvatar
               variant='rounded'
               sx={{ width: 34, height: 34 }}
-              src={ikUrl(row.original.images?.[0], IK_THUMB) || undefined}
+              src={row.original.images?.[0]}
             >
               <i className='ri-home-3-line text-base' />
-            </Avatar>
+            </StorageAvatar>
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>
                 {row.original.unitNo}

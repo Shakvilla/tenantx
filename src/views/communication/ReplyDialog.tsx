@@ -22,7 +22,7 @@ import Chip from '@mui/material/Chip'
 import { createCommunication } from '@/lib/api/communications'
 
 // Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
+import { StorageCustomAvatar } from '@/components/StorageCustomAvatar'
 import CircularProgress from '@mui/material/CircularProgress'
 
 // Util Imports
@@ -154,9 +154,9 @@ return Object.keys(newErrors).length === 0
             </div>
             <Divider />
             <div className='flex items-center gap-3'>
-              <CustomAvatar src={communication.fromAvatar} skin='light' size={32}>
+              <StorageCustomAvatar src={communication.fromAvatar} skin='light' size={32}>
                 {getInitials(communication.from)}
-              </CustomAvatar>
+              </StorageCustomAvatar>
               <div className='flex flex-col'>
                 <Typography variant='body2' className='font-medium'>
                   {communication.from}
@@ -187,9 +187,9 @@ return Object.keys(newErrors).length === 0
               disabled
               InputProps={{
                 startAdornment: (
-                  <CustomAvatar src={communication.fromAvatar} skin='light' size={24} className='mie-2'>
+                  <StorageCustomAvatar src={communication.fromAvatar} skin='light' size={24} className='mie-2'>
                     {getInitials(communication.from)}
-                  </CustomAvatar>
+                  </StorageCustomAvatar>
                 )
               }}
             />

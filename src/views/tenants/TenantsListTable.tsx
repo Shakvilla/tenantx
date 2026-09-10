@@ -16,12 +16,12 @@ import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
-import Avatar from '@mui/material/Avatar'
 import IconButton from '@mui/material/IconButton'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import type { Theme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -283,7 +283,7 @@ const TenantsListTable = () => {
           return (
             <div className='flex items-center gap-3'>
               {row.original.avatar ? (
-                <Avatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
+                <StorageAvatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
               ) : (
                 <CustomAvatar skin='light' color='primary' size={34}>
                   {getInitials(fullName)}
@@ -543,7 +543,7 @@ const TenantsListTable = () => {
                         <div className='flex items-center justify-between gap-3'>
                           <div className='flex items-center gap-3 min-w-0'>
                             {t.avatar ? (
-                              <Avatar src={t.avatar} sx={{ width: 38, height: 38, flexShrink: 0 }} />
+                              <StorageAvatar src={t.avatar} sx={{ width: 38, height: 38, flexShrink: 0 }} />
                             ) : (
                               <CustomAvatar skin='light' color='primary' size={38}>
                                 {getInitials(fullName)}

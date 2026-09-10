@@ -22,11 +22,11 @@ import AccordionSummary from '@mui/material/AccordionSummary'
 import AccordionDetails from '@mui/material/AccordionDetails'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import Avatar from '@mui/material/Avatar'
 import Tooltip from '@mui/material/Tooltip'
 import Box from '@mui/material/Box'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import type { Theme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // API Imports
 import {
@@ -572,13 +572,13 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                   />
                   <Box className='flex items-center gap-4'>
                     <Tooltip title='Click to change photo' placement='top'>
-                      <Avatar
+                      <StorageAvatar
                         src={newAvatarPreview ?? existingAvatarUrl ?? undefined}
                         sx={{ width: 80, height: 80, cursor: 'pointer', border: '2px dashed', borderColor: 'divider' }}
                         onClick={() => avatarInputRef.current?.click()}
                       >
                         <i className='ri-user-3-line text-3xl' />
-                      </Avatar>
+                      </StorageAvatar>
                     </Tooltip>
                     <Box className='flex flex-col gap-2'>
                       <Typography variant='body2' color='text.primary' className='font-medium'>

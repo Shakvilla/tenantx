@@ -7,15 +7,12 @@ import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Box from '@mui/material/Box'
-import CardMedia from '@mui/material/CardMedia'
 import InputAdornment from '@mui/material/InputAdornment'
 
 // Component Imports
 import AdvanceRentSection from './AdvanceRentSection'
 import CautionFeeSection from './CautionFeeSection'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/image-urls'
+import { StorageCardMedia } from '@/components/StorageCardMedia'
 
 type TenantData = {
   id: string
@@ -44,9 +41,9 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
       <Grid size={{ xs: 12, md: 7 }}>
         <Card elevation={0}>
           {tenantData?.propertyImage ? (
-            <CardMedia
+            <StorageCardMedia
               component='img'
-              image={ikUrl(tenantData.propertyImage, IK_CARD)}
+              image={tenantData.propertyImage}
               alt={tenantData?.propertyName || 'Property'}
               sx={{ height: 500, objectFit: 'cover' }}
             />

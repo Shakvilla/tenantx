@@ -18,12 +18,12 @@ import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import Tooltip from '@mui/material/Tooltip'
 import Divider from '@mui/material/Divider'
-import Avatar from '@mui/material/Avatar'
 import Skeleton from '@mui/material/Skeleton'
 import Box from '@mui/material/Box'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import Button from '@mui/material/Button'
 import type { Theme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third Party Components
 import classnames from 'classnames'
@@ -177,7 +177,7 @@ const getAvatar = (
   const { avatarImage, avatarIcon, avatarText, title, avatarColor, avatarSkin } = params
 
   if (avatarImage) {
-    return <Avatar src={avatarImage} />
+    return <StorageAvatar src={avatarImage} />
   } else if (avatarIcon) {
     return (
       <CustomAvatar color={avatarColor} skin={avatarSkin || 'light-static'}>

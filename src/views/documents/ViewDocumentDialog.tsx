@@ -10,7 +10,6 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import IconButton from '@mui/material/IconButton'
 import Typography from '@mui/material/Typography'
-import Avatar from '@mui/material/Avatar'
 import Button from '@mui/material/Button'
 import Tooltip from '@mui/material/Tooltip'
 import Grid from '@mui/material/Grid2'
@@ -18,6 +17,7 @@ import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CircularProgress from '@mui/material/CircularProgress'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Type Imports
 import type { DocumentType } from '@/types/documents/documentTypes'
@@ -105,7 +105,7 @@ const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogP
                       Tenant
                     </Typography>
                     <div className='flex items-center gap-2 mts-1'>
-                      <Avatar src={document.tenantAvatar} sx={{ width: 24, height: 24 }} />
+                      <StorageAvatar src={document.tenantAvatar} sx={{ width: 24, height: 24 }} />
                       <Typography variant='body1' className='font-medium'>
                         {document.tenantName}
                       </Typography>

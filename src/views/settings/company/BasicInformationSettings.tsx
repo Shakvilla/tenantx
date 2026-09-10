@@ -18,9 +18,9 @@ import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import Grid from '@mui/material/Grid2'
 import Button from '@mui/material/Button'
-import Avatar from '@mui/material/Avatar'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // API Imports
 import { companySettingsApi, contactSettingsApi, CONTACT_PHONE_PATTERN } from '@/lib/api/settings'
@@ -306,9 +306,9 @@ const BasicInformationSettings = () => {
               Company Logo
             </Typography>
             <div className='flex items-center gap-4'>
-              <Avatar src={logo || undefined} alt='Company Logo' sx={{ width: 80, height: 80 }}>
+              <StorageAvatar src={logo || undefined} alt='Company Logo' sx={{ width: 80, height: 80 }}>
                 <i className='ri-building-line text-4xl' />
-              </Avatar>
+              </StorageAvatar>
               <div>
                 <input
                   accept='image/*'

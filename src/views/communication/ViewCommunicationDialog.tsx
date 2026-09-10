@@ -18,7 +18,7 @@ import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 
 // Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
+import { StorageCustomAvatar } from '@/components/StorageCustomAvatar'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -162,9 +162,9 @@ const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSend
                   From
                 </Typography>
                 <div className='flex items-center gap-3'>
-                  <CustomAvatar src={communication.fromAvatar} skin='light' size={40}>
+                  <StorageCustomAvatar src={communication.fromAvatar} skin='light' size={40}>
                     {getInitials(communication.from)}
-                  </CustomAvatar>
+                  </StorageCustomAvatar>
                   <Typography variant='body1' className='font-medium'>
                     {communication.from}
                   </Typography>
@@ -175,9 +175,9 @@ const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSend
                   To
                 </Typography>
                 <div className='flex items-center gap-3'>
-                  <CustomAvatar src={communication.toAvatar} skin='light' size={40}>
+                  <StorageCustomAvatar src={communication.toAvatar} skin='light' size={40}>
                     {getInitials(communication.to)}
-                  </CustomAvatar>
+                  </StorageCustomAvatar>
                   <Typography variant='body1' className='font-medium'>
                     {communication.to}
                   </Typography>

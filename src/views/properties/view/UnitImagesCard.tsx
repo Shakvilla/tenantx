@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 // MUI Imports
 import Card from '@mui/material/Card'
@@ -13,37 +13,10 @@ import Grid from '@mui/material/Grid2'
 
 // ImageKit does not serve original files on this account.
 import { ikUrl, IK_FULL, IK_THUMB } from '@/lib/image-urls'
-import { getDownloadUrl } from '@/lib/storage'
+import { useStorageUrls } from '@/hooks/useStorageUrls'
 
 type UnitViewData = {
   images: string[]
-}
-
-function useStorageUrls(paths: string[]): Record<string, string> {
-  const [resolved, setResolved] = useState<Record<string, string>>({})
-
-  useEffect(() => {
-    if (!paths.length) return
-    let cancelled = false
-
-    Promise.all(
-      paths.map(async path => {
-        try {
-          if (path.includes('imagekit.io')) return [path, path] as const
-          const url = await getDownloadUrl(path)
-          return [path, url] as const
-        } catch {
-          return [path, path] as const
-        }
-      })
-    ).then(results => {
-      if (!cancelled) setResolved(Object.fromEntries(results))
-    })
-
-    return () => { cancelled = true }
-  }, [paths.join(',')])
-
-  return resolved
 }
 
 const UnitImagesCard = ({ unitData }: { unitData?: UnitViewData }) => {
