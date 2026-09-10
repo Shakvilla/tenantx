@@ -96,7 +96,14 @@ const UserDropdown = () => {
         disablePortal
         placement='bottom-end'
         anchorEl={anchorRef.current}
-        className='min-is-[240px] !mbs-4 z-[1]'
+        className='!mbs-4 z-[1]'
+        sx={{
+          minWidth: {
+            // Clamped so a 240px floor can never push past the viewport on small screens.
+            xs: 'min(240px, calc(100vw - 32px))',
+            sm: 240
+          }
+        }}
       >
         {({ TransitionProps, placement }) => (
           <Fade

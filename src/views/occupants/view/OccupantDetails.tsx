@@ -136,25 +136,25 @@ const OccupantDetails = ({
               {occupiedUnits.map((unit, index) => (
                 <div key={unit.id}>
                   <Grid container spacing={4} alignItems='center'>
-                    <Grid size={{ xs: 6, sm: 3 }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                       <Typography variant='body2' color='text.secondary'>
                         Unit No
                       </Typography>
                       <Typography variant='h6'>{unit.unitNo || '-'}</Typography>
                     </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                       <Typography variant='body2' color='text.secondary'>
                         Property
                       </Typography>
                       <Typography variant='h6'>{unit.propertyName || '-'}</Typography>
                     </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                       <Typography variant='body2' color='text.secondary'>
                         Rent
                       </Typography>
                       <Typography variant='h6'>{formatUnitRent(unit)}</Typography>
                     </Grid>
-                    <Grid size={{ xs: 6, sm: 3 }}>
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                       <Typography variant='body2' color='text.secondary'>
                         Status
                       </Typography>
@@ -176,7 +176,7 @@ const OccupantDetails = ({
       )}
       <Grid size={{ xs: 12 }} className='flex flex-col gap-6'>
         <TabContext value={activeTab}>
-          <CustomTabList onChange={handleChange} variant='scrollable' pill='true'>
+          <CustomTabList onChange={handleChange} variant='scrollable' scrollButtons='auto' pill='true'>
             <Tab
               icon={<i className='ri-user-3-line' />}
               value='profile'

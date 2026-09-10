@@ -17,7 +17,10 @@ import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import IconButton from '@mui/material/IconButton'
 import TablePagination from '@mui/material/TablePagination'
+import Box from '@mui/material/Box'
 import type { TextFieldProps } from '@mui/material/TextField'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -177,6 +180,9 @@ const sampleCustomers: CustomerType[] = [
 ]
 
 const CustomersListTable = ({ tableData }: { tableData?: CustomerType[] }) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // States
   const [rowSelection, setRowSelection] = useState({})
   const [data, setData] = useState(tableData || sampleCustomers)
@@ -384,7 +390,100 @@ const CustomersListTable = ({ tableData }: { tableData?: CustomerType[] }) => {
             </div>
           </div>
 
-          {/* Table */}
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            table.getFilteredRowModel().rows.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No data available</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table
+                  .getRowModel()
+                  .rows.slice(0, table.getState().pagination.pageSize)
+                  .map(row => {
+                    const c = row.original
+
+                    return (
+                      <Card key={row.id} variant='outlined'>
+                        <CardContent className='flex flex-col gap-3'>
+                          <div className='flex items-center justify-between gap-3'>
+                            <div className='flex items-center gap-3 min-w-0'>
+                              <CustomAvatar skin='light' color='primary' size={38}>
+                                {getInitials(c.name)}
+                              </CustomAvatar>
+                              <Typography color='text.primary' className='font-medium capitalize truncate'>
+                                {c.name}
+                              </Typography>
+                            </div>
+                            <Chip
+                              variant='tonal'
+                              label={c.status}
+                              size='small'
+                              color={customerStatusObj[c.status]}
+                              className='capitalize shrink-0'
+                            />
+                          </div>
+
+                          <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                            <div className='flex flex-col gap-0.5'>
+                              <Typography variant='caption' color='text.secondary'>Phone Number</Typography>
+                              <Typography variant='body2'>{c.phoneNumber}</Typography>
+                            </div>
+                            <div className='flex flex-col gap-0.5'>
+                              <Typography variant='caption' color='text.secondary'>USSD Code</Typography>
+                              <Typography variant='body2'>{c.ussdCode}</Typography>
+                            </div>
+                            <div className='flex flex-col gap-0.5'>
+                              <Typography variant='caption' color='text.secondary'>Agent</Typography>
+                              <Typography variant='body2'>{c.agent || '-'}</Typography>
+                            </div>
+                            <div className='flex flex-col gap-0.5'>
+                              <Typography variant='caption' color='text.secondary'>Rate</Typography>
+                              <Typography variant='body2'>{c.rate !== undefined ? c.rate : '-'}</Typography>
+                            </div>
+                            <div className='flex flex-col gap-0.5'>
+                              <Typography variant='caption' color='text.secondary'>Registration Date</Typography>
+                              <Typography variant='body2'>{c.registrationDate}</Typography>
+                            </div>
+                          </div>
+
+                          <div className='flex items-center gap-1 flex-wrap'>
+                            <IconButton size='small' title='View' sx={{ minWidth: 44, minHeight: 44 }}>
+                              <i className='ri-eye-line text-textSecondary' />
+                            </IconButton>
+                            <IconButton size='small' title='Edit' sx={{ minWidth: 44, minHeight: 44 }}>
+                              <i className='ri-pencil-line text-textSecondary' />
+                            </IconButton>
+                            <IconButton size='small' title='Change Agent' sx={{ minWidth: 44, minHeight: 44 }}>
+                              <i className='ri-user-add-line text-textSecondary' />
+                            </IconButton>
+                            <IconButton size='small' title='Accountss' sx={{ minWidth: 44, minHeight: 44 }}>
+                              <i className='ri-device-line text-textSecondary' />
+                            </IconButton>
+                            <IconButton
+                              size='small'
+                              title='Delete'
+                              className={classnames({
+                                'text-error': c.status === 'suspend'
+                              })}
+                              sx={{ minWidth: 44, minHeight: 44 }}
+                            >
+                              <i
+                                className={classnames('ri-user-unfollow-line', {
+                                  'text-error': c.status === 'suspend',
+                                  'text-textSecondary': c.status !== 'suspend'
+                                })}
+                              />
+                            </IconButton>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+              </div>
+            )
+          ) : (
           <div className='overflow-x-auto'>
             <table className={tableStyles.table}>
               <thead>
@@ -438,6 +537,7 @@ const CustomersListTable = ({ tableData }: { tableData?: CustomerType[] }) => {
               )}
             </table>
           </div>
+          )}
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'

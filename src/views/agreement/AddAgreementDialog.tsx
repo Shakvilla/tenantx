@@ -29,6 +29,8 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Skeleton from '@mui/material/Skeleton'
 import LinearProgress from '@mui/material/LinearProgress'
 import Link from '@mui/material/Link'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import { useDropzone } from 'react-dropzone'
@@ -165,6 +167,9 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
   const [expanded, setExpanded] = useState<string | false>('basic-info')
   const [submitting, setSubmitting] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
+
+  // Phones get the dialog as a full-screen sheet; tablets keep the floating dialog.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
 
   // Document upload state
   const [docFile, setDocFile] = useState<File | null>(null)
@@ -365,7 +370,7 @@ const AddAgreementDialog = ({ open, handleClose, editAgreement, onSaved }: Props
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{isEdit ? 'Edit Agreement' : 'Add Agreement'}</span>
         <IconButton size='small' onClick={handleReset} sx={{ color: 'warning.main' }}>

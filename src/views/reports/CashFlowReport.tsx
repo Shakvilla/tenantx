@@ -254,7 +254,7 @@ const CashFlowReport = () => {
     <FeatureGate feature='ADVANCED_REPORTS'>
       <Box ref={contentRef}>
         {/* Export controls row */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 5 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 2, mb: 5 }}>
           <ExportButtons
             title='Cash Flow Forecast'
             data={exportData}

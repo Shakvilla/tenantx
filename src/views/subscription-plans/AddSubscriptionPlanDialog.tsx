@@ -26,6 +26,8 @@ import Box from '@mui/material/Box'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Switch from '@mui/material/Switch'
 import Chip from '@mui/material/Chip'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Type Imports
 import type {
@@ -69,6 +71,9 @@ const AddSubscriptionPlanDialog = ({ open, handleClose, plansData, setData, edit
   const [errors, setErrors] = useState<Partial<Record<keyof PlanFormDataType, boolean>>>({})
   const [expanded, setExpanded] = useState<string | false>('basic-info')
   const [newFeature, setNewFeature] = useState('')
+
+  // Phones get the dialog as a full-screen sheet; tablets keep the floating dialog.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
 
   // Get initial form data based on mode
   const getInitialFormData = (): PlanFormDataType => {
@@ -231,7 +236,7 @@ return Object.keys(newErrors).length === 0
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Subscription Plan' : 'Add Subscription Plan'}</span>
         <IconButton size='small' onClick={handleReset}>

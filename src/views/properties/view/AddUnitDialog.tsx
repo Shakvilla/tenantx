@@ -23,6 +23,8 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import Chip from '@mui/material/Chip'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 // API Imports
 import { createUnit, updateUnit } from '@/lib/api/units'
@@ -47,6 +49,8 @@ interface Props {
 const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props) => {
   const isEdit = Boolean(editUnit)
   const { ref, policy } = useReferenceData()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   // Form state
   const [formData, setFormData] = useState({
@@ -522,25 +526,41 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
+      <DialogActions
+        sx={{
+          px: 3,
+          pb: 3,
+          pt: 2,
+          flexDirection: isMobile ? 'column-reverse' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? 1.5 : 0
+        }}
+      >
         {!isEdit && (
           <FormControlLabel
-            sx={{ mr: 'auto', ml: 1 }}
+            sx={{ mr: isMobile ? 0 : 'auto', ml: isMobile ? 0 : 1 }}
             control={<Checkbox size='small' checked={addAnother} onChange={e => setAddAnother(e.target.checked)} />}
             label={<Typography variant='body2'>Add another room</Typography>}
           />
         )}
-        <Button
-          variant='contained'
-          onClick={handleSubmit}
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} /> : null}
-        >
-          {isEdit ? 'Update Unit' : 'Add Unit'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1.5, width: isMobile ? '100%' : 'auto' }}>
+          <Button
+            onClick={onClose}
+            disabled={loading}
+            sx={{ flex: isMobile ? 1 : 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='contained'
+            onClick={handleSubmit}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
+            sx={{ flex: isMobile ? 1 : 'none' }}
+          >
+            {isEdit ? 'Update Unit' : 'Add Unit'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   )

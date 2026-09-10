@@ -9,12 +9,16 @@ import Link from 'next/link'
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
+import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Chip from '@mui/material/Chip'
+import Button from '@mui/material/Button'
 import TablePagination from '@mui/material/TablePagination'
 import Box from '@mui/material/Box'
 import Skeleton from '@mui/material/Skeleton'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -55,6 +59,8 @@ const TenantsTable = () => {
   const [occupants, setOccupants] = useState<OccupantRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [globalFilter, setGlobalFilter] = useState('')
+
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   useEffect(() => {
     const tenantId = getStoredTenantId()
@@ -178,6 +184,80 @@ const TenantsTable = () => {
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {[0, 1, 2, 3, 4].map(i => <Skeleton key={i} variant='rectangular' height={52} />)}
         </Box>
+      ) : isMobile ? (
+        table.getRowModel().rows.length === 0 ? (
+          <Box className='py-8 text-center'>
+            <Typography color='text.secondary'>No occupants found</Typography>
+          </Box>
+        ) : (
+          <div className='flex flex-col gap-3 p-4'>
+            {table.getRowModel().rows.map(row => {
+              const o = row.original
+              const fullName = `${o.firstName} ${o.lastName}`
+              const status = o.status ?? 'inactive'
+
+              return (
+                <Card key={row.id} variant='outlined'>
+                  <CardContent className='flex flex-col gap-3'>
+                    <div className='flex items-center justify-between gap-3'>
+                      <Link href={`/occupants/${o.id}`} style={{ textDecoration: 'none' }} className='min-w-0'>
+                        <div className='flex items-center gap-3'>
+                          <CustomAvatar skin='light' size={34} src={o.avatar || undefined}>
+                            {!o.avatar ? getInitials(fullName) : undefined}
+                          </CustomAvatar>
+                          <div className='min-w-0'>
+                            <Typography color='text.primary' className='font-medium truncate'>
+                              {fullName}
+                            </Typography>
+                            <Typography variant='body2' color='text.secondary' className='truncate'>
+                              {o.email}
+                            </Typography>
+                          </div>
+                        </div>
+                      </Link>
+                      <Chip
+                        variant='tonal'
+                        label={status}
+                        color={STATUS_COLOR[status] ?? 'secondary'}
+                        size='small'
+                        className='capitalize shrink-0'
+                      />
+                    </div>
+                    <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                      <div className='flex flex-col gap-0.5'>
+                        <Typography variant='caption' color='text.secondary'>Unit</Typography>
+                        <Typography variant='body2'>{o.unitNo ?? '-'}</Typography>
+                      </div>
+                      <div className='flex flex-col gap-0.5'>
+                        <Typography variant='caption' color='text.secondary'>Phone</Typography>
+                        <Typography variant='body2'>{o.phone ?? '-'}</Typography>
+                      </div>
+                      <div className='flex flex-col gap-0.5'>
+                        <Typography variant='caption' color='text.secondary'>Move In</Typography>
+                        <Typography variant='body2'>
+                          {o.moveInDate
+                            ? new Date(o.moveInDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : '-'}
+                        </Typography>
+                      </div>
+                    </div>
+                    <Link href={`/occupants/${o.id}`} style={{ textDecoration: 'none' }}>
+                      <Button
+                        size='small'
+                        variant='outlined'
+                        fullWidth
+                        sx={{ minHeight: 44 }}
+                        startIcon={<i className='ri-eye-line' />}
+                      >
+                        View Occupant
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )
       ) : (
         <div className='overflow-x-auto'>
           <table className={tableStyles.table}>

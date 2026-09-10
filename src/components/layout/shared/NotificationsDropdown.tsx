@@ -347,7 +347,8 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
         anchorEl={anchorRef.current}
         {...(isSmallScreen
           ? {
-              className: 'is-full !mbs-4 z-[1] max-bs-[550px] bs-[550px]',
+              className: '!mbs-4 z-[1] max-bs-[550px] bs-[550px]',
+              sx: { width: 'calc(100vw - 24px)' },
               modifiers: [
                 {
                   name: 'preventOverflow',
@@ -455,18 +456,18 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
                             onClick={() => handleReadNotification(id, index)}
                           >
                             {getAvatar({ avatarImage, avatarIcon, title, avatarText, avatarColor, avatarSkin })}
-                            <div className='flex flex-col flex-auto'>
-                              <Typography variant='body2' className='font-medium mbe-1' color='text.primary'>
+                            <div className='flex flex-col flex-auto min-w-0'>
+                              <Typography variant='body2' className='font-medium mbe-1 truncate' color='text.primary'>
                                 {title}
                               </Typography>
-                              <Typography variant='caption' className='mbe-2' color='text.secondary'>
+                              <Typography variant='caption' className='mbe-2 block line-clamp-2' color='text.secondary'>
                                 {subtitle}
                               </Typography>
                               <Typography variant='caption' color='text.disabled'>
                                 {time}
                               </Typography>
                             </div>
-                            <div className='flex flex-col items-end gap-2'>
+                            <div className='flex flex-col items-end gap-2 shrink-0'>
                               <Badge
                                 variant='dot'
                                 color={read ? 'secondary' : 'primary'}

@@ -16,6 +16,9 @@ import Skeleton from '@mui/material/Skeleton'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
 import type { TextFieldProps } from '@mui/material/TextField'
+import IconButton from '@mui/material/IconButton'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import classnames from 'classnames'
 import { rankItem } from '@tanstack/match-sorter-utils'
@@ -118,6 +121,9 @@ const DebouncedInput = ({
 // ---------------------------------------------------------------------------
 
 const DocumentsListTable = () => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // Only the current page of documents lives client-side — paging, filtering,
   // search and sorting all round-trip to the server.
   const [data,    setData]    = useState<DocumentType[]>([])
@@ -489,8 +495,114 @@ const DocumentsListTable = () => {
             </TextField>
           </div>
 
-          {/* Table */}
-          {loading ? (
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex flex-col gap-2'>
+                {[0,1,2,3,4].map(i => <Skeleton key={i} variant='rectangular' height={60} />)}
+              </Box>
+            ) : table.getRowModel().rows.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No documents found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const d = row.original
+                  const cfg = typeIconObj[d.documentType] ?? typeIconObj['Other']
+                  const s = statusObj[d.status] ?? { title: d.status, color: 'secondary' }
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            <CustomAvatar skin='light' color={cfg.color as any} size={38}>
+                              <i className={classnames(cfg.icon, 'text-xl')} />
+                            </CustomAvatar>
+                            <div className='min-w-0'>
+                              <Typography color='text.primary' className='font-medium truncate'>
+                                {d.documentType}
+                              </Typography>
+                              <Typography variant='body2' color='text.secondary' className='truncate'>
+                                {d.tenantName || '-'}
+                              </Typography>
+                            </div>
+                          </div>
+                          <Chip
+                            variant='tonal'
+                            label={s.title}
+                            size='small'
+                            color={s.color}
+                            className='capitalize shrink-0'
+                          />
+                        </div>
+
+                        <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                          <div className='flex flex-col gap-0.5 min-w-0'>
+                            <Typography variant='caption' color='text.secondary'>Property & Unit</Typography>
+                            <Typography variant='body2' className='truncate'>
+                              {d.propertyName || '-'}
+                              {d.unitNo ? ` · Unit ${d.unitNo}` : ''}
+                            </Typography>
+                          </div>
+                          {d.agreementNumber && (
+                            <div className='flex flex-col gap-0.5'>
+                              <Typography variant='caption' color='text.secondary'>Agreement</Typography>
+                              <Typography variant='body2'>{d.agreementNumber}</Typography>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className='flex items-center gap-2 flex-wrap'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-eye-line' />}
+                            onClick={() => { setSelectedDocument(d); setViewDocumentOpen(true) }}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            View
+                          </Button>
+                          {d.status !== 'accepted' && d.fileUrl && (
+                            <Button
+                              size='small'
+                              variant='outlined'
+                              color='success'
+                              startIcon={<i className='ri-check-line' />}
+                              onClick={() => { setSelectedDocument(d); setAcceptDocumentOpen(true) }}
+                              sx={{ minHeight: 44 }}
+                            >
+                              Accept
+                            </Button>
+                          )}
+                          {d.status !== 'rejected' && (
+                            <IconButton
+                              size='small'
+                              onClick={() => { setSelectedDocument(d); setRejectDocumentOpen(true) }}
+                              sx={{ minWidth: 44, minHeight: 44 }}
+                              aria-label='Reject document'
+                            >
+                              <i className='ri-close-line' />
+                            </IconButton>
+                          )}
+                          <IconButton
+                            size='small'
+                            onClick={() => { setSelectedDocument(d); setDeleteDocumentOpen(true) }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Delete document'
+                          >
+                            <i className='ri-delete-bin-line' />
+                          </IconButton>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
+          loading ? (
             <Box className='flex flex-col gap-2'>
               {[0,1,2,3,4].map(i => <Skeleton key={i} variant='rectangular' height={44} />)}
             </Box>
@@ -540,6 +652,7 @@ const DocumentsListTable = () => {
                 )}
               </table>
             </div>
+          )
           )}
 
           <TablePagination

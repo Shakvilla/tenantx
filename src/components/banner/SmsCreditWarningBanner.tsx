@@ -43,12 +43,26 @@ export default function SmsCreditWarningBanner() {
             size='small'
             color='inherit'
             variant='outlined'
-            sx={{ whiteSpace: 'nowrap', fontWeight: 600, borderColor: 'currentColor' }}
+            sx={{ fontWeight: 600, borderColor: 'currentColor' }}
           >
             Top Up Now
           </Button>
         }
-        sx={{ borderRadius: 0, borderBottom: '1px solid', borderColor: 'warning.dark' }}
+        sx={{
+          borderRadius: 0,
+          borderBottom: '1px solid',
+          borderColor: 'warning.dark',
+          alignItems: { xs: 'flex-start', sm: 'center' },
+          flexWrap: 'wrap',
+          '& .MuiAlert-message': { flex: '1 1 auto', minWidth: 0 },
+          '& .MuiAlert-action': {
+            paddingTop: { xs: 0, sm: 2 },
+            width: { xs: '100%', sm: 'auto' }
+          },
+          '& .MuiAlert-action .MuiButton-root': {
+            width: { xs: '100%', sm: 'auto' }
+          }
+        }}
       >
         Your SMS credit is running low (~{remaining} messages remaining). Some reminders may not be sent until you top up.
       </Alert>

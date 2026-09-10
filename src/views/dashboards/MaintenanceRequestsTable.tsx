@@ -3,6 +3,9 @@
 // React Imports
 import { useState, useMemo, useEffect } from 'react'
 
+// Next Imports
+import Link from 'next/link'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -16,7 +19,8 @@ import Box from '@mui/material/Box'
 import Skeleton from '@mui/material/Skeleton'
 import { styled } from '@mui/material/styles'
 import MenuItem from '@mui/material/MenuItem'
-import Link from 'next/link'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -92,6 +96,8 @@ const MaintenanceRequestsTable = () => {
   const [loading, setLoading] = useState(true)
   const [globalFilter, setGlobalFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   useEffect(() => {
     getMaintenanceRequests({ size: 50, view: 'summary' })
@@ -188,7 +194,7 @@ const MaintenanceRequestsTable = () => {
       />
       <CardContent className='flex flex-col gap-4'>
         {/* Filter tabs */}
-        <Box className='flex items-center'>
+        <Box className='flex items-center overflow-x-auto pb-1'>
           {(['all', 'new', 'pending', 'completed'] as FilterType[]).map((filter, idx, arr) => (
             <Box key={filter} className='flex items-center'>
               <FilterButton active={activeFilter === filter} onClick={() => setActiveFilter(filter)}>
@@ -205,20 +211,21 @@ const MaintenanceRequestsTable = () => {
         </Box>
 
         {/* Search */}
-        <Box className='flex items-center justify-between gap-2'>
+        <Box className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2'>
           <TextField
             size='small'
             placeholder='Search requests'
             value={globalFilter}
             onChange={e => setGlobalFilter(e.target.value)}
-            className='is-[200px]'
+            className='is-full sm:is-[200px]'
           />
           <TextField
             select
             size='small'
             value={activeFilter}
             onChange={e => setActiveFilter(e.target.value as FilterType)}
-            sx={{ minWidth: 160 }}
+            className='is-full sm:is-auto'
+            sx={{ minWidth: { sm: 160 } }}
             label='Filter'
           >
             <MenuItem value='all'>All</MenuItem>
@@ -234,6 +241,59 @@ const MaintenanceRequestsTable = () => {
           <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {[0, 1, 2, 3, 4].map(i => <Skeleton key={i} variant='rectangular' height={40} />)}
           </Box>
+        ) : isMobile ? (
+          table.getRowModel().rows.length === 0 ? (
+            <Box className='py-8 text-center'>
+              <Typography color='text.secondary'>No maintenance requests found</Typography>
+            </Box>
+          ) : (
+            <div className='flex flex-col gap-3 p-4'>
+              {table.getRowModel().rows.map(row => {
+                const r = row.original
+
+                return (
+                  <Card key={row.id} variant='outlined'>
+                    <CardContent className='flex flex-col gap-3'>
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <Typography variant='body2' className='font-medium truncate' color='text.primary'>
+                            {r.title}
+                          </Typography>
+                          <Typography variant='caption' color='text.secondary'>
+                            {r.requestNumber ?? '-'}
+                          </Typography>
+                        </div>
+                        <Chip
+                          variant='tonal'
+                          label={r.status?.replace(/_/g, ' ')}
+                          color={STATUS_COLOR[r.status] ?? 'secondary'}
+                          size='small'
+                          className='capitalize shrink-0'
+                        />
+                      </div>
+                      <div className='flex items-center justify-between'>
+                        <Chip
+                          variant='tonal'
+                          label={r.priority}
+                          color={PRIORITY_COLOR[r.priority?.toLowerCase()] ?? 'secondary'}
+                          size='small'
+                          className='capitalize'
+                        />
+                        <Link
+                          href='/maintenance/requests'
+                          style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}
+                        >
+                          <Typography variant='body2' color='primary' className='cursor-pointer'>
+                            View All
+                          </Typography>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )
         ) : (
           <div className='overflow-x-auto'>
             <table className={tableStyles.table}>

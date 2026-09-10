@@ -25,6 +25,8 @@ import Alert from '@mui/material/Alert'
 import Avatar from '@mui/material/Avatar'
 import Tooltip from '@mui/material/Tooltip'
 import Box from '@mui/material/Box'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // API Imports
 import {
@@ -109,6 +111,9 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, string>>>({})
   const [expanded, setExpanded] = useState<string | false>('occupant-info')
   const [isSaving, setIsSaving] = useState(false)
+
+  // Phones get the dialog as a full-screen sheet; tablets keep the floating dialog.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
 
   // Escape used to throw away a part-filled form without a word. The onboarding
   // wizard already confirms before discarding ("Leave onboarding?"); this form
@@ -445,7 +450,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
 
   return (
     <>
-    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Occupant' : 'Add Occupant'}</span>
         <IconButton size='small' onClick={handleReset}>

@@ -243,6 +243,10 @@ const ArrearsReport = () => {
         <CardHeader
           title='Defaulters'
           subheader='Tenants with overdue invoices, sorted by amount owed'
+          sx={{
+            flexWrap: 'wrap',
+            '& .MuiCardHeader-action': { mt: { xs: 1, sm: 0 }, m: 0 }
+          }}
           action={
             <ExportButtons
               contentRef={contentRef}

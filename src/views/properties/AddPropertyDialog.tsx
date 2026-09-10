@@ -34,6 +34,8 @@ import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import { styled } from '@mui/material/styles'
 import Alert from '@mui/material/Alert'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -262,6 +264,10 @@ const AddPropertyDialog = ({
 }: Props) => {
   const router = useRouter()
   const [_, startTransition] = useTransition()
+
+  // Phones get the dialog as a full-screen sheet so the multi-step form never
+  // fights a small viewport; tablets keep the floating dialog.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
 
   // Reference data from context (enums, amenities, regions)
   const { ref } = useReferenceData()
@@ -1608,6 +1614,7 @@ const AddPropertyDialog = ({
 
   return (
     <Dialog
+      fullScreen={isMobile}
       fullWidth
       maxWidth='md'
       open={open}
@@ -1616,7 +1623,7 @@ const AddPropertyDialog = ({
       closeAfterTransition={false}
       PaperProps={{
         sx: {
-          maxHeight: '90vh'
+          maxHeight: { xs: '100%', sm: '90vh' }
         }
       }}
     >

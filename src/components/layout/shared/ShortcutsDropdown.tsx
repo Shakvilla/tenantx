@@ -84,6 +84,8 @@ const ShortcutsDropdown = ({ shortcuts }: { shortcuts: ShortcutsType[] }) => {
     }
 
     window.addEventListener('resize', adjustPopoverHeight)
+
+    return () => window.removeEventListener('resize', adjustPopoverHeight)
   }, [])
 
   return (
@@ -100,7 +102,8 @@ const ShortcutsDropdown = ({ shortcuts }: { shortcuts: ShortcutsType[] }) => {
         anchorEl={anchorRef.current}
         {...(isSmallScreen
           ? {
-              className: 'is-full !mbs-4 z-[1] max-bs-[517px]',
+              className: '!mbs-4 z-[1] max-bs-[517px]',
+              sx: { width: 'calc(100vw - 24px)' },
               modifiers: [
                 {
                   name: 'preventOverflow',

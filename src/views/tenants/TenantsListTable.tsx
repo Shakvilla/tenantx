@@ -17,8 +17,11 @@ import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import Avatar from '@mui/material/Avatar'
+import IconButton from '@mui/material/IconButton'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -117,6 +120,9 @@ const TenantsListTable = () => {
   const [editTenantOpen, setEditTenantOpen] = useState(false)
   const [deleteTenantOpen, setDeleteTenantOpen] = useState(false)
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null)
+
+  // Phone / small tablet: swap the wide table for a stacked card list.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   // Properties and units for dropdowns
   const [properties, setProperties] = useState<Property[]>([])
@@ -419,6 +425,10 @@ const TenantsListTable = () => {
               <RowActions options={['Share', 'Export']} />
             </div>
           }
+          sx={{
+            flexWrap: 'wrap',
+            '& .MuiCardHeader-action': { mt: { xs: 1, sm: 0 }, m: 0 }
+          }}
         />
         <CardContent className='flex flex-col gap-4'>
           {error && (
@@ -467,21 +477,19 @@ const TenantsListTable = () => {
             </div>
             <Divider />
 
-            <div className='flex items-center justify-between gap-2'>
-              <div>
-                <TextField
-                  size='small'
-                  placeholder='Search tenants...'
-                  value={globalFilter}
-                  onChange={e => {
-                    setGlobalFilter(e.target.value)
-                    setPage(0)
-                  }}
-                  className='flex-1 min-w-[200px]'
-                />
-              </div>
+            <div className='flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2'>
+              <TextField
+                size='small'
+                placeholder='Search tenants...'
+                value={globalFilter}
+                onChange={e => {
+                  setGlobalFilter(e.target.value)
+                  setPage(0)
+                }}
+                className='is-full sm:flex-1 sm:min-w-[200px]'
+              />
 
-              <div className='flex items-center gap-2 ml-auto'>
+              <div className='flex items-center gap-2 flex-wrap sm:ml-auto'>
                 <TextField
                   select
                   size='small'
@@ -490,6 +498,7 @@ const TenantsListTable = () => {
                     setPageSize(Number(e.target.value))
                     setPage(0)
                   }}
+                  className='is-auto'
                   sx={{ minWidth: 100 }}
                 >
                   <MenuItem value={10}>10</MenuItem>
@@ -512,7 +521,112 @@ const TenantsListTable = () => {
             </div>
           </Box>
 
-          {/* Table */}
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex justify-center items-center py-10'>
+                <CircularProgress />
+              </Box>
+            ) : data.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No tenants found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const t = row.original
+                  const fullName = `${t.first_name} ${t.last_name}`
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-center justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            {t.avatar ? (
+                              <Avatar src={t.avatar} sx={{ width: 38, height: 38, flexShrink: 0 }} />
+                            ) : (
+                              <CustomAvatar skin='light' color='primary' size={38}>
+                                {getInitials(fullName)}
+                              </CustomAvatar>
+                            )}
+                            <div className='min-w-0'>
+                              <Typography color='text.primary' className='font-medium truncate'>
+                                {fullName}
+                              </Typography>
+                              <Typography variant='body2' color='text.secondary' className='truncate'>
+                                {t.email}
+                              </Typography>
+                            </div>
+                          </div>
+                          <Chip
+                            variant='tonal'
+                            label={t.status}
+                            size='small'
+                            color={
+                              t.status === 'active' ? 'success' : t.status === 'pending' ? 'warning' : 'default'
+                            }
+                            className='capitalize shrink-0'
+                          />
+                        </div>
+
+                        <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Phone</Typography>
+                            <Typography variant='body2'>{t.phone || '-'}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Room No</Typography>
+                            <Typography variant='body2'>{t.unit_no || t.unit?.unit_no || '-'}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5 min-w-0'>
+                            <Typography variant='caption' color='text.secondary'>Property</Typography>
+                            <Typography variant='body2' className='truncate'>{t.property?.name || '-'}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Move In</Typography>
+                            <Typography variant='body2'>
+                              {t.move_in_date ? new Date(t.move_in_date).toLocaleDateString() : '-'}
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-eye-line' />}
+                            href={`/tenants/${t.id}`}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            View
+                          </Button>
+                          <IconButton
+                            size='small'
+                            onClick={() => handleEditTenant(t)}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Edit tenant'
+                          >
+                            <i className='ri-pencil-line' />
+                          </IconButton>
+                          <IconButton
+                            size='small'
+                            onClick={() => {
+                              setSelectedTenant(t)
+                              setDeleteTenantOpen(true)
+                            }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Delete tenant'
+                          >
+                            <i className='ri-delete-bin-line' />
+                          </IconButton>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
           <div className='overflow-x-auto'>
             {loading ? (
               <Box className='flex justify-center items-center py-10'>
@@ -569,6 +683,7 @@ const TenantsListTable = () => {
               </table>
             )}
           </div>
+          )}
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'

@@ -16,6 +16,8 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Tooltip from '@mui/material/Tooltip'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party
 import classnames from 'classnames'
@@ -81,6 +83,9 @@ const methodLabel: Record<string, string> = {
 const columnHelper = createColumnHelper<PaymentResponse>()
 
 const PaymentHistoryTab = ({ occupantId, occupantName, unitId, propertyId }: Props) => {
+  // Phone / small tablet: swap the wide table for a stacked card list.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
+
   const [payments, setPayments]     = useState<PaymentResponse[]>([])
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState<string | null>(null)
@@ -246,6 +251,10 @@ const PaymentHistoryTab = ({ occupantId, occupantName, unitId, propertyId }: Pro
     <Card elevation={0}>
       <CardHeader
         title='Payment History'
+        sx={{
+          flexWrap: 'wrap',
+          '& .MuiCardHeader-action': { mt: { xs: 1, sm: 0 }, m: 0 }
+        }}
         action={
           <TextField
             select
@@ -267,7 +276,7 @@ const PaymentHistoryTab = ({ occupantId, occupantName, unitId, propertyId }: Pro
       <CardContent className='flex flex-col gap-4'>
 
         {/* Controls */}
-        <Box className='flex items-center justify-between gap-4'>
+        <Box className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
           <div className='flex items-center gap-2'>
             <Typography variant='body2'>Show</Typography>
             <TextField
@@ -285,7 +294,7 @@ const PaymentHistoryTab = ({ occupantId, occupantName, unitId, propertyId }: Pro
             placeholder='Search'
             value={globalFilter}
             onChange={e => setGlobalFilter(e.target.value)}
-            className='min-w-[200px]'
+            className='is-full sm:min-w-[200px]'
             InputProps={{ startAdornment: <i className='ri-search-line text-lg mie-2' /> }}
           />
         </Box>
@@ -297,6 +306,79 @@ const PaymentHistoryTab = ({ occupantId, occupantName, unitId, propertyId }: Pro
           </Box>
         ) : error ? (
           <Alert severity='error'>{error}</Alert>
+        ) : isMobile ? (
+          <div className='flex flex-col gap-3'>
+            {table.getFilteredRowModel().rows.length === 0 ? (
+              <Typography color='text.secondary' className='text-center py-8'>
+                No payment records found
+              </Typography>
+            ) : (
+              table.getRowModel().rows.map(row => {
+                const p = row.original
+                const raw = p.paymentDate ?? p.createdAt
+                const canVerify = (p.status === 'PENDING' || p.status === 'PROCESSING') && p.paymentMethod === 'MOBILE_MONEY'
+
+                return (
+                  <Card key={row.id} variant='outlined'>
+                    <CardContent className='flex flex-col gap-3'>
+                      <div className='flex items-center justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <Typography variant='body2' className='font-medium truncate'>
+                            {p.invoiceNumber || '—'}
+                          </Typography>
+                          <Typography variant='caption' color='text.secondary' className='truncate'>
+                            {methodLabel[p.paymentMethod] ?? p.paymentMethod}
+                            {p.mobileNetwork ? ` · ${p.mobileNetwork}` : ''}
+                          </Typography>
+                        </div>
+                        <Chip
+                          variant='tonal'
+                          label={p.status}
+                          size='small'
+                          color={statusColor(p.status)}
+                          className='capitalize shrink-0'
+                        />
+                      </div>
+
+                      <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Amount</Typography>
+                          <Typography variant='body2' className='font-medium'>₵{p.amount.toFixed(2)}</Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Date</Typography>
+                          <Typography variant='body2'>
+                            {raw
+                              ? new Date(raw).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : '—'}
+                          </Typography>
+                        </div>
+                        {p.notes && (
+                          <div className='flex flex-col gap-0.5 min-w-0'>
+                            <Typography variant='caption' color='text.secondary'>Notes</Typography>
+                            <Typography variant='body2' className='truncate'>{p.notes}</Typography>
+                          </div>
+                        )}
+                      </div>
+
+                      {canVerify && (
+                        <Button
+                          size='small'
+                          variant='outlined'
+                          disabled={!!verifying[p.id]}
+                          onClick={() => handleVerify(p.id)}
+                          startIcon={verifying[p.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
+                          sx={{ alignSelf: 'flex-start', minHeight: 44 }}
+                        >
+                          {verifying[p.id] ? 'Checking…' : 'Verify'}
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })
+            )}
+          </div>
         ) : (
           <div className='overflow-x-auto'>
             <table className={tableStyles.table}>

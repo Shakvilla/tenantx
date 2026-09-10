@@ -24,7 +24,10 @@ import Skeleton from '@mui/material/Skeleton'
 import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
 import Checkbox from '@mui/material/Checkbox'
+import Box from '@mui/material/Box'
 import type { TextFieldProps } from '@mui/material/TextField'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -134,6 +137,8 @@ const ExpensesListTable = () => {
   const [addOpen, setAddOpen] = useState(false)
   const [editExpense, setEditExpense] = useState<ExpenseType | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   // Auto-open the Add Expense dialog when arriving via the topbar "+ Create" menu (?create=1)
   useEffect(() => {
@@ -417,6 +422,10 @@ const ExpensesListTable = () => {
               <RowActions options={['Share']} />
             </div>
           }
+          sx={{
+            flexWrap: 'wrap',
+            '& .MuiCardHeader-action': { mt: { xs: 1, sm: 0 }, m: 0 }
+          }}
         />
         <Divider />
         <CardContent className='flex flex-col gap-4'>
@@ -447,11 +456,99 @@ const ExpensesListTable = () => {
               value={globalFilter ?? ''}
               onChange={value => setGlobalFilter(String(value))}
               placeholder='Search:'
-              className='sm:is-auto min-is-[200px]'
+              className='is-full sm:is-auto min-is-[200px]'
             />
           </div>
 
-          {/* Table */}
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex justify-center items-center py-10'>
+                <Skeleton variant='rectangular' width='100%' height={200} />
+              </Box>
+            ) : table.getFilteredRowModel().rows.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No expenses found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const e = row.original
+                  const status = e.status ?? 'PENDING'
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='min-w-0'>
+                            <Typography color='text.primary' className='font-medium truncate'>
+                              {e.item || '-'}
+                            </Typography>
+                            <Typography variant='body2' color='text.secondary' className='truncate'>
+                              {e.propertyName ?? e.propertyId ?? '-'}
+                              {e.unitNo ? ` · ${e.unitNo}` : ''}
+                            </Typography>
+                          </div>
+                          <Chip
+                            variant='tonal'
+                            label={status.toLowerCase()}
+                            size='small'
+                            color={statusChipColor[status] ?? 'default'}
+                            className='capitalize shrink-0'
+                          />
+                        </div>
+
+                        <div className='flex items-center justify-between gap-3'>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Amount</Typography>
+                            <Typography color='text.primary' className='font-medium'>
+                              ₵{e.amount.toFixed(2)}
+                            </Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Date</Typography>
+                            <Typography variant='body2'>{formatDate(e.date)}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Responsibility</Typography>
+                            <Typography variant='body2' className='capitalize'>
+                              {e.responsibility ? e.responsibility.toLowerCase() : '-'}
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-pencil-line' />}
+                            onClick={() => {
+                              setEditExpense(e)
+                              setEditOpen(true)
+                            }}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            Edit
+                          </Button>
+                          <IconButton
+                            size='small'
+                            onClick={() => {
+                              setToDelete(e)
+                              setDeleteOpen(true)
+                            }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Delete expense'
+                          >
+                            <i className='ri-delete-bin-line' />
+                          </IconButton>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
           <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             <table className={tableStyles.table}>
               <thead>
@@ -512,6 +609,7 @@ const ExpensesListTable = () => {
               )}
             </table>
           </div>
+          )}
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'

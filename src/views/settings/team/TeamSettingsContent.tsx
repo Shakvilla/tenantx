@@ -34,6 +34,8 @@ import TableRow from '@mui/material/TableRow'
 import TableCell from '@mui/material/TableCell'
 import TableContainer from '@mui/material/TableContainer'
 import Paper from '@mui/material/Paper'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 import tableStyles from '@core/styles/table.module.css'
 
@@ -71,6 +73,7 @@ interface InviteStaffDialogProps {
 }
 
 function InviteStaffDialog({ open, roles, defaultCompanyName, onClose, onInvited }: InviteStaffDialogProps) {
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -119,7 +122,7 @@ function InviteStaffDialog({ open, roles, defaultCompanyName, onClose, onInvited
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle>Invite Staff Member</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 3, pt: '8px !important' }}>
         {error && <Alert severity='error'>{error}</Alert>}
@@ -208,6 +211,7 @@ interface EditUserRoleDialogProps {
 }
 
 function EditUserRoleDialog({ user, roles, onClose, onUpdated }: EditUserRoleDialogProps) {
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
   const [selected, setSelected] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -245,7 +249,7 @@ function EditUserRoleDialog({ user, roles, onClose, onUpdated }: EditUserRoleDia
   }
 
   return (
-    <Dialog open={!!user} onClose={onClose} maxWidth='sm' fullWidth>
+    <Dialog open={!!user} onClose={onClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle>Edit Role — {user?.fullName}</DialogTitle>
       <DialogContent sx={{ pt: '8px !important' }}>
         {error && (
@@ -313,6 +317,7 @@ interface DeactivateUserDialogProps {
 }
 
 function DeactivateUserDialog({ user, onClose, onDeactivated }: DeactivateUserDialogProps) {
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -331,7 +336,7 @@ function DeactivateUserDialog({ user, onClose, onDeactivated }: DeactivateUserDi
   }
 
   return (
-    <Dialog open={!!user} onClose={onClose}>
+    <Dialog open={!!user} onClose={onClose} fullScreen={isMobile}>
       <DialogTitle>Deactivate Staff Member</DialogTitle>
       <DialogContent>
         {error && (
@@ -376,6 +381,9 @@ interface StaffMembersTabProps {
 }
 
 function StaffMembersTab({ users, roles: _roles, loading, onInvite, onEditRole, onDeactivate }: StaffMembersTabProps) {
+  // Phone / small tablet: swap the wide table for a stacked card list.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
@@ -397,6 +405,71 @@ function StaffMembersTab({ users, roles: _roles, loading, onInvite, onEditRole, 
           </Button>
         </CardContent>
       </Card>
+    )
+  }
+
+  if (isMobile) {
+    return (
+      <div className='flex flex-col gap-3'>
+        {users.map(user => (
+          <Card key={user.id} variant='outlined'>
+            <CardContent className='flex flex-col gap-3'>
+              <div className='flex items-start justify-between gap-3'>
+                <div className='min-w-0'>
+                  <Typography variant='body2' fontWeight={600} className='truncate'>
+                    {user.fullName}
+                  </Typography>
+                  <Typography variant='caption' color='text.secondary' className='truncate'>
+                    {user.email}
+                  </Typography>
+                </div>
+                <Chip
+                  size='small'
+                  label={user.active ? 'Active' : 'Deactivated'}
+                  color={user.active ? 'success' : 'default'}
+                  variant='tonal'
+                  className='shrink-0'
+                />
+              </div>
+
+              <div className='flex flex-wrap items-center gap-2'>
+                <Chip size='small' label={user.userType ?? 'STAFF'} variant='tonal' />
+                {user.roles.length === 0 ? (
+                  <Typography variant='caption' color='text.disabled'>
+                    No role
+                  </Typography>
+                ) : (
+                  user.roles.map(role => <Chip key={role.id} size='small' label={role.name} />)
+                )}
+              </div>
+
+              <div className='flex items-center gap-2'>
+                <Button
+                  size='small'
+                  variant='outlined'
+                  startIcon={<i className='ri-shield-user-line' />}
+                  onClick={() => onEditRole(user)}
+                  sx={{ flex: 1, minHeight: 44 }}
+                >
+                  Edit Role
+                </Button>
+                {user.active && (
+                  <Button
+                    size='small'
+                    variant='outlined'
+                    color='error'
+                    startIcon={<i className='ri-user-unfollow-line' />}
+                    onClick={() => onDeactivate(user)}
+                    sx={{ flex: 1, minHeight: 44 }}
+                  >
+                    Deactivate
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     )
   }
 
@@ -636,6 +709,7 @@ interface DeleteRoleDialogProps {
 }
 
 function DeleteRoleDialog({ role, onClose, onDeleted }: DeleteRoleDialogProps) {
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -654,7 +728,7 @@ function DeleteRoleDialog({ role, onClose, onDeleted }: DeleteRoleDialogProps) {
   }
 
   return (
-    <Dialog open={!!role} onClose={onClose}>
+    <Dialog open={!!role} onClose={onClose} fullScreen={isMobile}>
       <DialogTitle>Delete Role</DialogTitle>
       <DialogContent>
         {error && (
@@ -868,8 +942,23 @@ export default function TeamSettingsContent() {
 
   return (
     <Box sx={{ mt: 4 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
+          mb: 3
+        }}
+      >
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          variant='scrollable'
+          scrollButtons='auto'
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
           <Tab label='Staff Members' icon={<i className='ri-team-line' />} iconPosition='start' />
           <Tab label='Roles and Permissions' icon={<i className='ri-shield-user-line' />} iconPosition='start' />
         </Tabs>
