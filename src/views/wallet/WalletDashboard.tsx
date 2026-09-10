@@ -28,6 +28,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 import Snackbar from '@mui/material/Snackbar'
 import Alert from '@mui/material/Alert'
 import Skeleton from '@mui/material/Skeleton'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 // TanStack Table
 import classnames from 'classnames'
@@ -357,6 +359,9 @@ const WithdrawDialog = ({
   onClose: () => void
   onSuccess: () => void
 }) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [amount, setAmount]   = useState('')
   const [network, setNetwork] = useState<MomoNetwork>('MTN')
   const [number, setNumber]   = useState('')
@@ -398,7 +403,7 @@ const WithdrawDialog = ({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth='xs' fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth='xs' fullWidth fullScreen={isMobile}>
       <DialogTitle sx={{ pb: 1 }}>
         <div className='flex items-center gap-2'>
           <i className='ri-arrow-up-circle-line' style={{ color: '#1976d2', fontSize: 22 }} />
@@ -681,7 +686,7 @@ const LedgerTable = () => {
               placeholder='Search by description, occupant, invoice…'
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className='flex-1 min-w-[200px]'
+              className='flex-1 sm:min-w-[200px]'
               slotProps={{
                 input: {
                   endAdornment: (

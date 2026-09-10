@@ -23,6 +23,7 @@ import AccordionDetails from '@mui/material/AccordionDetails'
 import Box from '@mui/material/Box'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import { useMediaQuery, useTheme } from '@mui/material'
 import { StorageAvatar } from '@/components/StorageAvatar'
 
 // API Imports
@@ -165,6 +166,10 @@ const AddTenantDialog = ({
   const [expanded, setExpanded] = useState<string | false>('tenant-info')
   const [isSaving, setIsSaving] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
+
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const [previewImages, setPreviewImages] = useState<{
     tenantPicture: string | null
@@ -549,7 +554,7 @@ const AddTenantDialog = ({
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Tenant' : 'Add Tenant'}</span>
         <IconButton size='small' onClick={handleReset}>

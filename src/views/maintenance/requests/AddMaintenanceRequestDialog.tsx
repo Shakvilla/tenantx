@@ -29,6 +29,7 @@ import Tooltip from '@mui/material/Tooltip'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import { styled } from '@mui/material/styles'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import { getProperties } from '@/lib/api/properties'
@@ -129,6 +130,10 @@ const BLANK: FormData = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, mode = 'add' }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [activeTab, setActiveTab] = useState(0)
   const [formData, setFormData] = useState<FormData>(BLANK)
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
@@ -415,7 +420,7 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>
           {mode === 'edit' ? 'Edit Maintenance Request' : 'Add Maintenance Request'}

@@ -10,6 +10,8 @@ import DialogActions from '@mui/material/DialogActions'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import Avatar from '@mui/material/Avatar'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 type AcceptDocumentDialogProps = {
   open: boolean
@@ -19,6 +21,9 @@ type AcceptDocumentDialogProps = {
 }
 
 const AcceptDocumentDialog = ({ open, setOpen, onConfirm, documentName }: AcceptDocumentDialogProps) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // Handle Close
   const handleClose = () => setOpen(false)
 
@@ -29,7 +34,7 @@ const AcceptDocumentDialog = ({ open, setOpen, onConfirm, documentName }: Accept
   }
 
   return (
-    <Dialog open={open} onClose={handleClose}>
+    <Dialog open={open} onClose={handleClose} fullScreen={isMobile}>
       <DialogContent className='flex flex-col items-center gap-4 sm:pbs-16 sm:pbi-16 sm:pli-16'>
         <Avatar
           variant='rounded'

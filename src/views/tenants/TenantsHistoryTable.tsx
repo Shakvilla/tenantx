@@ -328,7 +328,7 @@ const TenantsHistoryTable = () => {
                 placeholder='Search'
                 value={globalFilter}
                 onChange={e => setGlobalFilter(e.target.value)}
-                className='flex-1 min-w-[200px]'
+                className='flex-1 sm:min-w-[200px]'
               />
               <div className='flex items-center gap-2 ml-auto'>
                 <TextField

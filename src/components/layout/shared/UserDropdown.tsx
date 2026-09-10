@@ -100,7 +100,7 @@ const UserDropdown = () => {
         sx={{
           minWidth: {
             // Clamped so a 240px floor can never push past the viewport on small screens.
-            xs: 'min(240px, calc(100vw - 32px))',
+            xs: 'min(240px, calc(100% - 32px))',
             sm: 240
           }
         }}

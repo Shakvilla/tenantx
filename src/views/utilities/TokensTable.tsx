@@ -14,6 +14,8 @@ import DialogTitle from '@mui/material/DialogTitle'
 import Skeleton from '@mui/material/Skeleton'
 import TablePagination from '@mui/material/TablePagination'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 import classnames from 'classnames'
 import {
@@ -59,6 +61,9 @@ const fmtCurr = (n: number) => `GHS ${n.toFixed(2)}`
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TokensTable({ meter, onRecordToken, refreshKey = 0 }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [data, setData]               = useState<Row[]>([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
@@ -272,7 +277,7 @@ export default function TokensTable({ meter, onRecordToken, refreshKey = 0 }: Pr
       />
 
       {/* Delete confirm dialog */}
-      <Dialog open={!!deleteId} onClose={() => !deleting && setDeleteId(null)} maxWidth='xs' fullWidth>
+      <Dialog open={!!deleteId} onClose={() => !deleting && setDeleteId(null)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center gap-2'>
           <i className='ri-error-warning-line' style={{ color: 'var(--mui-palette-error-main)' }} />
           Delete Token Record

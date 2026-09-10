@@ -16,6 +16,7 @@ import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // Type Imports
 import type { DocumentType } from '@/types/documents/documentTypes'
@@ -29,6 +30,10 @@ type RejectDocumentDialogProps = {
 }
 
 const RejectDocumentDialog = ({ open, setOpen, documentData, onConfirm }: RejectDocumentDialogProps) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // States
   const [rejectReason, setRejectReason] = useState('')
   const [error, setError] = useState(false)
@@ -66,7 +71,7 @@ return
   if (!documentData) return null
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Document Reject</span>
         <IconButton size='small' onClick={handleClose} sx={{ color: 'warning.main' }}>

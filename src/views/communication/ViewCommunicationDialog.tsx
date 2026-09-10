@@ -16,6 +16,8 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // Component Imports
 import { StorageCustomAvatar } from '@/components/StorageCustomAvatar'
@@ -46,6 +48,9 @@ type ViewCommunicationDialogProps = {
 }
 
 const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSendNotice }: ViewCommunicationDialogProps) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // Type and Status color mapping
   const communicationTypeObj: {
     [key: string]: {
@@ -76,7 +81,7 @@ const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSend
   const statusConfig = communicationStatusObj[communication.status] || { color: 'secondary' }
 
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Communication Details</span>
         <IconButton size='small' onClick={() => setOpen(false)}>

@@ -15,6 +15,7 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -100,6 +101,10 @@ const ordinalDay = (d: number): string => {
 }
 
 const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, renewedToNumber, onEdit }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   if (!agreement) return null
 
   const execution = assessExecution(agreement)
@@ -120,7 +125,7 @@ const ViewAgreementDialog = ({ open, handleClose, agreement, renewedFromNumber, 
   const stampDuty = totalLeaseValue != null ? totalLeaseValue * 0.005 : null
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>Agreement Details</span>
         <IconButton size='small' onClick={handleClose}>

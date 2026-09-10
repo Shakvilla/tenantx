@@ -17,6 +17,8 @@ import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CircularProgress from '@mui/material/CircularProgress'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Type Imports
@@ -37,6 +39,9 @@ const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogP
   // reason the Download button does.
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const [linkLoading, setLinkLoading] = useState(false)
+
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const hasFile = Boolean(document?.fileUrl)
 
@@ -66,7 +71,7 @@ const ViewDocumentDialog = ({ open, handleClose, document }: ViewDocumentDialogP
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>Document Preview</span>
         <IconButton size='small' onClick={handleClose}>

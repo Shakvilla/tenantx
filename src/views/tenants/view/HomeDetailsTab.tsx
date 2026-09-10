@@ -90,7 +90,7 @@ const HomeDetailsTab = ({ tenantData }: { tenantData?: TenantData }) => {
                 Rent Information
               </Typography>
 
-              <Box className='grid grid-cols-2 gap-4'>
+              <Box className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                 <TextField
                   size='small'
                   label='Unit Name'

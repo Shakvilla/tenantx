@@ -16,6 +16,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import { utilitiesApi } from '@/lib/api/utilities'
 import type {
@@ -57,6 +59,9 @@ function lastOfMonth() {
 }
 
 export default function RecordBillDialog({ open, meter, onClose, onCreated }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [periodStart,     setPeriodStart]     = useState(firstOfMonth())
   const [periodEnd,       setPeriodEnd]       = useState(lastOfMonth())
   const [prevReading,     setPrevReading]     = useState('')
@@ -141,7 +146,7 @@ export default function RecordBillDialog({ open, meter, onClose, onCreated }: Pr
   const splitOk     = splitMethod !== 'MANUAL' || Math.abs(manualTotal - billTotal) < 1
 
   return (
-    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>Record Bill — {meter.meterNumber}</span>
         <IconButton size='small' onClick={onClose} disabled={saving}>

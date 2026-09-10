@@ -32,6 +32,7 @@ import StepLabel from '@mui/material/StepLabel'
 import Stepper from '@mui/material/Stepper'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 import { inspectionsApi, uploadInspectionPhotos } from '@/lib/api/inspections'
 import { getStoredTenantId } from '@/lib/api/storage'
@@ -234,6 +235,10 @@ type Props = {
 export default function CreateInspectionDialog({
   open, unitId, propertyId, unitNo, propertyName, onClose, onCreated,
 }: Props) {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [step, setStep]   = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState<string | null>(null)
@@ -429,7 +434,7 @@ export default function CreateInspectionDialog({
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
-    <Dialog open={open} onClose={close} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={close} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>New Inspection</span>
         <IconButton size='small' onClick={close} disabled={saving}>

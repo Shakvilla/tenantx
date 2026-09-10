@@ -20,6 +20,8 @@ import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 import { violationsApi } from '@/lib/api/violations'
 import type {
@@ -67,6 +69,9 @@ function fmtDate(iso: string | null): string {
 }
 
 export default function ViolationsTab({ occupantId }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [violations, setViolations] = useState<ViolationSummary[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
@@ -267,7 +272,7 @@ export default function ViolationsTab({ occupantId }: Props) {
       </Card>
 
       {/* ── Log Violation Dialog ────────────────────────────────────────── */}
-      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} maxWidth='sm' fullWidth>
+      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} maxWidth='sm' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center justify-between'>
           <span>Log Violation</span>
           <IconButton size='small' onClick={() => setDialogOpen(false)} disabled={saving}><i className='ri-close-line' /></IconButton>
@@ -308,7 +313,7 @@ export default function ViolationsTab({ occupantId }: Props) {
       </Dialog>
 
       {/* ── Assess Fine Dialog ──────────────────────────────────────────── */}
-      <Dialog open={!!fineFor} onClose={() => setFineFor(null)} maxWidth='xs' fullWidth>
+      <Dialog open={!!fineFor} onClose={() => setFineFor(null)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Assess Fine</DialogTitle>
         <DialogContent>
           <TextField size='small' fullWidth type='number' label='Amount (GHS)' sx={{ mt: 1 }}
@@ -321,7 +326,7 @@ export default function ViolationsTab({ occupantId }: Props) {
       </Dialog>
 
       {/* ── Resolve / Escalate Notes Dialog ─────────────────────────────── */}
-      <Dialog open={!!notesFor} onClose={() => setNotesFor(null)} maxWidth='xs' fullWidth>
+      <Dialog open={!!notesFor} onClose={() => setNotesFor(null)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>{notesFor?.action === 'escalate' ? 'Escalate Violation' : 'Resolve Violation'}</DialogTitle>
         <DialogContent>
           <TextField size='small' fullWidth multiline rows={3} label='Notes (optional)' sx={{ mt: 1 }}
@@ -336,7 +341,7 @@ export default function ViolationsTab({ occupantId }: Props) {
       </Dialog>
 
       {/* ── Delete Violation Confirm ────────────────────────────────────── */}
-      <Dialog open={!!deleteFor} onClose={() => !deleting && setDeleteFor(null)} maxWidth='xs' fullWidth>
+      <Dialog open={!!deleteFor} onClose={() => !deleting && setDeleteFor(null)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center gap-2'>
           <i className='ri-error-warning-line' style={{ color: 'var(--mui-palette-error-main)' }} />
           Delete Violation

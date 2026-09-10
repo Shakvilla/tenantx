@@ -17,6 +17,8 @@ import Box from '@mui/material/Box'
 import LinearProgress from '@mui/material/LinearProgress'
 import Chip from '@mui/material/Chip'
 import Alert from '@mui/material/Alert'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import { createDocument, getDocumentStats } from '@/lib/api/documents'
 import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
@@ -106,6 +108,9 @@ type Props = {
 // ---------------------------------------------------------------------------
 
 const AddDocumentDialog = ({ open, setOpen, onSuccess, presetOccupant }: Props) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [form,       setForm]       = useState<FormData>(EMPTY)
 
   // Applied on open rather than as an initial value: the dialog is mounted once and reopened,
@@ -415,7 +420,7 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess, presetOccupant }: Props) 
   // ---- Render ----
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Upload Document</span>
         <IconButton size='small' onClick={handleClose}>

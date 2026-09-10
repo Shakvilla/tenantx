@@ -734,7 +734,7 @@ const InvoicesListTable = () => {
       </Card>
 
       {/* Update Status Dialog */}
-      <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)} maxWidth='sm' fullWidth>
+      <Dialog open={updateDialogOpen} onClose={() => setUpdateDialogOpen(false)} maxWidth='sm' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center justify-between'>
           <span>Update Invoice Status</span>
           <IconButton size='small' onClick={() => setUpdateDialogOpen(false)}>

@@ -27,6 +27,7 @@ import FormGroup from '@mui/material/FormGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Avatar from '@mui/material/Avatar'
 import { styled } from '@mui/material/styles'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import { createUnit, updateUnit, uploadUnitImages } from '@/lib/api/units'
@@ -160,6 +161,10 @@ const initialData: FormDataType = {
 // ---------------------------------------------------------------------------
 
 const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', onSuccess }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const { ref, policy } = useReferenceData()
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
@@ -416,7 +421,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Unit' : 'Add Unit'}</span>
         <IconButton size='small' onClick={handleReset} disabled={loading}>

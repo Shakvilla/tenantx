@@ -889,7 +889,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
       away silently. This is the same shape as the onboarding wizard's
       "Leave onboarding?", so the key does the same thing on both screens.
     */}
-    <Dialog open={confirmDiscard} onClose={() => setConfirmDiscard(false)} maxWidth='xs' fullWidth>
+    <Dialog open={confirmDiscard} onClose={() => setConfirmDiscard(false)} maxWidth='xs' fullWidth fullScreen={isMobile}>
       <DialogTitle>Discard what you have entered?</DialogTitle>
       <DialogContent>
         <Typography variant='body2'>

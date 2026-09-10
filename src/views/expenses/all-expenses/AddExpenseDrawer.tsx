@@ -23,6 +23,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import Skeleton from '@mui/material/Skeleton'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // API Imports
 import { createExpense, updateExpense, getExpenseConfigs, type Expense, type ExpenseConfig } from '@/lib/api/expenses'
@@ -107,6 +109,9 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
+
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   // Reference data
   const [expenseConfigs, setExpenseConfigs] = useState<ExpenseConfig[]>([])
@@ -259,7 +264,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth fullScreen={isMobile} PaperProps={{ sx: { borderRadius: 2 } }}>
       <DialogTitle className='flex items-center justify-between pbe-4'>
         <Typography variant='h6' component='span' className='font-medium'>
           {isEdit ? 'Edit Expense' : 'Create New Expense'}

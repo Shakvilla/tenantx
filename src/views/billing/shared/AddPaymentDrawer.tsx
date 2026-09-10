@@ -23,6 +23,8 @@ import Alert from '@mui/material/Alert'
 import Chip from '@mui/material/Chip'
 import Box from '@mui/material/Box'
 import Snackbar from '@mui/material/Snackbar'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // API
 import { isAxiosError } from 'axios'
@@ -63,6 +65,9 @@ interface MoMoStatusDialogProps {
 }
 
 const MoMoStatusDialog = ({ open, paymentId, walletNumber, network, amount, onClose }: MoMoStatusDialogProps) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [status, setStatus]     = useState<MoMoStatus>('PROCESSING')
   const [reason, setReason]     = useState('')
   const [attempts, setAttempts] = useState(0)
@@ -111,7 +116,7 @@ const MoMoStatusDialog = ({ open, paymentId, walletNumber, network, amount, onCl
   }, [open, poll])
 
   return (
-    <Dialog open={open} maxWidth='xs' fullWidth disableEscapeKeyDown>
+    <Dialog open={open} maxWidth='xs' fullWidth fullScreen={isMobile} disableEscapeKeyDown>
       <DialogTitle>Mobile Money Payment</DialogTitle>
       <DialogContent>
         <div className='flex flex-col items-center gap-5 py-4'>

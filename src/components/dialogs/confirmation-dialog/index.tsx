@@ -10,6 +10,8 @@ import DialogActions from '@mui/material/DialogActions'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -44,6 +46,9 @@ type ConfirmationDialogProps = {
 }
 
 const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDialogProps) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // States
   const [secondDialog, setSecondDialog] = useState(false)
   const [userInput, setUserInput] = useState(false)
@@ -102,7 +107,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
 
   return (
     <>
-      <Dialog fullWidth maxWidth='xs' open={open} onClose={() => setOpen(false)} closeAfterTransition={false}>
+      <Dialog fullWidth maxWidth='xs' open={open} onClose={() => setOpen(false)} closeAfterTransition={false} fullScreen={isMobile}>
         <DialogContent className='flex items-center flex-col text-center sm:pbs-16 sm:pbe-6 sm:pli-16'>
           <i className='ri-error-warning-line text-[88px] mbe-6 text-warning' />
           <Wrapper
@@ -213,7 +218,7 @@ const ConfirmationDialog = ({ open, setOpen, type, onConfirm }: ConfirmationDial
       </Dialog>
 
       {/* Delete Account Dialog */}
-      <Dialog open={secondDialog} onClose={handleSecondDialogClose} closeAfterTransition={false}>
+      <Dialog open={secondDialog} onClose={handleSecondDialogClose} closeAfterTransition={false} fullScreen={isMobile}>
         <DialogContent className='flex items-center flex-col text-center sm:pbs-16 sm:pbe-6 sm:pli-16'>
           <i
             className={classnames('text-[88px] mbe-6', {

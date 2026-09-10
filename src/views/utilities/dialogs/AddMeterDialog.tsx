@@ -20,6 +20,8 @@ import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import { utilitiesApi } from '@/lib/api/utilities'
 import { getProperties } from '@/lib/api/properties'
@@ -67,6 +69,9 @@ const BLANK = {
 }
 
 export default function AddMeterDialog({ open, onClose, onCreated }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [form, setForm]         = useState({ ...BLANK })
   const [errors, setErrors]     = useState<{ propertyId?: boolean; meterNumber?: boolean }>({})
   const [saving, setSaving]     = useState(false)
@@ -168,7 +173,7 @@ export default function AddMeterDialog({ open, onClose, onCreated }: Props) {
   const hasUnits = units.length > 0
 
   return (
-    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>Add Utility Meter</span>
         <IconButton size='small' onClick={onClose} disabled={saving}>

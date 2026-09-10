@@ -24,6 +24,8 @@ import { createCommunication } from '@/lib/api/communications'
 // Component Imports
 import { StorageCustomAvatar } from '@/components/StorageCustomAvatar'
 import CircularProgress from '@mui/material/CircularProgress'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -53,6 +55,8 @@ const ReplyDialog = ({ open, setOpen, communication, onSuccess }: ReplyDialogPro
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   useEffect(() => {
     if (open && communication) {
@@ -129,7 +133,7 @@ return Object.keys(newErrors).length === 0
   if (!communication) return null
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Reply</span>
         <IconButton size='small' onClick={handleClose}>

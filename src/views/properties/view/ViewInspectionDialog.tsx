@@ -28,6 +28,7 @@ import Skeleton from '@mui/material/Skeleton'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 import { inspectionsApi, openInspectionReport } from '@/lib/api/inspections'
 import type {
@@ -137,6 +138,10 @@ type Props = {
 }
 
 export default function ViewInspectionDialog({ open, inspectionId, onClose }: Props) {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [data, setData]       = useState<InspectionResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -171,7 +176,7 @@ export default function ViewInspectionDialog({ open, inspectionId, onClose }: Pr
 
   return (
     <>
-      <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth>
+      <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center justify-between'>
           <Box className='flex items-center gap-2'>
             <i className='ri-file-list-3-line' style={{ color: 'var(--mui-palette-primary-main)' }} />

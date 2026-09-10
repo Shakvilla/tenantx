@@ -22,6 +22,7 @@ import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import { sendNotice as sendNoticeApi } from '@/lib/api/communications'
@@ -90,6 +91,10 @@ const SendNoticeDialog = ({
   initialPropertyId,
   initialUnitId
 }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -237,7 +242,7 @@ const SendNoticeDialog = ({
   // ---- Render ----
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Send Notice</span>
         <IconButton size='small' onClick={handleClose}>

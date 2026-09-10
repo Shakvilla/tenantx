@@ -15,6 +15,8 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
 import TablePagination from '@mui/material/TablePagination'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 import classnames from 'classnames'
 import {
@@ -84,6 +86,9 @@ type Props = {
 }
 
 export default function VacateTab({ unitId, propertyId, unitNo, propertyName, tenantName }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [rows, setRows]         = useState<VacateNoticeSummary[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
@@ -334,7 +339,7 @@ export default function VacateTab({ unitId, propertyId, unitNo, propertyName, te
       )}
 
       {/* Delete confirm */}
-      <Dialog open={!!deleteId} onClose={() => setDeleteId(null)} maxWidth='xs'>
+      <Dialog open={!!deleteId} onClose={() => setDeleteId(null)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Delete Vacate Notice?</DialogTitle>
         <DialogContent>
           <Typography>This action cannot be undone.</Typography>

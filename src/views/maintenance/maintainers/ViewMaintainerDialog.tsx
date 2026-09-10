@@ -15,6 +15,7 @@ import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import Rating from '@mui/material/Rating'
 import Divider from '@mui/material/Divider'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
@@ -50,6 +51,10 @@ const formatDate = (d?: string | null) => {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const ViewMaintainerDialog = ({ open, setOpen, maintainer, onEdit }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   if (!maintainer) return null
 
   const statusColor = STATUS_COLORS[maintainer.status?.toUpperCase()] ?? 'secondary'
@@ -58,7 +63,7 @@ const ViewMaintainerDialog = ({ open, setOpen, maintainer, onEdit }: Props) => {
     : '0.0'
 
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between pbs-6 pbe-4 pli-6'>
         <Box className='flex items-center gap-3'>
           <CustomAvatar skin='light' size={56}>{getInitials(maintainer.name)}</CustomAvatar>

@@ -31,6 +31,7 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import {
@@ -148,6 +149,10 @@ const COMPLAINT_CATEGORY_LABELS: Record<string, string> = {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecision, onChanged }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const { user } = useAuth()
   const [tab, setTab] = useState(0)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
@@ -439,7 +444,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
   }
 
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between pbs-5 pbe-3 pli-6'>
         <Box>
           <Typography variant='h6' component='span' className='font-medium'>{request.title}</Typography>
@@ -1049,7 +1054,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
       </DialogActions>
 
       {/* ── Dispute (reopen) ─────────────────────────────────────────────── */}
-      <Dialog open={disputeOpen} onClose={() => !decisionBusy && setDisputeOpen(false)} maxWidth='xs' fullWidth>
+      <Dialog open={disputeOpen} onClose={() => !decisionBusy && setDisputeOpen(false)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Repair not done?</DialogTitle>
         <DialogContent>
           <Typography variant='body2' color='text.secondary' sx={{ mb: 3 }}>

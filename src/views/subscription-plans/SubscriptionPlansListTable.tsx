@@ -89,6 +89,9 @@ function statusChipColor(status: string): 'success' | 'warning' | 'error' | 'def
 
 function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublicDto[]; freeUnitCap: number | null }) {
   const { subscription, isLoading, refresh } = useSubscription()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -238,7 +241,7 @@ function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublic
         </CardContent>
       </Card>
 
-      <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} maxWidth='xs' fullWidth>
+      <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Cancel subscription?</DialogTitle>
         <DialogContent>
           {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
@@ -277,6 +280,8 @@ interface UpgradeDialogProps {
 
 function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogProps) {
   const { subscription } = useSubscription()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const freePlan      = plans.find(p => p.name === 'FREE')
   const freeCap       = freePlan?.freeUnitCap ?? 0
@@ -420,7 +425,7 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
     && (paymentMethod === 'WALLET' ? walletOk : true)
 
   return (
-    <Dialog open={open} onClose={pending ? undefined : onClose} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={pending ? undefined : onClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle>Upgrade to {plan.displayName}</DialogTitle>
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 2 }}>
         {error && <Alert severity='error'>{error}</Alert>}

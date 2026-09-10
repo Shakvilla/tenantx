@@ -103,7 +103,7 @@ const ShortcutsDropdown = ({ shortcuts }: { shortcuts: ShortcutsType[] }) => {
         {...(isSmallScreen
           ? {
               className: '!mbs-4 z-[1] max-bs-[517px]',
-              sx: { width: 'calc(100vw - 24px)' },
+              sx: { width: 'calc(100% - 24px)' },
               modifiers: [
                 {
                   name: 'preventOverflow',

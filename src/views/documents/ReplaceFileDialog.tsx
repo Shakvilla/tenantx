@@ -14,6 +14,8 @@ import Box from '@mui/material/Box'
 import LinearProgress from '@mui/material/LinearProgress'
 import Chip from '@mui/material/Chip'
 import Alert from '@mui/material/Alert'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import { replaceDocumentFile } from '@/lib/api/documents'
 import { getStoredTenantId } from '@/lib/api/storage'
@@ -55,6 +57,9 @@ type Props = {
  * replacement is reviewed on its own merits.
  */
 const ReplaceFileDialog = ({ open, setOpen, document, onSuccess }: Props) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [upload,     setUpload]     = useState<UploadState>({ status: 'idle' })
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState<string | null>(null)
@@ -224,7 +229,7 @@ const ReplaceFileDialog = ({ open, setOpen, document, onSuccess }: Props) => {
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Replace File</span>
         <IconButton size='small' onClick={handleClose}>
