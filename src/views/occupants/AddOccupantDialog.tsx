@@ -394,7 +394,8 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
         previousAddress: hasPrevAddr ? formData.previousAddress : undefined,
         permanentAddress: hasPermAddr ? formData.permanentAddress : undefined,
         ghanaCardId: formData.ghanaCardId || undefined,
-        idType: formData.idType || undefined
+        idType: formData.idType || undefined,
+        profileComplete: true
       }
 
       if (mode === 'edit' && editData?.id) {
