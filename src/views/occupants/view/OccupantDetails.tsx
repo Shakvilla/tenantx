@@ -15,6 +15,9 @@ import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import Chip from '@mui/material/Chip'
+import Alert from '@mui/material/Alert'
+import AlertTitle from '@mui/material/AlertTitle'
+import Button from '@mui/material/Button'
 
 // Component Imports
 import OccupantDetailHeader from './OccupantDetailHeader'
@@ -65,6 +68,7 @@ type OccupantData = {
   unitId?: string
   propertyId?: string
   ghanaCardId?: string
+  profileComplete?: boolean
   idType?: string
   securityDeposit?: string
   lateFee?: string
@@ -123,6 +127,22 @@ const OccupantDetails = ({
       <Grid size={{ xs: 12 }}>
         <OccupantDetailHeader tenantData={tenantData} tenantId={tenantId} />
       </Grid>
+      {tenantData && !tenantData.profileComplete && (
+        <Grid size={{ xs: 12 }}>
+          <Alert
+            severity='warning'
+            icon={<i className='ri-error-warning-line' />}
+            action={
+              <Button color='inherit' size='small' variant='outlined' href='/occupants'>
+                Complete Setup
+              </Button>
+            }
+          >
+            <AlertTitle>Profile setup incomplete</AlertTitle>
+            This tenant was onboarded with basic info. Complete their profile to add emergency contact, ID details, and more.
+          </Alert>
+        </Grid>
+      )}
       {tenantData && (
         <Grid size={{ xs: 12 }}>
           <AppAccessCard name={tenantData.name} email={tenantData.email} phone={tenantData.phone} />
