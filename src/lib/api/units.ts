@@ -131,6 +131,24 @@ export async function getUnitById(tenantId: string, id: string): Promise<ApiResp
 }
 
 /**
+ * A single entry in a unit's append-only rent-change audit trail.
+ * API: GET /units/{id}/price-history (bare JSON array, newest first).
+ */
+export interface UnitPriceChangeLog {
+  id: string
+  unitId: string
+  oldRent: number
+  newRent: number
+  currency: string
+
+  /** ISO date (yyyy-MM-dd) the new rent takes effect. */
+  effectiveDate: string
+  changedBy: string
+  reason: string | null
+  createdAt: string
+}
+
+/**
  * All units this occupant currently occupies within the tenant.
  * API: GET /units/by-occupant/{occupantId}
  * Backend returns a bare JSON array (no envelope).
@@ -138,6 +156,35 @@ export async function getUnitById(tenantId: string, id: string): Promise<ApiResp
 export async function getUnitsByOccupant(tenantId: string, occupantId: string): Promise<Unit[]> {
   try {
     const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`)
+
+    return Array.isArray(res) ? res : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The signed-in occupant's own unit.
+ * API: GET /units/my-unit — occupant-scoped, identity taken from the token.
+ */
+export async function getMyUnit(): Promise<Unit | null> {
+  try {
+    const res = await apiGet<Unit | null>(`${API_BASE}/units/my-unit`)
+
+    return res ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Append-only rent-change history for a unit, newest first.
+ * API: GET /units/{id}/price-history
+ * Backend returns a bare JSON array (no envelope); a failure is treated as "no history".
+ */
+export async function getUnitPriceHistory(unitId: string): Promise<UnitPriceChangeLog[]> {
+  try {
+    const res = await apiGet<UnitPriceChangeLog[]>(`${API_BASE}/units/${unitId}/price-history`)
 
     return Array.isArray(res) ? res : []
   } catch {

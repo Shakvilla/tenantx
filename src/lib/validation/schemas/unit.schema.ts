@@ -54,6 +54,12 @@ export const CreateUnitSchema = z.object({
 
   // Tenant assignment
   tenantRecordId: z.string().uuid().optional(),
+
+  // Price-change audit fields. Only meaningful on update: when `rent` differs from
+  // the stored value the backend records a price-change log. `effectiveDate` is the
+  // date the new rent takes effect (ISO yyyy-MM-dd); `priceChangeReason` is free text.
+  effectiveDate: z.string().optional(),
+  priceChangeReason: z.string().max(500).optional(),
 })
 
 /**
