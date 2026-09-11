@@ -280,9 +280,24 @@ const OccupantsListTable = () => {
                 </CustomAvatar>
               )}
               <div className='flex flex-col'>
-                <Typography color='text.primary' className='font-medium'>
-                  {fullName}
-                </Typography>
+                <div className='flex items-center gap-2'>
+                  <Typography color='text.primary' className='font-medium'>
+                    {fullName}
+                  </Typography>
+                  {!row.original.profileComplete && (
+                    <Chip
+                      size='small'
+                      variant='tonal'
+                      color='warning'
+                      label='Setup incomplete'
+                      className='cursor-pointer'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditOccupant(row.original)
+                      }}
+                    />
+                  )}
+                </div>
                 <Typography variant='body2' color='text.secondary'>
                   {row.original.email}
                 </Typography>
@@ -549,9 +564,21 @@ const OccupantsListTable = () => {
                               </CustomAvatar>
                             )}
                             <div className='min-w-0'>
-                              <Typography color='text.primary' className='font-medium truncate'>
-                                {fullName}
-                              </Typography>
+                              <div className='flex items-center gap-2'>
+                                <Typography color='text.primary' className='font-medium truncate'>
+                                  {fullName}
+                                </Typography>
+                                {!occ.profileComplete && (
+                                  <Chip
+                                    size='small'
+                                    variant='tonal'
+                                    color='warning'
+                                    label='Setup incomplete'
+                                    className='cursor-pointer shrink-0'
+                                    onClick={() => handleEditOccupant(occ)}
+                                  />
+                                )}
+                              </div>
                               <Typography variant='body2' color='text.secondary' className='truncate'>
                                 {occ.email}
                               </Typography>
