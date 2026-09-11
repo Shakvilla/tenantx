@@ -48,6 +48,7 @@ export interface OccupantRecord {
   documents?: string[] | null
   ghanaCardId?: string | null
   idType?: string | null
+  profileComplete: boolean
   createdAt: string
   updatedAt: string
 
@@ -96,6 +97,7 @@ export interface CreateOccupantPayload {
   documents?: string[]
   ghanaCardId?: string
   idType?: string
+  profileComplete?: boolean
 }
 
 export interface UpdateOccupantPayload {
@@ -120,6 +122,7 @@ export interface UpdateOccupantPayload {
   documents?: string[]
   ghanaCardId?: string
   idType?: string
+  profileComplete?: boolean
 }
 
 /**
