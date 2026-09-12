@@ -24,7 +24,6 @@ import SmsCreditWarningBanner from '@components/banner/SmsCreditWarningBanner'
 import SmsSetupBanner from '@components/banner/SmsSetupBanner'
 import ImpersonationBanner from '@components/banner/ImpersonationBanner'
 import ResumeOnboardingBanner from '@components/banner/ResumeOnboardingBanner'
-import BannerArea from '@components/banner/BannerArea'
 import OnboardingWizard from '@views/onboarding/OnboardingWizard'
 import OnboardTenantWizard from '@views/onboarding/OnboardTenantWizard'
 import { ReferenceDataProvider } from '@/contexts/ReferenceDataContext'
@@ -42,25 +41,28 @@ const Layout = async (props: ChildrenType) => {
   const mode = await getMode()
   const systemMode = await getSystemMode()
 
+  const topBanners = (
+    <>
+      <ImpersonationBanner />
+      <AnnouncementBanner />
+      <ResumeOnboardingBanner />
+      <SubscriptionWarningBanner />
+      <SmsCreditWarningBanner />
+      <SmsSetupBanner />
+    </>
+  )
+
   return (
     <Providers direction={direction}>
       <ReferenceDataProvider>
       <PlatformBrandingProvider>
       <BrandingThemeBridge />
-      <BannerArea>
-        <ImpersonationBanner />
-        <AnnouncementBanner />
-        <ResumeOnboardingBanner />
-        <SubscriptionWarningBanner />
-        <SmsCreditWarningBanner />
-        <SmsSetupBanner />
-      </BannerArea>
       <OnboardingWizard />
       <OnboardTenantWizard />
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={
-          <VerticalLayout navigation={<Navigation mode={mode} />} navbar={<Navbar />} footer={<VerticalFooter />}>
+          <VerticalLayout navigation={<Navigation mode={mode} />} navbar={<Navbar />} footer={<VerticalFooter />} topBanners={topBanners}>
             {children}
           </VerticalLayout>
         }

@@ -22,11 +22,13 @@ const ContentWrapper = ({ children }: ContentWrapperProps) => {
 
   // Calculate the effective sidebar width — use collapsedWidth when collapsed (and not at mobile breakpoint)
   const sidebarWidth = isCollapsed ? collapsedWidth : width
+  const offset = isBreakpointReached ? 0 : sidebarWidth
 
   return (
     <StyledContentWrapper
-      sidebarWidth={isBreakpointReached ? 0 : sidebarWidth}
+      sidebarWidth={offset}
       className={classnames(verticalLayoutClasses.contentWrapper, 'flex flex-col min-is-0 is-full')}
+      style={{ '--sidebar-width': `${offset}px` } as React.CSSProperties}
     >
       {children}
     </StyledContentWrapper>
