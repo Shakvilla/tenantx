@@ -77,6 +77,8 @@ function entityRoute(entityType: string | null, entityId: string | null): string
       // The unit page carries the Advertise card, which is what explains a
       // paused listing — the only reason a UNIT notification is raised today.
       return entityId ? `/properties/units/${entityId}` : '/properties/units'
+    case 'SUPPORT_TICKET':
+      return entityId ? `/support?ticket=${entityId}` : '/support'
     default:
       return null
   }
