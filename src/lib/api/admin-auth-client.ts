@@ -21,6 +21,7 @@ import {
 import { isOtpChallenge } from './auth-client'
 import type { OtpChallenge } from './auth-client'
 import { getDeviceId } from './device-id'
+import { AdminSupportTicket } from '@/types/admin'
 
 const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:1201/api/v1')
   .replace(/\/api\/v1$/, '') + '/api/v1/admin'
@@ -1339,13 +1340,20 @@ export interface FeedbackSummaryDto {
 }
 
 export async function getAdminTickets(params: {
-  status?: string; priority?: string; tenantId?: string; search?: string; page?: number; size?: number
+  status?: string;
+  priority?: string;
+  tenantId?: string;
+  category?: string;
+  search?: string;
+  page?: number;
+  size?: number;
 }): Promise<TicketPageDto> {
   const q = new URLSearchParams()
 
   if (params.status)   q.set('status',   params.status)
   if (params.priority) q.set('priority', params.priority)
   if (params.tenantId) q.set('tenantId', params.tenantId)
+  if (params.category) q.set('category', params.category)
   if (params.search)   q.set('search',   params.search)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
