@@ -46,6 +46,7 @@ import {
   type TicketDto, type TicketPageDto, type TicketCountsDto,
   type FeedbackDto, type FeedbackSummaryDto,
 } from '@/lib/api/admin-auth-client'
+import type { AdminSupportTicket } from '@/types/admin'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { fuzzyFilter } from '@/utils/tableFilterFns'
 
@@ -132,160 +133,7 @@ function StarRating({ value }: { value: number }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Ticket detail drawer
-// ---------------------------------------------------------------------------
-
-interface TicketDrawerProps {
-  ticket: TicketDto | null
-  open: boolean
-  canManage: boolean
-  onClose: () => void
-  onUpdated: (t: TicketDto) => void
-}
-
-function TicketDrawer({ ticket, open, canManage, onClose, onUpdated }: TicketDrawerProps) {
-  const [saving, setSaving]     = useState(false)
-  const [error,  setError]      = useState<string | null>(null)
-  const [newStatus,   setNewStatus]   = useState('')
-  const [newPriority, setNewPriority] = useState('')
-
-  useEffect(() => {
-    if (ticket) { setNewStatus(ticket.status); setNewPriority(ticket.priority) }
-    setError(null)
-  }, [ticket])
-
-  async function handleSave() {
-    if (!ticket) return
-    setSaving(true); setError(null)
-    try {
-      const updated = await updateTicket(ticket.id, {
-        status:   newStatus   !== ticket.status   ? newStatus   : undefined,
-        priority: newPriority !== ticket.priority ? newPriority : undefined,
-      })
-      onUpdated(updated)
-    } catch {
-      setError('Failed to save changes')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleAssign() {
-    if (!ticket) return
-    setSaving(true); setError(null)
-    try {
-      const updated = await updateTicket(ticket.id, { assignToMe: true })
-      onUpdated(updated)
-    } catch {
-      setError('Failed to assign ticket')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const changed = ticket && (newStatus !== ticket.status || newPriority !== ticket.priority)
-
-  return (
-    <Drawer anchor='right' open={open} onClose={onClose}
-      PaperProps={{ sx: { width: { xs: '100%', sm: 480 }, p: 3, boxSizing: 'border-box' } }}>
-      {!ticket ? null : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
-          {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-            <Box sx={{ flex: 1 }}>
-              <Typography variant='h6' fontWeight={700} lineHeight={1.3}>{ticket.subject}</Typography>
-              <Typography variant='caption' color='text.secondary'>#{ticket.id.split('-')[0].toUpperCase()}</Typography>
-            </Box>
-            <IconButton size='small' onClick={onClose}><i className='ri-close-line' /></IconButton>
-          </Box>
-
-          <Divider />
-
-          {/* Meta */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-            <Box>
-              <Typography variant='caption' color='text.secondary'>Tenant</Typography>
-              <Typography variant='body2' fontWeight={600}>{ticket.tenantId}</Typography>
-            </Box>
-            <Box>
-              <Typography variant='caption' color='text.secondary'>Submitter</Typography>
-              <Typography variant='body2' fontWeight={600} noWrap>{ticket.submitterEmail}</Typography>
-            </Box>
-            <Box>
-              <Typography variant='caption' color='text.secondary'>Submitted</Typography>
-              <Typography variant='body2'>{fmtDateTime(ticket.createdAt)}</Typography>
-            </Box>
-            <Box>
-              <Typography variant='caption' color='text.secondary'>Last updated</Typography>
-              <Typography variant='body2'>{fmtDateTime(ticket.updatedAt)}</Typography>
-            </Box>
-            {ticket.assignedTo && (
-              <Box sx={{ gridColumn: '1 / -1' }}>
-                <Typography variant='caption' color='text.secondary'>Assigned to</Typography>
-                <Typography variant='body2' fontWeight={600}>{ticket.assignedTo}</Typography>
-              </Box>
-            )}
-          </Box>
-
-          {/* Body */}
-          <Card variant='outlined' sx={{ bgcolor: 'action.hover' }}>
-            <CardContent sx={{ py: '12px !important' }}>
-              <Typography variant='body2' sx={{ whiteSpace: 'pre-wrap' }}>{ticket.body}</Typography>
-            </CardContent>
-          </Card>
-
-          {/* Actions */}
-          {canManage && (
-            <>
-              <Divider />
-              {error && <Alert severity='error'>{error}</Alert>}
-
-              <FormControl size='small' fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select label='Status' value={newStatus} onChange={e => setNewStatus(e.target.value)}>
-                  {['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].map(s => (
-                    <MenuItem key={s} value={s}>
-                      <Chip label={s.replace('_', ' ')} size='small'
-                        color={STATUS_COLORS[s] ?? 'default'} sx={{ pointerEvents: 'none' }} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl size='small' fullWidth>
-                <InputLabel>Priority</InputLabel>
-                <Select label='Priority' value={newPriority} onChange={e => setNewPriority(e.target.value)}>
-                  {['LOW', 'MEDIUM', 'HIGH', 'URGENT'].map(p => (
-                    <MenuItem key={p} value={p}>
-                      <Chip label={p} size='small'
-                        color={PRIORITY_COLORS[p] ?? 'default'} sx={{ pointerEvents: 'none' }} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button variant='contained' size='small' fullWidth
-                  onClick={handleSave} disabled={saving || !changed}
-                  startIcon={saving ? <CircularProgress size={14} color='inherit' /> : <i className='ri-save-line' />}>
-                  Save changes
-                </Button>
-                {!ticket.assignedTo && (
-                  <Tooltip title='Assign this ticket to yourself'>
-                    <Button variant='outlined' size='small' onClick={handleAssign} disabled={saving}>
-                      <i className='ri-user-received-line' />
-                    </Button>
-                  </Tooltip>
-                )}
-              </Box>
-            </>
-          )}
-        </Box>
-      )}
-    </Drawer>
-  )
-}
+//
 
 // ---------------------------------------------------------------------------
 // Tab 0 — Support Tickets
@@ -512,12 +360,9 @@ function TicketsTab() {
         )}
       </Card>
 
-      <TicketDrawer
-        ticket={selected}
-        open={!!selected}
-        canManage={canManage}
-        onClose={() => setSelected(null)}
-        onUpdated={handleUpdated}
+      <AdminConversationThread
+        ticket={selected as AdminSupportTicket}
+        onBack={() => setSelected(null)}
       />
 
       <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)}
