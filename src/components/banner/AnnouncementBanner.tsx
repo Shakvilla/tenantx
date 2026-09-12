@@ -103,8 +103,8 @@ export default function AnnouncementBanner() {
           borderRadius: 0,
           borderBottom: '1px solid',
           borderColor: `${announcement.severity}.dark`,
-          bgcolor: `${announcement.severity}.light`,
-          color: `${announcement.severity}.900`,
+          bgcolor: `${announcement.severity}.main`,
+          color: '#fff',
         }}
       >
         <AlertTitle sx={{ fontWeight: 700 }}>{announcement.title}</AlertTitle>

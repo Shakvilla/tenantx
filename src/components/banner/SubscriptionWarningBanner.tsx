@@ -80,8 +80,8 @@ export default function SubscriptionWarningBanner() {
           borderRadius: 0,
           borderBottom: '1px solid',
           borderColor: `${config.severity}.dark`,
-          bgcolor: `${config.severity}.light`,
-          color: `${config.severity}.900`,
+          bgcolor: `${config.severity}.main`,
+          color: '#fff',
 
           // Stack on mobile: message on top, action button full-width below so the
           // banner never forces a horizontal scroll on narrow screens.
