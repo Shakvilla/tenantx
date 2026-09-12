@@ -49,6 +49,7 @@ import {
 import type { AdminSupportTicket } from '@/types/admin'
 import { useAdminAuth } from '@/contexts/AdminAuthContext'
 import { fuzzyFilter } from '@/utils/tableFilterFns'
+import AdminConversationThread from './components/AdminConversationThread'
 
 // ---------------------------------------------------------------------------
 // Constants & helpers
@@ -360,10 +361,19 @@ function TicketsTab() {
         )}
       </Card>
 
-      <AdminConversationThread
-        ticket={selected as AdminSupportTicket}
-        onBack={() => setSelected(null)}
-      />
+      <Drawer
+        anchor='right'
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        PaperProps={{ sx: { width: { xs: '100%', md: 600 } } }}
+      >
+        {selected && (
+          <AdminConversationThread
+            ticket={selected as unknown as AdminSupportTicket}
+            onBack={() => setSelected(null)}
+          />
+        )}
+      </Drawer>
 
       <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)}
         message={toast} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
