@@ -478,6 +478,25 @@ function PlanCard({
           ))}
         </Box>
 
+        {/* SMS reminders hint — informs landlords that this plan includes automated SMS */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            px: 1.5,
+            py: 1,
+            mb: 2,
+            borderRadius: 1,
+            bgcolor: isPopular ? 'rgba(255,255,255,0.08)' : 'rgba(12,105,77,0.06)',
+            fontSize: '0.8rem',
+            color: isPopular ? SAND(0.7) : INK(0.55)
+          }}
+        >
+          <i className='ri-message-3-line' style={{ fontSize: 14, flexShrink: 0 }} />
+          <span>SMS reminders included — set up your Sender ID after signup</span>
+        </Box>
+
         {/* Get Started */}
         <Button
           fullWidth
