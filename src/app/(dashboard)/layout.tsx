@@ -24,6 +24,7 @@ import SmsCreditWarningBanner from '@components/banner/SmsCreditWarningBanner'
 import SmsSetupBanner from '@components/banner/SmsSetupBanner'
 import ImpersonationBanner from '@components/banner/ImpersonationBanner'
 import ResumeOnboardingBanner from '@components/banner/ResumeOnboardingBanner'
+import BannerArea from '@components/banner/BannerArea'
 import OnboardingWizard from '@views/onboarding/OnboardingWizard'
 import OnboardTenantWizard from '@views/onboarding/OnboardTenantWizard'
 import { ReferenceDataProvider } from '@/contexts/ReferenceDataContext'
@@ -46,14 +47,16 @@ const Layout = async (props: ChildrenType) => {
       <ReferenceDataProvider>
       <PlatformBrandingProvider>
       <BrandingThemeBridge />
-      <ImpersonationBanner />
-      <AnnouncementBanner />
-      <ResumeOnboardingBanner />
+      <BannerArea>
+        <ImpersonationBanner />
+        <AnnouncementBanner />
+        <ResumeOnboardingBanner />
+        <SubscriptionWarningBanner />
+        <SmsCreditWarningBanner />
+        <SmsSetupBanner />
+      </BannerArea>
       <OnboardingWizard />
       <OnboardTenantWizard />
-      <SubscriptionWarningBanner />
-      <SmsCreditWarningBanner />
-      <SmsSetupBanner />
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={
