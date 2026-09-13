@@ -32,7 +32,7 @@ export default function SupportView() {
     }
 
     return (
-      <Box sx={{ p: 2 }}>
+      <Box sx={{ p: 2}}>
         <TicketList onSelectTicket={handleSelectTicket} refreshKey={refreshKey} />
       </Box>
     );

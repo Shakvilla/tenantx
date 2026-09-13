@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from '@/lib/api/client';
+import { apiGet, apiPost, API_BASE } from '@/lib/api/client';
 import type { SupportTicket, TicketReply, TicketPageResponse } from '@/types/support';
 
 // ---------------------------------------------------------------------------
@@ -55,21 +55,21 @@ export const supportClient = {
   async getMyTickets(email: string, status?: string, page = 0, size = 20): Promise<TicketPageResponse> {
     const params = new URLSearchParams({ email, page: String(page), size: String(size) })
     if (status) params.set('status', status)
-    return apiGet<TicketPageResponse>(`/support/tickets/my?${params}`)
+    return apiGet<TicketPageResponse>(`${API_BASE}/support/tickets/my?${params}`)
   },
 
   async getTicketDetail(id: string, email: string): Promise<SupportTicket & { replies: TicketReply[] }> {
-    return apiGet<SupportTicket & { replies: TicketReply[] }>(`/support/tickets/${id}?email=${encodeURIComponent(email)}`)
+    return apiGet<SupportTicket & { replies: TicketReply[] }>(`${API_BASE}/support/tickets/${id}?email=${encodeURIComponent(email)}`)
   },
 
   async postReply(ticketId: string, senderEmail: string, senderName: string, message: string): Promise<TicketReply> {
-    return apiPost<TicketReply>(`/support/tickets/${ticketId}/replies`, { senderEmail, senderName, message })
+    return apiPost<TicketReply>(`${API_BASE}/support/tickets/${ticketId}/replies`, { senderEmail, senderName, message })
   },
 
   async getReplies(ticketId: string, after?: string): Promise<TicketReply[]> {
     const params = new URLSearchParams()
     if (after) params.set('after', after)
-    return apiGet<TicketReply[]>(`/support/tickets/${ticketId}/replies?${params}`)
+    return apiGet<TicketReply[]>(`${API_BASE}/support/tickets/${ticketId}/replies?${params}`)
   },
 
   async createTicket(data: {
@@ -80,7 +80,7 @@ export const supportClient = {
     priority?: string
     category?: string
   }): Promise<SupportTicket> {
-    return apiPost<SupportTicket>('/admin/support/tickets', data)
+    return apiPost<SupportTicket>(`${API_BASE}/support/tickets`, data)
   }
 }
 
@@ -89,9 +89,9 @@ export const supportClient = {
 // ---------------------------------------------------------------------------
 
 export async function submitTicket(payload: SubmitTicketRequest): Promise<TicketDto> {
-  return apiPost<TicketDto>('/support/tickets', payload)
+  return apiPost<TicketDto>(`${API_BASE}/support/tickets`, payload)
 }
 
 export async function submitFeedback(payload: SubmitFeedbackRequest): Promise<FeedbackDto> {
-  return apiPost<FeedbackDto>('/feedback', payload)
+  return apiPost<FeedbackDto>(`${API_BASE}/support/feedback`, payload)
 }
