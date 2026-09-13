@@ -82,3 +82,7 @@ export async function getMySmsCreditRequests(
   if (status) params.set('status', status)
   return apiGet(`${REQUEST_BASE}?${params}`)
 }
+
+export async function cancelSmsCreditRequest(id: string): Promise<SmsCreditTopUpRequestDto> {
+  return apiPost<SmsCreditTopUpRequestDto>(`${REQUEST_BASE}/${id}/cancel`, {})
+}
