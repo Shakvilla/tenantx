@@ -55,8 +55,9 @@ export default function SmsSenderIdSection() {
   const [funding, setFunding] = useState(false)
   const [fundError, setFundError] = useState<string | null>(null)
   const [fundSuccess, setFundSuccess] = useState(false)
-  const [momoStatus, setMomoStatus] = useState<'idle' | 'polling' | 'success' | 'failed'>('idle')
+  const [momoStatus, setMomoStatus] = useState<'idle' | 'waiting' | 'polling' | 'success' | 'failed'>('idle')
   const [momoMessage, setMomoMessage] = useState('')
+  const [momoTransId, setMomoTransId] = useState<string | null>(null)
   const [fundMode, setFundMode] = useState<'INSTANT' | 'REQUEST'>('INSTANT')
 
   const load = useCallback(() => {
@@ -147,11 +148,11 @@ export default function SmsSenderIdSection() {
           return
         }
 
-        // MoMo — no redirectUrl, show phone prompt message and poll
-        setMomoStatus('polling')
-        setMomoMessage('Please check your phone to approve the payment.')
+        // MoMo — show phone prompt, wait for user to confirm payment
+        setMomoStatus('waiting')
+        setMomoMessage('A payment prompt has been sent to your phone. Please approve it.')
+        setMomoTransId(result.clientTransId ?? null)
         setFunding(false)
-        if (result.clientTransId) pollMomoStatus(result.clientTransId)
 
         return
       }
@@ -355,16 +356,34 @@ export default function SmsSenderIdSection() {
           )}
           {momoStatus !== 'idle' && (
             <Alert
-              severity={momoStatus === 'polling' ? 'info' : momoStatus === 'success' ? 'success' : 'error'}
+              severity={momoStatus === 'polling' ? 'info' : momoStatus === 'waiting' ? 'info' : momoStatus === 'success' ? 'success' : 'error'}
               sx={{ mt: 1 }}
             >
+              {momoStatus === 'waiting' && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Typography variant='body2'>{momoMessage}</Typography>
+                  <Button
+                    variant='contained'
+                    size='small'
+                    onClick={() => {
+                      if (momoTransId) {
+                        setMomoStatus('polling')
+                        setMomoMessage('Checking payment status...')
+                        pollMomoStatus(momoTransId)
+                      }
+                    }}
+                  >
+                    I have paid
+                  </Button>
+                </Box>
+              )}
               {momoStatus === 'polling' && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <CircularProgress size={16} />
                   <span>{momoMessage}</span>
                 </Box>
               )}
-              {momoStatus !== 'polling' && momoMessage}
+              {momoStatus !== 'waiting' && momoStatus !== 'polling' && momoMessage}
             </Alert>
           )}
         </DialogContent>
