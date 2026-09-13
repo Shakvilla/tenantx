@@ -60,8 +60,8 @@ export default function TicketList({ onSelectTicket, selectedTicketId, refreshKe
     try {
       const email = user?.email || '';
       const response = await supportClient.getMyTickets(email, statusFilter || undefined, page, rowsPerPage);
-      setTickets(response.content);
-      setTotalElements(response.totalElements);
+      setTickets(response?.content ?? []);
+      setTotalElements(response?.totalElements ?? 0);
     } catch (error) {
       console.error('Failed to fetch tickets:', error);
     } finally {
