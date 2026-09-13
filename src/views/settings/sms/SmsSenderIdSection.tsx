@@ -145,7 +145,7 @@ export default function SmsSenderIdSection() {
         setMomoStatus('polling')
         setMomoMessage('Please check your phone to approve the payment.')
         setFunding(false)
-        pollMomoStatus(result.clientTransId)
+        if (result.clientTransId) pollMomoStatus(result.clientTransId)
 
         return
       }
