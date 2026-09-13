@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Box, Typography, TextField, Button, Paper, Avatar, Divider,
   CircularProgress, Alert, Tabs, Tab, Chip
@@ -39,6 +40,7 @@ export default function AdminConversationThread({ ticket, onBack }: AdminConvers
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchData();
@@ -51,10 +53,20 @@ export default function AdminConversationThread({ ticket, onBack }: AdminConvers
   const fetchData = async () => {
     try {
       setLoading(true);
-      // TODO: Fetch replies and notes from API
-      // For now, use empty arrays
-      setReplies([]);
-      setNotes([]);
+      const API_BASE = '/api/v1';
+      
+      // Fetch replies
+      const repliesRes = await fetch(`${API_BASE}/admin/support/tickets/${ticket.id}/replies`);
+      if (repliesRes.ok) {
+        setReplies(await repliesRes.json());
+      }
+      
+      // Fetch notes
+      const notesRes = await fetch(`${API_BASE}/admin/support/tickets/${ticket.id}/notes?page=0&size=100`);
+      if (notesRes.ok) {
+        const notesData = await notesRes.json();
+        setNotes(notesData.content || []);
+      }
     } catch (err) {
       setError('Failed to load conversation');
     } finally {
@@ -74,15 +86,18 @@ export default function AdminConversationThread({ ticket, onBack }: AdminConvers
     setSuccess(null);
 
     try {
-      // TODO: Call admin reply API
-      const reply: TicketReply = {
-        id: Date.now().toString(),
-        senderType: 'ADMIN',
-        senderName: localStorage.getItem('userName') || 'Admin',
-        message: newMessage.trim(),
-        createdAt: new Date().toISOString(),
-      };
+      const senderEmail = user?.email || '';
+      const senderName = user?.name || senderEmail;
 
+      const response = await fetch(`/api/v1/admin/support/tickets/${ticket.id}/replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminEmail: senderEmail, adminName: senderName, message: newMessage.trim() }),
+      });
+
+      if (!response.ok) throw new Error('Failed to send reply');
+
+      const reply = await response.json();
       setReplies((prev) => [...prev, reply]);
       setNewMessage('');
       setSuccess('Reply sent successfully');
@@ -102,14 +117,18 @@ export default function AdminConversationThread({ ticket, onBack }: AdminConvers
     setSuccess(null);
 
     try {
-      // TODO: Call admin note API
-      const note: TicketInternalNote = {
-        id: Date.now().toString(),
-        adminName: localStorage.getItem('userName') || 'Admin',
-        note: newNote.trim(),
-        createdAt: new Date().toISOString(),
-      };
+      const senderEmail = user?.email || '';
+      const senderName = user?.name || senderEmail;
 
+      const response = await fetch(`/api/v1/admin/support/tickets/${ticket.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminEmail: senderEmail, adminName: senderName, note: newNote.trim() }),
+      });
+
+      if (!response.ok) throw new Error('Failed to add note');
+
+      const note = await response.json();
       setNotes((prev) => [...prev, note]);
       setNewNote('');
       setSuccess('Note added successfully');
