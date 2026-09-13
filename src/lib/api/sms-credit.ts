@@ -64,7 +64,6 @@ export interface SmsCreditTopUpRequestDto {
 }
 
 const REQUEST_BASE = `${API_BASE}/sms/credit-requests`
-const ADMIN_REQUEST_BASE = `${API_BASE}/admin/sms/credit-requests`
 
 export async function createSmsCreditRequest(
   amount: number,
@@ -82,24 +81,4 @@ export async function getMySmsCreditRequests(
   const params = new URLSearchParams({ page: String(page), size: String(size) })
   if (status) params.set('status', status)
   return apiGet(`${REQUEST_BASE}?${params}`)
-}
-
-export async function getAdminSmsCreditRequests(
-  status?: string,
-  tenantId?: string,
-  page = 0,
-  size = 20
-): Promise<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }> {
-  const params = new URLSearchParams({ page: String(page), size: String(size) })
-  if (status) params.set('status', status)
-  if (tenantId) params.set('tenantId', tenantId)
-  return apiGet(`${ADMIN_REQUEST_BASE}?${params}`)
-}
-
-export async function approveSmsCreditRequest(id: string): Promise<SmsCreditTopUpRequestDto> {
-  return apiPost<SmsCreditTopUpRequestDto>(`${ADMIN_REQUEST_BASE}/${id}/approve`)
-}
-
-export async function rejectSmsCreditRequest(id: string, reason: string): Promise<SmsCreditTopUpRequestDto> {
-  return apiPost<SmsCreditTopUpRequestDto>(`${ADMIN_REQUEST_BASE}/${id}/reject`, { reason })
 }

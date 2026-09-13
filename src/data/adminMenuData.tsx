@@ -143,6 +143,13 @@ export const adminNavItems: AdminNavItem[] = [
     permissions: ['platform:impersonate'],
   },
   {
+    label: 'SMS Credit Requests',
+    href: '/admin/sms-credit-requests',
+    icon: 'ri-exchange-dollar-line',
+    section: 'System',
+    permissions: ['platform:sms:read'],
+  },
+  {
     label: 'SMS Sender IDs',
     href: '/admin/sms-sender-ids',
     icon: 'ri-message-3-line',

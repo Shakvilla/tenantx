@@ -2239,6 +2239,52 @@ export async function reactivateSenderId(tenantId: string): Promise<AdminSenderI
 }
 
 // ---------------------------------------------------------------------------
+// SMS Credit Top-Up Requests (admin)
+// ---------------------------------------------------------------------------
+
+export interface SmsCreditTopUpRequestDto {
+  id: string
+  tenantId: string
+  amount: number
+  paymentMethod: 'WALLET' | 'MOBILE_MONEY'
+  status: 'REQUESTED' | 'PAYMENT_PENDING' | 'ESCROW' | 'APPROVED' | 'COMPLETED' | 'REJECTED' | 'REFUNDED'
+  escrowAmount: number | null
+  paymentReference: string | null
+  clientTransId: string | null
+  mobileNumber: string | null
+  requestedAt: string
+  paidAt: string | null
+  approvedAt: string | null
+  approvedBy: string | null
+  rejectedAt: string | null
+  rejectionReason: string | null
+  completedAt: string | null
+  refundedAt: string | null
+}
+
+export async function getAdminSmsCreditRequests(
+  status?: string,
+  tenantId?: string,
+  page = 0,
+  size = 20
+): Promise<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (status) params.set('status', status)
+  if (tenantId) params.set('tenantId', tenantId)
+  return adminGet<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }>(
+    `/sms/credit-requests?${params}`
+  )
+}
+
+export async function approveSmsCreditRequest(id: string): Promise<SmsCreditTopUpRequestDto> {
+  return adminPost<SmsCreditTopUpRequestDto>(`/sms/credit-requests/${id}/approve`)
+}
+
+export async function rejectSmsCreditRequest(id: string, reason: string): Promise<SmsCreditTopUpRequestDto> {
+  return adminPost<SmsCreditTopUpRequestDto>(`/sms/credit-requests/${id}/reject`, { reason })
+}
+
+// ---------------------------------------------------------------------------
 // SMS Top-Up Fee Tiers (admin)
 // ---------------------------------------------------------------------------
 

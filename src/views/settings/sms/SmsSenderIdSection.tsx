@@ -54,6 +54,7 @@ export default function SmsSenderIdSection() {
   const [fundMobile, setFundMobile] = useState('')
   const [funding, setFunding] = useState(false)
   const [fundError, setFundError] = useState<string | null>(null)
+  const [fundSuccess, setFundSuccess] = useState(false)
   const [momoStatus, setMomoStatus] = useState<'idle' | 'polling' | 'success' | 'failed'>('idle')
   const [momoMessage, setMomoMessage] = useState('')
   const [fundMode, setFundMode] = useState<'INSTANT' | 'REQUEST'>('INSTANT')
@@ -68,7 +69,11 @@ export default function SmsSenderIdSection() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [fundOpen, load])
+
+  useEffect(() => {
+    if (!fundOpen) setFundSuccess(false)
+  }, [fundOpen])
 
   useEffect(() => {
     getSmsCreditAccount()
@@ -90,7 +95,7 @@ export default function SmsSenderIdSection() {
       setSenderId('')
       load()
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Failed to submit request')
+      setError(e?.message ?? 'Failed to submit request')
     } finally {
       setSubmitting(false)
     }
@@ -118,9 +123,10 @@ export default function SmsSenderIdSection() {
         )
         setFundOpen(false)
         setFundAmount('')
+        setFundSuccess(true)
         load()
       } catch (e: any) {
-        setFundError(e?.response?.data?.message ?? 'Request failed')
+        setFundError(e?.message ?? 'Request failed')
       } finally {
         setFunding(false)
       }
@@ -157,7 +163,7 @@ export default function SmsSenderIdSection() {
         .then(setAccount)
         .catch(() => {})
     } catch (e: any) {
-      setFundError(e?.response?.data?.message ?? 'Funding failed')
+      setFundError(e?.message ?? 'Funding failed')
     } finally {
       setFunding(false)
     }
@@ -301,6 +307,7 @@ export default function SmsSenderIdSection() {
         <DialogTitle>Top Up SMS Credit</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           {fundError && <Alert severity='error'>{fundError}</Alert>}
+          {fundSuccess && <Alert severity='success'>Request sent successfully!</Alert>}
           <ToggleButtonGroup
             value={fundMode}
             exclusive

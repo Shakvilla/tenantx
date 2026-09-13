@@ -29,7 +29,7 @@ import {
   approveSmsCreditRequest,
   rejectSmsCreditRequest,
   type SmsCreditTopUpRequestDto
-} from '@/lib/api/sms-credit'
+} from '@/lib/api/admin-auth-client'
 
 const STATUS_COLOR: Record<string, 'warning' | 'success' | 'error' | 'info' | 'default'> = {
   REQUESTED: 'info',
@@ -52,7 +52,7 @@ export default function SmsCreditRequestsList() {
 
   const load = () => {
     setLoading(true)
-    getAdminSmsCreditRequests('ESCROW')
+    getAdminSmsCreditRequests()
       .then(res => setRequests(res.content || []))
       .catch(() => setError('Failed to load requests'))
       .finally(() => setLoading(false))
@@ -69,7 +69,7 @@ export default function SmsCreditRequestsList() {
       await approveSmsCreditRequest(id)
       load()
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Approval failed')
+      setError(e?.message ?? 'Approval failed')
     } finally {
       setActionLoading(false)
     }
@@ -86,7 +86,7 @@ export default function SmsCreditRequestsList() {
       setRejectReason('')
       load()
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Rejection failed')
+      setError(e?.message ?? 'Rejection failed')
     } finally {
       setActionLoading(false)
     }

@@ -53,7 +53,7 @@ type Props = {
 
 // ─── MoMo status polling dialog ───────────────────────────────────────────────
 
-type MoMoStatus = 'PROCESSING' | 'PAID' | 'FAILED'
+type MoMoStatus = 'PROCESSING' | 'PAID' | 'FAILED' | 'TIMED_OUT'
 
 interface MoMoStatusDialogProps {
   open: boolean
@@ -68,11 +68,14 @@ const MoMoStatusDialog = ({ open, paymentId, walletNumber, network, amount, onCl
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
-  const [status, setStatus]     = useState<MoMoStatus>('PROCESSING')
-  const [reason, setReason]     = useState('')
-  const [attempts, setAttempts] = useState(0)
-  const intervalRef             = useRef<ReturnType<typeof setInterval> | null>(null)
-  const MAX_ATTEMPTS            = 24 // 2 minutes at 5 s intervals
+  const [status, setStatus]         = useState<MoMoStatus>('PROCESSING')
+  const [reason, setReason]         = useState('')
+  const [attempts, setAttempts]     = useState(0)
+  const [retrying, setRetrying]     = useState(false)
+  const [retryAttempts, setRetryAttempts] = useState(0)
+  const intervalRef                 = useRef<ReturnType<typeof setInterval> | null>(null)
+  const MAX_ATTEMPTS                = 24 // 2 minutes at 5 s intervals
+  const MAX_RETRY_ATTEMPTS          = 6  // 30 seconds at 5 s intervals for manual retry
 
   const networkLabels: Record<MobileNetwork, string> = {
     MTN: 'MTN MoMo',
@@ -80,40 +83,71 @@ const MoMoStatusDialog = ({ open, paymentId, walletNumber, network, amount, onCl
     VODAFONE: 'Telecel Cash'
   }
 
+  const stopPolling = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }
+
   const poll = useCallback(async () => {
     try {
       const res = await paymentsApi.checkStatus(paymentId)
       if (res.status === 'PAID') {
         setStatus('PAID')
-        if (intervalRef.current) clearInterval(intervalRef.current)
+        setRetrying(false)
+        stopPolling()
       } else if (res.status === 'FAILED') {
         setStatus('FAILED')
-        setReason(res.failureReason || 'Payment was declined or timed out.')
-        if (intervalRef.current) clearInterval(intervalRef.current)
+        setReason(res.failureReason || 'Payment was declined.')
+        setRetrying(false)
+        stopPolling()
       } else {
-        setAttempts(a => {
-          const next = a + 1
-          if (next >= MAX_ATTEMPTS) {
-            setStatus('FAILED')
-            setReason('Payment request timed out. Please check your MoMo balance and try again.')
-            if (intervalRef.current) clearInterval(intervalRef.current)
-          }
-          return next
-        })
+        // Still processing — check if we've hit the attempt limit
+        if (retrying) {
+          setRetryAttempts(a => {
+            const next = a + 1
+            if (next >= MAX_RETRY_ATTEMPTS) {
+              setStatus('TIMED_OUT')
+              setRetrying(false)
+              stopPolling()
+            }
+            return next
+          })
+        } else {
+          setAttempts(a => {
+            const next = a + 1
+            if (next >= MAX_ATTEMPTS) {
+              setStatus('TIMED_OUT')
+              stopPolling()
+            }
+            return next
+          })
+        }
       }
     } catch {
       // network blip — keep polling
     }
-  }, [paymentId])
+  }, [paymentId, retrying])
 
   useEffect(() => {
     if (!open) return
     setStatus('PROCESSING')
     setAttempts(0)
+    setRetryAttempts(0)
+    setRetrying(false)
     setReason('')
     intervalRef.current = setInterval(poll, 5000)
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+    return () => stopPolling()
   }, [open, poll])
+
+  const handleRetryCheck = () => {
+    setRetrying(true)
+    setRetryAttempts(0)
+    // Restart polling for the retry phase
+    stopPolling()
+    intervalRef.current = setInterval(poll, 5000)
+  }
 
   return (
     <Dialog open={open} maxWidth='xs' fullWidth fullScreen={isMobile} disableEscapeKeyDown>
@@ -164,6 +198,48 @@ const MoMoStatusDialog = ({ open, paymentId, walletNumber, network, amount, onCl
               <Button variant='contained' color='success' fullWidth onClick={() => onClose(true)}>
                 Done
               </Button>
+            </>
+          )}
+
+          {status === 'TIMED_OUT' && (
+            <>
+              <Box sx={{
+                width: 64, height: 64, borderRadius: '50%',
+                bgcolor: 'warning.main', display: 'flex',
+                alignItems: 'center', justifyContent: 'center'
+              }}>
+                <i className='ri-time-line text-3xl' style={{ color: '#fff' }} />
+              </Box>
+              <div className='text-center'>
+                <Typography variant='h6'>Payment not confirmed yet</Typography>
+                <Typography variant='body2' color='text.secondary'>
+                  The gateway has not confirmed this payment. If you have approved the
+                  MoMo prompt on your phone, tap the button below to check again.
+                </Typography>
+              </div>
+              {retrying ? (
+                <Chip
+                  label={`Re-checking... (${retryAttempts}/${MAX_RETRY_ATTEMPTS})`}
+                  size='small'
+                  color='warning'
+                  variant='outlined'
+                />
+              ) : (
+                <div className='flex flex-col gap-2 w-full'>
+                  <Button
+                    variant='contained'
+                    color='primary'
+                    fullWidth
+                    onClick={handleRetryCheck}
+                    startIcon={<i className='ri-refresh-line' />}
+                  >
+                    I&apos;ve paid — check status
+                  </Button>
+                  <Button variant='outlined' color='secondary' fullWidth onClick={() => onClose(false)}>
+                    Close
+                  </Button>
+                </div>
+              )}
             </>
           )}
 
