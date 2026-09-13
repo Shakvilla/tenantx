@@ -29,6 +29,7 @@ import {
   getSmsCreditAccount,
   fundSmsCreditFromWallet,
   fundSmsCreditViaGateway,
+  createSmsCreditRequest,
   type SenderIdRequestDto,
   type SmsCreditAccountDto
 } from '@/lib/api/sms-credit'
@@ -55,6 +56,7 @@ export default function SmsSenderIdSection() {
   const [fundError, setFundError] = useState<string | null>(null)
   const [momoStatus, setMomoStatus] = useState<'idle' | 'polling' | 'success' | 'failed'>('idle')
   const [momoMessage, setMomoMessage] = useState('')
+  const [fundMode, setFundMode] = useState<'INSTANT' | 'REQUEST'>('INSTANT')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -106,6 +108,27 @@ export default function SmsSenderIdSection() {
     setFunding(true)
     setFundError(null)
 
+    // Request mode: create a top-up request for admin approval
+    if (fundMode === 'REQUEST') {
+      try {
+        await createSmsCreditRequest(
+          amt,
+          fundMethod === 'WALLET' ? 'WALLET' : 'MOBILE_MONEY',
+          fundMethod === 'MOMO' ? fundMobile.trim() : undefined
+        )
+        setFundOpen(false)
+        setFundAmount('')
+        load()
+      } catch (e: any) {
+        setFundError(e?.response?.data?.message ?? 'Request failed')
+      } finally {
+        setFunding(false)
+      }
+
+      return
+    }
+
+    // Instant mode: existing self-service flow
     try {
       if (fundMethod === 'WALLET') {
         await fundSmsCreditFromWallet(amt)
@@ -278,6 +301,23 @@ export default function SmsSenderIdSection() {
         <DialogTitle>Top Up SMS Credit</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           {fundError && <Alert severity='error'>{fundError}</Alert>}
+          <ToggleButtonGroup
+            value={fundMode}
+            exclusive
+            size='small'
+            fullWidth
+            onChange={(_, v) => {
+              if (v) setFundMode(v)
+            }}
+          >
+            <ToggleButton value='INSTANT'>Instant Top-Up</ToggleButton>
+            <ToggleButton value='REQUEST'>Request for Approval</ToggleButton>
+          </ToggleButtonGroup>
+          {fundMode === 'REQUEST' && (
+            <Alert severity='info' sx={{ mt: 1 }}>
+              Your request will be sent to the platform admin for approval. Payment will be held in escrow until approved.
+            </Alert>
+          )}
           <TextField
             size='small'
             label='Amount (GHS)'
