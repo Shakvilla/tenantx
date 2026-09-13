@@ -53,20 +53,14 @@ export default function AdminConversationThread({ ticket, onBack }: AdminConvers
   const fetchData = async () => {
     try {
       setLoading(true);
-      const API_BASE = '/api/v1';
-      
+
       // Fetch replies
-      const repliesRes = await fetch(`${API_BASE}/admin/support/tickets/${ticket.id}/replies`);
-      if (repliesRes.ok) {
-        setReplies(await repliesRes.json());
-      }
-      
+      const repliesRes = await adminClient.get(`/support/tickets/${ticket.id}/replies`);
+      setReplies(repliesRes.data || []);
+
       // Fetch notes
-      const notesRes = await fetch(`${API_BASE}/admin/support/tickets/${ticket.id}/notes?page=0&size=100`);
-      if (notesRes.ok) {
-        const notesData = await notesRes.json();
-        setNotes(notesData.content || []);
-      }
+      const notesRes = await adminClient.get(`/support/tickets/${ticket.id}/notes?page=0&size=100`);
+      setNotes(notesRes.data?.content || []);
     } catch (err) {
       setError('Failed to load conversation');
     } finally {
@@ -89,15 +83,11 @@ export default function AdminConversationThread({ ticket, onBack }: AdminConvers
       const senderEmail = user?.email || '';
       const senderName = user?.name || senderEmail;
 
-      const response = await fetch(`/api/v1/admin/support/tickets/${ticket.id}/replies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminEmail: senderEmail, adminName: senderName, message: newMessage.trim() }),
+      const res = await adminClient.post(`/support/tickets/${ticket.id}/replies`, {
+        adminEmail: senderEmail, adminName: senderName, message: newMessage.trim()
       });
 
-      if (!response.ok) throw new Error('Failed to send reply');
-
-      const reply = await response.json();
+      const reply = res.data;
       setReplies((prev) => [...prev, reply]);
       setNewMessage('');
       setSuccess('Reply sent successfully');
@@ -120,15 +110,11 @@ export default function AdminConversationThread({ ticket, onBack }: AdminConvers
       const senderEmail = user?.email || '';
       const senderName = user?.name || senderEmail;
 
-      const response = await fetch(`/api/v1/admin/support/tickets/${ticket.id}/notes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminEmail: senderEmail, adminName: senderName, note: newNote.trim() }),
+      const res = await adminClient.post(`/support/tickets/${ticket.id}/notes`, {
+        adminEmail: senderEmail, adminName: senderName, note: newNote.trim()
       });
 
-      if (!response.ok) throw new Error('Failed to add note');
-
-      const note = await response.json();
+      const note = res.data;
       setNotes((prev) => [...prev, note]);
       setNewNote('');
       setSuccess('Note added successfully');

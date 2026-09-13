@@ -1,6 +1,5 @@
-import { SupportTicket, TicketReply, TicketPageResponse } from '@/types/support';
-
-const API_BASE = '/api/v1';
+import { apiGet, apiPost } from '@/lib/api/client';
+import type { SupportTicket, TicketReply, TicketPageResponse } from '@/types/support';
 
 // ---------------------------------------------------------------------------
 // Types (keep backward-compatible aliases)
@@ -48,40 +47,29 @@ export interface FeedbackDto {
 }
 
 // ---------------------------------------------------------------------------
-// API functions (new conversation support endpoints)
+// API functions (new conversation support endpoints — uses axios with
+// automatic X-Tenant-ID + Authorization headers from the shared apiClient)
 // ---------------------------------------------------------------------------
 
 export const supportClient = {
   async getMyTickets(email: string, status?: string, page = 0, size = 20): Promise<TicketPageResponse> {
     const params = new URLSearchParams({ email, page: String(page), size: String(size) })
     if (status) params.set('status', status)
-    const response = await fetch(`${API_BASE}/support/tickets/my?${params}`)
-    if (!response.ok) throw new Error('Failed to fetch tickets')
-    return response.json()
+    return apiGet<TicketPageResponse>(`/support/tickets/my?${params}`)
   },
 
   async getTicketDetail(id: string, email: string): Promise<SupportTicket & { replies: TicketReply[] }> {
-    const response = await fetch(`${API_BASE}/support/tickets/${id}?email=${encodeURIComponent(email)}`)
-    if (!response.ok) throw new Error('Failed to fetch ticket')
-    return response.json()
+    return apiGet<SupportTicket & { replies: TicketReply[] }>(`/support/tickets/${id}?email=${encodeURIComponent(email)}`)
   },
 
   async postReply(ticketId: string, senderEmail: string, senderName: string, message: string): Promise<TicketReply> {
-    const response = await fetch(`${API_BASE}/support/tickets/${ticketId}/replies`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senderEmail, senderName, message }),
-    })
-    if (!response.ok) throw new Error('Failed to post reply')
-    return response.json()
+    return apiPost<TicketReply>(`/support/tickets/${ticketId}/replies`, { senderEmail, senderName, message })
   },
 
   async getReplies(ticketId: string, after?: string): Promise<TicketReply[]> {
     const params = new URLSearchParams()
     if (after) params.set('after', after)
-    const response = await fetch(`${API_BASE}/support/tickets/${ticketId}/replies?${params}`)
-    if (!response.ok) throw new Error('Failed to fetch replies')
-    return response.json()
+    return apiGet<TicketReply[]>(`/support/tickets/${ticketId}/replies?${params}`)
   },
 
   async createTicket(data: {
@@ -92,13 +80,7 @@ export const supportClient = {
     priority?: string
     category?: string
   }): Promise<SupportTicket> {
-    const response = await fetch(`${API_BASE}/admin/support/tickets`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-    if (!response.ok) throw new Error('Failed to create ticket')
-    return response.json()
+    return apiPost<SupportTicket>('/admin/support/tickets', data)
   }
 }
 
@@ -107,21 +89,9 @@ export const supportClient = {
 // ---------------------------------------------------------------------------
 
 export async function submitTicket(payload: SubmitTicketRequest): Promise<TicketDto> {
-  const response = await fetch(`${API_BASE}/support/tickets`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  if (!response.ok) throw new Error('Failed to submit ticket')
-  return response.json()
+  return apiPost<TicketDto>('/support/tickets', payload)
 }
 
 export async function submitFeedback(payload: SubmitFeedbackRequest): Promise<FeedbackDto> {
-  const response = await fetch(`${API_BASE}/feedback`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-  if (!response.ok) throw new Error('Failed to submit feedback')
-  return response.json()
+  return apiPost<FeedbackDto>('/feedback', payload)
 }
