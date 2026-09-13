@@ -37,7 +37,7 @@ export async function fundSmsCreditFromWallet(amount: number): Promise<void> {
 export async function fundSmsCreditViaGateway(
   amount: number,
   mobileNumber: string
-): Promise<{ redirectUrl: string | null }> {
+): Promise<{ redirectUrl: string | null; clientTransId?: string }> {
   return apiPost(`${API_BASE}/sms/credit-account/fund/gateway`, { amount, mobileNumber })
 }
 
