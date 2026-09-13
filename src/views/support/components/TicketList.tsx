@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import { SupportTicket } from '@/types/support';
 import { supportClient } from '@/lib/api/support-client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TicketListProps {
   onSelectTicket: (ticket: SupportTicket) => void;
@@ -42,6 +43,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function TicketList({ onSelectTicket, selectedTicketId, refreshKey }: TicketListProps) {
+  const { user } = useAuth();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -50,14 +52,13 @@ export default function TicketList({ onSelectTicket, selectedTicketId, refreshKe
   const rowsPerPage = 10;
 
   useEffect(() => {
-    fetchTickets();
-  }, [page, statusFilter, refreshKey]);
+    if (user?.email) fetchTickets();
+  }, [page, statusFilter, refreshKey, user?.email]);
 
   const fetchTickets = async () => {
     setLoading(true);
     try {
-      // TODO: Replace with actual email from auth context
-      const email = localStorage.getItem('userEmail') || '';
+      const email = user?.email || '';
       const response = await supportClient.getMyTickets(email, statusFilter || undefined, page, rowsPerPage);
       setTickets(response.content);
       setTotalElements(response.totalElements);

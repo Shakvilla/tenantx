@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { SupportTicket, TicketReply } from '@/types/support';
 import { supportClient } from '@/lib/api/support-client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ConversationThreadProps {
   ticket: SupportTicket;
@@ -14,6 +15,7 @@ interface ConversationThreadProps {
 }
 
 export default function ConversationThread({ ticket, onBack }: ConversationThreadProps) {
+  const { user } = useAuth();
   const [replies, setReplies] = useState<TicketReply[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
@@ -54,8 +56,8 @@ export default function ConversationThread({ ticket, onBack }: ConversationThrea
     setSuccess(null);
 
     try {
-      const senderEmail = localStorage.getItem('userEmail') || '';
-      const senderName = localStorage.getItem('userName') || senderEmail;
+      const senderEmail = user?.email || '';
+      const senderName = user?.name || senderEmail;
 
       const reply = await supportClient.postReply(
         ticket.id,
