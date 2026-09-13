@@ -53,6 +53,8 @@ export default function SmsSenderIdSection() {
   const [fundMobile, setFundMobile] = useState('')
   const [funding, setFunding] = useState(false)
   const [fundError, setFundError] = useState<string | null>(null)
+  const [momoStatus, setMomoStatus] = useState<'idle' | 'polling' | 'success' | 'failed'>('idle')
+  const [momoMessage, setMomoMessage] = useState('')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -115,6 +117,14 @@ export default function SmsSenderIdSection() {
 
           return
         }
+
+        // MoMo — no redirectUrl, show phone prompt message and poll
+        setMomoStatus('polling')
+        setMomoMessage('Please check your phone to approve the payment.')
+        setFunding(false)
+        pollMomoStatus(result.clientTransId)
+
+        return
       }
 
       setFundOpen(false)
@@ -128,6 +138,44 @@ export default function SmsSenderIdSection() {
     } finally {
       setFunding(false)
     }
+  }
+
+  function pollMomoStatus(clientTransId: string) {
+    let attempts = 0
+    const maxAttempts = 60 // 5 minutes at 5s intervals
+
+    const interval = setInterval(async () => {
+      attempts++
+
+      try {
+        const res = await fetch(`/api/v1/sms/credit-account/fund/gateway/status/${clientTransId}`)
+        const data = await res.json()
+
+        if (data?.status === 'PAID') {
+          clearInterval(interval)
+          setMomoStatus('success')
+          setMomoMessage('Payment confirmed! Credits will be added shortly.')
+          setTimeout(() => {
+            setFundOpen(false)
+            setMomoStatus('idle')
+            setMomoMessage('')
+            setFundAmount('')
+            load()
+            getSmsCreditAccount()
+              .then(setAccount)
+              .catch(() => {})
+          }, 2000)
+        } else if (data?.status === 'FAILED' || attempts >= maxAttempts) {
+          clearInterval(interval)
+          setMomoStatus('failed')
+          setMomoMessage(data?.status === 'FAILED'
+            ? 'Payment failed. Please try again.'
+            : 'Payment timed out. Please try again.')
+        }
+      } catch {
+        // Continue polling on transient errors
+      }
+    }, 5000)
   }
 
   return (
@@ -257,6 +305,20 @@ export default function SmsSenderIdSection() {
               onChange={e => setFundMobile(e.target.value)}
               placeholder='0241234567'
             />
+          )}
+          {momoStatus !== 'idle' && (
+            <Alert
+              severity={momoStatus === 'polling' ? 'info' : momoStatus === 'success' ? 'success' : 'error'}
+              sx={{ mt: 1 }}
+            >
+              {momoStatus === 'polling' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <span>{momoMessage}</span>
+                </Box>
+              )}
+              {momoStatus !== 'polling' && momoMessage}
+            </Alert>
           )}
         </DialogContent>
         <DialogActions>
