@@ -35,7 +35,7 @@ export default function ConversationThread({ ticket, onBack }: ConversationThrea
   const fetchReplies = async () => {
     try {
       setLoading(true);
-      const data = await supportClient.getReplies(ticket.id);
+      const data = await supportClient.getReplies(ticket.id, ticket.submitterEmail);
       setReplies(data);
     } catch (err) {
       setError('Failed to load conversation');
