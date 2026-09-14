@@ -66,8 +66,8 @@ export const supportClient = {
     return apiPost<TicketReply>(`${API_BASE}/support/tickets/${ticketId}/replies`, { senderEmail, senderName, message })
   },
 
-  async getReplies(ticketId: string, after?: string): Promise<TicketReply[]> {
-    const params = new URLSearchParams()
+  async getReplies(ticketId: string, email: string, after?: string): Promise<TicketReply[]> {
+    const params = new URLSearchParams({ email })
     if (after) params.set('after', after)
     return apiGet<TicketReply[]>(`${API_BASE}/support/tickets/${ticketId}/replies?${params}`)
   },
