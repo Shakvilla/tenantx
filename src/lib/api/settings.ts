@@ -107,6 +107,24 @@ export const notificationSettingsApi = {
   update: (data: Partial<LandlordNotificationSettings>) => saveSettings<LandlordNotificationSettings>('notification', data),
 }
 
+export interface WhatsAppConnection {
+  status: 'NOT_CONNECTED' | 'PAUSED' | 'CONNECTED' | 'ERROR'
+  phoneNumber: string | null
+  displayName: string | null
+  wabaId: string | null
+  phoneNumberId: string | null
+  signupAvailable: boolean
+}
+
+export const whatsAppSettingsApi = {
+  status: () => apiGet<WhatsAppConnection>(`${API_BASE}/settings/whatsapp`),
+  signupConfig: () => apiGet<{ appId: string; configId: string; available: boolean }>(`${API_BASE}/settings/whatsapp/signup-config`),
+  connect: (data: { code: string; wabaId: string; phoneNumberId: string }) =>
+    apiPost<WhatsAppConnection>(`${API_BASE}/settings/whatsapp/connect`, data),
+  activate: () => apiPost<WhatsAppConnection>(`${API_BASE}/settings/whatsapp/activate`, {}),
+  pause: () => apiPost<WhatsAppConnection>(`${API_BASE}/settings/whatsapp/pause`, {})
+}
+
 // ---- Late Fee Automation ---------------------------------------------------
 
 export interface LateFeeSettings {
