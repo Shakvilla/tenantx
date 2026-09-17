@@ -114,6 +114,7 @@ export interface WhatsAppConnection {
   wabaId: string | null
   phoneNumberId: string | null
   signupAvailable: boolean
+  registered: boolean
 }
 
 export const whatsAppSettingsApi = {
@@ -121,6 +122,7 @@ export const whatsAppSettingsApi = {
   signupConfig: () => apiGet<{ appId: string; configId: string; available: boolean }>(`${API_BASE}/settings/whatsapp/signup-config`),
   connect: (data: { code: string; wabaId: string; phoneNumberId: string }) =>
     apiPost<WhatsAppConnection>(`${API_BASE}/settings/whatsapp/connect`, data),
+  register: (pin: string) => apiPost<WhatsAppConnection>(`${API_BASE}/settings/whatsapp/register`, { pin }),
   activate: () => apiPost<WhatsAppConnection>(`${API_BASE}/settings/whatsapp/activate`, {}),
   pause: () => apiPost<WhatsAppConnection>(`${API_BASE}/settings/whatsapp/pause`, {})
 }

@@ -9,6 +9,9 @@ import CardHeader from '@mui/material/CardHeader'
 import Divider from '@mui/material/Divider'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import TextField from '@mui/material/TextField'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
 import { whatsAppSettingsApi, type WhatsAppConnection } from '@/lib/api/settings'
 
 type SignupResult = { code?: string }
@@ -27,6 +30,8 @@ const WhatsAppSettings = () => {
   const [config, setConfig] = useState<{ appId: string; configId: string; available: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [pin, setPin] = useState('')
+  const [registrationConfirmed, setRegistrationConfirmed] = useState(false)
 
   useEffect(() => {
     Promise.all([whatsAppSettingsApi.status(), whatsAppSettingsApi.signupConfig()])
@@ -94,6 +99,17 @@ const WhatsAppSettings = () => {
     finally { setBusy(false) }
   }
 
+  const registerNumber = async () => {
+    if (!/^[0-9]{6}$/.test(pin) || !registrationConfirmed) return
+    setBusy(true)
+    setError('')
+    try {
+      setConnection(await whatsAppSettingsApi.register(pin))
+      setRegistrationConfirmed(false)
+    } catch (err) { setError(err instanceof Error ? err.message : 'Meta could not register this number') }
+    finally { setPin(''); setBusy(false) }
+  }
+
   return <Card>
     <CardHeader title='WhatsApp' subheader='Send tenancy reminders from your own WhatsApp Business number' />
     <Divider />
@@ -101,15 +117,28 @@ const WhatsAppSettings = () => {
       <Stack spacing={2}>
         {error && <Alert severity='error'>{error}</Alert>}
         {connection?.status === 'CONNECTED' && <Alert severity='success'>Connected. Eligible reminders can be sent from {connection.displayName}.</Alert>}
-        {connection?.status === 'PAUSED' && <Alert severity='info'>Connected but paused. Add a payment method in Meta and approve your tenancy templates before activating.</Alert>}
+        {connection?.status === 'PAUSED' && <Alert severity='info'>Connected but paused. Register the number, add a payment method in Meta, and approve your tenancy templates before activating.</Alert>}
         {connection?.phoneNumber && <Typography>{connection.displayName} · {connection.phoneNumber}</Typography>}
         {connection?.status === 'NOT_CONNECTED' && <Typography variant='body2'>Connect an existing WhatsApp Business Account or create one through Meta. Meta bills your business directly for delivered messages.</Typography>}
         {config && !config.available && <Alert severity='warning'>WhatsApp signup is not yet enabled by the platform.</Alert>}
+        {connection?.status === 'PAUSED' && !connection.registered && <Stack spacing={1}>
+          <Typography variant='body2'>Set a six-digit two-step verification PIN for this number. Keep it securely; Meta may ask for it again.</Typography>
+          <Alert severity='warning'>If this number is already used in the WhatsApp Business app or by another provider, confirm Meta’s supported coexistence or migration path before registering. Its current messaging setup may be interrupted.</Alert>
+          <FormControlLabel control={<Checkbox checked={registrationConfirmed}
+            onChange={event => setRegistrationConfirmed(event.target.checked)} />}
+            label='I have checked the current number setup and understand the possible interruption.' />
+          <Stack direction='row' spacing={1}>
+            <TextField label='Registration PIN' type='password' size='small' value={pin}
+              onChange={event => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 6 } }} />
+            <Button variant='outlined' onClick={registerNumber} disabled={busy || pin.length !== 6 || !registrationConfirmed}>Register number</Button>
+          </Stack>
+        </Stack>}
         <Stack direction='row' spacing={1}>
           <Button variant='contained' onClick={startSignup} disabled={!config?.available || busy}>
             {connection?.status === 'NOT_CONNECTED' ? 'Connect WhatsApp' : 'Change number'}
           </Button>
-          {connection?.status === 'PAUSED' && <Button variant='outlined' onClick={() => changeStatus('activate')} disabled={busy}>Activate</Button>}
+          {connection?.status === 'PAUSED' && <Button variant='outlined' onClick={() => changeStatus('activate')} disabled={busy || !connection.registered}>Activate</Button>}
           {connection?.status === 'CONNECTED' && <Button variant='outlined' color='warning' onClick={() => changeStatus('pause')} disabled={busy}>Pause</Button>}
         </Stack>
       </Stack>
