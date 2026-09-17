@@ -1481,6 +1481,18 @@ export async function getPlatformSettings(): Promise<Record<string, PlatformSett
   return adminGet<Record<string, PlatformSettingDto[]>>('/platform-settings')
 }
 
+export interface RetentionReview {
+  purgeEnabled: boolean
+  completedNotifications: number
+  loginAttempts: number
+  adminAuditLogs: number
+  subscriptionInvoices: number
+}
+
+export async function getRetentionReview(): Promise<RetentionReview> {
+  return adminGet<RetentionReview>('/retention-review')
+}
+
 /**
  * Update a single setting value. Dots in the key are encoded as __ in the URL
  * (the backend controller decodes them back).

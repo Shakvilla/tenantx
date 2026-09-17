@@ -36,6 +36,7 @@ import Grid from '@mui/material/Grid2'
 
 import {
   getPlatformSettings,
+  getRetentionReview,
   updatePlatformSetting,
   adminGatewayConfigApi,
   getSmsFeeTiers,
@@ -43,6 +44,7 @@ import {
   updateSmsFeeTier,
   deleteSmsFeeTier,
   type PlatformSettingDto,
+  type RetentionReview,
   type SmsFeeTierRecord,
   type SmsFeeTierRequest,
 } from '@/lib/api/admin-auth-client'
@@ -118,6 +120,8 @@ function ToggleRow({
 
 export default function AdminPlatformSettingsView() {
   const [settings, setSettings] = useState<SettingsMap>({})
+  const [retentionReview, setRetentionReview] = useState<RetentionReview | null>(null)
+  const [retentionReviewLoading, setRetentionReviewLoading] = useState(true)
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
   const [toast, setToast]       = useState<string | null>(null)
@@ -195,6 +199,14 @@ export default function AdminPlatformSettingsView() {
 
   useEffect(() => { load() }, [load])
 
+  const loadRetentionReview = useCallback(() => {
+    setRetentionReviewLoading(true)
+    getRetentionReview().then(setRetentionReview).catch(() => setRetentionReview(null))
+      .finally(() => setRetentionReviewLoading(false))
+  }, [])
+
+  useEffect(() => { loadRetentionReview() }, [loadRetentionReview])
+
   const loadFeeTiers = useCallback(async () => {
     setFeeTiersLoading(true)
     try {
@@ -229,6 +241,7 @@ export default function AdminPlatformSettingsView() {
   // Save a single key immediately (used by toggles and selects)
   async function save(key: string, value: string) {
     setSaving(prev => new Set(prev).add(key))
+    if (key.startsWith('retention.')) setRetentionReview(null)
     try {
       const updated = await updatePlatformSetting(key, value)
       setSettings(prev => {
@@ -244,6 +257,7 @@ export default function AdminPlatformSettingsView() {
       setToast('Setting saved')
       // Propagate branding changes to nav/sidebar immediately
       if (key.startsWith('branding.')) refreshBranding()
+      if (key.startsWith('retention.')) loadRetentionReview()
     } catch {
       setToast('Failed to save setting')
     } finally {
@@ -1195,26 +1209,51 @@ export default function AdminPlatformSettingsView() {
           <SectionHeader
             icon='ri-archive-line'
             title='Data Retention Policy'
-            subtitle='Configure how long platform data is retained. Purge jobs run nightly. Changes apply on the next scheduled run.'
+            subtitle='Completed operational records can be cleaned nightly. Audit and invoice history is retained for review.'
           />
           <Divider sx={{ mb: 2 }} />
+
+          <FormControlLabel
+            control={<Switch checked={localValues['retention.operational_purge_enabled'] === 'true'}
+              onChange={e => save('retention.operational_purge_enabled', String(e.target.checked))}
+              disabled={saving.has('retention.operational_purge_enabled') ||
+                (localValues['retention.operational_purge_enabled'] !== 'true' &&
+                  (!retentionReview || ['retention.notification_outbox_days', 'retention.login_history_days'].some(k => dirty.has(k))))} />}
+            label='Enable nightly operational cleanup'
+          />
+          <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
+            Only old successful notifications and tenant login attempts are deleted. Failed, pending, and in-flight messages are retained.
+          </Typography>
+          {!retentionReviewLoading && !retentionReview && <Alert severity='warning' sx={{ mb: 2 }}>
+            Eligibility counts are unavailable. Refresh them before enabling cleanup.
+          </Alert>}
 
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
             {[
               {
+                key: 'retention.notification_outbox_days',
+                label: 'Completed Notifications (days)',
+                help: 'Successful notification records become eligible for cleanup after this many days',
+              },
+              {
+                key: 'retention.login_history_days',
+                label: 'Login History (days)',
+                help: 'Tenant login attempts become eligible for cleanup after this many days',
+              },
+              {
                 key: 'retention.inactive_tenant_days',
                 label: 'Inactive Tenant Threshold (days)',
-                help: 'Days without login before a tenant is flagged for archival review',
+                help: 'Review threshold only; tenant accounts are not automatically archived',
               },
               {
                 key: 'retention.audit_log_days',
-                label: 'Audit Log Retention (days)',
-                help: 'Admin audit log entries older than this are eligible for purge',
+                label: 'Audit Log Review (days)',
+                help: 'Older records are counted for archival review; none are automatically deleted',
               },
               {
                 key: 'retention.invoice_history_days',
-                label: 'Invoice History Retention (days)',
-                help: 'Subscription invoice records are retained for this many days (default ≈ 7 years)',
+                label: 'Invoice History Review (days)',
+                help: 'Older subscription invoices are counted for archival review; none are automatically deleted',
               },
             ].map(({ key, label, help }) => (
               <TextField
@@ -1222,7 +1261,7 @@ export default function AdminPlatformSettingsView() {
                 size='small'
                 label={label}
                 type='number'
-                inputProps={{ min: 1 }}
+                inputProps={{ min: 1, max: 36500 }}
                 value={localValues[key] ?? ''}
                 onChange={e => setLocal(key, e.target.value)}
                 helperText={help}
@@ -1230,13 +1269,20 @@ export default function AdminPlatformSettingsView() {
             ))}
           </Box>
 
-          {['retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'].some(k => dirty.has(k)) && (
+          {retentionReview && <Box sx={{ mt: 2 }}>
+            <Typography variant='subtitle2'>Eligible now</Typography>
+            <Typography variant='body2'>Operational cleanup: {retentionReview.completedNotifications.toLocaleString()} completed notifications; {retentionReview.loginAttempts.toLocaleString()} login attempts.</Typography>
+            <Typography variant='body2'>Archival review only: {retentionReview.adminAuditLogs.toLocaleString()} audit entries; {retentionReview.subscriptionInvoices.toLocaleString()} subscription invoices.</Typography>
+          </Box>}
+          <Button size='small' onClick={loadRetentionReview} sx={{ mt: 1 }}>Refresh counts</Button>
+
+          {['retention.notification_outbox_days', 'retention.login_history_days', 'retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'].some(k => dirty.has(k)) && (
             <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
               <Button
                 variant='contained'
                 size='small'
-                onClick={() => saveDirty(['retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'])}
-                disabled={['retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'].some(k => saving.has(k))}
+                onClick={() => saveDirty(['retention.notification_outbox_days', 'retention.login_history_days', 'retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'])}
+                disabled={['retention.notification_outbox_days', 'retention.login_history_days', 'retention.inactive_tenant_days', 'retention.audit_log_days', 'retention.invoice_history_days'].some(k => saving.has(k))}
               >
                 Save Retention Policy
               </Button>
