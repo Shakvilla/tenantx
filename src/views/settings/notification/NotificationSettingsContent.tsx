@@ -11,10 +11,12 @@ import Grid from '@mui/material/Grid2'
 import EmailTemplatesSettings from './EmailTemplatesSettings'
 import EmailPreferencesSettings from './EmailPreferencesSettings'
 import InAppNotificationSettings from './InAppNotificationSettings'
+import WhatsAppSettings from './WhatsAppSettings'
 
 const NotificationSettingsContent = () => {
   return (
     <Grid container spacing={6}>
+      <Grid size={{ xs: 12 }}><WhatsAppSettings /></Grid>
       <Grid size={{ xs: 12 }}>
         <InAppNotificationSettings />
       </Grid>

@@ -319,7 +319,7 @@ export default function RentReviewsView() {
               value={globalFilter ?? ''}
               onChange={v => setGlobalFilter(String(v))}
               placeholder='Search:'
-              className='sm:is-auto min-is-[200px]'
+              className='flex-1 min-w-0 sm:is-auto min-is-[200px]'
             />
           </div>
 

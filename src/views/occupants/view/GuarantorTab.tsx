@@ -20,6 +20,8 @@ import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 import { guarantorsApi } from '@/lib/api/guarantors'
 import type { GuarantorResponse, CreateGuarantorRequest, GuarantorRelationship } from '@/types/guarantor'
@@ -75,6 +77,9 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 
 // ── main component ────────────────────────────────────────────────────────────
 export default function GuarantorTab({ occupantId }: Props) {
+  // Phone / small tablet: make the form dialog full-screen and drop the header indentation.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
+
   const [guarantors, setGuarantors] = useState<GuarantorResponse[]>([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState<string | null>(null)
@@ -266,7 +271,7 @@ export default function GuarantorTab({ occupantId }: Props) {
                   </Box>
 
                   {/* Detail grid */}
-                  <Grid container spacing={4} sx={{ pl: '56px' }}>
+                  <Grid container spacing={4} sx={{ pl: { xs: 0, sm: '56px' } }}>
                     <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                       <InfoRow label='Phone' value={g.phone} />
                     </Grid>
@@ -298,7 +303,7 @@ export default function GuarantorTab({ occupantId }: Props) {
       </Card>
 
       {/* ── Add Guarantor Dialog ───────────────────────────────────────── */}
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth='sm' fullWidth>
+      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth='sm' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center justify-between'>
           <span>{editId ? 'Edit Guarantor' : 'Add Guarantor'}</span>
           <IconButton size='small' onClick={closeDialog} disabled={saving}>
@@ -467,7 +472,7 @@ export default function GuarantorTab({ occupantId }: Props) {
       </Dialog>
 
       {/* ── Delete Confirm ────────────────────────────────────────────── */}
-      <Dialog open={!!deleteId} onClose={() => !deleting && setDeleteId(null)} maxWidth='xs' fullWidth>
+      <Dialog open={!!deleteId} onClose={() => !deleting && setDeleteId(null)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center gap-2'>
           <i className='ri-error-warning-line' style={{ color: 'var(--mui-palette-error-main)' }} />
           Remove Guarantor

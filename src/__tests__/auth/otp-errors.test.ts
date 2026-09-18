@@ -57,6 +57,17 @@ describe('otpErrorMessage', () => {
     expect(result.startOver).toBe(true)
   })
 
+  // signupStart (Register.tsx) also routes through otpErrorMessage. An EMAIL_ALREADY_EXISTS
+  // response (status 400, code EMAIL_ALREADY_EXISTS) must not fall into the OTP catch-all and
+  // tell the user "That code isn't valid" for a duplicate-email error.
+  it('does not blame the user for a duplicate email during signup', () => {
+    const result = otpErrorMessage(backendError(400, 'EMAIL_ALREADY_EXISTS'))
+
+    expect(result.message).toMatch(/email/i)
+    expect(result.message).not.toMatch(/code/i)
+    expect(result.startOver).toBe(false)
+  })
+
   it('falls back to a generic message for anything unrecognised', () => {
     expect(otpErrorMessage(new Error('socket hang up')).message).toBeTruthy()
   })

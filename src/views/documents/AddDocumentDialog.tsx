@@ -17,8 +17,10 @@ import Box from '@mui/material/Box'
 import LinearProgress from '@mui/material/LinearProgress'
 import Chip from '@mui/material/Chip'
 import Alert from '@mui/material/Alert'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
-import { createDocument } from '@/lib/api/documents'
+import { createDocument, getDocumentStats } from '@/lib/api/documents'
 import { getOccupants, type OccupantRecord } from '@/lib/api/occupants'
 import { getProperties } from '@/lib/api/properties'
 import { getStoredTenantId } from '@/lib/api/storage'
@@ -106,6 +108,9 @@ type Props = {
 // ---------------------------------------------------------------------------
 
 const AddDocumentDialog = ({ open, setOpen, onSuccess, presetOccupant }: Props) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [form,       setForm]       = useState<FormData>(EMPTY)
 
   // Applied on open rather than as an initial value: the dialog is mounted once and reopened,
@@ -221,6 +226,22 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess, presetOccupant }: Props) 
     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
       setUpload({ status: 'error', message: `File is too large. Maximum size is ${MAX_FILE_SIZE_MB} MB.` })
       return
+    }
+
+    // Pre-upload storage quota check
+    try {
+      const stats = await getDocumentStats()
+      if (stats.storageQuotaMb != null && stats.storageUsedMb >= stats.storageQuotaMb) {
+        setUpload({ status: 'error', message: `Storage quota exceeded. Your plan allows ${stats.storageQuotaMb} MB. Upgrade your plan or delete old documents to continue uploading.` })
+        return
+      }
+      const fileMbEstimate = Math.ceil(file.size / (1024 * 1024)) || 1
+      if (stats.storageQuotaMb != null && stats.storageUsedMb + fileMbEstimate > stats.storageQuotaMb) {
+        setUpload({ status: 'error', message: `This upload may exceed your storage quota. You have ${stats.storageQuotaMb - stats.storageUsedMb} MB remaining out of ${stats.storageQuotaMb} MB.` })
+        return
+      }
+    } catch {
+      // If stats fetch fails, allow upload — backend is the authoritative gate
     }
 
     setUpload({ status: 'uploading', progress: 0, fileName: file.name })
@@ -399,7 +420,7 @@ const AddDocumentDialog = ({ open, setOpen, onSuccess, presetOccupant }: Props) 
   // ---- Render ----
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Upload Document</span>
         <IconButton size='small' onClick={handleClose}>

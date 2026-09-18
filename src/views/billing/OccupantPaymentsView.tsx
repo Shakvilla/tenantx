@@ -29,7 +29,12 @@ import type { ColumnDef } from '@tanstack/react-table'
 
 // API Imports
 import { paymentsApi, openPaymentReceipt } from '@/lib/api/payments'
+import { getMyUnit, getUnitPriceHistory } from '@/lib/api/units'
 import type { PaymentResponse, PaymentStatus } from '@/types/payment'
+import type { UnitPriceChangeLog } from '@/lib/api/units'
+
+// Util Imports
+import { formatCurrency } from '@/utils/currency'
 
 // Auth Imports
 import { useAuth } from '@/contexts/AuthContext'
@@ -51,7 +56,8 @@ const statusColorMap: Record<PaymentStatus, 'success' | 'warning' | 'error' | 'i
 
 const formatDate = (d?: string | null) => {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  
+return new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 const OccupantPaymentsView = () => {
@@ -60,11 +66,14 @@ const OccupantPaymentsView = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [verifying, setVerifying] = useState<Record<string, boolean>>({})
+  const [pendingChange, setPendingChange] = useState<UnitPriceChangeLog | null>(null)
 
   async function handleVerify(paymentId: string) {
     setVerifying(v => ({ ...v, [paymentId]: true }))
+
     try {
       const updated = await paymentsApi.checkStatus(paymentId)
+
       setData(prev => prev.map(p => p.id === paymentId ? updated : p))
     } catch {
       // status chip will remain unchanged
@@ -82,6 +91,41 @@ const OccupantPaymentsView = () => {
       .then(setData)
       .catch(err => setError(err?.message ?? 'Failed to load payments'))
       .finally(() => setLoading(false))
+  }, [user?.id])
+
+  // Best-effort price-change notice: resolve the occupant's own unit, then look for a
+  // change that hasn't taken effect yet. Never let a banner failure break the list.
+  useEffect(() => {
+    if (!user?.id) return
+
+    let active = true
+
+    getMyUnit()
+      .then(unit => (unit ? getUnitPriceHistory(unit.id) : []))
+      .then(history => {
+        if (!active) return
+
+        const today = new Date()
+
+        today.setHours(0, 0, 0, 0)
+
+        const upcoming = history
+          .filter(change => {
+            const effective = new Date(change.effectiveDate)
+
+            return !Number.isNaN(effective.getTime()) && effective > today
+          })
+          .sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())[0]
+
+        setPendingChange(upcoming ?? null)
+      })
+      .catch(() => {
+        if (active) setPendingChange(null)
+      })
+
+    return () => {
+      active = false
+    }
   }, [user?.id])
 
   const columns = useMemo<ColumnDef<PaymentResponse, any>[]>(
@@ -119,7 +163,9 @@ const OccupantPaymentsView = () => {
         cell: ({ row }) => {
           const s = row.original.status
           const color = statusColorMap[s] ?? 'secondary'
-          return <Chip variant='tonal' label={s} size='small' color={color} />
+
+          
+return <Chip variant='tonal' label={s} size='small' color={color} />
         }
       }),
       columnHelper.accessor('paymentDate', {
@@ -135,6 +181,7 @@ const OccupantPaymentsView = () => {
         header: '',
         cell: ({ row }) => {
           const p = row.original
+
           if (p.status === 'PAID' || p.status === 'RECORDED') {
             return (
               <Tooltip title='Open printable receipt'>
@@ -154,8 +201,10 @@ const OccupantPaymentsView = () => {
               </Tooltip>
             )
           }
+
           if ((p.status !== 'PENDING' && p.status !== 'PROCESSING') || p.paymentMethod !== 'MOBILE_MONEY') return null
-          return (
+          
+return (
             <Tooltip title='Check payment status with Redde'>
               <Button
                 size='small'
@@ -190,6 +239,13 @@ const OccupantPaymentsView = () => {
       <CardHeader title='My Payments' />
       <CardContent>
         {error && <Alert severity='error' className='mbe-4'>{error}</Alert>}
+
+        {pendingChange && (
+          <Alert severity='info' className='mbe-4'>
+            Your rent will change from {formatCurrency(pendingChange.oldRent, pendingChange.currency)} to{' '}
+            {formatCurrency(pendingChange.newRent, pendingChange.currency)} on {formatDate(pendingChange.effectiveDate)}
+          </Alert>
+        )}
 
         <div className='overflow-x-auto'>
           <table className={tableStyles.table}>

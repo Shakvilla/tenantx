@@ -22,9 +22,11 @@ import AccordionSummary from '@mui/material/AccordionSummary'
 import AccordionDetails from '@mui/material/AccordionDetails'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import Avatar from '@mui/material/Avatar'
 import Tooltip from '@mui/material/Tooltip'
 import Box from '@mui/material/Box'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // API Imports
 import {
@@ -109,6 +111,9 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, string>>>({})
   const [expanded, setExpanded] = useState<string | false>('occupant-info')
   const [isSaving, setIsSaving] = useState(false)
+
+  // Phones get the dialog as a full-screen sheet; tablets keep the floating dialog.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
 
   // Escape used to throw away a part-filled form without a word. The onboarding
   // wizard already confirms before discarding ("Leave onboarding?"); this form
@@ -389,7 +394,8 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
         previousAddress: hasPrevAddr ? formData.previousAddress : undefined,
         permanentAddress: hasPermAddr ? formData.permanentAddress : undefined,
         ghanaCardId: formData.ghanaCardId || undefined,
-        idType: formData.idType || undefined
+        idType: formData.idType || undefined,
+        profileComplete: true
       }
 
       if (mode === 'edit' && editData?.id) {
@@ -445,7 +451,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
 
   return (
     <>
-    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Occupant' : 'Add Occupant'}</span>
         <IconButton size='small' onClick={handleReset}>
@@ -567,13 +573,13 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
                   />
                   <Box className='flex items-center gap-4'>
                     <Tooltip title='Click to change photo' placement='top'>
-                      <Avatar
+                      <StorageAvatar
                         src={newAvatarPreview ?? existingAvatarUrl ?? undefined}
                         sx={{ width: 80, height: 80, cursor: 'pointer', border: '2px dashed', borderColor: 'divider' }}
                         onClick={() => avatarInputRef.current?.click()}
                       >
                         <i className='ri-user-3-line text-3xl' />
-                      </Avatar>
+                      </StorageAvatar>
                     </Tooltip>
                     <Box className='flex flex-col gap-2'>
                       <Typography variant='body2' color='text.primary' className='font-medium'>
@@ -884,7 +890,7 @@ const AddOccupantDialog = ({ open, handleClose, properties, editData, mode = 'ad
       away silently. This is the same shape as the onboarding wizard's
       "Leave onboarding?", so the key does the same thing on both screens.
     */}
-    <Dialog open={confirmDiscard} onClose={() => setConfirmDiscard(false)} maxWidth='xs' fullWidth>
+    <Dialog open={confirmDiscard} onClose={() => setConfirmDiscard(false)} maxWidth='xs' fullWidth fullScreen={isMobile}>
       <DialogTitle>Discard what you have entered?</DialogTitle>
       <DialogContent>
         <Typography variant='body2'>

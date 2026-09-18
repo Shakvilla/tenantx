@@ -21,6 +21,8 @@ import Autocomplete from '@mui/material/Autocomplete'
 import InputAdornment from '@mui/material/InputAdornment'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // API Imports
 import { createCommunication } from '@/lib/api/communications'
@@ -88,6 +90,9 @@ const AddMessageDialog = ({
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const filteredUnits = useMemo(() => {
     if (!formData.propertyId) return []
@@ -184,7 +189,7 @@ const AddMessageDialog = ({
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>New Message</span>
         <IconButton size='small' onClick={handleReset}>

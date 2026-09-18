@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -8,9 +10,19 @@ import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import Grid from '@mui/material/Grid2'
 import Chip from '@mui/material/Chip'
+import Alert from '@mui/material/Alert'
+
+// API Imports
+import { getUnitPriceHistory, type UnitPriceChangeLog } from '@/lib/api/units'
+
+// Util Imports
+import { formatCurrency } from '@/utils/currency'
 
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 
 type UnitViewData = {
   id: string
@@ -28,6 +40,8 @@ type UnitViewData = {
 }
 
 const UnitInfoCard = ({ unitData }: { unitData?: UnitViewData }) => {
+  const [pendingChange, setPendingChange] = useState<UnitPriceChangeLog | null>(null)
+
   const statusColor: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
     occupied: 'success',
     vacant: 'warning',
@@ -35,6 +49,41 @@ const UnitInfoCard = ({ unitData }: { unitData?: UnitViewData }) => {
     maintenance: 'error',
     reserved: 'info'
   }
+
+  useEffect(() => {
+    const unitId = unitData?.id
+
+    if (!unitId) {
+      setPendingChange(null)
+
+      return
+    }
+
+    let active = true
+
+    getUnitPriceHistory(unitId).then(history => {
+      if (!active) return
+
+      const today = new Date()
+
+      today.setHours(0, 0, 0, 0)
+
+      // History is newest-created first; surface the nearest change still in the future.
+      const upcoming = history
+        .filter(change => {
+          const effective = new Date(change.effectiveDate)
+
+          return !Number.isNaN(effective.getTime()) && effective > today
+        })
+        .sort((a, b) => new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime())[0]
+
+      setPendingChange(upcoming ?? null)
+    })
+
+    return () => {
+      active = false
+    }
+  }, [unitData?.id])
 
   return (
     <Card>
@@ -86,6 +135,13 @@ const UnitInfoCard = ({ unitData }: { unitData?: UnitViewData }) => {
               <Typography variant='h6'>
                 {unitData?.rent} <span className='text-sm font-normal text-textSecondary'>/ {unitData?.rentPeriod}</span>
               </Typography>
+              {pendingChange && (
+                <Alert severity='info' sx={{ mt: 1 }}>
+                  Rent will change from {formatCurrency(pendingChange.oldRent, pendingChange.currency)} to{' '}
+                  {formatCurrency(pendingChange.newRent, pendingChange.currency)} on{' '}
+                  {formatDate(pendingChange.effectiveDate)}
+                </Alert>
+              )}
             </div>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>

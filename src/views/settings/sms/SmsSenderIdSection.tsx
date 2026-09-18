@@ -29,6 +29,7 @@ import {
   getSmsCreditAccount,
   fundSmsCreditFromWallet,
   fundSmsCreditViaGateway,
+  createSmsCreditRequest,
   type SenderIdRequestDto,
   type SmsCreditAccountDto
 } from '@/lib/api/sms-credit'
@@ -53,6 +54,11 @@ export default function SmsSenderIdSection() {
   const [fundMobile, setFundMobile] = useState('')
   const [funding, setFunding] = useState(false)
   const [fundError, setFundError] = useState<string | null>(null)
+  const [fundSuccess, setFundSuccess] = useState(false)
+  const [momoStatus, setMomoStatus] = useState<'idle' | 'waiting' | 'polling' | 'success' | 'failed'>('idle')
+  const [momoMessage, setMomoMessage] = useState('')
+  const [momoTransId, setMomoTransId] = useState<string | null>(null)
+  const [fundMode, setFundMode] = useState<'INSTANT' | 'REQUEST'>('INSTANT')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -64,7 +70,11 @@ export default function SmsSenderIdSection() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [fundOpen, load])
+
+  useEffect(() => {
+    if (!fundOpen) setFundSuccess(false)
+  }, [fundOpen])
 
   useEffect(() => {
     getSmsCreditAccount()
@@ -86,7 +96,7 @@ export default function SmsSenderIdSection() {
       setSenderId('')
       load()
     } catch (e: any) {
-      setError(e?.response?.data?.message ?? 'Failed to submit request')
+      setError(e?.message ?? 'Failed to submit request')
     } finally {
       setSubmitting(false)
     }
@@ -104,6 +114,28 @@ export default function SmsSenderIdSection() {
     setFunding(true)
     setFundError(null)
 
+    // Request mode: create a top-up request for admin approval
+    if (fundMode === 'REQUEST') {
+      try {
+        await createSmsCreditRequest(
+          amt,
+          fundMethod === 'WALLET' ? 'WALLET' : 'MOBILE_MONEY',
+          fundMethod === 'MOMO' ? fundMobile.trim() : undefined
+        )
+        setFundOpen(false)
+        setFundAmount('')
+        setFundSuccess(true)
+        load()
+      } catch (e: any) {
+        setFundError(e?.message ?? 'Request failed')
+      } finally {
+        setFunding(false)
+      }
+
+      return
+    }
+
+    // Instant mode: existing self-service flow
     try {
       if (fundMethod === 'WALLET') {
         await fundSmsCreditFromWallet(amt)
@@ -115,6 +147,14 @@ export default function SmsSenderIdSection() {
 
           return
         }
+
+        // MoMo — show phone prompt, wait for user to confirm payment
+        setMomoStatus('waiting')
+        setMomoMessage('A payment prompt has been sent to your phone. Please approve it.')
+        setMomoTransId(result.clientTransId ?? null)
+        setFunding(false)
+
+        return
       }
 
       setFundOpen(false)
@@ -124,10 +164,48 @@ export default function SmsSenderIdSection() {
         .then(setAccount)
         .catch(() => {})
     } catch (e: any) {
-      setFundError(e?.response?.data?.message ?? 'Funding failed')
+      setFundError(e?.message ?? 'Funding failed')
     } finally {
       setFunding(false)
     }
+  }
+
+  function pollMomoStatus(clientTransId: string) {
+    let attempts = 0
+    const maxAttempts = 60 // 5 minutes at 5s intervals
+
+    const interval = setInterval(async () => {
+      attempts++
+
+      try {
+        const res = await fetch(`/api/v1/sms/credit-account/fund/gateway/status/${clientTransId}`)
+        const data = await res.json()
+
+        if (data?.status === 'PAID') {
+          clearInterval(interval)
+          setMomoStatus('success')
+          setMomoMessage('Payment confirmed! Credits will be added shortly.')
+          setTimeout(() => {
+            setFundOpen(false)
+            setMomoStatus('idle')
+            setMomoMessage('')
+            setFundAmount('')
+            load()
+            getSmsCreditAccount()
+              .then(setAccount)
+              .catch(() => {})
+          }, 2000)
+        } else if (data?.status === 'FAILED' || attempts >= maxAttempts) {
+          clearInterval(interval)
+          setMomoStatus('failed')
+          setMomoMessage(data?.status === 'FAILED'
+            ? 'Payment failed. Please try again.'
+            : 'Payment timed out. Please try again.')
+        }
+      } catch {
+        // Continue polling on transient errors
+      }
+    }, 5000)
   }
 
   return (
@@ -230,6 +308,24 @@ export default function SmsSenderIdSection() {
         <DialogTitle>Top Up SMS Credit</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           {fundError && <Alert severity='error'>{fundError}</Alert>}
+          {fundSuccess && <Alert severity='success'>Request sent successfully!</Alert>}
+          <ToggleButtonGroup
+            value={fundMode}
+            exclusive
+            size='small'
+            fullWidth
+            onChange={(_, v) => {
+              if (v) setFundMode(v)
+            }}
+          >
+            <ToggleButton value='INSTANT'>Instant Top-Up</ToggleButton>
+            <ToggleButton value='REQUEST'>Request for Approval</ToggleButton>
+          </ToggleButtonGroup>
+          {fundMode === 'REQUEST' && (
+            <Alert severity='info' sx={{ mt: 1 }}>
+              Your request will be sent to the platform admin for approval. Payment will be held in escrow until approved.
+            </Alert>
+          )}
           <TextField
             size='small'
             label='Amount (GHS)'
@@ -257,6 +353,38 @@ export default function SmsSenderIdSection() {
               onChange={e => setFundMobile(e.target.value)}
               placeholder='0241234567'
             />
+          )}
+          {momoStatus !== 'idle' && (
+            <Alert
+              severity={momoStatus === 'polling' ? 'info' : momoStatus === 'waiting' ? 'info' : momoStatus === 'success' ? 'success' : 'error'}
+              sx={{ mt: 1 }}
+            >
+              {momoStatus === 'waiting' && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Typography variant='body2'>{momoMessage}</Typography>
+                  <Button
+                    variant='contained'
+                    size='small'
+                    onClick={() => {
+                      if (momoTransId) {
+                        setMomoStatus('polling')
+                        setMomoMessage('Checking payment status...')
+                        pollMomoStatus(momoTransId)
+                      }
+                    }}
+                  >
+                    I have paid
+                  </Button>
+                </Box>
+              )}
+              {momoStatus === 'polling' && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <span>{momoMessage}</span>
+                </Box>
+              )}
+              {momoStatus !== 'waiting' && momoStatus !== 'polling' && momoMessage}
+            </Alert>
           )}
         </DialogContent>
         <DialogActions>

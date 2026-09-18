@@ -22,8 +22,10 @@ import Chip from '@mui/material/Chip'
 import { createCommunication } from '@/lib/api/communications'
 
 // Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
+import { StorageCustomAvatar } from '@/components/StorageCustomAvatar'
 import CircularProgress from '@mui/material/CircularProgress'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -53,6 +55,8 @@ const ReplyDialog = ({ open, setOpen, communication, onSuccess }: ReplyDialogPro
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   useEffect(() => {
     if (open && communication) {
@@ -129,7 +133,7 @@ return Object.keys(newErrors).length === 0
   if (!communication) return null
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Reply</span>
         <IconButton size='small' onClick={handleClose}>
@@ -154,9 +158,9 @@ return Object.keys(newErrors).length === 0
             </div>
             <Divider />
             <div className='flex items-center gap-3'>
-              <CustomAvatar src={communication.fromAvatar} skin='light' size={32}>
+              <StorageCustomAvatar src={communication.fromAvatar} skin='light' size={32}>
                 {getInitials(communication.from)}
-              </CustomAvatar>
+              </StorageCustomAvatar>
               <div className='flex flex-col'>
                 <Typography variant='body2' className='font-medium'>
                   {communication.from}
@@ -187,9 +191,9 @@ return Object.keys(newErrors).length === 0
               disabled
               InputProps={{
                 startAdornment: (
-                  <CustomAvatar src={communication.fromAvatar} skin='light' size={24} className='mie-2'>
+                  <StorageCustomAvatar src={communication.fromAvatar} skin='light' size={24} className='mie-2'>
                     {getInitials(communication.from)}
-                  </CustomAvatar>
+                  </StorageCustomAvatar>
                 )
               }}
             />

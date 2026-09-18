@@ -6,6 +6,8 @@ import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 type DeleteDocumentDialogProps = {
   open: boolean
@@ -25,6 +27,9 @@ type DeleteDocumentDialogProps = {
  * so this exists for its shorter flow, not to dodge a bug.
  */
 const DeleteDocumentDialog = ({ open, setOpen, onConfirm, documentName }: DeleteDocumentDialogProps) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const handleClose = () => setOpen(false)
 
   const handleConfirm = () => {
@@ -33,7 +38,7 @@ const DeleteDocumentDialog = ({ open, setOpen, onConfirm, documentName }: Delete
   }
 
   return (
-    <Dialog fullWidth maxWidth='xs' open={open} onClose={handleClose} closeAfterTransition={false}>
+    <Dialog fullWidth maxWidth='xs' open={open} onClose={handleClose} closeAfterTransition={false} fullScreen={isMobile}>
       <DialogContent className='flex items-center flex-col text-center sm:pbs-16 sm:pbe-6 sm:pli-16'>
         <i className='ri-error-warning-line text-[88px] mbe-6 text-warning' />
         <Typography variant='h4'>Delete this document?</Typography>

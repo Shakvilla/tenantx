@@ -23,6 +23,10 @@ export interface TenantSubscriptionDto {
   currentPeriodEnd: string | null     // ISO date
   pendingDowngradePlan: string | null
   cancelledAt: string | null
+  /** True when the tenant explicitly chose a plan at signup; false when auto-defaulted. */
+  planSelectionCompleted: boolean
+  /** When the current TRIALING period ends (ISO date), if on a trial. */
+  trialEndsAt: string | null
   features: Record<string, boolean>
 }
 
@@ -35,12 +39,24 @@ export interface SubscriptionPlanPublicDto {
   id: string
   name: string
   displayName: string
+  /** Deprecated/derived per-unit rate. Returns 0 for FLAT-priced plans — do not render it. */
   pricePerUnit: number
+  /** Headline price for 1 unit. The source of truth for FLAT plans. */
+  entryPrice: number
   freeUnitCap: number | null
   transactionFeePct: number | null
   active: boolean
   features: Record<string, FeatureInfo>
   annualDiscountPct: number | null   // e.g. 0.15 = 15% off for annual billing; null = no annual option
+  status: string                     // DRAFT | ACTIVE | ARCHIVED
+  popular: boolean                   // CMS flag for the recommended plan
+  pricingMode: string                // FLAT | GRADUATED | VOLUME
+  tiers: Array<{
+    fromQty: number
+    toQty: number | null
+    flatPrice: number
+    perUnitPrice: number
+  }>
 }
 
 export interface SubscriptionInvoiceDto {

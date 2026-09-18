@@ -8,7 +8,7 @@ import Typography from '@mui/material/Typography'
 import { styled } from '@mui/material/styles'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/imagekit'
+import { ikUrl, IK_CARD } from '@/lib/image-urls'
 
 // Type Imports
 type PageBannerProps = {

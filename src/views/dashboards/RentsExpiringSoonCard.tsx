@@ -88,7 +88,7 @@ const RentsExpiringSoonCard = () => {
               {idx > 0 && <Divider />}
               <Link href={`/occupants/${r.occupantId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                 <Box
-                  className='flex items-center justify-between gap-3 px-6 py-3'
+                  className='flex items-center justify-between gap-3 px-4 sm:px-6 py-3'
                   sx={{ '&:hover': { bgcolor: 'action.hover' }, cursor: 'pointer' }}
                 >
                   <Box className='min-w-0'>

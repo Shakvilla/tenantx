@@ -21,6 +21,8 @@ import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -62,6 +64,9 @@ const formatDate = (d?: string | null) => {
 }
 
 const OccupantInspectionsView = () => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [data, setData] = useState<InspectionSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -300,7 +305,7 @@ const OccupantInspectionsView = () => {
       </Card>
 
       {/* Sign-off dialog */}
-      <Dialog open={!!signOffTarget} onClose={handleCloseSignOff} maxWidth='sm' fullWidth>
+      <Dialog open={!!signOffTarget} onClose={handleCloseSignOff} maxWidth='sm' fullWidth fullScreen={isMobile}>
         <DialogTitle>Sign Off Inspection</DialogTitle>
         <DialogContent>
           <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>

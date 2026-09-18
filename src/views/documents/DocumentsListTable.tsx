@@ -11,11 +11,14 @@ import MenuItem from '@mui/material/MenuItem'
 import Button from '@mui/material/Button'
 import TablePagination from '@mui/material/TablePagination'
 import Chip from '@mui/material/Chip'
-import Avatar from '@mui/material/Avatar'
 import Skeleton from '@mui/material/Skeleton'
 import Box from '@mui/material/Box'
 import Alert from '@mui/material/Alert'
 import type { TextFieldProps } from '@mui/material/TextField'
+import IconButton from '@mui/material/IconButton'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 import classnames from 'classnames'
 import { rankItem } from '@tanstack/match-sorter-utils'
@@ -24,15 +27,15 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-  getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel
 } from '@tanstack/react-table'
-import type { ColumnDef, FilterFn } from '@tanstack/react-table'
+import type { ColumnDef, FilterFn, SortingState } from '@tanstack/react-table'
 import type { RankingInfo } from '@tanstack/match-sorter-utils'
 
 import type { DocumentType } from '@/types/documents/documentTypes'
-import { getDocuments, deleteDocument, updateDocumentStatus, type DocumentItem } from '@/lib/api/documents'
+import { getDocuments, deleteDocument, updateDocumentStatus, getDocumentStats, type DocumentItem, type DocumentStats } from '@/lib/api/documents'
+import { getProperties } from '@/lib/api/properties'
+import { getStoredTenantId } from '@/lib/api/storage'
 import { getDocumentDownloadUrl } from '@/lib/document-storage'
 
 import RowActions from '@components/table/RowActions'
@@ -42,6 +45,7 @@ import ViewDocumentDialog from './ViewDocumentDialog'
 import AcceptDocumentDialog from './AcceptDocumentDialog'
 import RejectDocumentDialog from './RejectDocumentDialog'
 import AddDocumentDialog from './AddDocumentDialog'
+import ReplaceFileDialog from './ReplaceFileDialog'
 import DeleteDocumentDialog from './DeleteDocumentDialog'
 
 import tableStyles from '@core/styles/table.module.css'
@@ -117,52 +121,94 @@ const DebouncedInput = ({
 // ---------------------------------------------------------------------------
 
 const DocumentsListTable = () => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
+  // Only the current page of documents lives client-side — paging, filtering,
+  // search and sorting all round-trip to the server.
   const [data,    setData]    = useState<DocumentType[]>([])
   const [loading, setLoading] = useState(true)
+  const [total,   setTotal]   = useState(0)
+  const [page,    setPage]    = useState(0)
+  const [pageSize,setPageSize] = useState(25)
+  const [sorting, setSorting] = useState<SortingState>([])
 
-  const [globalFilter,      setGlobalFilter]      = useState('')
-  const [selectedStatus,    setSelectedStatus]     = useState('')
-  const [selectedProperty,  setSelectedProperty]  = useState('')
+  const [search,           setSearch]           = useState('')
+  const [selectedStatus,   setSelectedStatus]   = useState('')
+  const [selectedProperty, setSelectedProperty] = useState('')
 
-  const [addDocumentOpen,    setAddDocumentOpen]    = useState(false)
-  const [viewDocumentOpen,   setViewDocumentOpen]   = useState(false)
-  const [acceptDocumentOpen, setAcceptDocumentOpen] = useState(false)
-  const [rejectDocumentOpen, setRejectDocumentOpen] = useState(false)
-  const [deleteDocumentOpen, setDeleteDocumentOpen] = useState(false)
-  const [selectedDocument,   setSelectedDocument]   = useState<DocumentType | null>(null)
-  const [actionError,        setActionError]        = useState<string | null>(null)
+  const [addDocumentOpen,     setAddDocumentOpen]     = useState(false)
+  const [viewDocumentOpen,    setViewDocumentOpen]    = useState(false)
+  const [acceptDocumentOpen,  setAcceptDocumentOpen]  = useState(false)
+  const [rejectDocumentOpen,  setRejectDocumentOpen]  = useState(false)
+  const [deleteDocumentOpen,  setDeleteDocumentOpen]  = useState(false)
+  const [replaceFileOpen,     setReplaceFileOpen]     = useState(false)
+  const [selectedDocument,    setSelectedDocument]    = useState<DocumentType | null>(null)
+  const [actionError,         setActionError]         = useState<string | null>(null)
+  const [storageStats,       setStorageStats]        = useState<DocumentStats | null>(null)
 
-  // ---- Fetch ----
+  // ---- Property dropdown (server-side list, loaded once) ----
+
+  const [properties, setProperties] = useState<string[]>([])
+
+  useEffect(() => {
+    const tenantId = getStoredTenantId()
+    if (!tenantId) return
+    getProperties(tenantId, { size: 200 })
+      .then(res => {
+        const names = (res?.data ?? [])
+          .map((p: { name?: string }) => p.name)
+          .filter(Boolean) as string[]
+        setProperties(Array.from(new Set(names)))
+      })
+      .catch(() => setProperties([]))
+  }, [])
+
+  // ---- Server-side query params ----
+
+  const sortParam = useMemo(() => {
+    if (sorting.length === 0) return undefined
+    const s = sorting[0]
+    // Column accessor → backend sort field. tenantName is the occupant's name.
+    const fieldMap: Record<string, string> = { tenantName: 'occupantName' }
+    return `${fieldMap[s.id] ?? s.id},${s.desc ? 'desc' : 'asc'}`
+  }, [sorting])
 
   const fetchDocuments = useCallback(async () => {
     setLoading(true)
     try {
-      const raw = await getDocuments()
-      const items = Array.isArray(raw) ? raw : []
+      const res = await getDocuments({
+        status:       selectedStatus || undefined,
+        propertyName: selectedProperty || undefined,
+        search:       search || undefined,
+        page,
+        size: pageSize,
+        sort: sortParam
+      })
+      const items = Array.isArray(res?.content) ? res.content : []
       setData(items.map(apiToDisplay))
+      setTotal(res?.total ?? 0)
     } catch (err) {
       console.error('Failed to load documents:', err)
       setData([])
+      setTotal(0)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedStatus, selectedProperty, search, page, pageSize, sortParam])
 
   useEffect(() => { fetchDocuments() }, [fetchDocuments])
 
-  // ---- Derived filter lists ----
+  // ---- Storage stats (loaded once on mount) ----
+  useEffect(() => {
+    getDocumentStats().then(setStorageStats).catch(() => setStorageStats(null))
+  }, [])
 
-  const properties = useMemo(
-    () => Array.from(new Set(data.map(d => d.propertyName).filter(Boolean) as string[])),
-    [data]
-  )
-
-  const filteredData = useMemo(() => {
-    let result = data
-    if (selectedStatus)   result = result.filter(d => d.status === selectedStatus)
-    if (selectedProperty) result = result.filter(d => d.propertyName === selectedProperty)
-    return result
-  }, [data, selectedStatus, selectedProperty])
+  // A new filter or sort targets page 0, not wherever the user had scrolled to.
+  const changeFilter = (setter: (v: string) => void) => (value: string) => {
+    setter(value)
+    setPage(0)
+  }
 
   // ---- Handlers ----
 
@@ -223,7 +269,13 @@ const DocumentsListTable = () => {
       // whenever the tab was closed first, leaving the file behind forever.
       await deleteDocument(doc.id)
       setActionError(null)
-      fetchDocuments()
+      // If the page is now empty but there are earlier pages, step back one so
+      // the user isn't stranded on a blank page after the last-row delete.
+      if (data.length === 1 && page > 0) {
+        setPage(page - 1)
+      } else {
+        fetchDocuments()
+      }
     } catch (err: any) {
       setActionError(err?.response?.data?.message ?? err?.message ?? 'Failed to delete document')
     } finally {
@@ -257,9 +309,9 @@ const DocumentsListTable = () => {
       header: 'Tenant',
       cell: ({ row }) => (
         <div className='flex items-center gap-3'>
-          <Avatar src={row.original.tenantAvatar} sx={{ width: 30, height: 30 }}>
+          <StorageAvatar src={row.original.tenantAvatar} sx={{ width: 30, height: 30 }}>
             {row.original.tenantName?.charAt(0) ?? '?'}
-          </Avatar>
+          </StorageAvatar>
           <Typography color='text.primary'>{row.original.tenantName || '-'}</Typography>
         </div>
       )
@@ -322,6 +374,11 @@ const DocumentsListTable = () => {
               }
             },
             ...(row.original.fileUrl ? [{
+              text: 'Replace File',
+              icon: 'ri-refresh-line',
+              menuItemProps: { onClick: () => { setSelectedDocument(row.original); setReplaceFileOpen(true) } }
+            }] : []),
+            ...(row.original.fileUrl ? [{
               text: 'Download',
               icon: 'ri-download-line',
               menuItemProps: { onClick: () => handleDownload(row.original) }
@@ -342,16 +399,18 @@ const DocumentsListTable = () => {
   ], [])
 
   const table = useReactTable({
-    data: filteredData,
+    data,
     columns,
-    filterFns:            { fuzzy: fuzzyFilter },
-    state:                { globalFilter },
-    onGlobalFilterChange: setGlobalFilter,
-    globalFilterFn:       'fuzzy',
-    getCoreRowModel:      getCoreRowModel(),
-    getFilteredRowModel:  getFilteredRowModel(),
-    getSortedRowModel:    getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel()
+    // The fuzzy filter satisfies the project-wide FilterFns augmentation; all
+    // actual filtering happens server-side now (GET /documents?search=&status=…).
+    filterFns: { fuzzy: fuzzyFilter },
+    state:         { sorting },
+    onSortingChange: updater => {
+      setSorting(updater)
+      setPage(0)
+    },
+    getCoreRowModel:   getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel()
   })
 
   return (
@@ -367,10 +426,10 @@ const DocumentsListTable = () => {
           action={
             <div className='flex items-center gap-3'>
               <DebouncedInput
-                value={globalFilter ?? ''}
-                onChange={v => setGlobalFilter(String(v))}
+                value={search}
+                onChange={v => changeFilter(setSearch)(String(v))}
                 placeholder='Search…'
-                className='min-is-[220px]'
+                className='flex-1 min-w-0 min-is-[220px]'
               />
               <Button
                 variant='contained'
@@ -386,11 +445,41 @@ const DocumentsListTable = () => {
           {actionError && (
             <Alert severity='error' onClose={() => setActionError(null)}>{actionError}</Alert>
           )}
+          {/* Storage usage bar */}
+          {storageStats && (
+            <Box sx={{ p: 2, borderRadius: 1, bgcolor: 'action.hover' }}>
+              <Box className='flex items-center justify-between mb-1'>
+                <Typography variant='body2' fontWeight={500}>Storage</Typography>
+                <Typography variant='body2' color='text.secondary'>
+                  {storageStats.storageQuotaMb != null
+                    ? `${storageStats.storageUsedMb} / ${storageStats.storageQuotaMb} MB`
+                    : `${storageStats.storageUsedMb} MB used (unlimited)`}
+                </Typography>
+              </Box>
+              {storageStats.storageQuotaMb != null && storageStats.storageQuotaMb > 0 && (
+                <Box sx={{ height: 6, borderRadius: 3, bgcolor: 'grey.300', overflow: 'hidden' }}>
+                  <Box
+                    sx={{
+                      height: '100%',
+                      borderRadius: 3,
+                      width: `${Math.min((storageStats.storageUsedMb / storageStats.storageQuotaMb) * 100, 100)}%`,
+                      bgcolor: (storageStats.storageUsedMb / storageStats.storageQuotaMb) > 0.9
+                        ? 'error.main'
+                        : (storageStats.storageUsedMb / storageStats.storageQuotaMb) > 0.7
+                          ? 'warning.main'
+                          : 'success.main',
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                </Box>
+              )}
+            </Box>
+          )}
           {/* Filters */}
           <div className='flex flex-wrap gap-4'>
             <TextField
               select size='small' label='Status' value={selectedStatus}
-              onChange={e => setSelectedStatus(e.target.value)} sx={{ minWidth: 150 }}
+              onChange={e => changeFilter(setSelectedStatus)(e.target.value)} sx={{ minWidth: 150 }}
             >
               <MenuItem value=''>All Statuses</MenuItem>
               <MenuItem value='pending'>Pending</MenuItem>
@@ -399,15 +488,121 @@ const DocumentsListTable = () => {
             </TextField>
             <TextField
               select size='small' label='Property' value={selectedProperty}
-              onChange={e => setSelectedProperty(e.target.value)} sx={{ minWidth: 200 }}
+              onChange={e => changeFilter(setSelectedProperty)(e.target.value)} sx={{ minWidth: 200 }}
             >
               <MenuItem value=''>All Properties</MenuItem>
               {properties.map(p => <MenuItem key={p} value={p}>{p}</MenuItem>)}
             </TextField>
           </div>
 
-          {/* Table */}
-          {loading ? (
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex flex-col gap-2'>
+                {[0,1,2,3,4].map(i => <Skeleton key={i} variant='rectangular' height={60} />)}
+              </Box>
+            ) : table.getRowModel().rows.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No documents found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const d = row.original
+                  const cfg = typeIconObj[d.documentType] ?? typeIconObj['Other']
+                  const s = statusObj[d.status] ?? { title: d.status, color: 'secondary' }
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            <CustomAvatar skin='light' color={cfg.color as any} size={38}>
+                              <i className={classnames(cfg.icon, 'text-xl')} />
+                            </CustomAvatar>
+                            <div className='min-w-0'>
+                              <Typography color='text.primary' className='font-medium truncate'>
+                                {d.documentType}
+                              </Typography>
+                              <Typography variant='body2' color='text.secondary' className='truncate'>
+                                {d.tenantName || '-'}
+                              </Typography>
+                            </div>
+                          </div>
+                          <Chip
+                            variant='tonal'
+                            label={s.title}
+                            size='small'
+                            color={s.color}
+                            className='capitalize shrink-0'
+                          />
+                        </div>
+
+                        <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                          <div className='flex flex-col gap-0.5 min-w-0'>
+                            <Typography variant='caption' color='text.secondary'>Property & Unit</Typography>
+                            <Typography variant='body2' className='truncate'>
+                              {d.propertyName || '-'}
+                              {d.unitNo ? ` · Unit ${d.unitNo}` : ''}
+                            </Typography>
+                          </div>
+                          {d.agreementNumber && (
+                            <div className='flex flex-col gap-0.5'>
+                              <Typography variant='caption' color='text.secondary'>Agreement</Typography>
+                              <Typography variant='body2'>{d.agreementNumber}</Typography>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className='flex items-center gap-2 flex-wrap'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-eye-line' />}
+                            onClick={() => { setSelectedDocument(d); setViewDocumentOpen(true) }}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            View
+                          </Button>
+                          {d.status !== 'accepted' && d.fileUrl && (
+                            <Button
+                              size='small'
+                              variant='outlined'
+                              color='success'
+                              startIcon={<i className='ri-check-line' />}
+                              onClick={() => { setSelectedDocument(d); setAcceptDocumentOpen(true) }}
+                              sx={{ minHeight: 44 }}
+                            >
+                              Accept
+                            </Button>
+                          )}
+                          {d.status !== 'rejected' && (
+                            <IconButton
+                              size='small'
+                              onClick={() => { setSelectedDocument(d); setRejectDocumentOpen(true) }}
+                              sx={{ minWidth: 44, minHeight: 44 }}
+                              aria-label='Reject document'
+                            >
+                              <i className='ri-close-line' />
+                            </IconButton>
+                          )}
+                          <IconButton
+                            size='small'
+                            onClick={() => { setSelectedDocument(d); setDeleteDocumentOpen(true) }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Delete document'
+                          >
+                            <i className='ri-delete-bin-line' />
+                          </IconButton>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
+          loading ? (
             <Box className='flex flex-col gap-2'>
               {[0,1,2,3,4].map(i => <Skeleton key={i} variant='rectangular' height={44} />)}
             </Box>
@@ -457,18 +652,19 @@ const DocumentsListTable = () => {
                 )}
               </table>
             </div>
+          )
           )}
 
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'
             className='border-bs'
-            count={table.getFilteredRowModel().rows.length}
-            rowsPerPage={table.getState().pagination.pageSize}
-            page={table.getState().pagination.pageIndex}
+            count={total}
+            rowsPerPage={pageSize}
+            page={page}
             SelectProps={{ inputProps: { 'aria-label': 'rows per page' } }}
-            onPageChange={(_, page) => table.setPageIndex(page)}
-            onRowsPerPageChange={e => table.setPageSize(Number(e.target.value))}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            onRowsPerPageChange={e => { setPageSize(Number(e.target.value)); setPage(0) }}
           />
         </CardContent>
       </Card>
@@ -498,6 +694,13 @@ const DocumentsListTable = () => {
         setOpen={setRejectDocumentOpen}
         documentData={selectedDocument}
         onConfirm={handleReject}
+      />
+
+      <ReplaceFileDialog
+        open={replaceFileOpen}
+        setOpen={setReplaceFileOpen}
+        document={selectedDocument}
+        onSuccess={() => { setReplaceFileOpen(false); setSelectedDocument(null); fetchDocuments() }}
       />
 
       <DeleteDocumentDialog

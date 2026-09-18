@@ -17,6 +17,8 @@ import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import classnames from 'classnames'
 import { rankItem } from '@tanstack/match-sorter-utils'
@@ -57,6 +59,9 @@ const statusColor: Record<string, 'success' | 'info' | 'secondary' | 'error'> = 
 }
 
 const AgentsListTable = () => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [data, setData]               = useState<AgentType[]>([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
@@ -216,7 +221,107 @@ const AgentsListTable = () => {
         />
         <Divider />
         <CardContent>
-          {loading ? (
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box display='flex' justifyContent='center' py={6}><CircularProgress /></Box>
+            ) : error ? (
+              <Box display='flex' justifyContent='center' py={6}>
+                <Typography color='error'>{error}</Typography>
+              </Box>
+            ) : table.getFilteredRowModel().rows.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No agents found.</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const agent = row.original
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-center justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            <CustomAvatar skin='light' color='primary' size={38}>
+                              {getInitials(agent.name)}
+                            </CustomAvatar>
+                            <div className='min-w-0'>
+                              <Typography color='text.primary' className='font-medium truncate'>
+                                {agent.name}
+                              </Typography>
+                              <Typography variant='caption' color='text.secondary' className='truncate'>
+                                {agent.email || agent.phone}
+                              </Typography>
+                            </div>
+                          </div>
+                          <Chip
+                            label={agent.status}
+                            size='small'
+                            color={statusColor[agent.status] || 'default'}
+                            variant='tonal'
+                            className='capitalize shrink-0'
+                          />
+                        </div>
+
+                        <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Phone</Typography>
+                            <Typography variant='body2'>{agent.phone}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Location</Typography>
+                            <Typography variant='body2' color='text.secondary'>{agent.location || '—'}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Commission</Typography>
+                            <Typography variant='body2' className='font-medium'>
+                              {agent.commissionType === 'percentage'
+                                ? `${agent.commissionRate}%`
+                                : `GHS ${agent.commissionRate}`}
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2'>
+                          <Tooltip title='View commissions'>
+                            <IconButton
+                              size='small'
+                              onClick={() => handleOpenCommissions(agent)}
+                              sx={{ minWidth: 44, minHeight: 44 }}
+                              aria-label='View commissions'
+                            >
+                              <i className='ri-money-dollar-circle-line text-base' />
+                            </IconButton>
+                          </Tooltip>
+                          <Button
+                            size='small'
+                            variant='outlined'
+                            startIcon={<i className='ri-pencil-line' />}
+                            onClick={() => handleEdit(agent)}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size='small'
+                            variant='outlined'
+                            color='error'
+                            startIcon={<i className='ri-delete-bin-line' />}
+                            onClick={() => handleDelete(agent)}
+                            sx={{ minHeight: 44 }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
+          loading ? (
             <Box display='flex' justifyContent='center' py={6}><CircularProgress /></Box>
           ) : error ? (
             <Box display='flex' justifyContent='center' py={6}>
@@ -270,6 +375,7 @@ const AgentsListTable = () => {
                 )}
               </table>
             </div>
+          )
           )}
           {!loading && !error && (
             <TablePagination

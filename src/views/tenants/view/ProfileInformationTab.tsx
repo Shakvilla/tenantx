@@ -7,7 +7,7 @@ import CardHeader from '@mui/material/CardHeader'
 import CardContent from '@mui/material/CardContent'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
-import Avatar from '@mui/material/Avatar'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 type TenantData = {
   id: string
@@ -49,7 +49,7 @@ const ProfileInformationTab = ({ tenantData }: { tenantData?: TenantData }) => {
           <CardContent className='flex flex-col gap-6'>
             {/* User Summary */}
             <div className='flex flex-col items-center gap-4'>
-              <Avatar
+              <StorageAvatar
                 src={tenantData?.avatar}
                 alt={tenantData?.name}
                 sx={{ width: 100, height: 100 }}

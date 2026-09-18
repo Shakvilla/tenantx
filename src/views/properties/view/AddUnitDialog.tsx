@@ -23,6 +23,8 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
 import Chip from '@mui/material/Chip'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 // API Imports
 import { createUnit, updateUnit } from '@/lib/api/units'
@@ -44,9 +46,24 @@ interface Props {
   onSuccess: () => void
 }
 
+/**
+ * ISO (yyyy-MM-dd) date for the first day of next month — the default date a rent
+ * change takes effect when the landlord doesn't pick one.
+ */
+const firstOfNextMonth = (): string => {
+  const now = new Date()
+  const first = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const month = String(first.getMonth() + 1).padStart(2, '0')
+  const day = String(first.getDate()).padStart(2, '0')
+
+  return `${first.getFullYear()}-${month}-${day}`
+}
+
 const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props) => {
   const isEdit = Boolean(editUnit)
   const { ref, policy } = useReferenceData()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
 
   // Form state
   const [formData, setFormData] = useState({
@@ -61,6 +78,8 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
     bathrooms: '',
     sizeSqft: '',
     status: 'available' as CreateUnitPayload['status'],
+    effectiveDate: '',
+    priceChangeReason: '',
     amenities: {} as Record<string, boolean>,
     newImages: [] as File[],       // new files chosen by the user
     existingImages: [] as string[], // URLs already on the unit (edit mode)
@@ -79,10 +98,19 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // A rent change is the only thing that produces a price-history entry, so the
+  // effective-date and reason fields stay hidden until the value actually moves.
+  const originalRent = isEdit && editUnit?.rent != null ? Number(editUnit.rent) : null
+  const parsedRent = formData.rent.trim() === '' ? null : Number(formData.rent)
+
+  const rentChanged =
+    originalRent != null && parsedRent != null && !Number.isNaN(parsedRent) && parsedRent !== originalRent
+
   // Populate form when editing
   useEffect(() => {
     if (editUnit && open) {
       const amenitiesMap: Record<string, boolean> = {}
+
       if (editUnit.amenities) {
         editUnit.amenities.forEach(amenity => {
           amenitiesMap[amenity] = true
@@ -101,6 +129,8 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         bathrooms: editUnit.bathrooms?.toString() || '',
         sizeSqft: editUnit.sizeSqft?.toString() || '',
         status: editUnit.status || 'available',
+        effectiveDate: '',
+        priceChangeReason: '',
         amenities: amenitiesMap,
         newImages: [],
         existingImages: editUnit.images || [],
@@ -122,6 +152,8 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         bathrooms: '',
         sizeSqft: '',
         status: 'available',
+        effectiveDate: '',
+        priceChangeReason: '',
         amenities: {},
         newImages: [],
         existingImages: [],
@@ -141,6 +173,29 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
     }))
   }
 
+  const handleRentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+
+    setFormData(prev => {
+      const next = { ...prev, rent: value }
+      const nextRent = value.trim() === '' ? null : Number(value)
+
+      // Seed the default effective date the first time the rent diverges from the
+      // stored value, but never overwrite a date the landlord already chose.
+      if (
+        originalRent != null &&
+        nextRent != null &&
+        !Number.isNaN(nextRent) &&
+        nextRent !== originalRent &&
+        !prev.effectiveDate
+      ) {
+        next.effectiveDate = firstOfNextMonth()
+      }
+
+      return next
+    })
+  }
+
   const handleAmenityChange = (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
       ...prev,
@@ -153,12 +208,15 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
+
     if (files) {
       setFormData(prev => ({
         ...prev,
         newImages: [...prev.newImages, ...Array.from(files)]
       }))
     }
+
+
     // Reset input so the same file can be re-selected if needed
     e.target.value = ''
   }
@@ -231,6 +289,13 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         }
       }
 
+      // The price-change audit fields are only meaningful on an update that moves the
+      // rent, and the backend ignores them otherwise.
+      if (isEdit && rentChanged) {
+        if (formData.effectiveDate) payload.effectiveDate = formData.effectiveDate
+        if (formData.priceChangeReason.trim()) payload.priceChangeReason = formData.priceChangeReason.trim()
+      }
+
       if (isEdit && editUnit) {
         const response = await updateUnit(tenantId, editUnit.id, payload)
 
@@ -259,6 +324,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         }))
         setJustAdded(payload.unitNo)
         setActiveTab(0)
+
         // The unit number is the only thing left to type, so put the cursor in it.
         unitNoRef.current?.focus()
 
@@ -282,6 +348,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
     <Dialog open={open} onClose={onClose} maxWidth='sm' fullWidth>
       <DialogTitle>{isEdit ? 'Edit Unit' : 'Add New Unit'}</DialogTitle>
       {justAdded && (
+
         /* The dialog staying open is the whole point, so it has to say what just happened —
            otherwise pressing Add Unit looks like it did nothing. */
         <Alert severity='success' sx={{ mx: 3, mt: 2 }} onClose={() => setJustAdded(null)}>
@@ -332,7 +399,7 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
                   label={`Rent (${formData.currency})`}
                   type='number'
                   value={formData.rent}
-                  onChange={handleChange('rent')}
+                  onChange={handleRentChange}
                   fullWidth
                   required
                   InputProps={{
@@ -340,6 +407,35 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
                   }}
                 />
               </Grid>
+
+              {/* Price-change controls appear only when the rent actually moves from the
+                  stored value — otherwise there is nothing to log. */}
+              {rentChanged && (
+                <>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <TextField
+                      label='Effective Date'
+                      type='date'
+                      value={formData.effectiveDate}
+                      onChange={handleChange('effectiveDate')}
+                      fullWidth
+                      slotProps={{ inputLabel: { shrink: true } }}
+                      helperText='When the new rent takes effect'
+                    />
+                  </Grid>
+
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      label='Reason for price change'
+                      value={formData.priceChangeReason}
+                      onChange={handleChange('priceChangeReason')}
+                      fullWidth
+                      placeholder='e.g., Annual review, market adjustment'
+                      helperText='Optional — recorded in the price history and shown to the occupant'
+                    />
+                  </Grid>
+                </>
+              )}
 
               {/* See the All Unit dialog: offered only when the platform supports more than
                   one currency, because otherwise the API refuses the save. */}
@@ -522,25 +618,41 @@ const AddUnitDialog = ({ open, onClose, propertyId, editUnit, onSuccess }: Props
         </Box>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3 }}>
-        <Button onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
+      <DialogActions
+        sx={{
+          px: 3,
+          pb: 3,
+          pt: 2,
+          flexDirection: isMobile ? 'column-reverse' : 'row',
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? 1.5 : 0
+        }}
+      >
         {!isEdit && (
           <FormControlLabel
-            sx={{ mr: 'auto', ml: 1 }}
+            sx={{ mr: isMobile ? 0 : 'auto', ml: isMobile ? 0 : 1 }}
             control={<Checkbox size='small' checked={addAnother} onChange={e => setAddAnother(e.target.checked)} />}
             label={<Typography variant='body2'>Add another room</Typography>}
           />
         )}
-        <Button
-          variant='contained'
-          onClick={handleSubmit}
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={20} /> : null}
-        >
-          {isEdit ? 'Update Unit' : 'Add Unit'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1.5, width: isMobile ? '100%' : 'auto' }}>
+          <Button
+            onClick={onClose}
+            disabled={loading}
+            sx={{ flex: isMobile ? 1 : 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant='contained'
+            onClick={handleSubmit}
+            disabled={loading}
+            startIcon={loading ? <CircularProgress size={20} /> : null}
+            sx={{ flex: isMobile ? 1 : 'none' }}
+          >
+            {isEdit ? 'Update Unit' : 'Add Unit'}
+          </Button>
+        </Box>
       </DialogActions>
     </Dialog>
   )

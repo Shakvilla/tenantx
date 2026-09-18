@@ -23,6 +23,7 @@ import Box from '@mui/material/Box'
 import OutlinedInput from '@mui/material/OutlinedInput'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import {
@@ -85,6 +86,10 @@ const SPECIALIZATION_OPTIONS = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'add' }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [formData, setFormData] = useState<FormData>(BLANK)
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -175,7 +180,7 @@ const AddMaintainerDialog = ({ open, handleClose, onSuccess, editData, mode = 'a
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>{mode === 'edit' ? 'Edit Maintainer' : 'Add Maintainer'}</span>
         <IconButton size='small' onClick={handleClose} disabled={submitting}>

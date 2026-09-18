@@ -14,59 +14,29 @@
 
 import type { ReactNode } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
-import { useRouter } from 'next/navigation'
 
 import { useFeature } from '@/hooks/useFeature'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 
-// Maps each feature key to the minimum plan name required to unlock it.
-// Used to generate accurate "requires X plan" messages without needing
-// to know the tenant's current plan.
-//
-// INSPECTIONS and CAUTION_FEES are deliberately absent: both are available on
-// every plan, including Free. Move-in inspections are part of onboarding and
-// recording a deposit is core tenancy record-keeping, so neither is gated (see
-// backend V160 and FeatureEnforcementRegistry, Mode.UNGATED). They were listed
-// here as 'Basic' while nothing enforced it, which showed landlords an upgrade
-// badge over a feature they already had.
-const FEATURE_REQUIRED_PLAN: Record<string, string> = {
-  // Basic features
-  COMMUNICATION:            'Basic',
-  EXPENSES:                 'Basic',
-  VACANCY_LISTINGS:         'Basic',
-  ADVANCE_RENT:             'Basic',
-  RENT_REVIEWS:             'Basic',
-  LATE_FEES:                'Basic',
-  MAINTENANCE_CONTRACTORS:  'Basic',
-  PREVENTATIVE_MAINTENANCE: 'Basic',
-  SMS_REMINDERS:            'Basic',
-  WHATSAPP_REMINDERS:       'Basic',
-  ADVANCED_REPORTS:         'Basic',
-  // Pro features
-  RENT_COLLECTION:          'Pro',
-  LANDLORD_WALLET:          'Pro',
-  // AUTOMATED_RECONCILIATION was retired from the plan matrix by backend V161 — it
-  // was sold as a Pro benefit with nothing landlord-facing behind it.
-  FINANCIAL_REPORTS:        'Pro',
-  UTILITIES_MANAGEMENT:     'Pro',
-  AGENT_MANAGEMENT:         'Pro',
-}
-
 interface FeatureGateProps {
   feature: string
   children: ReactNode
+
   /** Custom message to show when locked (defaults to generic) */
   lockedMessage?: string
+
   /** Render a compact inline locked badge instead of the full block */
   inline?: boolean
 }
 
 export function FeatureGate({ feature, children, lockedMessage, inline = false }: FeatureGateProps) {
   const hasFeature = useFeature(feature)
-  const { isLoading } = useSubscription()
+  const { isLoading, featurePlans } = useSubscription()
   const router = useRouter()
 
   // Don't flash the lock UI while subscription data is still loading
@@ -74,7 +44,10 @@ export function FeatureGate({ feature, children, lockedMessage, inline = false }
 
   if (hasFeature) return <>{children}</>
 
-  const planName = FEATURE_REQUIRED_PLAN[feature] ?? 'a higher'
+  // The minimum plan that unlocks the feature, derived from the CMS plan
+  // matrix (getAvailablePlans). Falls back to a generic message when the plan
+  // can't be resolved (e.g. an ungated feature).
+  const planName = featurePlans[feature]?.displayName ?? 'a higher'
   const message = lockedMessage ?? `This feature requires the ${planName} plan. Upgrade to unlock it.`
 
   if (inline) {

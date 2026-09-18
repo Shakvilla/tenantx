@@ -18,12 +18,12 @@ import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
 import Tooltip from '@mui/material/Tooltip'
 import Divider from '@mui/material/Divider'
-import Avatar from '@mui/material/Avatar'
 import Skeleton from '@mui/material/Skeleton'
 import Box from '@mui/material/Box'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import Button from '@mui/material/Button'
 import type { Theme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third Party Components
 import classnames from 'classnames'
@@ -77,6 +77,8 @@ function entityRoute(entityType: string | null, entityId: string | null): string
       // The unit page carries the Advertise card, which is what explains a
       // paused listing — the only reason a UNIT notification is raised today.
       return entityId ? `/properties/units/${entityId}` : '/properties/units'
+    case 'SUPPORT_TICKET':
+      return entityId ? `/support?ticket=${entityId}` : '/support'
     default:
       return null
   }
@@ -177,7 +179,7 @@ const getAvatar = (
   const { avatarImage, avatarIcon, avatarText, title, avatarColor, avatarSkin } = params
 
   if (avatarImage) {
-    return <Avatar src={avatarImage} />
+    return <StorageAvatar src={avatarImage} />
   } else if (avatarIcon) {
     return (
       <CustomAvatar color={avatarColor} skin={avatarSkin || 'light-static'}>
@@ -347,7 +349,8 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
         anchorEl={anchorRef.current}
         {...(isSmallScreen
           ? {
-              className: 'is-full !mbs-4 z-[1] max-bs-[550px] bs-[550px]',
+              className: '!mbs-4 z-[1] max-bs-[550px] bs-[550px]',
+              sx: { width: 'calc(100% - 24px)' },
               modifiers: [
                 {
                   name: 'preventOverflow',
@@ -455,18 +458,18 @@ const NotificationsDropdown = ({ notifications: _propNotifications }: { notifica
                             onClick={() => handleReadNotification(id, index)}
                           >
                             {getAvatar({ avatarImage, avatarIcon, title, avatarText, avatarColor, avatarSkin })}
-                            <div className='flex flex-col flex-auto'>
-                              <Typography variant='body2' className='font-medium mbe-1' color='text.primary'>
+                            <div className='flex flex-col flex-auto min-w-0'>
+                              <Typography variant='body2' className='font-medium mbe-1 truncate' color='text.primary'>
                                 {title}
                               </Typography>
-                              <Typography variant='caption' className='mbe-2' color='text.secondary'>
+                              <Typography variant='caption' className='mbe-2 block line-clamp-2' color='text.secondary'>
                                 {subtitle}
                               </Typography>
                               <Typography variant='caption' color='text.disabled'>
                                 {time}
                               </Typography>
                             </div>
-                            <div className='flex flex-col items-end gap-2'>
+                            <div className='flex flex-col items-end gap-2 shrink-0'>
                               <Badge
                                 variant='dot'
                                 color={read ? 'secondary' : 'primary'}

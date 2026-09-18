@@ -4,17 +4,24 @@
  * Key differences from the landlord apiClient:
  *  - Attaches admin_token (not auth_token)
  *  - Never sends X-Tenant-ID header
- *  - No refresh-token flow (admin sessions are non-refreshable for now)
- *  - 401 on admin routes → clear admin token + dispatch ADMIN_SESSION_EXPIRED
+ *  - 401 on admin routes → attempt a refresh via the admin refresh token; on failure clear the
+ *    admin token + dispatch ADMIN_SESSION_EXPIRED
  */
 
 import axios from 'axios'
-import type { AxiosInstance } from 'axios'
+import type { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 
-import { getStoredAdminToken, setStoredAdminToken, clearStoredAdminToken } from './admin-storage'
+import {
+  getStoredAdminToken,
+  setStoredAdminToken,
+  clearStoredAdminToken,
+  getStoredAdminRefreshToken,
+  setStoredAdminRefreshToken
+} from './admin-storage'
 import { isOtpChallenge } from './auth-client'
 import type { OtpChallenge } from './auth-client'
 import { getDeviceId } from './device-id'
+import { AdminSupportTicket } from '@/types/admin'
 
 const ADMIN_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:1201/api/v1')
   .replace(/\/api\/v1$/, '') + '/api/v1/admin'
@@ -51,25 +58,112 @@ adminClient.interceptors.request.use(config => {
 return config
 })
 
+// ---------------------------------------------------------------------------
+// 401 → refresh (mirrors the tenant apiClient interceptor in client.ts)
+// ---------------------------------------------------------------------------
+
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void
+  reject: (reason?: unknown) => void
+}> = []
+
+function processQueue(error: unknown | null) {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error)
+    } else {
+      resolve()
+    }
+  })
+  failedQueue = []
+}
+
+/** Clears all admin token material and tells AdminAuthContext the session is gone. */
+function expireAdminSession(): void {
+  clearStoredAdminToken()
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('ADMIN_SESSION_EXPIRED'))
+  }
+}
+
+/**
+ * Exchanges the stored admin refresh token for a new session. Uses a bare axios.post (no auth
+ * header — the stored access token is expired — and adminClient's own interceptors never run
+ * here), mirroring {@link adminLogin} and {@link verifyAdminLoginOtp}.
+ */
+async function refreshAdminSession(): Promise<AdminLoginResponse> {
+  const refreshToken = getStoredAdminRefreshToken()
+
+  if (!refreshToken) throw new Error('No admin refresh token')
+
+  const { data } = await axios.post<AdminLoginResponse>(
+    `${ADMIN_API_BASE}/auth/refresh`,
+    { refreshToken }
+  )
+
+  if (!data.accessToken) throw new Error('Admin refresh returned no access token')
+
+  setStoredAdminToken(data.accessToken)
+  if (data.refreshToken) setStoredAdminRefreshToken(data.refreshToken)
+
+  return data
+}
+
 adminClient.interceptors.response.use(
   res => res,
-  error => {
+  async (error: AxiosError) => {
+    const originalRequest = error.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
+
     // Only /api/v1/admin/** calls (the default baseURL) represent the admin's own session.
     // Calls that override baseURL to API_V1_BASE (e.g. getSystemNotifications) hit tenant-scoped
     // endpoints outside AdminJwtAuthenticationFilter's scope and will always 401 for an admin
     // token — that's a misrouted-request error, not proof the admin's session has expired.
-    const isAdminScopedRequest = (error.config?.baseURL ?? ADMIN_API_BASE) === ADMIN_API_BASE
+    const isAdminScopedRequest = (originalRequest?.baseURL ?? ADMIN_API_BASE) === ADMIN_API_BASE
 
-    if (error.response?.status === 401 && isAdminScopedRequest) {
-      clearStoredAdminToken()
+    if (error.response?.status === 401 && isAdminScopedRequest && !originalRequest?._retry) {
+      // No refresh token → the session cannot be recovered; treat it as a hard expiry.
+      if (!getStoredAdminRefreshToken()) {
+        expireAdminSession()
 
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('ADMIN_SESSION_EXPIRED'))
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        // Queue until the in-flight refresh completes. Queued requests replay on success and
+        // settle to a never-resolving promise on failure (the redirect is already in flight).
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(
+          () => adminClient(originalRequest!),
+          () => new Promise(() => {})
+        )
+      }
+
+      isRefreshing = true
+
+      try {
+        const data = await refreshAdminSession()
+
+        originalRequest!.headers.Authorization = `Bearer ${data.accessToken}`
+        originalRequest!._retry = true
+
+        processQueue(null)
+
+        return adminClient(originalRequest!)
+      } catch (refreshError) {
+        processQueue(refreshError)
+        expireAdminSession()
+
+        // Never-settle: the redirect is in flight and will unmount the admin console.
+        return new Promise(() => {})
+      } finally {
+        isRefreshing = false
       }
     }
 
-
-return Promise.reject(error)
+    return Promise.reject(error)
   }
 )
 
@@ -243,6 +337,7 @@ export async function adminLogin(email: string, password: string): Promise<Admin
   if (isOtpChallenge(res.data)) return res.data
 
   setStoredAdminToken(res.data.accessToken)
+  if (res.data.refreshToken) setStoredAdminRefreshToken(res.data.refreshToken)
 
 return res.data
 }
@@ -262,6 +357,7 @@ export async function verifyAdminLoginOtp(
   )
 
   setStoredAdminToken(res.data.accessToken)
+  if (res.data.refreshToken) setStoredAdminRefreshToken(res.data.refreshToken)
 
   return res.data
 }
@@ -1244,13 +1340,20 @@ export interface FeedbackSummaryDto {
 }
 
 export async function getAdminTickets(params: {
-  status?: string; priority?: string; tenantId?: string; search?: string; page?: number; size?: number
+  status?: string;
+  priority?: string;
+  tenantId?: string;
+  category?: string;
+  search?: string;
+  page?: number;
+  size?: number;
 }): Promise<TicketPageDto> {
   const q = new URLSearchParams()
 
   if (params.status)   q.set('status',   params.status)
   if (params.priority) q.set('priority', params.priority)
   if (params.tenantId) q.set('tenantId', params.tenantId)
+  if (params.category) q.set('category', params.category)
   if (params.search)   q.set('search',   params.search)
   q.set('page', String(params.page ?? 0))
   q.set('size', String(params.size ?? 20))
@@ -1376,6 +1479,18 @@ export interface PlatformSettingDto {
 /** Returns all platform settings grouped by category. */
 export async function getPlatformSettings(): Promise<Record<string, PlatformSettingDto[]>> {
   return adminGet<Record<string, PlatformSettingDto[]>>('/platform-settings')
+}
+
+export interface RetentionReview {
+  purgeEnabled: boolean
+  completedNotifications: number
+  loginAttempts: number
+  adminAuditLogs: number
+  subscriptionInvoices: number
+}
+
+export async function getRetentionReview(): Promise<RetentionReview> {
+  return adminGet<RetentionReview>('/retention-review')
 }
 
 /**
@@ -2133,6 +2248,52 @@ export async function deactivateSenderId(tenantId: string, reason: string): Prom
 
 export async function reactivateSenderId(tenantId: string): Promise<AdminSenderIdRequestDto> {
   return adminPost<AdminSenderIdRequestDto>(`/sms/sender-id-requests/tenant/${tenantId}/reactivate`, {})
+}
+
+// ---------------------------------------------------------------------------
+// SMS Credit Top-Up Requests (admin)
+// ---------------------------------------------------------------------------
+
+export interface SmsCreditTopUpRequestDto {
+  id: string
+  tenantId: string
+  amount: number
+  paymentMethod: 'WALLET' | 'MOBILE_MONEY'
+  status: 'REQUESTED' | 'PAYMENT_PENDING' | 'ESCROW' | 'APPROVED' | 'COMPLETED' | 'REJECTED' | 'REFUNDED'
+  escrowAmount: number | null
+  paymentReference: string | null
+  clientTransId: string | null
+  mobileNumber: string | null
+  requestedAt: string
+  paidAt: string | null
+  approvedAt: string | null
+  approvedBy: string | null
+  rejectedAt: string | null
+  rejectionReason: string | null
+  completedAt: string | null
+  refundedAt: string | null
+}
+
+export async function getAdminSmsCreditRequests(
+  status?: string,
+  tenantId?: string,
+  page = 0,
+  size = 20
+): Promise<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) })
+  if (status) params.set('status', status)
+  if (tenantId) params.set('tenantId', tenantId)
+  return adminGet<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }>(
+    `/sms/credit-requests?${params}`
+  )
+}
+
+export async function approveSmsCreditRequest(id: string): Promise<SmsCreditTopUpRequestDto> {
+  return adminPost<SmsCreditTopUpRequestDto>(`/sms/credit-requests/${id}/approve`)
+}
+
+export async function rejectSmsCreditRequest(id: string, reason: string): Promise<SmsCreditTopUpRequestDto> {
+  return adminPost<SmsCreditTopUpRequestDto>(`/sms/credit-requests/${id}/reject`, { reason })
 }
 
 // ---------------------------------------------------------------------------

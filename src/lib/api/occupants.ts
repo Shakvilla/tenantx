@@ -48,6 +48,7 @@ export interface OccupantRecord {
   documents?: string[] | null
   ghanaCardId?: string | null
   idType?: string | null
+  profileComplete: boolean
   createdAt: string
   updatedAt: string
 
@@ -96,6 +97,7 @@ export interface CreateOccupantPayload {
   documents?: string[]
   ghanaCardId?: string
   idType?: string
+  profileComplete?: boolean
 }
 
 export interface UpdateOccupantPayload {
@@ -120,6 +122,7 @@ export interface UpdateOccupantPayload {
   documents?: string[]
   ghanaCardId?: string
   idType?: string
+  profileComplete?: boolean
 }
 
 /**
@@ -141,9 +144,7 @@ export async function getOccupants(
   if (query.startDate) params.set('startDate', query.startDate)
   if (query.endDate) params.set('endDate', query.endDate)
 
-  return apiGet(`${API_BASE}/occupants?${params.toString()}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/occupants?${params.toString()}`)
 }
 
 /**
@@ -154,9 +155,7 @@ export async function getOccupantById(
   tenantId: string,
   id: string
 ): Promise<OccupantRecord> {
-  return apiGet(`${API_BASE}/occupants/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/occupants/${id}`)
 }
 
 /**
@@ -167,9 +166,7 @@ export async function createOccupant(
   tenantId: string,
   data: CreateOccupantPayload
 ): Promise<OccupantRecord> {
-  return apiPost(`${API_BASE}/occupants`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiPost(`${API_BASE}/occupants`, data)
 }
 
 /**
@@ -181,18 +178,14 @@ export async function updateOccupant(
   id: string,
   data: UpdateOccupantPayload
 ): Promise<OccupantRecord> {
-  return apiPut(`${API_BASE}/occupants/${id}`, data, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiPut(`${API_BASE}/occupants/${id}`, data)
 }
 
 /**
  * Delete an occupant
  */
 export async function deleteOccupant(tenantId: string, id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/occupants/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiDelete(`${API_BASE}/occupants/${id}`)
 }
 
 export interface OccupantStats {
@@ -206,9 +199,7 @@ export interface OccupantStats {
  * Get occupant stats for the current tenant
  */
 export async function getOccupantStats(tenantId: string): Promise<OccupantStats> {
-  return apiGet(`${API_BASE}/occupants/stats`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/occupants/stats`)
 }
 
 /**
@@ -216,9 +207,7 @@ export async function getOccupantStats(tenantId: string): Promise<OccupantStats>
  * Calls GET /api/v1/occupants/me
  */
 export async function getMyOccupantProfile(tenantId: string): Promise<OccupantRecord> {
-  return apiGet(`${API_BASE}/occupants/me`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/occupants/me`)
 }
 
 /**
@@ -226,9 +215,7 @@ export async function getMyOccupantProfile(tenantId: string): Promise<OccupantRe
  */
 export async function getOccupantByEmail(tenantId: string, email: string): Promise<OccupantRecord | null> {
   try {
-    return await apiGet(`${API_BASE}/occupants/by-email?email=${encodeURIComponent(email)}`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    return await apiGet(`${API_BASE}/occupants/by-email?email=${encodeURIComponent(email)}`)
   } catch {
     return null
   }
@@ -243,9 +230,7 @@ export async function lookupOccupants(tenantId: string, email: string, phone: st
   if (![...params].length) return []
 
   try {
-    const res = await apiGet<OccupantRecord[]>(`${API_BASE}/occupants/lookup?${params.toString()}`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const res = await apiGet<OccupantRecord[]>(`${API_BASE}/occupants/lookup?${params.toString()}`)
 
     return Array.isArray(res) ? res : []
   } catch {
@@ -259,20 +244,17 @@ export interface AvatarUploadResult {
 }
 
 /**
- * Upload a single avatar image for an occupant via ImageKit.
+ * Upload a single avatar image for an occupant through the active storage
+ * provider (see lib/storage.ts).
  */
 export async function uploadOccupantAvatar(
   tenantId: string,
   file: File,
-  occupantId?: string
+  _occupantId?: string
 ): Promise<AvatarUploadResult> {
-  const { uploadImages } = await import('@/lib/imagekit')
+  const { uploadFile } = await import('@/lib/storage')
 
-  const folder = occupantId
-    ? `/yiliora/${tenantId}/occupants/${occupantId}`
-    : `/yiliora/${tenantId}/occupants`
+  const uploaded = await uploadFile(file, 'occupant')
 
-  const [uploaded] = await uploadImages([file], { folder })
-
-  return { url: uploaded.url, fileId: uploaded.fileId }
+  return { url: uploaded.url, fileId: uploaded.fileId ?? uploaded.filePath }
 }

@@ -123,7 +123,9 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     if (result.success && !result.otpRequired && !needsWorkspaceSelection) {
       // Small delay to let the state settle (auto-select case)
       setTimeout(() => {
-        router.push(redirectTo)
+        // A session that still needs plan selection must land on the plan picker, not the
+        // requested destination — the middleware would bounce them there anyway.
+        router.push(result.planSelectionRequired ? '/onboarding/select-plan' : redirectTo)
       }, 100)
     }
 
@@ -137,7 +139,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     const result = await selectWorkspace(workspace)
 
     if (result.success && !result.otpRequired) {
-      router.push(redirectTo)
+      router.push(result.planSelectionRequired ? '/onboarding/select-plan' : redirectTo)
     } else if (!result.success) {
       setError(result.error || 'Failed to select workspace.')
     }
@@ -155,7 +157,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     const result = await verifyOtp(otp, rememberDevice)
 
     if (result.success) {
-      router.push(redirectTo)
+      router.push(result.planSelectionRequired ? '/onboarding/select-plan' : redirectTo)
     } else {
       setError(result.error ?? 'Verification failed.')
     }

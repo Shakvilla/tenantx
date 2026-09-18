@@ -19,6 +19,7 @@ import Chip from '@mui/material/Chip'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Box from '@mui/material/Box'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // Type Imports
 import type { SubscriptionPlan } from '@/types/subscription-plans/subscriptionPlanTypes'
@@ -30,6 +31,10 @@ type Props = {
 }
 
 const ViewSubscriptionPlanDialog = ({ open, handleClose, plan }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const statusColors: Record<string, 'success' | 'warning' | 'error'> = {
     active: 'success',
     inactive: 'warning',
@@ -62,7 +67,7 @@ return limit.toString()
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='lg' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='lg' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>Plan Details</span>
         <IconButton size='small' onClick={handleClose}>

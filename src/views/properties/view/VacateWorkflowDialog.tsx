@@ -27,6 +27,7 @@ import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import Grid from '@mui/material/Grid2'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 import { vacateNoticesApi } from '@/lib/api/vacateNotices'
 import { inspectionsApi } from '@/lib/api/inspections'
@@ -73,6 +74,10 @@ type Props = {
 }
 
 export default function VacateWorkflowDialog({ open, notice, action, onClose, onDone }: Props) {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const meta = ACTION_META[action]
   const today = new Date().toISOString().slice(0, 10)
 
@@ -141,7 +146,7 @@ export default function VacateWorkflowDialog({ open, notice, action, onClose, on
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <Box className='flex items-center gap-2'>
           <i className={meta.icon} style={{ color: meta.iconColor }} />

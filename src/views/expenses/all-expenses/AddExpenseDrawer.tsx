@@ -23,6 +23,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import Skeleton from '@mui/material/Skeleton'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // API Imports
 import { createExpense, updateExpense, getExpenseConfigs, type Expense, type ExpenseConfig } from '@/lib/api/expenses'
@@ -108,6 +110,9 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   const [submitting, setSubmitting] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
 
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // Reference data
   const [expenseConfigs, setExpenseConfigs] = useState<ExpenseConfig[]>([])
   const [properties, setProperties] = useState<{ id: string; name: string }[]>([])
@@ -116,30 +121,21 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
 
   const isEdit = Boolean(editExpense)
 
-  /**
-   * Whether "Other (type manually)" is chosen.
-   *
-   * This used to be DERIVED from the form: other-is-selected meant "no config id but an item
-   * name". Choosing Other clears both — that is what choosing it means — so the derived value
-   * immediately fell back to "nothing selected", the manual name field never rendered, and the
-   * dropdown snapped back to "Select an item". A landlord with no expense items configured, which
-   * is every new landlord, could not record an expense at all. Reported on three separate visits.
-   *
-   * Held as state instead, seeded for edit mode where an expense really can have a typed name and
-   * no config behind it.
-   */
-  const [manualItem, setManualItem] = useState(
-    Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item)
-  )
+  // Explicit, not derived from formData: choosing "Other" CLEARS item, and a value derived
+  // from `formData.item` being non-empty collapsed back to '' the instant "Other" was picked —
+  // so the manual text field could never appear on a fresh expense (QA sweep 2026-08-22).
+  const [manualMode, setManualMode] = useState(false)
 
   // The dropdown value: config id, 'other', or ''
-  const configSelectValue = formData.expenseConfigId
-    ? formData.expenseConfigId
-    : manualItem
-      ? OTHER
-      : ''
+  const configSelectValue = manualMode
+    ? OTHER
+    : formData.expenseConfigId
+      ? formData.expenseConfigId
+      : formData.item
+        ? OTHER   // edit mode with a manual item but no config
+        : ''
 
-  const showManualItem = manualItem
+  const showManualItem = manualMode
 
   // Load reference data when drawer opens
   useEffect(() => {
@@ -166,7 +162,7 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   useEffect(() => {
     if (open) {
       setFormData(editExpense ? apiToForm(editExpense) : initialData)
-      setManualItem(Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item))
+      setManualMode(Boolean(editExpense && !editExpense.expenseConfigId && editExpense.item))
       setErrors({})
       setApiError(null)
     }
@@ -184,14 +180,17 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   }, [formData.propertyId])
 
   const handleConfigChange = (value: string) => {
-    setManualItem(value === OTHER)
+    setManualMode(value === OTHER)
 
     if (value === OTHER) {
       // Clear config link, let user type manually
+      setManualMode(true)
       setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
     } else if (value === '') {
+      setManualMode(false)
       setFormData(prev => ({ ...prev, expenseConfigId: '', item: '' }))
     } else {
+      setManualMode(false)
       // Auto-fill item name from selected config
       const config = expenseConfigs.find(c => c.id === value)
       setFormData(prev => ({ ...prev, expenseConfigId: value, item: config?.item ?? '' }))
@@ -259,13 +258,13 @@ const AddExpenseDrawer = ({ open, handleClose, editExpense, onSaved }: Props) =>
   const handleReset = () => {
     handleClose()
     setFormData(initialData)
-    setManualItem(false)
+    setManualMode(false)
     setErrors({})
     setApiError(null)
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth PaperProps={{ sx: { borderRadius: 2 } }}>
+    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth fullScreen={isMobile} PaperProps={{ sx: { borderRadius: 2 } }}>
       <DialogTitle className='flex items-center justify-between pbe-4'>
         <Typography variant='h6' component='span' className='font-medium'>
           {isEdit ? 'Edit Expense' : 'Create New Expense'}

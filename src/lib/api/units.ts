@@ -70,9 +70,7 @@ export async function getUnitsByProperty(
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/properties/${propertyId}/units${qs ? `?${qs}` : ''}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/properties/${propertyId}/units${qs ? `?${qs}` : ''}`)
 }
 
 /**
@@ -96,9 +94,7 @@ export async function getAllUnits(tenantId: string, query: UnitQuery = {}): Prom
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/units${qs ? `?${qs}` : ''}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/units${qs ? `?${qs}` : ''}`)
 }
 
 /**
@@ -114,9 +110,7 @@ export async function getAvailableUnits(tenantId: string, query: UnitQuery = {})
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/units/available${qs ? `?${qs}` : ''}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/units/available${qs ? `?${qs}` : ''}`)
 }
 
 /**
@@ -124,9 +118,7 @@ export async function getAvailableUnits(tenantId: string, query: UnitQuery = {})
  */
 export async function getUnitById(tenantId: string, id: string): Promise<ApiResponse<Unit>> {
   try {
-    const response = await apiGet<any>(`${API_BASE}/units/${id}`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const response = await apiGet<any>(`${API_BASE}/units/${id}`)
 
     if (response && response.success === false) return response as ApiResponse<Unit>
     if (response && response.id) return { success: true, data: response as Unit }
@@ -139,15 +131,60 @@ export async function getUnitById(tenantId: string, id: string): Promise<ApiResp
 }
 
 /**
+ * A single entry in a unit's append-only rent-change audit trail.
+ * API: GET /units/{id}/price-history (bare JSON array, newest first).
+ */
+export interface UnitPriceChangeLog {
+  id: string
+  unitId: string
+  oldRent: number
+  newRent: number
+  currency: string
+
+  /** ISO date (yyyy-MM-dd) the new rent takes effect. */
+  effectiveDate: string
+  changedBy: string
+  reason: string | null
+  createdAt: string
+}
+
+/**
  * All units this occupant currently occupies within the tenant.
  * API: GET /units/by-occupant/{occupantId}
  * Backend returns a bare JSON array (no envelope).
  */
 export async function getUnitsByOccupant(tenantId: string, occupantId: string): Promise<Unit[]> {
   try {
-    const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const res = await apiGet<Unit[]>(`${API_BASE}/units/by-occupant/${occupantId}`)
+
+    return Array.isArray(res) ? res : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * The signed-in occupant's own unit.
+ * API: GET /units/my-unit — occupant-scoped, identity taken from the token.
+ */
+export async function getMyUnit(): Promise<Unit | null> {
+  try {
+    const res = await apiGet<Unit | null>(`${API_BASE}/units/my-unit`)
+
+    return res ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Append-only rent-change history for a unit, newest first.
+ * API: GET /units/{id}/price-history
+ * Backend returns a bare JSON array (no envelope); a failure is treated as "no history".
+ */
+export async function getUnitPriceHistory(unitId: string): Promise<UnitPriceChangeLog[]> {
+  try {
+    const res = await apiGet<UnitPriceChangeLog[]>(`${API_BASE}/units/${unitId}/price-history`)
 
     return Array.isArray(res) ? res : []
   } catch {
@@ -165,9 +202,7 @@ export async function createUnit(
   data: Partial<Unit>
 ): Promise<ApiResponse<Unit>> {
   try {
-    const response = await apiPost<any>(`${API_BASE}/properties/${propertyId}/units`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const response = await apiPost<any>(`${API_BASE}/properties/${propertyId}/units`, data)
 
     if (response && response.success === false) return response as ApiResponse<Unit>
 
@@ -187,9 +222,7 @@ export async function createUnit(
  */
 export async function updateUnit(tenantId: string, id: string, data: Partial<Unit>): Promise<ApiResponse<Unit>> {
   try {
-    const response = await apiPatch<any>(`${API_BASE}/units/${id}`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const response = await apiPatch<any>(`${API_BASE}/units/${id}`, data)
 
     if (response && response.success === false) return response as ApiResponse<Unit>
 
@@ -207,9 +240,7 @@ export async function updateUnit(tenantId: string, id: string, data: Partial<Uni
  * Delete a unit
  */
 export async function deleteUnit(tenantId: string, id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/units/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiDelete(`${API_BASE}/units/${id}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -235,30 +266,29 @@ interface UploadResponse {
 }
 
 /**
- * Upload unit images to ImageKit CDN.
- * Files are uploaded directly from the browser to ImageKit using a
- * short-lived auth token from the Spring Boot backend.
+ * Upload unit images through the active storage provider.
+ * Files are uploaded directly from the browser using auth from the
+ * Spring Boot backend (see lib/storage.ts).
  */
 export async function uploadUnitImages(
   tenantId: string,
   files: File[],
-  unitId?: string
+  _unitId?: string
 ): Promise<UploadResponse> {
   try {
-    const { uploadImages } = await import('@/lib/imagekit')
+    const { uploadFile } = await import('@/lib/storage')
 
-    const folder = unitId
-      ? `/yiliora/${tenantId}/units/${unitId}`
-      : `/yiliora/${tenantId}/units`
+    const images: UploadedImage[] = []
 
-    const uploaded = await uploadImages(files, { folder })
+    for (const file of files) {
+      const uploaded = await uploadFile(file, 'unit')
+
+      images.push({ path: uploaded.filePath, url: uploaded.url, fileId: uploaded.fileId ?? uploaded.filePath })
+    }
 
     return {
       success: true,
-      data: {
-        images: uploaded.map(f => ({ path: f.filePath, url: f.url, fileId: f.fileId })),
-        count: uploaded.length
-      }
+      data: { images, count: images.length }
     }
   } catch (error: any) {
     return {

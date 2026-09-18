@@ -26,18 +26,17 @@ import Checkbox from '@mui/material/Checkbox'
 import FormGroup from '@mui/material/FormGroup'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Avatar from '@mui/material/Avatar'
-import CardMedia from '@mui/material/CardMedia'
 import { styled } from '@mui/material/styles'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import { createUnit, updateUnit, uploadUnitImages } from '@/lib/api/units'
 import { getStoredTenantId } from '@/lib/api/storage'
 import type { CreateUnitPayload } from '@/lib/validation/schemas/unit.schema'
 
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 import { UNIT_AMENITIES } from '@/lib/amenities'
 import { useReferenceData } from '@/contexts/ReferenceDataContext'
+import { StorageCardMedia } from '@/components/StorageCardMedia'
 
 // ---------------------------------------------------------------------------
 // Styled upload area (matches AddPropertyDialog)
@@ -162,6 +161,10 @@ const initialData: FormDataType = {
 // ---------------------------------------------------------------------------
 
 const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', onSuccess }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const { ref, policy } = useReferenceData()
   const [formData, setFormData] = useState<FormDataType>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormDataType, boolean>>>({})
@@ -418,7 +421,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
   }
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{mode === 'edit' ? 'Edit Unit' : 'Add Unit'}</span>
         <IconButton size='small' onClick={handleReset} disabled={loading}>
@@ -740,9 +743,9 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
                     {existingImages.map((url, index) => (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`existing-${index}`}>
                         <ImagePreviewCard>
-                          <CardMedia
+                          <StorageCardMedia
                             component='img'
-                            image={ikUrl(url, IK_THUMB)}
+                            image={url}
                             alt={`Unit image ${index + 1}`}
                             sx={{ height: 160, objectFit: 'cover' }}
                           />
@@ -771,7 +774,7 @@ const AddUnitDialog = ({ open, handleClose, properties, editData, mode = 'add', 
                     {formData.newImages.map((item, index) => (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`new-${index}`}>
                         <ImagePreviewCard>
-                          <CardMedia
+                          <StorageCardMedia
                             component='img'
                             image={item.preview}
                             alt={item.file.name}

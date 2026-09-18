@@ -15,8 +15,9 @@ const StyledVerticalNav = styled.aside<StyledVerticalNavProps>`
   ${({ scrollWithContent }) =>
     !scrollWithContent &&
     `
-    position: sticky;
+    position: fixed;
     inset-block-start: 0;
+    inset-inline-start: 0;
     block-size: 100dvh;
   `}
   z-index: 9;

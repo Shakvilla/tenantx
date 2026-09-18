@@ -17,6 +17,8 @@ import Skeleton from '@mui/material/Skeleton'
 import TablePagination from '@mui/material/TablePagination'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 import classnames from 'classnames'
 import {
@@ -70,6 +72,9 @@ const fmtCurr = (n: number) => `GHS ${n.toFixed(2)}`
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function BillsTable({ meter, onRecordBill, onBillPaid, refreshKey = 0 }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [data, setData]               = useState<Row[]>([])
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState<string | null>(null)
@@ -350,7 +355,7 @@ export default function BillsTable({ meter, onRecordBill, onBillPaid, refreshKey
       />
 
       {/* Pay dialog */}
-      <Dialog open={!!payBillId} onClose={() => !paying && setPayBillId(null)} maxWidth='xs' fullWidth>
+      <Dialog open={!!payBillId} onClose={() => !paying && setPayBillId(null)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Mark Bill as Paid</DialogTitle>
         <DialogContent>
           <Box className='flex flex-col gap-4 mbs-2'>

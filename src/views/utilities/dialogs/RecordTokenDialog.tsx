@@ -16,6 +16,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 import { utilitiesApi } from '@/lib/api/utilities'
 import type { UtilityMeterResponse, UtilityTokenResponse, PaymentResponsibility } from '@/types/utility'
@@ -53,6 +55,9 @@ const BLANK = {
 }
 
 export default function RecordTokenDialog({ open, meter, onClose, onCreated }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [form, setForm]       = useState({ ...BLANK })
   const [saving, setSaving]   = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
@@ -96,7 +101,7 @@ export default function RecordTokenDialog({ open, meter, onClose, onCreated }: P
   }
 
   return (
-    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='xs' fullWidth>
+    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='xs' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <Box className='flex items-center gap-2'>
           <i className='ri-flashlight-line' style={{ color: '#FFB347' }} />

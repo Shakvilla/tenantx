@@ -87,18 +87,14 @@ export async function getProperties(tenantId: string, query: PropertyQuery = {})
 
   const qs = params.toString()
 
-  return apiGet(`${API_BASE}/properties${qs ? `?${qs}` : ''}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/properties${qs ? `?${qs}` : ''}`)
 }
 
 /**
  * Get a single property by ID (client-side — uses Axios interceptors).
  */
 export async function getPropertyById(tenantId: string, id: string): Promise<ApiResponse<Property>> {
-  return apiGet(`${API_BASE}/properties/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/properties/${id}`)
 }
 
 /**
@@ -108,9 +104,7 @@ export async function getPropertyById(tenantId: string, id: string): Promise<Api
  * Guide: Section 4.3
  */
 export async function getMyProperty(tenantId: string): Promise<ApiResponse<Property>> {
-  return apiGet(`${API_BASE}/properties/my-property`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiGet(`${API_BASE}/properties/my-property`)
 }
 
 /**
@@ -124,9 +118,7 @@ export async function getMyProperty(tenantId: string): Promise<ApiResponse<Prope
  */
 export async function createProperty(tenantId: string, data: Partial<Property>): Promise<ApiResponse<Property>> {
   try {
-    const result = await apiPost<Property>(`${API_BASE}/properties`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const result = await apiPost<Property>(`${API_BASE}/properties`, data)
 
     return { success: true, data: result }
   } catch (error: any) {
@@ -153,9 +145,7 @@ export async function updateProperty(
   data: Partial<Property>
 ): Promise<ApiResponse<Property>> {
   try {
-    const result = await apiPut<Property>(`${API_BASE}/properties/${id}`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const result = await apiPut<Property>(`${API_BASE}/properties/${id}`, data)
 
     return {
       success: true,
@@ -177,9 +167,7 @@ export async function updateProperty(
  * Delete a property.
  */
 export async function deleteProperty(tenantId: string, id: string): Promise<void> {
-  return apiDelete(`${API_BASE}/properties/${id}`, {
-    headers: { 'X-Tenant-ID': tenantId }
-  })
+  return apiDelete(`${API_BASE}/properties/${id}`)
 }
 
 /**
@@ -190,9 +178,7 @@ export async function deleteProperty(tenantId: string, id: string): Promise<void
  */
 export async function getPropertyStats(tenantId: string): Promise<ApiResponse<PropertyStats>> {
   try {
-    const rawData = await apiGet<any>(`${API_BASE}/properties/stats`, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const rawData = await apiGet<any>(`${API_BASE}/properties/stats`)
 
     // Map backend fields to frontend PropertyStats interface
     // Backend: { totalProperties, activeProperties, inactiveProperties,
@@ -285,9 +271,7 @@ interface DraftPayload {
  */
 export async function saveDraft(tenantId: string, data: DraftPayload): Promise<ApiResponse<Property>> {
   try {
-    const result = await apiPost<Property>(`${API_BASE}/properties/drafts`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const result = await apiPost<Property>(`${API_BASE}/properties/drafts`, data)
 
     return { success: true, data: result }
   } catch (error: any) {
@@ -304,9 +288,7 @@ export async function saveDraft(tenantId: string, data: DraftPayload): Promise<A
  */
 export async function updateDraft(tenantId: string, id: string, data: DraftPayload): Promise<ApiResponse<Property>> {
   try {
-    const result = await apiPatch<Property>(`${API_BASE}/properties/drafts/${id}`, data, {
-      headers: { 'X-Tenant-ID': tenantId }
-    })
+    const result = await apiPatch<Property>(`${API_BASE}/properties/drafts/${id}`, data)
 
     return { success: true, data: result }
   } catch (error: any) {
@@ -341,34 +323,32 @@ interface UploadResponse {
 }
 
 /**
- * Upload property images to ImageKit CDN.
- * Files are uploaded directly from the browser to ImageKit using a
- * short-lived auth token from the Spring Boot backend.
+ * Upload property images through the active storage provider.
+ * Files are uploaded directly from the browser using auth from the
+ * Spring Boot backend (see lib/storage.ts).
  *
- * @param tenantId  - Used to scope the folder path (not sent to ImageKit)
+ * @param tenantId  - Scopes the storage folder (the backend applies it)
  * @param files     - Array of image files to upload
- * @param propertyId - Optional property ID for sub-folder organisation
  */
 export async function uploadPropertyImages(
   tenantId: string,
   files: File[],
-  propertyId?: string
+  _propertyId?: string
 ): Promise<UploadResponse> {
   try {
-    const { uploadImages } = await import('@/lib/imagekit')
+    const { uploadFile } = await import('@/lib/storage')
 
-    const folder = propertyId
-      ? `/yiliora/${tenantId}/properties/${propertyId}`
-      : `/yiliora/${tenantId}/properties`
+    const images: UploadedImage[] = []
 
-    const uploaded = await uploadImages(files, { folder })
+    for (const file of files) {
+      const uploaded = await uploadFile(file, 'property')
+
+      images.push({ path: uploaded.filePath, url: uploaded.url, fileId: uploaded.fileId ?? uploaded.filePath })
+    }
 
     return {
       success: true,
-      data: {
-        images: uploaded.map(f => ({ path: f.filePath, url: f.url, fileId: f.fileId })),
-        count: uploaded.length
-      }
+      data: { images, count: images.length }
     }
   } catch (error: any) {
     return {

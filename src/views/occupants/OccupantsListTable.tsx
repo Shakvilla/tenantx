@@ -19,9 +19,12 @@ import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
-import Avatar from '@mui/material/Avatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import IconButton from '@mui/material/IconButton'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -83,6 +86,8 @@ const columnHelper = createColumnHelper<OccupantWithAction>()
 const OccupantsListTable = () => {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   // States
   const [rowSelection, setRowSelection] = useState({})
@@ -268,16 +273,31 @@ const OccupantsListTable = () => {
           return (
             <div className='flex items-center gap-3'>
               {row.original.avatar ? (
-                <Avatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
+                <StorageAvatar src={row.original.avatar} sx={{ width: 34, height: 34 }} />
               ) : (
                 <CustomAvatar skin='light' color='primary' size={34}>
                   {getInitials(fullName)}
                 </CustomAvatar>
               )}
               <div className='flex flex-col'>
-                <Typography color='text.primary' className='font-medium'>
-                  {fullName}
-                </Typography>
+                <div className='flex items-center gap-2'>
+                  <Typography color='text.primary' className='font-medium'>
+                    {fullName}
+                  </Typography>
+                  {!row.original.profileComplete && (
+                    <Chip
+                      size='small'
+                      variant='tonal'
+                      color='warning'
+                      label='Setup incomplete'
+                      className='cursor-pointer'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleEditOccupant(row.original)
+                      }}
+                    />
+                  )}
+                </div>
                 <Typography variant='body2' color='text.secondary'>
                   {row.original.email}
                 </Typography>
@@ -467,7 +487,7 @@ const OccupantsListTable = () => {
                   setGlobalFilter(e.target.value)
                   setPage(0)
                 }}
-                className='w-full sm:min-w-[200px]'
+                className='flex-1 min-w-0 sm:min-w-[200px]'
               />
 
               <div className='flex items-center gap-2 sm:ml-auto'>
@@ -512,7 +532,127 @@ const OccupantsListTable = () => {
             </div>
           </Box>
 
-          {/* Table */}
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex justify-center items-center py-10'>
+                <CircularProgress />
+              </Box>
+            ) : data.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No occupants found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const occ = row.original
+                  const fullName = `${occ.firstName} ${occ.lastName}`
+
+                  const propertyName =
+                    occ.propertyName || occ.property?.name || propertyMap[occ.propertyId ?? ''] || '-'
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-center justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            {occ.avatar ? (
+                              <StorageAvatar src={occ.avatar} sx={{ width: 38, height: 38, flexShrink: 0 }} />
+                            ) : (
+                              <CustomAvatar skin='light' color='primary' size={38}>
+                                {getInitials(fullName)}
+                              </CustomAvatar>
+                            )}
+                            <div className='min-w-0'>
+                              <div className='flex items-center gap-2'>
+                                <Typography color='text.primary' className='font-medium truncate'>
+                                  {fullName}
+                                </Typography>
+                                {!occ.profileComplete && (
+                                  <Chip
+                                    size='small'
+                                    variant='tonal'
+                                    color='warning'
+                                    label='Setup incomplete'
+                                    className='cursor-pointer shrink-0'
+                                    onClick={() => handleEditOccupant(occ)}
+                                  />
+                                )}
+                              </div>
+                              <Typography variant='body2' color='text.secondary' className='truncate'>
+                                {occ.email}
+                              </Typography>
+                            </div>
+                          </div>
+                          <Chip
+                            variant='tonal'
+                            label={occ.status}
+                            size='small'
+                            color={
+                              occ.status === 'active' ? 'success' : occ.status === 'pending' ? 'warning' : 'default'
+                            }
+                            className='capitalize shrink-0'
+                          />
+                        </div>
+
+                        <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Phone</Typography>
+                            <Typography variant='body2'>{occ.phone || '-'}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Unit No</Typography>
+                            <Typography variant='body2'>{occ.unitNo || '-'}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5 min-w-0'>
+                            <Typography variant='caption' color='text.secondary'>Property</Typography>
+                            <Typography variant='body2' className='truncate'>{propertyName}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Move In</Typography>
+                            <Typography variant='body2'>
+                              {occ.moveInDate ? new Date(occ.moveInDate).toLocaleDateString() : '-'}
+                            </Typography>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-eye-line' />}
+                            href={`/occupants/${occ.id}`}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            View
+                          </Button>
+                          <IconButton
+                            size='small'
+                            onClick={() => handleEditOccupant(occ)}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Edit occupant'
+                          >
+                            <i className='ri-pencil-line' />
+                          </IconButton>
+                          <IconButton
+                            size='small'
+                            onClick={() => {
+                              setSelectedOccupant(occ)
+                              setDeleteOccupantOpen(true)
+                            }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Delete occupant'
+                          >
+                            <i className='ri-delete-bin-line' />
+                          </IconButton>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
           <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             {loading ? (
               <Box className='flex justify-center items-center py-10'>
@@ -567,6 +707,7 @@ const OccupantsListTable = () => {
               </table>
             )}
           </div>
+          )}
 
           {/* Cursor-based Pagination */}
           <TablePagination

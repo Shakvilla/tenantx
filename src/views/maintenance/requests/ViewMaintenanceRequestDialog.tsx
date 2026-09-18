@@ -14,7 +14,6 @@ import Grid from '@mui/material/Grid2'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import CardMedia from '@mui/material/CardMedia'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 import Tabs from '@mui/material/Tabs'
@@ -32,6 +31,7 @@ import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import {
@@ -54,9 +54,7 @@ import {
 import { getUnitById } from '@/lib/api/units'
 import { getStoredTenantId } from '@/lib/api/storage'
 import { useAuth } from '@/contexts/AuthContext'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/imagekit'
+import { StorageCardMedia } from '@/components/StorageCardMedia'
 
 type Props = {
   open: boolean
@@ -151,6 +149,10 @@ const COMPLAINT_CATEGORY_LABELS: Record<string, string> = {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecision, onChanged }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const { user } = useAuth()
   const [tab, setTab] = useState(0)
   const [selectedImageIndex, setSelectedImageIndex] = useState(0)
@@ -442,7 +444,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
   }
 
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between pbs-5 pbe-3 pli-6'>
         <Box>
           <Typography variant='h6' component='span' className='font-medium'>{request.title}</Typography>
@@ -750,9 +752,9 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
                     Photos ({images.length})
                   </Typography>
                   <Box sx={{ position: 'relative', width: '100%', height: 260, borderRadius: 1, overflow: 'hidden', bgcolor: 'action.hover', mb: 1.5 }}>
-                    <CardMedia
+                    <StorageCardMedia
                       component='img'
-                      image={ikUrl(images[selectedImageIndex], IK_CARD)}
+                      image={images[selectedImageIndex]}
                       alt='Request image'
                       sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
@@ -770,7 +772,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
                               '&:hover': { borderColor: 'primary.main' }
                             }}
                           >
-                            <CardMedia component='img' image={ikUrl(img, IK_CARD)} alt={`Image ${i + 1}`}
+                            <StorageCardMedia component='img' image={img} alt={`Image ${i + 1}`}
                               sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </Box>
                         </Grid>
@@ -1052,7 +1054,7 @@ const ViewMaintenanceRequestDialog = ({ open, setOpen, request, onEdit, onDecisi
       </DialogActions>
 
       {/* ── Dispute (reopen) ─────────────────────────────────────────────── */}
-      <Dialog open={disputeOpen} onClose={() => !decisionBusy && setDisputeOpen(false)} maxWidth='xs' fullWidth>
+      <Dialog open={disputeOpen} onClose={() => !decisionBusy && setDisputeOpen(false)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Repair not done?</DialogTitle>
         <DialogContent>
           <Typography variant='body2' color='text.secondary' sx={{ mb: 3 }}>

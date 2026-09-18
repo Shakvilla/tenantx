@@ -16,6 +16,8 @@ import InputAdornment from '@mui/material/InputAdornment'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 import { rentReviewsApi } from '@/lib/api/rentReviews'
 import { getProperties } from '@/lib/api/properties'
@@ -49,6 +51,9 @@ function oneYearFromNow(): string {
 }
 
 export default function CreateReviewDialog({ open, onClose, onCreated }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [propertyId,    setPropertyId]    = useState('')
   const [unitId,        setUnitId]        = useState('')
   const [proposedRent,  setProposedRent]  = useState('')
@@ -129,7 +134,7 @@ export default function CreateReviewDialog({ open, onClose, onCreated }: Props) 
   }
 
   return (
-    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={() => !saving && onClose()} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>New Rent Review</span>
         <IconButton size='small' onClick={onClose} disabled={saving}>

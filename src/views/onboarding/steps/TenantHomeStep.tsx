@@ -296,7 +296,8 @@ export default function TenantHomeStep({ tenantId, onComplete, onExit }: Props) 
         propertyId: form.propertyId,
         unitId: form.unitId,
         unitNo: selectedUnit?.unitNo,
-        moveInDate: new Date(form.moveInDate).toISOString()
+        moveInDate: new Date(form.moveInDate).toISOString(),
+        profileComplete: false
       })
 
       if (!record?.id) {

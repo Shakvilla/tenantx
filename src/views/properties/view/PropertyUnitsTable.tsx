@@ -13,7 +13,10 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
-import Avatar from '@mui/material/Avatar'
+import IconButton from '@mui/material/IconButton'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
+import { StorageAvatar } from '@/components/StorageAvatar'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -47,9 +50,6 @@ import { formatCurrency } from '@/utils/currency'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 
 const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
   const itemRank = rankItem(row.getValue(columnId), value)
@@ -135,6 +135,9 @@ interface Props {
 
 const PropertyUnitsTable = ({ propertyId }: Props) => {
   const { refresh: refreshSubscription } = useSubscription()
+
+  // Phone / small tablet: swap the wide table for a stacked card list.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   // States
   const [data, setData] = useState<UnitType[]>([])
@@ -273,13 +276,13 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
         header: 'UNIT NUMBER',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar
+            <StorageAvatar
               variant='rounded'
               sx={{ width: 34, height: 34 }}
-              src={ikUrl(row.original.images?.[0], IK_THUMB) || undefined}
+              src={row.original.images?.[0]}
             >
               <i className='ri-home-3-line text-base' />
-            </Avatar>
+            </StorageAvatar>
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>
                 {row.original.unitNumber}
@@ -423,6 +426,96 @@ const PropertyUnitsTable = ({ propertyId }: Props) => {
             <Box display='flex' justifyContent='center' alignItems='center' minHeight={200}>
               <Typography color='error'>{error}</Typography>
             </Box>
+          ) : isMobile ? (
+            <div className='flex flex-col gap-3'>
+              {data.length === 0 ? (
+                <Typography color='text.secondary' className='text-center py-10'>
+                  No units available
+                </Typography>
+              ) : (
+                data.map(unit => (
+                  <Card key={unit.id} variant='outlined'>
+                    <CardContent className='flex flex-col gap-3'>
+                      <div className='flex items-center justify-between gap-3'>
+                        <div className='flex items-center gap-3 min-w-0'>
+                          <StorageAvatar
+                            variant='rounded'
+                            sx={{ width: 38, height: 38, flexShrink: 0 }}
+                            src={unit.images?.[0]}
+                          >
+                            <i className='ri-home-3-line text-base' />
+                          </StorageAvatar>
+                          <div className='min-w-0'>
+                            <Typography color='text.primary' className='font-medium truncate'>
+                              {unit.unitNumber}
+                            </Typography>
+                            {unit.type && (
+                              <Typography variant='caption' color='text.secondary' className='capitalize truncate'>
+                                {unit.type}
+                              </Typography>
+                            )}
+                          </div>
+                        </div>
+                        <Chip
+                          variant='tonal'
+                          label={unit.status}
+                          size='small'
+                          color={unitStatusObj[unit.status] || 'default'}
+                          className='capitalize shrink-0'
+                        />
+                      </div>
+
+                      <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                        <div className='flex flex-col gap-0.5 min-w-0'>
+                          <Typography variant='caption' color='text.secondary'>Tenant</Typography>
+                          <Typography variant='body2' className='truncate'>{unit.tenantName || '-'}</Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Rent</Typography>
+                          <Typography variant='body2' className='font-medium'>{unit.formattedRent}</Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Beds / Baths</Typography>
+                          <Typography variant='body2'>{unit.bedrooms} / {unit.bathrooms}</Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Size</Typography>
+                          <Typography variant='body2'>{unit.size}</Typography>
+                        </div>
+                      </div>
+
+                      <div className='flex items-center gap-2'>
+                        <Button
+                          size='small'
+                          variant='contained'
+                          startIcon={<i className='ri-eye-line' />}
+                          href={`/properties/units/${unit.id}`}
+                          sx={{ flex: 1, minHeight: 44 }}
+                        >
+                          View
+                        </Button>
+                        <IconButton
+                          size='small'
+                          onClick={() => handleEdit(unit)}
+                          sx={{ minWidth: 44, minHeight: 44 }}
+                          aria-label='Edit unit'
+                        >
+                          <i className='ri-pencil-line' />
+                        </IconButton>
+                        <IconButton
+                          size='small'
+                          onClick={() => handleDeleteClick(unit)}
+                          sx={{ minWidth: 44, minHeight: 44 }}
+                          aria-label='Delete unit'
+                        >
+                          <i className='ri-delete-bin-line' />
+                        </IconButton>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           ) : (
             <div className='overflow-x-auto'>
               <table className={tableStyles.table}>

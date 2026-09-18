@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Lightbox from './Lightbox'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/imagekit'
+import { ikUrl, IK_CARD } from '@/lib/image-urls'
 
 interface PhotoMosaicProps {
   images: string[]

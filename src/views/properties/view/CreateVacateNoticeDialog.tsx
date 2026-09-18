@@ -20,6 +20,7 @@ import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Grid from '@mui/material/Grid2'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 import { vacateNoticesApi } from '@/lib/api/vacateNotices'
 
@@ -48,6 +49,10 @@ export default function CreateVacateNoticeDialog({
   open, unitId, propertyId, unitNo, propertyName, tenantName, onClose, onCreated
 }: Props) {
   const today = new Date().toISOString().slice(0, 10)
+
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
 
   const [noticeDate, setNoticeDate]       = useState(today)
   const [expectedOut, setExpectedOut]     = useState('')
@@ -105,7 +110,7 @@ export default function CreateVacateNoticeDialog({
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='sm' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <Box className='flex items-center gap-2'>
           <i className='ri-door-open-line' style={{ color: 'var(--mui-palette-warning-main)' }} />

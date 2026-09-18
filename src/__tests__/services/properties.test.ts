@@ -37,9 +37,9 @@ vi.mock('@/lib/api/properties.server', () => ({
   serverGetPropertyById: vi.fn()
 }))
 
-// Mock ImageKit uploads used by uploadPropertyImages
-vi.mock('@/lib/imagekit', () => ({
-  uploadImages: vi.fn()
+// Mock storage uploads used by uploadPropertyImages
+vi.mock('@/lib/storage', () => ({
+  uploadFile: vi.fn()
 }))
 
 // client.ts creates an axios instance at module load, so axios must be mocked
@@ -289,25 +289,28 @@ describe('Properties Service', () => {
   })
 
   describe('uploadPropertyImages', () => {
-    it('should upload via ImageKit into the tenant property folder', async () => {
-      const { uploadImages } = await import('@/lib/imagekit')
-      vi.mocked(uploadImages).mockResolvedValue([
-        { filePath: '/yiliora/test-tenant-id/properties/prop-1/test.jpg', url: 'https://ik.example/test.jpg', fileId: 'f1' }
-      ] as any)
+    it('should upload each file through the storage client into the tenant property kind', async () => {
+      const { uploadFile } = await import('@/lib/storage')
+      vi.mocked(uploadFile).mockResolvedValue({
+        filePath: '/yiliora/test-tenant-id/properties/test.jpg',
+        url: 'https://ik.example/test.jpg',
+        fileId: 'f1',
+        provider: 'IMAGEKIT',
+        sizeBytes: 1024
+      } as any)
       const files = [new File([], 'test.jpg')]
 
       const result = await uploadPropertyImages(tenantId, files, 'prop-1')
 
-      expect(uploadImages).toHaveBeenCalledWith(files, {
-        folder: `/yiliora/${tenantId}/properties/prop-1`
-      })
+      expect(uploadFile).toHaveBeenCalledWith(files[0], 'property')
       expect(result.success).toBe(true)
       expect(result.data?.count).toBe(1)
+      expect(result.data?.images[0].fileId).toBe('f1')
     })
 
     it('should return a failure envelope when the upload fails', async () => {
-      const { uploadImages } = await import('@/lib/imagekit')
-      vi.mocked(uploadImages).mockRejectedValue(new Error('Upload failed'))
+      const { uploadFile } = await import('@/lib/storage')
+      vi.mocked(uploadFile).mockRejectedValue(new Error('Upload failed'))
 
       const result = await uploadPropertyImages(tenantId, [new File([], 'test.jpg')])
 

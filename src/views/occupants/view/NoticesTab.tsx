@@ -22,6 +22,8 @@ import IconButton from '@mui/material/IconButton'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 import { noticesApi } from '@/lib/api/notices'
 import type { NoticeSummary, NoticeType, NoticeStatus, NoticeChannel, IssueNoticeRequest } from '@/types/notice'
@@ -95,6 +97,9 @@ function fmtDate(iso: string | null): string {
 }
 
 export default function NoticesTab({ occupantId }: Props) {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [notices, setNotices] = useState<NoticeSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -238,7 +243,7 @@ export default function NoticesTab({ occupantId }: Props) {
       </Card>
 
       {/* ── Issue Notice Dialog ─────────────────────────────────────────── */}
-      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} maxWidth='sm' fullWidth>
+      <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} maxWidth='sm' fullWidth fullScreen={isMobile}>
         <DialogTitle className='flex items-center justify-between'>
           <span>Issue Notice</span>
           <IconButton size='small' onClick={() => setDialogOpen(false)} disabled={saving}>

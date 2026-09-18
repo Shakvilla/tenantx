@@ -10,6 +10,7 @@ const baseRecord: OccupantRecord = {
   email: 'ama@example.com',
   phone: '0244000000',
   status: 'active',
+  profileComplete: true,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
   occupation: 'Trader',

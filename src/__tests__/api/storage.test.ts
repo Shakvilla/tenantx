@@ -9,7 +9,7 @@ function fakeJwt(payload: Record<string, unknown>): string {
   return `${base64url({ alg: 'none' })}.${base64url(payload)}.signature`
 }
 
-describe('storage — cookie max-age tracks the token\'s real expiry', () => {
+describe('storage — session cookies sized to session lifetime (7 days), not access token expiry', () => {
   let cookieWrites: string[]
 
   beforeEach(() => {
@@ -31,9 +31,9 @@ describe('storage — cookie max-age tracks the token\'s real expiry', () => {
     vi.restoreAllMocks()
   })
 
-  it('sizes the auth_token cookie to the JWT\'s own exp claim, not a fixed 24h', () => {
+  it('sizes the auth_token cookie to the session lifetime (7 days), not the access token expiry', () => {
     const nowSeconds = Math.floor(Date.now() / 1000)
-    const token = fakeJwt({ sub: 'user-1', exp: nowSeconds + 900 }) // 15 min, matches real backend config
+    const token = fakeJwt({ sub: 'user-1', exp: nowSeconds + 900 }) // 15 min access token
 
     setStoredTokens(token, 'refresh-token-abc')
 
@@ -45,18 +45,18 @@ describe('storage — cookie max-age tracks the token\'s real expiry', () => {
 
     const maxAge = Number(maxAgeMatch![1])
 
-    // Should land close to 900s, and — the actual bug being fixed — nowhere near the old 86400 default.
-    expect(maxAge).toBeGreaterThan(800)
-    expect(maxAge).toBeLessThanOrEqual(900)
-    expect(maxAge).not.toBe(86400)
+    // Cookie must be sized to the SESSION (refresh token = 7 days = 604800s), NOT the
+    // access token (15 min = 900s). The old bug tied the cookie to the access token,
+    // so middleware redirected to /login before the axios 401→refresh interceptor could fire.
+    expect(maxAge).toBe(604800)
   })
 
-  it('keeps the tenant_id cookie in sync with the same expiry as the token', () => {
+  it('keeps the tenant_id cookie in sync with the session lifetime (7 days)', () => {
     const nowSeconds = Math.floor(Date.now() / 1000)
     const token = fakeJwt({ sub: 'user-1', exp: nowSeconds + 900 })
 
     // Simulate the real call order: tenant_id already set (e.g. from a prior session),
-    // then tokens refresh — the tenant_id cookie must be re-issued with the new expiry too.
+    // then tokens refresh — the tenant_id cookie must be re-issued with the session lifetime too.
     setStoredTenantId('tenant-abc')
     cookieWrites = [] // reset — only care about what setStoredTokens itself writes
 
@@ -66,21 +66,22 @@ describe('storage — cookie max-age tracks the token\'s real expiry', () => {
     expect(tenantCookieWrite).toBeDefined()
 
     const maxAge = Number(tenantCookieWrite!.match(/max-age=(\d+)/)![1])
-    expect(maxAge).toBeGreaterThan(800)
-    expect(maxAge).toBeLessThanOrEqual(900)
+    // Both cookies must be sized to the session (7 days), not the access token (15 min).
+    expect(maxAge).toBe(604800)
   })
 
-  it('falls back to the 24h default if the token has no exp claim', () => {
+  it('sets session cookie to 7 days even when the token has no exp claim', () => {
     const token = fakeJwt({ sub: 'user-1' }) // no exp
 
     setStoredTokens(token, 'refresh-token-abc')
 
     const authCookieWrite = cookieWrites.find(w => w.startsWith('auth_token='))
     const maxAge = Number(authCookieWrite!.match(/max-age=(\d+)/)![1])
-    expect(maxAge).toBe(86400)
+    // Session cookie is always 7 days regardless of token expiry (no exp → still 604800).
+    expect(maxAge).toBe(604800)
   })
 
-  it('floors max-age at 60s for an already-expired or near-expiry token, never a negative/zero value', () => {
+  it('sets session cookie to 7 days even for an already-expired token', () => {
     const nowSeconds = Math.floor(Date.now() / 1000)
     const token = fakeJwt({ sub: 'user-1', exp: nowSeconds - 500 }) // already expired
 
@@ -88,7 +89,9 @@ describe('storage — cookie max-age tracks the token\'s real expiry', () => {
 
     const authCookieWrite = cookieWrites.find(w => w.startsWith('auth_token='))
     const maxAge = Number(authCookieWrite!.match(/max-age=(\d+)/)![1])
-    expect(maxAge).toBe(60)
+    // Session cookie is always 7 days — even for an expired token, because middleware only
+    // checks presence and the axios interceptor will handle the 401 → refresh flow.
+    expect(maxAge).toBe(604800)
   })
 
   it('ignores a structurally invalid token entirely (no cookie writes)', () => {

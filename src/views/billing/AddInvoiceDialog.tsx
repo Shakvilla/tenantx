@@ -23,6 +23,7 @@ import Divider from '@mui/material/Divider'
 import Autocomplete from '@mui/material/Autocomplete'
 import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import { createInvoice, updateInvoice, type Invoice, type InvoiceItem } from '@/lib/api/invoices'
@@ -85,6 +86,10 @@ const initialData: FormData = {
 }
 
 const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved, prefill }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [formData, setFormData] = useState<FormData>(initialData)
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, boolean>>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -318,7 +323,7 @@ const AddInvoiceDialog = ({ open, handleClose, editInvoice, onSaved, prefill }: 
   const selectedOccupantObj = formData.occupantId ? (occupants.find(o => o.id === formData.occupantId) ?? null) : null
 
   return (
-    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleReset} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span>{isEdit ? 'Edit Invoice' : 'Create Invoice'}</span>
         <IconButton size='small' onClick={handleReset}>

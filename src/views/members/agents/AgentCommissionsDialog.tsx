@@ -18,6 +18,7 @@ import Snackbar from '@mui/material/Snackbar'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 import {
   getCommissionsForAgent,
@@ -45,6 +46,10 @@ interface Props {
 }
 
 const AgentCommissionsDialog = ({ open, agent, onClose }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [commissions, setCommissions] = useState<AgentCommission[]>([])
   const [stats, setStats]             = useState<AgentCommissionStats | null>(null)
   const [loading, setLoading]         = useState(false)
@@ -140,7 +145,7 @@ const AgentCommissionsDialog = ({ open, agent, onClose }: Props) => {
     : formatCurrency(agent.commissionRate, 'GHS')
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle>
         <div className='flex items-center justify-between'>
           <div>

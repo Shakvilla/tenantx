@@ -26,6 +26,8 @@ import Collapse from '@mui/material/Collapse'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import { useTheme } from '@mui/material/styles'
 
 // API
 import { cautionFeesApi } from '@/lib/api/cautionFees'
@@ -93,6 +95,9 @@ const ghsFmt = (n: number) =>
 // ---- component -------------------------------------------------------------
 
 const CautionFeeSection = ({ occupantId, unitId, propertyId }: Props) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [records,       setRecords]       = useState<CautionFeeResponse[]>([])
   const [loading,       setLoading]       = useState(true)
   const [error,         setError]         = useState<string | null>(null)
@@ -324,7 +329,7 @@ const CautionFeeSection = ({ occupantId, unitId, propertyId }: Props) => {
                 </Box>
 
                 {/* Amounts breakdown */}
-                <Box className='grid grid-cols-3 gap-3'>
+                <Box className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'>
                   <Box sx={{ bgcolor: 'action.hover', borderRadius: 1.5, p: 1.5 }}>
                     <Typography variant='caption' color='text.secondary' display='block'>Original</Typography>
                     <Typography variant='body2' className='font-semibold'>{ghsFmt(r.amount)}</Typography>
@@ -445,7 +450,7 @@ const CautionFeeSection = ({ occupantId, unitId, propertyId }: Props) => {
       />
 
       {/* Add Deduction Dialog */}
-      <Dialog open={deductOpen} onClose={() => setDeductOpen(false)} maxWidth='xs' fullWidth>
+      <Dialog open={deductOpen} onClose={() => setDeductOpen(false)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Add Deduction</DialogTitle>
         <DialogContent className='flex flex-col gap-4 pt-4'>
           <TextField
@@ -513,7 +518,7 @@ const CautionFeeSection = ({ occupantId, unitId, propertyId }: Props) => {
       </Dialog>
 
       {/* Process Refund Dialog */}
-      <Dialog open={refundOpen} onClose={() => setRefundOpen(false)} maxWidth='xs' fullWidth>
+      <Dialog open={refundOpen} onClose={() => setRefundOpen(false)} maxWidth='xs' fullWidth fullScreen={isMobile}>
         <DialogTitle>Process Refund</DialogTitle>
         <DialogContent className='flex flex-col gap-4 pt-4'>
           {refundId && (() => {

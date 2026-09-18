@@ -42,6 +42,7 @@ const SubscriptionPlansStatsCard = ({
 }: Props) => {
   // Hooks
   const isBelowMdScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
+  const isBelowLgScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('lg'))
   const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
 
   const data: StatsDataType[] = [
@@ -88,11 +89,20 @@ const SubscriptionPlansStatsCard = ({
         <Grid container spacing={6}>
           {data.map((item, index) => (
             <Grid
-              size={{ xs: 12, sm: 6, md: 2.4 }}
+              size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }}
               key={index}
               className={classnames({
+                // 2-per-row on sm: odd items carry the vertical divider
                 '[&:nth-of-type(odd)>div]:pie-6 [&:nth-of-type(odd)>div]:border-ie': isBelowMdScreen && !isSmallScreen,
-                '[&:not(:last-child)>div]:pie-6 [&:not(:last-child)>div]:border-ie': !isBelowMdScreen
+
+                // 3-per-row on md: items not at the end of a row carry the vertical divider
+                '[&:nth-of-type(3n+1):not(:last-child)>div]:pie-6 [&:nth-of-type(3n+1):not(:last-child)>div]:border-ie':
+                  !isBelowMdScreen && isBelowLgScreen,
+                '[&:nth-of-type(3n+2):not(:last-child)>div]:pie-6 [&:nth-of-type(3n+2):not(:last-child)>div]:border-ie':
+                  !isBelowMdScreen && isBelowLgScreen,
+
+                // 5-per-row on lg+: everything but the last carries the vertical divider
+                '[&:not(:last-child)>div]:pie-6 [&:not(:last-child)>div]:border-ie': !isBelowLgScreen
               })}
             >
               <div className='flex flex-col gap-1'>
@@ -114,6 +124,7 @@ const SubscriptionPlansStatsCard = ({
                   })}
                 />
               )}
+              {!isBelowMdScreen && isBelowLgScreen && index < data.length - 2 && <Divider className='mbs-6' />}
               {isSmallScreen && index < data.length - 1 && <Divider className='mbs-6' />}
             </Grid>
           ))}

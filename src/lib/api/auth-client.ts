@@ -1,5 +1,6 @@
 /* eslint-disable lines-around-comment */
 import { AxiosError } from 'axios'
+import Cookies from 'js-cookie'
 
 import { apiGet, apiPost, apiClient, API_BASE, getErrorMessage } from './client'
 import { getDeviceId } from './device-id'
@@ -42,6 +43,13 @@ export interface SelectTenantResponse {
   expiresIn: number
   expiresAt: string
   user: UserProfile
+
+  /**
+   * Whether this tenant has already completed subscription plan selection. When false, the
+   * frontend confines the user to `/onboarding/select-plan` (persisted as a `plan_selection_required`
+   * cookie that middleware reads) until they pick a plan.
+   */
+  planSelectionCompleted: boolean
 }
 
 /** Response from POST /global/auth/verify-otp */
@@ -52,6 +60,7 @@ export interface VerifyOtpResponse {
 /** Response from POST /auth/signup/complete — mirrors OnboardingResponseDto */
 export interface SignupResponse {
   token: string
+  refreshToken: string
   expiresIn: number
   tenantId: string
   tenantName: string
@@ -123,6 +132,13 @@ export async function globalLogin(
   credentials: LoginPayload
 ): Promise<ApiResponse<GlobalLoginResponse>> {
   try {
+    // A leftover session must not ride along on a fresh login attempt: apiPost's interceptor
+    // attaches whatever auth_token is stored, and a stale tenant bearer on /global/auth/login
+    // makes the backend reject the whole request — surfaced to the user as a raw
+    // "Request failed with status code 401" even with correct credentials
+    // (QA sweep 2026-08-22). Logging in IS the decision to discard any previous session.
+    clearStoredTokens()
+
     const data = await apiPost<GlobalLoginResponse>(
       `${API_BASE}/global/auth/login`,
       credentials
@@ -194,6 +210,16 @@ export async function selectTenant(
     // Replace tokens with tenant-scoped ones and set cookies
     setStoredTokens(data.accessToken, data.refreshToken)
     setStoredTenantId(tenantId)
+
+    // Persist the plan-selection state in a cookie the middleware reads. A tenant that hasn't
+    // completed plan selection is confined to /onboarding/select-plan until they do (see
+    // SelectPlanView, which clears this cookie on a successful pick). Mirrored in
+    // AuthContext.establishTenantSession so the OTP verify path sets it too.
+    if (!data.planSelectionCompleted) {
+      Cookies.set('plan_selection_required', 'true', { expires: 7, path: '/' })
+    } else {
+      Cookies.remove('plan_selection_required', { path: '/' })
+    }
 
     return { success: true, data }
   } catch (error: unknown) {
@@ -284,6 +310,13 @@ export interface SignupStartPayload {
 
   /** Optional. Validated locally with /^\+?[0-9()\s-]{7,16}$/ before this is ever called. */
   phoneNumber?: string
+
+  /**
+   * Optional. The subscription plan the user picked on the pricing page (e.g. BASIC, PRO).
+   * Read from the `?plan=` query param on the register page and passed through so the backend
+   * assigns the correct plan at account creation; omitted when no plan was selected.
+   */
+  selectedPlanName?: string
 }
 
 /**
@@ -330,7 +363,7 @@ export async function signupComplete(
     })
 
     // Store the tenant-scoped token so middleware allows dashboard navigation.
-    setStoredTokens(response.data.token, '')
+    setStoredTokens(response.data.token, response.data.refreshToken)
     setStoredTenantId(response.data.tenantId)
 
     return { success: true, data: response.data }
@@ -585,17 +618,22 @@ export async function getCurrentUser(tenantId: string): Promise<ApiResponse<User
 }
 
 /**
- * Logout — revokes the refresh token on the server, then clears stored tokens
+ * Logout — best-effort server-side refresh-token revocation, then clears stored tokens.
+ *
+ * The server call is fire-and-forget (not awaited): local logout must never be blocked by
+ * the network. Whether revocation succeeds or the request hangs, errors are swallowed and
+ * `clearStoredTokens()` always runs, so the local session is wiped unconditionally.
  */
 export async function logoutUser(): Promise<ApiResponse<null>> {
   const refreshToken = getStoredRefreshToken()
 
   if (refreshToken) {
-    try {
-      await apiPost<void>(`${API_BASE}/auth/logout`, { refreshToken })
-    } catch {
+    // POST /auth/logout — the backend looks the token family up from the request body and
+    // revokes it. apiClient has no timeout, so a never-settling request must not be awaited
+    // or it would wedge the logout flow (AuthContext's logout awaits this function).
+    apiPost<void>(`${API_BASE}/auth/logout`, { refreshToken }).catch(() => {
       // Ignore — proceed to clear local session regardless of server-side outcome
-    }
+    })
   }
 
   clearStoredTokens()

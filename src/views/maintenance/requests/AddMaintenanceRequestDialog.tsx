@@ -29,6 +29,7 @@ import Tooltip from '@mui/material/Tooltip'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import { styled } from '@mui/material/styles'
+import { useMediaQuery, useTheme } from '@mui/material'
 
 // API Imports
 import { getProperties } from '@/lib/api/properties'
@@ -51,9 +52,7 @@ import type { Property, Unit } from '@/types/property'
 // Component Imports
 import CustomAvatar from '@core/components/mui/Avatar'
 import { getInitials } from '@/utils/getInitials'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { useStorageUrls } from '@/hooks/useStorageUrls'
 
 // ─── Styled Components ────────────────────────────────────────────────────────
 
@@ -131,6 +130,10 @@ const BLANK: FormData = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, mode = 'add' }: Props) => {
+  // Responsive: full-screen dialog on mobile
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   const [activeTab, setActiveTab] = useState(0)
   const [formData, setFormData] = useState<FormData>(BLANK)
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({})
@@ -143,6 +146,9 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
   const [newImages, setNewImages] = useState<NewImageItem[]>([])
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Resolve stored image URLs (ImageKit transforms + MEGA/S4 presigned).
+  const resolvedExistingImages = useStorageUrls(existingImages)
 
   // Dropdown data
   const [properties, setProperties] = useState<Property[]>([])
@@ -414,7 +420,7 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>
           {mode === 'edit' ? 'Edit Maintenance Request' : 'Add Maintenance Request'}
@@ -749,7 +755,7 @@ const AddMaintenanceRequestDialog = ({ open, handleClose, onSuccess, editData, m
                     <ImagePreviewCard key={`existing-${idx}`}>
                       <Box
                         component='img'
-                        src={ikUrl(url, IK_THUMB)}
+                        src={resolvedExistingImages[url] || url}
                         alt={`Image ${idx + 1}`}
                         sx={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }}
                       />

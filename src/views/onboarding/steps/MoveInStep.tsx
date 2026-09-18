@@ -55,7 +55,9 @@ export default function MoveInStep({ agreementId, occupantName, unitNo, onFinish
         </Alert>
       )}
       <Typography variant='body1' sx={{ mb: 2 }}>
-        Almost done. Is {occupantName || 'this tenant'} moving into {unitNo ? `Unit ${unitNo}` : 'the unit'} now?
+        {/* unitNo already carries its own label (e.g. "Unit A1", "Room 116") — don't prefix
+            another "Unit" or the copy reads "Unit Unit A1". */}
+        Almost done. Is {occupantName || 'this tenant'} moving into {unitNo || 'the unit'} now?
       </Typography>
       <Typography variant='body2' color='text.secondary' sx={{ mb: 4 }}>
         Activating marks the unit as occupied and counts the tenant in your dashboard. Only activate on (or just

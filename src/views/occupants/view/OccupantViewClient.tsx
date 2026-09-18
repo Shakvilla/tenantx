@@ -93,6 +93,7 @@ export function transformOccupantData(
     propertyId: record.propertyId ?? undefined,
     ghanaCardId: record.ghanaCardId ?? undefined,
     idType: record.idType ?? undefined,
+    profileComplete: record.profileComplete ?? false,
     securityDeposit,
     lateFee,
     rentType: 'Monthly',

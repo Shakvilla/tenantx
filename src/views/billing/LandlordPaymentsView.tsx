@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useMemo } from 'react'
 
+// Next Imports
+import Link from 'next/link'
+
 // MUI Imports
 import Card from '@mui/material/Card'
 import CardHeader from '@mui/material/CardHeader'
@@ -11,6 +14,9 @@ import Typography from '@mui/material/Typography'
 import Skeleton from '@mui/material/Skeleton'
 import Alert from '@mui/material/Alert'
 import TablePagination from '@mui/material/TablePagination'
+import Button from '@mui/material/Button'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -63,6 +69,8 @@ const LandlordPaymentsView = () => {
   const [data, setData] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   useEffect(() => {
     setLoading(true)
@@ -157,6 +165,75 @@ const LandlordPaymentsView = () => {
 
         {error && <Alert severity='error' className='mbe-4'>{error}</Alert>}
 
+        {/* Table (desktop) / stacked cards (mobile) */}
+        {isMobile ? (
+          loading ? (
+            <div className='flex flex-col gap-3'>
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} variant='text' height={48} />
+              ))}
+            </div>
+          ) : data.length === 0 ? (
+            <Typography color='text.secondary' className='py-8 text-center block'>
+              No payments found
+            </Typography>
+          ) : (
+            <div className='flex flex-col gap-3'>
+              {table.getRowModel().rows.map(row => {
+                const inv = row.original
+                const s = inv.status
+                const color = statusColorMap[s] ?? 'secondary'
+
+                return (
+                  <Card key={row.id} variant='outlined'>
+                    <CardContent className='flex flex-col gap-3'>
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <Typography color='text.primary' className='font-medium truncate'>
+                            {inv.occupantName ?? '—'}
+                          </Typography>
+                          <Typography variant='body2' color='text.secondary' className='truncate'>
+                            {[inv.propertyName, inv.unitNo ? `Unit ${inv.unitNo}` : ''].filter(Boolean).join(' · ') || '—'}
+                          </Typography>
+                        </div>
+                        <Chip variant='tonal' label={s} size='small' color={color} className='shrink-0' />
+                      </div>
+
+                      <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Invoice #</Typography>
+                          <Typography variant='body2'>{inv.invoiceNumber ?? '—'}</Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Amount</Typography>
+                          <Typography variant='body2' className='font-medium'>
+                            {inv.currency ?? ''} {Number(inv.amount).toLocaleString()}
+                          </Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Method</Typography>
+                          <Typography variant='body2' className='capitalize'>
+                            {(inv.invoiceType ?? '—').toString().replace(/_/g, ' ').toLowerCase()}
+                          </Typography>
+                        </div>
+                        <div className='flex flex-col gap-0.5'>
+                          <Typography variant='caption' color='text.secondary'>Date</Typography>
+                          <Typography variant='body2'>{formatDate(inv.dueDate ?? inv.issuedDate)}</Typography>
+                        </div>
+                      </div>
+
+                      <Link href={`/billing/invoices/${inv.id}`} style={{ textDecoration: 'none' }}>
+                        <Button size='small' variant='outlined' fullWidth sx={{ minHeight: 44 }} startIcon={<i className='ri-eye-line' />}>
+                          View Invoice
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )
+        ) : (
         <div className='overflow-x-auto'>
           <table className={tableStyles.table}>
             <thead>
@@ -217,6 +294,7 @@ const LandlordPaymentsView = () => {
             )}
           </table>
         </div>
+        )}
 
         <TablePagination
           rowsPerPageOptions={[10, 25, 50]}

@@ -85,7 +85,7 @@ const TenantDetails = ({ tenantData, tenantId }: { tenantData?: TenantData; tena
       </Grid>
       <Grid size={{ xs: 12 }} className='flex flex-col gap-6'>
         <TabContext value={activeTab}>
-          <CustomTabList onChange={handleChange} variant='scrollable' pill='true'>
+          <CustomTabList onChange={handleChange} variant='scrollable' scrollButtons='auto' pill='true'>
             <Tab
               icon={<i className='ri-user-3-line' />}
               value='profile'

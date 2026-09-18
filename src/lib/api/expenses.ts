@@ -4,7 +4,6 @@
  */
 
 import { apiGet, apiPost, apiPut, apiDelete, API_BASE } from './client'
-import { getStoredTenantId } from './storage'
 
 const BASE = `${API_BASE}`
 
@@ -97,40 +96,23 @@ export interface ExpenseStats {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function tenantHeader() {
-  const tid = getStoredTenantId()
-  return tid ? { 'X-Tenant-ID': tid } : {}
-}
-
-// ---------------------------------------------------------------------------
 // Expense Config API
 // ---------------------------------------------------------------------------
 
 export async function getExpenseConfigs(activeOnly = true): Promise<ExpenseConfig[]> {
-  return apiGet(`${BASE}/expense-configs?activeOnly=${activeOnly}`, {
-    headers: tenantHeader()
-  })
+  return apiGet(`${BASE}/expense-configs?activeOnly=${activeOnly}`)
 }
 
 export async function createExpenseConfig(data: CreateExpenseConfigPayload): Promise<ExpenseConfig> {
-  return apiPost(`${BASE}/expense-configs`, data, {
-    headers: tenantHeader()
-  })
+  return apiPost(`${BASE}/expense-configs`, data)
 }
 
 export async function updateExpenseConfig(id: string, data: UpdateExpenseConfigPayload): Promise<ExpenseConfig> {
-  return apiPut(`${BASE}/expense-configs/${id}`, data, {
-    headers: tenantHeader()
-  })
+  return apiPut(`${BASE}/expense-configs/${id}`, data)
 }
 
 export async function deleteExpenseConfig(id: string): Promise<void> {
-  return apiDelete(`${BASE}/expense-configs/${id}`, {
-    headers: tenantHeader()
-  })
+  return apiDelete(`${BASE}/expense-configs/${id}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -146,37 +128,25 @@ export async function getExpenses(
   if (query.startDate) params.set('startDate', query.startDate)
   if (query.endDate) params.set('endDate', query.endDate)
   const qs = params.toString()
-  return apiGet(`${BASE}/expenses${qs ? `?${qs}` : ''}`, {
-    headers: tenantHeader()
-  })
+  return apiGet(`${BASE}/expenses${qs ? `?${qs}` : ''}`)
 }
 
 export async function getExpenseById(id: string): Promise<Expense> {
-  return apiGet(`${BASE}/expenses/${id}`, {
-    headers: tenantHeader()
-  })
+  return apiGet(`${BASE}/expenses/${id}`)
 }
 
 export async function createExpense(data: CreateExpensePayload): Promise<Expense> {
-  return apiPost(`${BASE}/expenses`, data, {
-    headers: tenantHeader()
-  })
+  return apiPost(`${BASE}/expenses`, data)
 }
 
 export async function updateExpense(id: string, data: UpdateExpensePayload): Promise<Expense> {
-  return apiPut(`${BASE}/expenses/${id}`, data, {
-    headers: tenantHeader()
-  })
+  return apiPut(`${BASE}/expenses/${id}`, data)
 }
 
 export async function deleteExpense(id: string): Promise<void> {
-  return apiDelete(`${BASE}/expenses/${id}`, {
-    headers: tenantHeader()
-  })
+  return apiDelete(`${BASE}/expenses/${id}`)
 }
 
 export async function getExpenseStats(): Promise<ExpenseStats> {
-  return apiGet(`${BASE}/expenses/stats`, {
-    headers: tenantHeader()
-  })
+  return apiGet(`${BASE}/expenses/stats`)
 }

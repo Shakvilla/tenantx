@@ -19,6 +19,7 @@ import InspectionsTab    from './InspectionsTab'
 import VacateTab         from './VacateTab'
 import AdvertiseUnitCard from './AdvertiseUnitCard'
 import RentReviewHistoryTab from './RentReviewHistoryTab'
+import UnitPriceHistoryTab from './UnitPriceHistoryTab'
 import { FeatureGate } from '@/components/subscription/FeatureGate'
 
 // Type Imports
@@ -95,6 +96,12 @@ const UnitDetails = ({
               icon={<i className='ri-line-chart-line' />}
               iconPosition='start'
             />
+            <Tab
+              value='price-history'
+              label='Price History'
+              icon={<i className='ri-price-tag-3-line' />}
+              iconPosition='start'
+            />
           </TabList>
         </Box>
 
@@ -154,6 +161,11 @@ const UnitDetails = ({
         {/* ── Rent Reviews ─────────────────────────────────────────────── */}
         <TabPanel value='rent-reviews' className='p-0'>
           <RentReviewHistoryTab unitId={unitId} />
+        </TabPanel>
+
+        {/* ── Price History ────────────────────────────────────────────── */}
+        <TabPanel value='price-history' className='p-0'>
+          <UnitPriceHistoryTab unitId={unitId} />
         </TabPanel>
       </TabContext>
     </Box>

@@ -28,12 +28,13 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Box from '@mui/material/Box'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
-import CardMedia from '@mui/material/CardMedia'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
 import CircularProgress from '@mui/material/CircularProgress'
 import { styled } from '@mui/material/styles'
 import Alert from '@mui/material/Alert'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -59,9 +60,7 @@ import { useReferenceData } from '@/contexts/ReferenceDataContext'
 // Address Autocomplete Imports
 import PropertyAddressFields from '@/components/address/PropertyAddressFields'
 import type { AddressValue, AddressCoordinates } from '@/components/address/PropertyAddressFields'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
+import { StorageCardMedia } from '@/components/StorageCardMedia'
 
 type PropertyEditData = {
   id?: string
@@ -262,6 +261,10 @@ const AddPropertyDialog = ({
 }: Props) => {
   const router = useRouter()
   const [_, startTransition] = useTransition()
+
+  // Phones get the dialog as a full-screen sheet so the multi-step form never
+  // fights a small viewport; tablets keep the floating dialog.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('sm'))
 
   // Reference data from context (enums, amenities, regions)
   const { ref } = useReferenceData()
@@ -1146,9 +1149,9 @@ const AddPropertyDialog = ({
                     return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`existing-${index}`}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
-                          <CardMedia
+                          <StorageCardMedia
                             component='img'
-                            image={ikUrl(imageUrl, IK_THUMB)}
+                            image={imageUrl}
                             alt={`Existing property image ${index + 1}`}
                             sx={{
                               height: 200,
@@ -1235,9 +1238,9 @@ const AddPropertyDialog = ({
                     return (
                       <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
                         <ImagePreviewCard isThumbnail={isThumbnail}>
-                          <CardMedia
+                          <StorageCardMedia
                             component='img'
-                            image={ikUrl(imageUrl, IK_THUMB)}
+                            image={imageUrl}
                             alt={`Property image ${index + 1}`}
                             sx={{
                               height: 200,
@@ -1556,9 +1559,9 @@ const AddPropertyDialog = ({
                                 overflow: 'hidden'
                               }}
                             >
-                              <CardMedia
+                              <StorageCardMedia
                                 component='img'
-                                image={ikUrl(imageUrl, IK_THUMB)}
+                                image={imageUrl}
                                 alt={`Property image ${index + 1}`}
                                 sx={{
                                   height: 100,
@@ -1608,6 +1611,7 @@ const AddPropertyDialog = ({
 
   return (
     <Dialog
+      fullScreen={isMobile}
       fullWidth
       maxWidth='md'
       open={open}
@@ -1616,7 +1620,7 @@ const AddPropertyDialog = ({
       closeAfterTransition={false}
       PaperProps={{
         sx: {
-          maxHeight: '90vh'
+          maxHeight: { xs: '100%', sm: '90vh' }
         }
       }}
     >

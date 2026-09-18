@@ -16,9 +16,11 @@ import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
+import { useMediaQuery } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 
 // Component Imports
-import CustomAvatar from '@core/components/mui/Avatar'
+import { StorageCustomAvatar } from '@/components/StorageCustomAvatar'
 
 // Util Imports
 import { getInitials } from '@/utils/getInitials'
@@ -46,6 +48,9 @@ type ViewCommunicationDialogProps = {
 }
 
 const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSendNotice }: ViewCommunicationDialogProps) => {
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+
   // Type and Status color mapping
   const communicationTypeObj: {
     [key: string]: {
@@ -76,7 +81,7 @@ const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSend
   const statusConfig = communicationStatusObj[communication.status] || { color: 'secondary' }
 
   return (
-    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth>
+    <Dialog open={open} onClose={() => setOpen(false)} maxWidth='md' fullWidth fullScreen={isMobile}>
       <DialogTitle className='flex items-center justify-between'>
         <span className='font-medium'>Communication Details</span>
         <IconButton size='small' onClick={() => setOpen(false)}>
@@ -162,9 +167,9 @@ const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSend
                   From
                 </Typography>
                 <div className='flex items-center gap-3'>
-                  <CustomAvatar src={communication.fromAvatar} skin='light' size={40}>
+                  <StorageCustomAvatar src={communication.fromAvatar} skin='light' size={40}>
                     {getInitials(communication.from)}
-                  </CustomAvatar>
+                  </StorageCustomAvatar>
                   <Typography variant='body1' className='font-medium'>
                     {communication.from}
                   </Typography>
@@ -175,9 +180,9 @@ const ViewCommunicationDialog = ({ open, setOpen, communication, onReply, onSend
                   To
                 </Typography>
                 <div className='flex items-center gap-3'>
-                  <CustomAvatar src={communication.toAvatar} skin='light' size={40}>
+                  <StorageCustomAvatar src={communication.toAvatar} skin='light' size={40}>
                     {getInitials(communication.to)}
-                  </CustomAvatar>
+                  </StorageCustomAvatar>
                   <Typography variant='body1' className='font-medium'>
                     {communication.to}
                   </Typography>

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import type { CityGroup } from '../lib/city'
 
 // ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_CARD } from '@/lib/imagekit'
+import { ikUrl, IK_CARD } from '@/lib/image-urls'
 
 const arrowBtn =
   'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-solid ' +

@@ -4,6 +4,8 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import Avatar from '@mui/material/Avatar'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
 
 import type { OnboardingEntityIds } from './onboardingTypes'
 
@@ -67,6 +69,59 @@ export default function CompletionScreen({ onGoToDashboard, onViewInvoice, entit
           </Button>
         )}
       </Box>
+
+      {/* SMS setup guidance — informs landlords about automated reminders before they start onboarding tenants */}
+      <Card
+        variant='outlined'
+        sx={{
+          mt: 6,
+          mx: 'auto',
+          maxWidth: 520,
+          textAlign: 'left',
+          borderColor: 'info.light',
+          bgcolor: 'info.50',
+          borderRadius: 2
+        }}
+      >
+        <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <i className='ri-message-3-line' style={{ fontSize: 22, color: 'info.main' }} />
+            <Typography variant='h6' sx={{ fontSize: '1rem' }}>
+              Set up SMS reminders
+            </Typography>
+          </Box>
+          <Typography variant='body2' color='text.secondary'>
+            Your plan includes automated rent and lease reminders via SMS. To start sending, you'll need to:
+          </Typography>
+          <Box component='ol' sx={{ m: 0, pl: 2.5, color: 'text.secondary', fontSize: '0.875rem' }}>
+            <Box component='li' sx={{ mb: 0.75 }}>
+              <strong>Create a Sender ID</strong> — your business name that appears on outgoing messages (requires admin approval)
+            </Box>
+            <Box component='li'>
+              <strong>Top up SMS credits</strong> — messages are billed per-send; this also activates your approved Sender ID
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1.5, mt: 1 }}>
+            <Button
+              component='a'
+              href='/settings/sms'
+              size='small'
+              variant='contained'
+              startIcon={<i className='ri-arrow-right-line' />}
+            >
+              Set Up Sender ID
+            </Button>
+            <Button
+              component='a'
+              href='/settings/notification'
+              size='small'
+              variant='text'
+            >
+              Notification Settings
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
     </Box>
   )
 }

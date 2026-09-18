@@ -19,12 +19,14 @@ import MenuItem from '@mui/material/MenuItem'
 import Box from '@mui/material/Box'
 import TablePagination from '@mui/material/TablePagination'
 import Checkbox from '@mui/material/Checkbox'
-import Avatar from '@mui/material/Avatar'
+import { StorageAvatar } from '@/components/StorageAvatar'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 
 import IconButton from '@mui/material/IconButton'
 import InputAdornment from '@mui/material/InputAdornment'
+import useMediaQuery from '@mui/material/useMediaQuery'
+import type { Theme } from '@mui/material/styles'
 
 // Third-party Imports
 import classnames from 'classnames'
@@ -63,9 +65,6 @@ import ConfirmationDialog from '@components/dialogs/confirmation-dialog'
 
 // Style Imports
 import tableStyles from '@core/styles/table.module.css'
-
-// ImageKit does not serve original files on this account; see ikUrl.
-import { ikUrl, IK_THUMB } from '@/lib/imagekit'
 
 declare module '@tanstack/table-core' {
   interface FilterFns {
@@ -110,6 +109,9 @@ const PropertiesListTable = () => {
   const { ref } = useReferenceData()
   const searchParams = useSearchParams()
   const router = useRouter()
+
+  // Phone / small tablet: swap the wide table for a stacked card list.
+  const isMobile = useMediaQuery((theme: Theme) => theme.breakpoints.down('md'))
 
   // States
   const [rowSelection, setRowSelection] = useState({})
@@ -310,10 +312,10 @@ const PropertiesListTable = () => {
         header: 'PROPERTY NAME',
         cell: ({ row }) => (
           <div className='flex items-center gap-3'>
-            <Avatar
+            <StorageAvatar
               variant='rounded'
               sx={{ width: 30, height: 30 }}
-              src={ikUrl(row.original.images?.[row.original.thumbnailIndex ?? 0], IK_THUMB)}
+              src={row.original.images?.[row.original.thumbnailIndex ?? 0]}
             />
             <div className='flex flex-col'>
               <Typography color='text.primary' className='font-medium'>
@@ -489,6 +491,10 @@ const PropertiesListTable = () => {
               <RowActions options={['Share', 'Export']} />
             </div>
           }
+          sx={{
+            flexWrap: 'wrap',
+            '& .MuiCardHeader-action': { mt: { xs: 1, sm: 0 }, m: 0 }
+          }}
         />
         <CardContent className='flex flex-col gap-4'>
           {error && (
@@ -572,7 +578,7 @@ const PropertiesListTable = () => {
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className='w-full sm:min-w-[200px]'
+                className='flex-1 min-w-0 sm:min-w-[200px]'
                   slotProps={{
                     input: {
                       endAdornment: (
@@ -623,7 +629,110 @@ const PropertiesListTable = () => {
             </div>
           </Box>
 
-          {/* Table */}
+          {/* Table (desktop) / stacked cards (mobile) */}
+          {isMobile ? (
+            loading ? (
+              <Box className='flex justify-center items-center py-10'>
+                <CircularProgress />
+              </Box>
+            ) : filteredData.length === 0 ? (
+              <Box className='py-10 text-center'>
+                <Typography color='text.secondary'>No properties found</Typography>
+              </Box>
+            ) : (
+              <div className='flex flex-col gap-3'>
+                {table.getRowModel().rows.map(row => {
+                  const p = row.original
+
+                  const statusColors: Record<string, ThemeColor> = {
+                    active: 'success',
+                    inactive: 'secondary',
+                    maintenance: 'warning'
+                  }
+
+                  return (
+                    <Card key={row.id} variant='outlined'>
+                      <CardContent className='flex flex-col gap-3'>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            <StorageAvatar
+                              variant='rounded'
+                              sx={{ width: 38, height: 38, flexShrink: 0 }}
+                              src={p.images?.[p.thumbnailIndex ?? 0]}
+                            />
+                            <div className='min-w-0'>
+                              <Typography color='text.primary' className='font-medium truncate'>
+                                {p.name}
+                              </Typography>
+                              <Typography variant='body2' color='text.secondary' className='truncate'>
+                                {p.address?.city || p.district}
+                              </Typography>
+                            </div>
+                          </div>
+                          <Typography
+                            variant='body2'
+                            className='capitalize font-medium shrink-0'
+                            color={`${statusColors[p.status] || 'secondary'}.main`}
+                          >
+                            {p.status}
+                          </Typography>
+                        </div>
+
+                        <div className='flex flex-wrap gap-x-6 gap-y-2'>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Type</Typography>
+                            <Typography variant='body2' className='capitalize'>{p.type || '-'}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5'>
+                            <Typography variant='caption' color='text.secondary'>Units</Typography>
+                            <Typography variant='body2'>{p.occupiedUnits}/{p.totalUnits}</Typography>
+                          </div>
+                          <div className='flex flex-col gap-0.5 min-w-0'>
+                            <Typography variant='caption' color='text.secondary'>Address</Typography>
+                            <Typography variant='body2' className='truncate'>{p.address?.street || p.gpsCode || '-'}</Typography>
+                          </div>
+                        </div>
+
+                        <div className='flex items-center gap-2'>
+                          <Button
+                            size='small'
+                            variant='contained'
+                            startIcon={<i className='ri-eye-line' />}
+                            href={`/properties/${p.id}`}
+                            sx={{ flex: 1, minHeight: 44 }}
+                          >
+                            View
+                          </Button>
+                          <IconButton
+                            size='small'
+                            onClick={() => {
+                              setSelectedProperty(p)
+                              setEditPropertyOpen(true)
+                            }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Edit property'
+                          >
+                            <i className='ri-pencil-line' />
+                          </IconButton>
+                          <IconButton
+                            size='small'
+                            onClick={() => {
+                              setSelectedProperty(p)
+                              setDeletePropertyOpen(true)
+                            }}
+                            sx={{ minWidth: 44, minHeight: 44 }}
+                            aria-label='Delete property'
+                          >
+                            <i className='ri-delete-bin-line' />
+                          </IconButton>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          ) : (
           <div className={`overflow-x-auto ${tableStyles.scrollShadow}`}>
             {loading ? (
               <Box className='flex justify-center items-center py-10'>
@@ -680,6 +789,7 @@ const PropertiesListTable = () => {
               </table>
             )}
           </div>
+          )}
           <TablePagination
             rowsPerPageOptions={[10, 25, 50]}
             component='div'

@@ -1,5 +1,6 @@
 import PageBanner from '@components/banner/PageBanner'
 import SmsSenderIdSection from '@/views/settings/sms/SmsSenderIdSection'
+import SmsCreditRequestHistory from '@/views/settings/sms/SmsCreditRequestHistory'
 
 export const metadata = { title: 'SMS Sender ID — Settings' }
 
@@ -12,6 +13,7 @@ export default function SmsSenderIdPage() {
         icon='ri-chat-smile-3-line'
       />
       <SmsSenderIdSection />
+      <SmsCreditRequestHistory />
     </>
   )
 }

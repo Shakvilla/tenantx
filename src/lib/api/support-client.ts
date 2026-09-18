@@ -1,17 +1,8 @@
-/**
- * Support API client — tenant submission endpoints at /api/v1/support
- * Both endpoints are permitAll (no auth required) but apiClient attaches
- * the Bearer token automatically when available.
- */
-
-import { apiClient, API_BASE } from './client'
-
-const BASE = `${API_BASE}/support`
+import { apiGet, apiPost, API_BASE } from '@/lib/api/client';
+import type { SupportTicket, TicketReply, TicketPageResponse } from '@/types/support';
 
 // ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
+// Types (keep backward-compatible aliases)
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH'
 export type FeedbackCategory = 'GENERAL' | 'BILLING' | 'MAINTENANCE' | 'FEATURE_REQUEST' | 'OTHER'
 
@@ -56,15 +47,51 @@ export interface FeedbackDto {
 }
 
 // ---------------------------------------------------------------------------
-// API functions
+// API functions (new conversation support endpoints — uses axios with
+// automatic X-Tenant-ID + Authorization headers from the shared apiClient)
+// ---------------------------------------------------------------------------
+
+export const supportClient = {
+  async getMyTickets(email: string, status?: string, page = 0, size = 20): Promise<TicketPageResponse> {
+    const params = new URLSearchParams({ email, page: String(page), size: String(size) })
+    if (status) params.set('status', status)
+    return apiGet<TicketPageResponse>(`${API_BASE}/support/tickets/my?${params}`)
+  },
+
+  async getTicketDetail(id: string, email: string): Promise<SupportTicket & { replies: TicketReply[] }> {
+    return apiGet<SupportTicket & { replies: TicketReply[] }>(`${API_BASE}/support/tickets/${id}?email=${encodeURIComponent(email)}`)
+  },
+
+  async postReply(ticketId: string, senderEmail: string, senderName: string, message: string): Promise<TicketReply> {
+    return apiPost<TicketReply>(`${API_BASE}/support/tickets/${ticketId}/replies`, { senderEmail, senderName, message })
+  },
+
+  async getReplies(ticketId: string, email: string, after?: string): Promise<TicketReply[]> {
+    const params = new URLSearchParams({ email })
+    if (after) params.set('after', after)
+    return apiGet<TicketReply[]>(`${API_BASE}/support/tickets/${ticketId}/replies?${params}`)
+  },
+
+  async createTicket(data: {
+    tenantId: string
+    submitterEmail: string
+    subject: string
+    body: string
+    priority?: string
+    category?: string
+  }): Promise<SupportTicket> {
+    return apiPost<SupportTicket>(`${API_BASE}/support/tickets`, data)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Backward-compatible function exports for existing views
 // ---------------------------------------------------------------------------
 
 export async function submitTicket(payload: SubmitTicketRequest): Promise<TicketDto> {
-  const res = await apiClient.post<TicketDto>(`${BASE}/tickets`, payload)
-  return res.data
+  return apiPost<TicketDto>(`${API_BASE}/support/tickets`, payload)
 }
 
 export async function submitFeedback(payload: SubmitFeedbackRequest): Promise<FeedbackDto> {
-  const res = await apiClient.post<FeedbackDto>(`${BASE}/feedback`, payload)
-  return res.data
+  return apiPost<FeedbackDto>(`${API_BASE}/support/feedback`, payload)
 }

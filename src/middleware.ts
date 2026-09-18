@@ -24,16 +24,22 @@ import { type NextRequest, NextResponse } from 'next/server'
 function buildCsp(nonce: string, isHttps: boolean): string {
   const isProd = process.env.NODE_ENV === 'production'
 
-  // Where the browser is allowed to send requests: our own API, and ImageKit,
-  // which the browser uploads to directly and reads signed document links from.
+  // Where the browser is allowed to send requests: our own API, ImageKit,
+  // and the active storage provider endpoint (MEGA S4, S3, etc.).
   const apiOrigin = originOf(process.env.NEXT_PUBLIC_API_BASE_URL)
   const imageKitOrigin = originOf(process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT)
 
-  const connect = ["'self'", apiOrigin, imageKitOrigin, 'https://upload.imagekit.io']
+  // MEGA S4 domains follow the pattern *.s3.*.megas4.com — listed unconditionally
+  // like ik.imagekit.io because the exact endpoint depends on bucket/region config.
+  const connect = ["'self'", apiOrigin, imageKitOrigin, 'https://upload.imagekit.io', 'https://*.megas4.com']
     .filter(Boolean)
     .join(' ')
 
-  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://images.unsplash.com']
+  // https://ik.imagekit.io is listed unconditionally, not only via the env-derived origin:
+  // every stored document/photo URL in the DB points at the ik.imagekit.io delivery host, so a
+  // build where NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT is unset (imageKitOrigin drops out via
+  // filter(Boolean)) would otherwise CSP-block every property, unit and maintenance image.
+  const img = ["'self'", 'data:', 'blob:', imageKitOrigin, 'https://ik.imagekit.io', 'https://images.unsplash.com', 'https://*.megas4.com']
     .filter(Boolean)
     .join(' ')
 
@@ -288,14 +294,14 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
   const authToken  = request.cookies.get('auth_token')?.value
   const tenantId   = request.cookies.get('tenant_id')?.value
 
-  // A PRESENT-but-expired admin token must not count as an admin session. The old client set
-  // the admin cookie with a fixed 24h max-age against a ~15-minute token, so a stale cookie
-  // could linger for a day — and since /login and /register redirect admin-authenticated users
-  // to /admin, that stale cookie locked the holder out of the entire tenant auth surface (they
-  // bounced to an admin panel whose every API call 401s). Decode-only exp check: this is a UX
-  // routing gate, the backend still verifies the signature on every call.
-  const isAdminAuthenticated  = hasUnexpiredJwt(adminToken)
+  // The admin cookie is now sized to the session lifetime (7 days) via admin-storage.ts,
+  // matching the tenant cookie fix (Fix 1). The axios 401→refresh interceptor handles token
+  // renewal transparently, so middleware only needs to check cookie PRESENCE — the backend
+  // enforces actual token validity on every API call. An expiry check here would redirect
+  // an idle admin to /login before the interceptor can refresh, defeating the refresh flow.
+  const isAdminAuthenticated  = !!adminToken
   const isTenantAuthenticated = !!authToken && !!tenantId
+  const planSelectionRequired = request.cookies.get('plan_selection_required')?.value === 'true'
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ADMIN ROUTES  /admin/**
@@ -380,6 +386,20 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
 
     if (userType !== 'LANDLORD') {
       return NextResponse.redirect(new URL('/dashboard?error=access_denied', request.url))
+    }
+  }
+
+  // 2b. Tenant session that still needs plan selection → confine to /onboarding/select-plan.
+  //
+  // Reaching here means the user is tenant-authenticated and NOT on a public route (auth pages,
+  // vacancies and /admin/** all returned above), so only the select-plan route itself needs to be
+  // exempt — that self-exclusion is what prevents a redirect loop: an unplanned tenant is bounced
+  // exactly once per request, and once on select-plan the route renders normally.
+  if (planSelectionRequired && isTenantAuthenticated) {
+    const isOnSelectPlan = pathname.startsWith('/onboarding/select-plan')
+
+    if (!isOnSelectPlan) {
+      return NextResponse.redirect(new URL('/onboarding/select-plan', request.url))
     }
   }
 
