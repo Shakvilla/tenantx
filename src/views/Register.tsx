@@ -73,6 +73,7 @@ const Register = ({ mode }: { mode: Mode }) => {
   // Fetch active plans (public, no auth) to resolve the selected plan's display name and trial
   // days for the badge. Fails silently — the badge falls back to the raw plan name.
   const [plans, setPlans] = useState<{ name: string; displayName: string; trialDays?: number }[]>([])
+
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api/v1', '')}/api/v1/public/plans`)
       .then(r => (r.ok ? r.json() : []))
@@ -213,6 +214,7 @@ const Register = ({ mode }: { mode: Mode }) => {
       // If the user came through a pricing card (?plan=), go straight to the dashboard.
       // Otherwise, send them to the plan selection page so they pick a plan before entering.
       const destination = planParam ? '/dashboard' : '/onboarding/select-plan'
+
       setSuccess('Account created!')
 
       setTimeout(() => {
@@ -379,6 +381,12 @@ const Register = ({ mode }: { mode: Mode }) => {
               <Typography>Already have an account?</Typography>
               <Typography component={Link} href='/login' color='primary.main'>
                 Sign in instead
+              </Typography>
+            </div>
+            <div className='flex justify-center items-center flex-wrap gap-2'>
+              <Typography>A letting agent?</Typography>
+              <Typography component={Link} href='/register/agent' color='primary.main'>
+                Join as an agent
               </Typography>
             </div>
           </form>
