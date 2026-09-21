@@ -81,7 +81,8 @@ export function getStoredToken(): string | null {
       // Stale or corrupted cookie — wipe it so we don't keep sending garbage to the backend
       deleteCookie(TOKEN_KEY)
       localStorage.removeItem(TOKEN_KEY)
-      return null
+      
+return null
     }
 
     // Sync localStorage if it's missing or different
@@ -97,7 +98,8 @@ export function getStoredToken(): string | null {
   if (!isValidJwt(stored)) {
     // e.g. "undefined", "null", or any other non-JWT string stored by accident
     localStorage.removeItem(TOKEN_KEY)
-    return null
+    
+return null
   }
 
   return stored
@@ -145,12 +147,33 @@ function deleteCookie(name: string): void {
   document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`
 }
 
+/**
+ * Persists a global (tenant-less) session token — used by agent portal sessions,
+ * which authenticate globally and select a workspace later. Unlike
+ * {@link setStoredTokens} there is no refresh token at global scope, and no
+ * tenant_id is written, so the middleware must treat auth_token-without-tenant
+ * as a global session (see middleware /agent/** bypass), not as logged out.
+ */
+export function setStoredGlobalToken(token: string): void {
+  if (typeof window === 'undefined') return
+
+  if (!isValidJwt(token)) {
+    console.warn('[storage] setStoredGlobalToken called with an invalid access token — ignoring.')
+    
+return
+  }
+
+  localStorage.setItem(TOKEN_KEY, token)
+  setCookie(TOKEN_KEY, token, SESSION_COOKIE_MAX_AGE_SECONDS)
+}
+
 export function setStoredTokens(token: string, refreshToken: string): void {
   if (typeof window === 'undefined') return
 
   if (!isValidJwt(token)) {
     console.warn('[storage] setStoredTokens called with an invalid access token — ignoring.')
-    return
+    
+return
   }
 
   localStorage.setItem(TOKEN_KEY, token)
@@ -182,7 +205,8 @@ export function setStoredTenantId(tenantId: string): void {
 
 export function getStoredUserRole(): string {
   if (typeof window === 'undefined') return ''
-  return localStorage.getItem(USER_ROLE_KEY) ?? ''
+  
+return localStorage.getItem(USER_ROLE_KEY) ?? ''
 }
 
 export function setStoredUserRole(role: string): void {
@@ -192,7 +216,8 @@ export function setStoredUserRole(role: string): void {
 
 export function getStoredUserType(): string {
   if (typeof window === 'undefined') return ''
-  return localStorage.getItem(USER_TYPE_KEY) ?? ''
+  
+return localStorage.getItem(USER_TYPE_KEY) ?? ''
 }
 
 export function setStoredUserType(userType: string): void {
