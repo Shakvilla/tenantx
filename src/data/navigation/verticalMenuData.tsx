@@ -8,9 +8,10 @@ import { planTierColor, type RequiredPlan } from '@/lib/subscription/planTiers'
 /**
  * Landlord-side vertical navigation.
  *
- * `userType` comes from the backend UserType enum: LANDLORD | STAFF | MAINTAINER | OCCUPANT
+ * `userType` comes from the backend UserType enum: LANDLORD | STAFF | MAINTAINER | OCCUPANT | AGENT
  * - LANDLORD: sees all items including Settings
  * - STAFF:    sees all items EXCEPT Settings (cannot change company/payment config)
+ * - AGENT:    sees only the Agent section (profile, workspaces, referrals)
  * - Others:   same as STAFF for safety (OCCUPANT + MAINTAINER belong on the mobile app)
  *
  * Items without `allowedUserTypes` are visible to everyone.
@@ -86,6 +87,16 @@ const allItems: NavItem[] = [
     requiredFeature: 'AGENT_MANAGEMENT',
     children: [
       { label: 'Agents', href: '/members/agents' },
+      { label: 'Agent Relationships', href: '/members/relationships', requiredFeature: 'AGENT_NETWORK' },
+    ]
+  },
+  {
+    label: 'Agent',
+    icon: 'ri-user-star-line',
+    allowedUserTypes: ['AGENT'],
+    children: [
+      { label: 'My Workspaces', href: '/agent', allowedUserTypes: ['AGENT'] },
+      { label: 'Referrals', href: '/agent/referrals', allowedUserTypes: ['AGENT'] },
     ]
   },
   {
@@ -253,6 +264,13 @@ const verticalMenuData = (
 
         // TS cannot re-narrow to the union after the rest/spread rebuild above.
       }) as VerticalMenuDataType[]
+
+  // Agents get their own portal nav — never the landlord dashboards
+  // (properties, billing, wallet, occupants). The Agent section is the
+  // only part of the menu an AGENT session can see.
+  if (role === 'AGENT') {
+    return process(allItems.filter(item => item.label === 'Agent'))
+  }
 
   return process(allItems)
 }

@@ -72,6 +72,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
   // Hooks
   const router = useRouter()
   const { settings } = useSettings()
+
   const {
     login,
     needsWorkspaceSelection,
@@ -83,6 +84,7 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     resendOtp,
     cancelOtp
   } = useAuth()
+
   const authBackground = useImageVariant(mode, lightImg, darkImg)
 
 
@@ -123,6 +125,15 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     if (result.success && !result.otpRequired && !needsWorkspaceSelection) {
       // Small delay to let the state settle (auto-select case)
       setTimeout(() => {
+        // Independent agents hold a global session with no tenant — they belong
+        // in the agent portal, never the landlord dashboard.
+        if ('agentGlobalSession' in result && result.agentGlobalSession) {
+          router.push('/agent')
+          
+return
+        }
+
+
         // A session that still needs plan selection must land on the plan picker, not the
         // requested destination — the middleware would bounce them there anyway.
         router.push(result.planSelectionRequired ? '/onboarding/select-plan' : redirectTo)
