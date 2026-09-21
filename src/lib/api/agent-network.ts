@@ -1,4 +1,10 @@
 import { apiGet, apiPost, apiPatch, API_BASE } from './client'
+import type {
+  AgentRelationshipType,
+  AgentMandateType,
+  RelationshipStatus,
+  MandateStatus
+} from '@/types/members/agentNetworkTypes'
 
 const BASE = `${API_BASE}`
 
@@ -105,8 +111,16 @@ export interface AgentRelationshipSummary {
   claimed: boolean
 }
 
-export async function getAgentRelationships(): Promise<AgentRelationshipSummary[]> {
-  return apiGet<AgentRelationshipSummary[]>(`${BASE}/agent-relationships`)
+export async function getAgentRelationships(): Promise<AgentRelationshipType[]> {
+  const data = await apiGet<AgentRelationshipSummary[]>(`${BASE}/agent-relationships`)
+
+  // JSON carries no enums — narrow the wire strings to the domain unions once,
+  // at the boundary, so views stay strictly typed.
+  return (Array.isArray(data) ? data : []).map(r => ({
+    ...r,
+    status: r.status as RelationshipStatus,
+    source: r.source as AgentRelationshipType['source']
+  }))
 }
 
 export async function recordOfflineAgent(payload: { displayName: string; email?: string; phone?: string }): Promise<{ relationshipId: string; status: string }> {
@@ -166,8 +180,13 @@ export interface AgentMandateSummary {
   termsVersion: number
 }
 
-export async function getMandatesForRelationship(relationshipId: string): Promise<AgentMandateSummary[]> {
-  return apiGet<AgentMandateSummary[]>(`${BASE}/agent-relationships/${relationshipId}/mandates`)
+export async function getMandatesForRelationship(relationshipId: string): Promise<AgentMandateType[]> {
+  const data = await apiGet<AgentMandateSummary[]>(`${BASE}/agent-relationships/${relationshipId}/mandates`)
+
+  return (Array.isArray(data) ? data : []).map(m => ({
+    ...m,
+    status: m.status as MandateStatus
+  }))
 }
 
 export async function createMandateDraft(relationshipId: string, payload?: { startTime?: string; endTime?: string }): Promise<{ mandateId: string; status: string }> {

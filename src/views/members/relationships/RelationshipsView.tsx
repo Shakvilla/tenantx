@@ -24,6 +24,7 @@ import Typography from '@mui/material/Typography'
 import { useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 
+import { rankItem } from '@tanstack/match-sorter-utils'
 import {
   createColumnHelper,
   flexRender,
@@ -33,6 +34,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel
 } from '@tanstack/react-table'
+import type { FilterFn } from '@tanstack/react-table'
 
 import MandateEditorDialog from './MandateEditorDialog'
 
@@ -54,6 +56,14 @@ import type { ClaimedAgentMatch } from '@/lib/api/agent-network'
 import type { AgentRelationshipType, AgentMandateType } from '@/types/members/agentNetworkTypes'
 
 const columnHelper = createColumnHelper<AgentRelationshipType>()
+
+const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
+  const itemRank = rankItem(row.getValue(columnId), value)
+
+  addMeta({ itemRank })
+
+  return itemRank.passed
+}
 
 const statusColor: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
   UNCLAIMED: 'default',
@@ -340,9 +350,15 @@ return
     })
   ]
 
+  const [globalFilter, setGlobalFilter] = useState('')
+
   const table = useReactTable({
     data: filtered,
     columns,
+    filterFns: { fuzzy: fuzzyFilter },
+    state: { globalFilter },
+    globalFilterFn: fuzzyFilter,
+    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -367,7 +383,13 @@ return
         </Typography>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2, alignItems: 'center' }}>
+        <TextField
+          size='small'
+          placeholder='Search records…'
+          value={globalFilter}
+          onChange={e => setGlobalFilter(e.target.value)}
+        />
         {FILTERS.map(f => (
           <Chip
             key={f}
