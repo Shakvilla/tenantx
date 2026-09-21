@@ -67,6 +67,7 @@ function buildCsp(nonce: string, isHttps: boolean): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+
     // Keyed on the scheme actually in use, NOT on NODE_ENV. A production *build*
     // is not the same as being *served over TLS*: gating this on NODE_ENV sent
     // upgrade-insecure-requests to the plain-HTTP Docker stack, which rewrote every
@@ -214,6 +215,22 @@ function isLandlordOnlyRoute(pathname: string): boolean {
   return matchesRoute(pathname, LANDLORD_ONLY_ROUTES)
 }
 
+function isAgentPortalRoute(pathname: string): boolean {
+  return pathname === '/agent' || pathname.startsWith('/agent/')
+}
+
+/**
+ * A global agent session: unexpired JWT with scope=global and no tenant.
+ * Independent agents hold this before (or without) any landlord relationship —
+ * it authenticates identity only; workspace access still requires an approved
+ * relationship plus an active mandate, enforced by the backend per endpoint.
+ */
+function isGlobalAgentSession(token: string | undefined): token is string {
+  if (!hasUnexpiredJwt(token)) return false
+
+  return decodeJwtPayload(token)?.scope === 'global'
+}
+
 // AUTH-L7-05: when the deployment provides the backend's JWT secret (JWT_SECRET env var, server
 // side only — middleware runs on the Next server, never in the browser), role-gate claims are
 // VERIFIED with jose rather than merely decoded, so a STAFF user editing their own cookie can no
@@ -350,12 +367,25 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
+    // Independent agent holding a global session (no tenant) → agent portal,
+    // not the login form. Backend enforces profile ownership per endpoint.
+    if (isGlobalAgentSession(authToken)) {
+      return NextResponse.redirect(new URL('/agent', request.url))
+    }
+
     return nextWithHeaders(request, nonce, csp)
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // TENANT ROUTES  (everything else)
   // ═══════════════════════════════════════════════════════════════════════════
+
+  // 1b. Agent portal routes accept a global agent session (no tenant_id).
+  // New agents have zero workspaces, so requiring a tenant would bounce them
+  // to /login forever. The backend still enforces agent identity per endpoint.
+  if (!isTenantAuthenticated && isAgentPortalRoute(pathname) && isGlobalAgentSession(authToken)) {
+    return nextWithHeaders(request, nonce, csp)
+  }
 
   // 1. Unauthenticated → login
   if (!isTenantAuthenticated) {

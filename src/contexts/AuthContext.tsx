@@ -41,6 +41,7 @@ export interface AuthUser {
   email: string
   name: string
   role: string
+
   /** UserType from backend: LANDLORD | STAFF | MAINTAINER | OCCUPANT */
   userType: string
   avatarUrl?: string
@@ -87,7 +88,11 @@ interface AuthContextValue extends AuthState {
     needsPasswordSetup?: boolean
     otpRequired?: boolean
     planSelectionRequired?: boolean
+
+    /** Independent agent with zero workspaces — global session, route to /agent. */
+    agentGlobalSession?: boolean
   }>
+
   /**
    * Completes the email-verified signup challenge `signupStart` raised (Register.tsx owns that
    * challenge locally — it is not the same as `otpChallenge`, which is the LOGIN-OTP state
@@ -120,7 +125,9 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-    return JSON.parse(atob(base64))
+
+    
+return JSON.parse(atob(base64))
   } catch {
     return null
   }
@@ -177,15 +184,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isTokenError) {
         // Clear the bad session and redirect to login so the user re-authenticates
         logout('Your session is invalid. Please log in again.')
-        return
+        
+return
       }
 
       // During an impersonation session, certain endpoints legitimately return 403
       // (impersonation tokens have restricted scope). Don't eject the user — let the
       // individual page/component surface the error.
       const currentToken = getStoredToken()
+
       if (currentToken) {
         const payload = decodeJwtPayload(currentToken)
+
         if (payload?.scope === 'impersonation') return
       }
 
@@ -219,6 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // /users/me for this token type (returning 403). Skip the getCurrentUser call
       // entirely — ImpersonateHandoff already stored role/userType for us.
       const payload = decodeJwtPayload(token)
+
       if (payload?.scope === 'impersonation') {
         setState({
           user: { id: '', email: '', name: '', role: savedRole, userType: savedUserType },
@@ -233,7 +244,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           planSelectionRequired: Cookies.get('plan_selection_required') === 'true',
           otpChallenge: null
         })
-        return
+        
+return
       }
 
       getCurrentUser(tenantId)
@@ -292,12 +304,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
     } else if (token) {
       // We have a global token but no tenant selected.
-      // This happens if the user reloads during workspace selection.
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        needsWorkspaceSelection: true
-      }))
+      // This happens if the user reloads during workspace selection —
+      // or if it is an independent agent's global session (no workspaces yet).
+      if (getStoredUserType() === 'AGENT') {
+        import('@/lib/api/agent-network')
+          .then(({ getAgentProfileMe }) => getAgentProfileMe())
+          .then(profile => {
+            setState({
+              user: { id: profile.globalUserId, email: '', name: profile.publicName, role: 'AGENT', userType: 'AGENT' },
+              tenant: null,
+              isAuthenticated: true,
+              isLoading: false,
+              isRefreshing: false,
+              pendingWorkspaces: null,
+              needsWorkspaceSelection: false,
+              needsPasswordSetup: false,
+              needsOtp: false,
+              planSelectionRequired: false,
+              otpChallenge: null
+            })
+          })
+          .catch(() => {
+            setState(prev => ({
+              ...prev,
+              isLoading: false,
+              needsWorkspaceSelection: true
+            }))
+          })
+      } else {
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+          needsWorkspaceSelection: true
+        }))
+      }
     } else {
       // No token at all
       setState(prev => ({ ...prev, isLoading: false }))
@@ -325,6 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ...prev,
           isLoading: false,
           needsPasswordSetup: true,
+
           // Defensive: not reachable today (a fresh login() call starts from a clean state), but
           // a stale challenge from a previous account surviving into this branch would otherwise
           // leave needsOtp/otpChallenge dangling from whatever they were before.
@@ -338,9 +379,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const workspaces = loginData.workspaces ?? []
 
       if (workspaces.length === 0) {
-        setState(prev => ({ ...prev, isLoading: false }))
+        // Zero workspaces: this may be an independent agent (global profile,
+        // no landlord relationship yet). Try the agent profile — a global
+        // session with no tenant. Anything else keeps the old error.
+        try {
+          const { getAgentProfileMe } = await import('@/lib/api/agent-network')
+          const profile = await getAgentProfileMe()
 
-        return { success: false, error: 'No workspaces available for this account.' }
+          const { setStoredGlobalToken } = await import('@/lib/api/storage')
+
+          setStoredGlobalToken(loginData.accessToken)
+          setStoredUserRole('AGENT')
+          setStoredUserType('AGENT')
+          setState({
+            user: { id: profile.globalUserId, email, name: profile.publicName, role: 'AGENT', userType: 'AGENT' },
+            tenant: null,
+            isAuthenticated: true,
+            isLoading: false,
+            isRefreshing: false,
+            pendingWorkspaces: null,
+            needsWorkspaceSelection: false,
+            needsPasswordSetup: false,
+            needsOtp: false,
+            planSelectionRequired: false,
+            otpChallenge: null
+          })
+
+          return { success: true, agentGlobalSession: true }
+        } catch {
+          setState(prev => ({ ...prev, isLoading: false }))
+
+          return { success: false, error: 'No workspaces available for this account.' }
+        }
       }
 
       if (workspaces.length === 1) {
@@ -354,6 +424,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading: false,
         pendingWorkspaces: workspaces,
         needsWorkspaceSelection: true,
+
         // Defensive, same reasoning as the firstTimeLogin branch above.
         needsOtp: false,
         otpChallenge: null
