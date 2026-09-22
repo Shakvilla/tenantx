@@ -39,7 +39,9 @@ test.describe('agent network guards', () => {
       await page.goto('/register/agent')
       await expect(page.getByText(/Join as an agent/i).first()).toBeVisible()
       await expect(page.getByLabel('Email')).toBeVisible()
-      await expect(page.getByLabel('Password')).toBeVisible()
+
+      // Password is collected at the final step, after OTP verification.
+      await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible()
     })
 
     test('landlord register links to the agent path', async ({ page }) => {

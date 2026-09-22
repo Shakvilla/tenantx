@@ -91,6 +91,9 @@ interface AuthContextValue extends AuthState {
 
     /** Independent agent with zero workspaces — global session, route to /agent. */
     agentGlobalSession?: boolean
+
+    /** Global session whose agent profile was never created — portal shows setup. */
+    needsAgentProfile?: boolean
   }>
 
   /**
@@ -379,20 +382,18 @@ return
       const workspaces = loginData.workspaces ?? []
 
       if (workspaces.length === 0) {
-        // Zero workspaces: this may be an independent agent (global profile,
-        // no landlord relationship yet). Try the agent profile — a global
-        // session with no tenant. Anything else keeps the old error.
-        try {
-          const { getAgentProfileMe } = await import('@/lib/api/agent-network')
-          const profile = await getAgentProfileMe()
+        // Zero workspaces: this may be an independent agent. Try the agent
+        // profile — a global session with no tenant. An account whose profile
+        // was never created (e.g. signed up before completion worked) still
+        // gets a global session and finishes setup in the portal.
+        const { setStoredGlobalToken } = await import('@/lib/api/storage')
 
-          const { setStoredGlobalToken } = await import('@/lib/api/storage')
-
+        const establishAgentSession = (userId: string, displayName: string, profileMissing: boolean) => {
           setStoredGlobalToken(loginData.accessToken)
           setStoredUserRole('AGENT')
           setStoredUserType('AGENT')
           setState({
-            user: { id: profile.globalUserId, email, name: profile.publicName, role: 'AGENT', userType: 'AGENT' },
+            user: { id: userId, email, name: displayName, role: 'AGENT', userType: 'AGENT' },
             tenant: null,
             isAuthenticated: true,
             isLoading: false,
@@ -405,8 +406,23 @@ return
             otpChallenge: null
           })
 
-          return { success: true, agentGlobalSession: true }
-        } catch {
+          return { success: true, agentGlobalSession: true, needsAgentProfile: profileMissing }
+        }
+
+        try {
+          const { getAgentProfileMe } = await import('@/lib/api/agent-network')
+          const profile = await getAgentProfileMe()
+
+          return establishAgentSession(profile.globalUserId, profile.publicName, false)
+        } catch (e: any) {
+          if (typeof e?.message === 'string' && e.message.includes('Agent profile not found')) {
+            const sub = decodeJwtPayload(loginData.accessToken)?.sub
+
+            if (typeof sub === 'string' && sub) {
+              return establishAgentSession(sub, email, true)
+            }
+          }
+
           setState(prev => ({ ...prev, isLoading: false }))
 
           return { success: false, error: 'No workspaces available for this account.' }
