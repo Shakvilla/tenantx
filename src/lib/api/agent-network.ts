@@ -58,6 +58,10 @@ export async function updateAgentProfileMe(payload: Partial<AgentProfileMe>): Pr
   return apiPatch<AgentProfileMe>(`${BASE}/agent-profile/me`, payload)
 }
 
+export async function createAgentProfileMe(payload: { publicName: string; bio?: string }): Promise<AgentProfileMe> {
+  return apiPost<AgentProfileMe>(`${BASE}/agent-profile/me`, payload)
+}
+
 // ── Claims & workspaces (global session) ─────────────────────────────────────
 
 export async function acceptAgentClaim(token: string, verifiedContact: string): Promise<{ relationshipId: string; tenantId: string; status: string }> {
