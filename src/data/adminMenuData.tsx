@@ -38,6 +38,13 @@ export const adminNavItems: AdminNavItem[] = [
     permissions: ['platform:users:read'],
   },
   {
+    label: 'Global Users',
+    href: '/admin/global-users',
+    icon: 'ri-fingerprint-line',
+    section: 'Management',
+    permissions: ['platform:users:read'],
+  },
+  {
     label: 'Agents',
     href: '/admin/agents',
     icon: 'ri-user-star-line',
