@@ -228,6 +228,7 @@ export interface CreateAdminPayload {
 
 export interface CreateTenantPayload {
   name: string
+
   /**
    * snake_case on purpose: CreateTenantRequestDto declares `tenant_id`, and TenantRecord above
    * reads it back the same way. Sending `tenantId` here silently loses the value and the request
@@ -624,6 +625,7 @@ export interface PermissionRecord {
   id: string
   name: string
   description: string | null
+
   /** Grouping key for the permission matrix (e.g. 'tenants', 'billing', 'system'). */
   module: string | null
 }
@@ -1951,11 +1953,14 @@ export interface AdminPaymentSummary {
   paymentMethod: string | null
   status:        string | null
   failureReason: string | null
+
   /** True when the gateway may have taken the payer's money without the platform booking it. */
   needsReconciliation: boolean
   reconciliationReason: string | null
+
   /** Only populated for flagged rows; null for payments that settled normally. */
   reconciliation: AdminReconciliationAssessment | null
+
   /**
    * When the flag was first raised. Not in the current admin response shape — kept optional so
    * the column upgrades itself the moment the backend exposes it, and falls back to the
@@ -2281,9 +2286,11 @@ export async function getAdminSmsCreditRequests(
   size = 20
 ): Promise<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }> {
   const params = new URLSearchParams({ page: String(page), size: String(size) })
+
   if (status) params.set('status', status)
   if (tenantId) params.set('tenantId', tenantId)
-  return adminGet<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }>(
+  
+return adminGet<{ content: SmsCreditTopUpRequestDto[]; totalElements: number }>(
     `/sms/credit-requests?${params}`
   )
 }
@@ -2330,4 +2337,88 @@ export async function updateSmsFeeTier(id: string, payload: SmsFeeTierRequest): 
 
 export async function deleteSmsFeeTier(id: string): Promise<void> {
   return adminDelete(`/sms/fee-tiers/${id}`)
+}
+
+// ---------------------------------------------------------------------------
+// Agent network (platform support tooling)
+// ---------------------------------------------------------------------------
+
+export interface AdminAgentProfile {
+  profileId: string
+  publicName: string
+  profileType: string
+  identityStatus: string
+  credentialStatus: string
+  platformStatus: string
+  createdAt: string
+}
+
+export interface AdminAgentReferral {
+  referralId: string
+  landlordName: string
+  contactMasked: string
+  status: string
+  consentAttestation: string
+  createdAt: string
+}
+
+export interface AdminAgentRelationship {
+  relationshipId: string
+  tenantId: string
+  displayName: string
+  emailMasked: string
+  phoneMasked: string
+  status: string
+  claimed: string
+}
+
+export interface AdminAgentAuditEvent {
+  action: string
+  targetType: string
+  createdAt: string
+}
+
+function agentNetworkParams(params: Record<string, string | undefined>): string {
+  const search = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value) search.set(key, value)
+  }
+
+  const query = search.toString()
+
+  return query ? `?${query}` : ''
+}
+
+export async function getAdminAgentProfiles(platformStatus?: string, limit = 50): Promise<AdminAgentProfile[]> {
+  return adminGet<AdminAgentProfile[]>(`/agent-network/profiles${agentNetworkParams({ platformStatus, limit: String(limit) })}`)
+}
+
+export async function suspendAdminAgentProfile(id: string, reason?: string): Promise<{ profileId: string; platformStatus: string }> {
+  return adminPost(`/agent-network/profiles/${id}/suspend`, { reason })
+}
+
+export async function reinstateAdminAgentProfile(id: string): Promise<{ profileId: string; platformStatus: string }> {
+  return adminPost(`/agent-network/profiles/${id}/reinstate`)
+}
+
+export async function getAdminAgentReferrals(status?: string, limit = 50): Promise<AdminAgentReferral[]> {
+  return adminGet<AdminAgentReferral[]>(`/agent-network/referrals${agentNetworkParams({ status, limit: String(limit) })}`)
+}
+
+export async function getAdminAgentRelationships(tenantId?: string, status?: string, limit = 50): Promise<AdminAgentRelationship[]> {
+  return adminGet<AdminAgentRelationship[]>(`/agent-network/relationships${agentNetworkParams({ tenantId, status, limit: String(limit) })}`)
+}
+
+export async function forceEndAdminAgentRelationship(id: string, reason?: string): Promise<{ relationshipId: string; status: string }> {
+  return adminPost(`/agent-network/relationships/${id}/force-end`, { reason })
+}
+
+export async function getAdminAgentAudit(params: { relationshipId?: string; profileId?: string; mandateId?: string; limit?: number }): Promise<AdminAgentAuditEvent[]> {
+  return adminGet<AdminAgentAuditEvent[]>(`/agent-network/audit${agentNetworkParams({
+    relationshipId: params.relationshipId,
+    profileId: params.profileId,
+    mandateId: params.mandateId,
+    limit: params.limit === undefined ? undefined : String(params.limit)
+  })}`)
 }
