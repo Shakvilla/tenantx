@@ -2503,3 +2503,23 @@ return res.data
 export async function resetAdminGlobalUserPassword(id: string): Promise<{ recipientEmail: string; message: string }> {
   return adminPost(`/global-users/${id}/reset-password`)
 }
+
+export interface AdminGlobalUserOffboardPreview {
+  globalUserId:   string
+  email:          string
+  activeLinks:    number
+  inactiveLinks:  number
+  hasAgentProfile: boolean
+  referralCount:  number
+  offboardable:   boolean
+}
+
+/** Preview what offboarding would delete. Refused states report offboardable=false. */
+export async function previewAdminGlobalUserOffboard(id: string): Promise<AdminGlobalUserOffboardPreview> {
+  return adminGet<AdminGlobalUserOffboardPreview>(`/global-users/${id}/offboard-preview`)
+}
+
+/** Permanently delete a global identity. Requires echoing the account email back. */
+export async function offboardAdminGlobalUser(id: string, confirmEmail: string): Promise<{ globalUserId: string; message: string }> {
+  return adminPost(`/global-users/${id}/offboard`, { confirmEmail })
+}
