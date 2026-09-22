@@ -46,8 +46,8 @@ const AgentSignupView = ({ mode }: { mode: Mode }) => {
   )
 
   const handleBegin = async () => {
-    if (!identifier.trim() || password.length < 8) {
-      setError('Enter your email and a password of at least 8 characters')
+    if (!identifier.trim()) {
+      setError('Enter your email')
       
 return
     }
@@ -56,7 +56,7 @@ return
     setError(null)
 
     try {
-      await beginAgentSignup({ identifier: identifier.trim(), password })
+      await beginAgentSignup({ identifier: identifier.trim() })
       setStep('otp')
     } catch (e: any) {
       setError(e?.message ?? 'Could not start signup')
@@ -82,12 +82,18 @@ return
 return
     }
 
+    if (password.length < 8) {
+      setError('Choose a password of at least 8 characters')
+      
+return
+    }
+
     setLoading(true)
     setError(null)
 
     try {
       await completeAgentSignup(
-        { otp: otp.trim(), publicName: publicName.trim(), phone: phone || undefined },
+        { otp: otp.trim(), password, publicName: publicName.trim(), phone: phone || undefined },
         identifier.trim()
       )
       setStep('done')
@@ -122,15 +128,7 @@ return
             onChange={e => setIdentifier(e.target.value)}
             fullWidth
             sx={{ mb: 3 }}
-          />
-          <TextField
-            label='Password'
-            type='password'
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            fullWidth
-            sx={{ mb: 3 }}
-            helperText='At least 8 characters'
+            helperText='Already registered? Sign in instead — each email holds one account.'
           />
           <Button variant='contained' fullWidth onClick={handleBegin} disabled={loading}>
             {loading ? <CircularProgress size={24} /> : 'Continue'}
@@ -176,6 +174,15 @@ return
             onChange={e => setPhone(e.target.value)}
             fullWidth
             sx={{ mb: 3 }}
+          />
+          <TextField
+            label='Password'
+            type='password'
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            fullWidth
+            sx={{ mb: 3 }}
+            helperText='At least 8 characters. This signs you in from now on.'
           />
           <Button variant='contained' fullWidth onClick={handleComplete} disabled={loading}>
             {loading ? <CircularProgress size={24} /> : 'Create agent profile'}

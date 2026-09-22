@@ -12,11 +12,11 @@ const BASE = `${API_BASE}`
 
 export interface AgentSignupBeginPayload {
   identifier: string
-  password: string
 }
 
 export interface AgentSignupCompletePayload {
   otp: string
+  password: string
   publicName: string
   phone?: string
   operatingLocations?: string
