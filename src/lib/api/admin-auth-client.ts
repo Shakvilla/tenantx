@@ -2422,3 +2422,84 @@ export async function getAdminAgentAudit(params: { relationshipId?: string; prof
     limit: params.limit === undefined ? undefined : String(params.limit)
   })}`)
 }
+
+// ---------------------------------------------------------------------------
+// Platform Global Identity Management — global_users (cross-tenant persons)
+// ---------------------------------------------------------------------------
+
+export interface AdminGlobalUserRecord {
+  id:             string
+  fullName:       string
+  email:          string
+  phoneNumber:    string | null
+  phoneVerified:  boolean
+  active:         boolean
+  firstTimeLogin: boolean
+  createdAt:      string
+}
+
+export interface AdminWorkspaceLinkRecord {
+  tenantId: string
+  userType: string
+  role:     string
+  active:   boolean
+}
+
+export interface AdminGlobalUserDetail {
+  user:       AdminGlobalUserRecord
+  workspaces: AdminWorkspaceLinkRecord[]
+}
+
+export interface PagedAdminGlobalUsers {
+  items: AdminGlobalUserRecord[]
+  total: number
+  page:  number
+  size:  number
+}
+
+export interface GetAdminGlobalUsersParams {
+  active?:         boolean
+  firstTimeLogin?: boolean
+  search?:         string
+  page?:           number
+  size?:           number
+}
+
+/** List global identities with optional filtering and pagination. */
+export async function getAdminGlobalUsers(params: GetAdminGlobalUsersParams = {}): Promise<PagedAdminGlobalUsers> {
+  const q = new URLSearchParams()
+
+  if (params.active         !== undefined) q.set('active',         String(params.active))
+  if (params.firstTimeLogin !== undefined) q.set('firstTimeLogin', String(params.firstTimeLogin))
+  if (params.search         !== undefined && params.search !== '') q.set('search', params.search)
+  q.set('page', String(params.page ?? 0))
+  q.set('size', String(params.size ?? 50))
+
+return adminGet<PagedAdminGlobalUsers>(`/global-users?${q}`)
+}
+
+/** Get one identity with every workspace link it holds. */
+export async function getAdminGlobalUser(id: string): Promise<AdminGlobalUserDetail> {
+  return adminGet<AdminGlobalUserDetail>(`/global-users/${id}`)
+}
+
+/** Deactivate a global identity — blocks login everywhere. Links are kept for reactivation. */
+export async function deactivateAdminGlobalUser(id: string): Promise<AdminGlobalUserRecord> {
+  const res = await adminClient.patch<AdminGlobalUserRecord>(`/global-users/${id}/deactivate`)
+
+
+return res.data
+}
+
+/** Reactivate a previously deactivated global identity. */
+export async function reactivateAdminGlobalUser(id: string): Promise<AdminGlobalUserRecord> {
+  const res = await adminClient.patch<AdminGlobalUserRecord>(`/global-users/${id}/reactivate`)
+
+
+return res.data
+}
+
+/** Trigger a password reset OTP email for a global identity. */
+export async function resetAdminGlobalUserPassword(id: string): Promise<{ recipientEmail: string; message: string }> {
+  return adminPost(`/global-users/${id}/reset-password`)
+}
