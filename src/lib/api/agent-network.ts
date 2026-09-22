@@ -12,11 +12,11 @@ const BASE = `${API_BASE}`
 
 export interface AgentSignupBeginPayload {
   identifier: string
-  password: string
 }
 
 export interface AgentSignupCompletePayload {
   otp: string
+  password: string
   publicName: string
   phone?: string
   operatingLocations?: string
@@ -56,6 +56,10 @@ export async function getAgentProfileMe(): Promise<AgentProfileMe> {
 
 export async function updateAgentProfileMe(payload: Partial<AgentProfileMe>): Promise<AgentProfileMe> {
   return apiPatch<AgentProfileMe>(`${BASE}/agent-profile/me`, payload)
+}
+
+export async function createAgentProfileMe(payload: { publicName: string; bio?: string }): Promise<AgentProfileMe> {
+  return apiPost<AgentProfileMe>(`${BASE}/agent-profile/me`, payload)
 }
 
 // ── Claims & workspaces (global session) ─────────────────────────────────────

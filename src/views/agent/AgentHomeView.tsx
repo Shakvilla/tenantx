@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext'
 
 import {
   getAgentProfileMe,
+  createAgentProfileMe,
   updateAgentProfileMe,
   getAgentWorkspaces,
   getAgentReferrals,
@@ -47,6 +48,9 @@ const AgentHomeView = ({ defaultTab = 0 }: { defaultTab?: number }) => {
   const [pendingMandates, setPendingMandates] = useState<PendingAgentMandate[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [profileMissing, setProfileMissing] = useState(false)
+  const [setupName, setSetupName] = useState('')
+  const [settingUp, setSettingUp] = useState(false)
   const [snackbar, setSnackbar] = useState<string | null>(null)
 
   // Profile edit
@@ -68,6 +72,7 @@ const AgentHomeView = ({ defaultTab = 0 }: { defaultTab?: number }) => {
   const load = async () => {
     setLoading(true)
     setLoadError(null)
+    setProfileMissing(false)
 
     try {
       const [p, w, r, m] = await Promise.all([
@@ -83,9 +88,34 @@ const AgentHomeView = ({ defaultTab = 0 }: { defaultTab?: number }) => {
       setReferrals(Array.isArray(r) ? r : [])
       setPendingMandates(Array.isArray(m) ? m : [])
     } catch (e: any) {
-      setLoadError(e?.message ?? 'Could not load agent workspace')
+      if (typeof e?.message === 'string' && e.message.includes('Agent profile not found')) {
+        setProfileMissing(true)
+      } else {
+        setLoadError(e?.message ?? 'Could not load agent workspace')
+      }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSetupProfile = async () => {
+    if (!setupName.trim()) {
+      setSnackbar('Enter your public professional name')
+
+      return
+    }
+
+    setSettingUp(true)
+
+    try {
+      await createAgentProfileMe({ publicName: setupName.trim() })
+      setSetupName('')
+      setSnackbar('Profile created — welcome')
+      load()
+    } catch (e: any) {
+      setSnackbar(e?.message ?? 'Could not create profile')
+    } finally {
+      setSettingUp(false)
     }
   }
 
@@ -194,6 +224,30 @@ return
         >
           {loadError}
         </Alert>
+      )}
+
+      {profileMissing && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography variant='h6'>Finish setting up your agent account</Typography>
+            <Typography variant='body2' color='text.secondary'>
+              Your sign-in works, but no agent profile exists yet — likely the
+              signup completed before your profile was created. Enter your
+              public professional name to finish.
+            </Typography>
+            <TextField
+              label='Public professional name'
+              value={setupName}
+              onChange={e => setSetupName(e.target.value)}
+              fullWidth
+            />
+            <Box>
+              <Button variant='contained' onClick={handleSetupProfile} disabled={settingUp}>
+                {settingUp ? 'Creating…' : 'Create profile'}
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
       )}
 
       {profile?.platformStatus === 'SUSPENDED' && (
