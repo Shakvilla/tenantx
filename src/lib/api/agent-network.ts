@@ -64,10 +64,12 @@ export async function createAgentProfileMe(payload: { publicName: string; bio?: 
 
 // ── Claims & workspaces (global session) ─────────────────────────────────────
 
-export async function acceptAgentClaim(token: string, verifiedContact: string): Promise<{ relationshipId: string; tenantId: string; status: string }> {
+export async function acceptAgentClaim(token: string): Promise<{ relationshipId: string; tenantId: string; status: string }> {
+  // Identity binding is server-side: the backend matches the invitation
+  // against the authenticated caller's own contact. Nothing to send.
   return apiPost<{ relationshipId: string; tenantId: string; status: string }>(
     `${BASE}/agent-claims/${encodeURIComponent(token)}/accept`,
-    { verifiedContact }
+    undefined
   )
 }
 
