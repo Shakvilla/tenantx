@@ -67,7 +67,6 @@ const AgentHomeView = ({ defaultTab = 0 }: { defaultTab?: number }) => {
   // Claim dialog
   const [claimOpen, setClaimOpen] = useState(false)
   const [claimToken, setClaimToken] = useState('')
-  const [claimContact, setClaimContact] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -166,21 +165,20 @@ return
   }
 
   const handleClaim = async () => {
-    if (!claimToken.trim() || !claimContact.trim()) {
-      setSnackbar('Enter the invitation code and the invited contact')
-      
-return
+    if (!claimToken.trim()) {
+      setSnackbar('Enter the invitation code')
+
+      return
     }
 
     try {
-      await acceptAgentClaim(claimToken.trim(), claimContact.trim())
+      await acceptAgentClaim(claimToken.trim())
       setClaimOpen(false)
       setClaimToken('')
-      setClaimContact('')
       setSnackbar('Record claimed. It now appears under your workspaces once approved.')
       load()
     } catch (e: any) {
-      setSnackbar(e?.message ?? 'Claim failed — check the code and contact')
+      setSnackbar(e?.message ?? 'Claim failed — check the code')
     }
   }
 
@@ -414,16 +412,11 @@ return
         <DialogTitle>Claim a landlord record</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <Typography variant='body2' color='text.secondary'>
-            Paste the single-use invitation code and the exact contact the landlord invited.
-            Codes expire — mismatched contacts are rejected and logged.
+            Paste the single-use invitation code the landlord sent you. It is checked
+            against your own verified contact automatically — codes expire, and
+            mismatches are rejected and logged.
           </Typography>
           <TextField label='Invitation code' value={claimToken} onChange={e => setClaimToken(e.target.value)} fullWidth />
-          <TextField
-            label='Invited contact (email or phone)'
-            value={claimContact}
-            onChange={e => setClaimContact(e.target.value)}
-            fullWidth
-          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setClaimOpen(false)}>Cancel</Button>
