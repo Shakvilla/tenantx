@@ -31,8 +31,11 @@ import {
   deactivateAdminGlobalUser,
   reactivateAdminGlobalUser,
   resetAdminGlobalUserPassword,
+  previewAdminGlobalUserOffboard,
+  offboardAdminGlobalUser,
   type AdminGlobalUserRecord,
   type AdminGlobalUserDetail,
+  type AdminGlobalUserOffboardPreview,
 } from '@/lib/api/admin-auth-client'
 import { fuzzyFilter } from '@/utils/tableFilterFns'
 
@@ -55,6 +58,9 @@ export default function AdminGlobalUsersView() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [confirm, setConfirm] = useState<{ kind: 'deactivate' | 'reset-password'; id: string; name: string } | null>(null)
   const [acting, setActing] = useState(false)
+  const [offboard, setOffboard] = useState<AdminGlobalUserOffboardPreview | null>(null)
+  const [offboardEmail, setOffboardEmail] = useState('')
+  const [offboarding, setOffboarding] = useState(false)
 
   const fetchRows = useCallback(async () => {
     setLoading(true)
@@ -130,10 +136,45 @@ export default function AdminGlobalUsersView() {
   const handleReinstate = async (id: string, name: string) => {
     try {
       await reactivateAdminGlobalUser(id)
-      setSnackbar(`${name} reactivated`)
+      setSnackbar(`${name} reinstated`)
       refreshDetail(id)
     } catch (e: any) {
       setSnackbar(e?.response?.data?.message ?? e?.message ?? 'Could not reinstate')
+    }
+  }
+
+  const openOffboard = async (id: string) => {
+    try {
+      setOffboard(await previewAdminGlobalUserOffboard(id))
+      setOffboardEmail('')
+    } catch (e: any) {
+      setSnackbar(e?.response?.data?.message ?? e?.message ?? 'Could not load offboard preview')
+    }
+  }
+
+  const handleOffboard = async () => {
+    if (!offboard) return
+
+    if (!offboardEmail.trim()) {
+      setSnackbar('Type the account email to confirm')
+
+      return
+    }
+
+    setOffboarding(true)
+
+    try {
+      const res = await offboardAdminGlobalUser(offboard.globalUserId, offboardEmail.trim())
+
+      setOffboard(null)
+      setOffboardEmail('')
+      setDetail(null)
+      setSnackbar(res.message ?? 'Identity permanently deleted')
+      fetchRows()
+    } catch (e: any) {
+      setSnackbar(e?.response?.data?.message ?? e?.message ?? 'Offboard failed')
+    } finally {
+      setOffboarding(false)
     }
   }
 
@@ -351,6 +392,9 @@ export default function AdminGlobalUsersView() {
                 >
                   Deactivate
                 </Button>
+                <Button color='error' variant='outlined' onClick={() => openOffboard(detail.user.id)}>
+                  Offboard…
+                </Button>
               </>
             ) : (
               <Button
@@ -382,6 +426,42 @@ export default function AdminGlobalUsersView() {
           <Button variant='contained' color={confirm?.kind === 'deactivate' ? 'error' : 'primary'} onClick={handleConfirm} disabled={acting}>
             {acting ? 'Working…' : 'Confirm'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!offboard} onClose={() => setOffboard(null)} fullWidth maxWidth='sm'>
+        <DialogTitle>Permanently offboard this identity?</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          {offboard && (
+            <>
+              <Alert severity={offboard.offboardable ? 'warning' : 'error'}>
+                {offboard.offboardable
+                  ? 'This deletes the person — account, links, agent profile, OTPs and devices. Tenant business data stays.'
+                  : `Blocked: ${offboard.activeLinks} active workspace link(s). Deactivate those workspaces first.`}
+              </Alert>
+              <Typography variant='body2' color='text.secondary'>
+                {offboard.inactiveLinks} inactive link(s)
+                {offboard.hasAgentProfile ? ' · agent profile will be deleted' : ' · no agent profile'}
+                {offboard.referralCount > 0 ? ` · ${offboard.referralCount} referral(s) will be deleted` : ''}
+              </Typography>
+              {offboard.offboardable && (
+                <TextField
+                  label={`Type ${offboard.email} to confirm`}
+                  value={offboardEmail}
+                  onChange={e => setOffboardEmail(e.target.value)}
+                  fullWidth
+                />
+              )}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOffboard(null)}>Cancel</Button>
+          {offboard?.offboardable && (
+            <Button variant='contained' color='error' onClick={handleOffboard} disabled={offboarding}>
+              {offboarding ? 'Deleting…' : 'Delete permanently'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
 
