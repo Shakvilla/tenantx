@@ -45,6 +45,7 @@ const CHALLENGE = { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL'
 
 const WORKSPACE_A = { tenantId: 't-1', tenantName: 'Atkaada', role: 'OWNER', userType: 'LANDLORD' }
 const WORKSPACE_B = { tenantId: 't-2', tenantName: 'Norgha', role: 'STAFF', userType: 'LANDLORD' }
+const AGENT_WORKSPACE = { tenantId: 't-1', tenantName: 'Atkaada', role: 'OCCUPANT', userType: 'AGENT' }
 
 function renderLogin() {
   render(
@@ -121,5 +122,30 @@ describe('Login OTP gating', () => {
     await waitFor(() => expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument())
 
     expect(push).not.toHaveBeenCalled()
+  })
+
+  it('routes a tenant-scoped agent to the agent portal', async () => {
+    ;(globalLogin as any).mockResolvedValue({
+      success: true,
+      data: { firstTimeLogin: false, workspaces: [AGENT_WORKSPACE] }
+    })
+    ;(selectTenant as any).mockResolvedValue({
+      success: true,
+      data: {
+        accessToken: 'agent-token',
+        refreshToken: 'refresh',
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+        expiresAt: '',
+        planSelectionCompleted: false,
+        user: { id: 'agent-1', email: 'agent@example.com', fullName: 'Agent One', companyName: '', active: true, createdAt: '' }
+      }
+    })
+
+    renderLogin()
+    await submitPassword()
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/agent'))
+    expect(push).not.toHaveBeenCalledWith('/dashboard')
   })
 })

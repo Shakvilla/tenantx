@@ -88,6 +88,7 @@ interface AuthContextValue extends AuthState {
     needsPasswordSetup?: boolean
     otpRequired?: boolean
     planSelectionRequired?: boolean
+    agentSession?: boolean
 
     /** Independent agent with zero workspaces — global session, route to /agent. */
     agentGlobalSession?: boolean
@@ -110,7 +111,7 @@ interface AuthContextValue extends AuthState {
     rememberDevice: boolean
     fullName: string
   }) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
-  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean }>
+  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean; agentSession?: boolean }>
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
   verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean; planSelectionRequired?: boolean }>
@@ -455,7 +456,7 @@ return
   // ---- Select Workspace ----
   const handleSelectWorkspace = async (
     workspace: Workspace
-  ): Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean }> => {
+  ): Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean; agentSession?: boolean }> => {
     setState(prev => ({ ...prev, isLoading: true }))
 
     const result = await selectTenant(workspace.tenantId)
@@ -485,7 +486,11 @@ return
 
     establishTenantSession(tenantData, workspace)
 
-    return { success: true, planSelectionRequired: !tenantData.planSelectionCompleted }
+    return {
+      success: true,
+      planSelectionRequired: workspace.userType !== 'AGENT' && !tenantData.planSelectionCompleted,
+      agentSession: workspace.userType === 'AGENT'
+    }
   }
 
   /**
@@ -493,6 +498,8 @@ return
    * /select-tenant path and the post-OTP path call this, so the two cannot drift apart.
    */
   const establishTenantSession = (tenantData: SelectTenantResponse, workspace: Workspace) => {
+    const planSelectionRequired = workspace.userType !== 'AGENT' && !tenantData.planSelectionCompleted
+
     // setStoredTenantId is NOT redundant with selectTenant's own call. The OTP path never
     // reaches that call — selectTenant returned a challenge and bailed out before it — and
     // middleware treats a user as authenticated only when BOTH auth_token and tenant_id
@@ -506,7 +513,7 @@ return
     // session is established (unchallenged /select-tenant and post-OTP /verify-otp alike), so
     // writing the cookie here keeps both login paths consistent — selectTenant (auth-client) sets
     // the same cookie for the unchallenged path; this covers the OTP path that never reaches it.
-    if (!tenantData.planSelectionCompleted) {
+    if (planSelectionRequired) {
       Cookies.set('plan_selection_required', 'true', { expires: 7, path: '/' })
     } else {
       Cookies.remove('plan_selection_required', { path: '/' })
@@ -524,7 +531,7 @@ return
       needsWorkspaceSelection: false,
       needsPasswordSetup: false,
       needsOtp: false,
-      planSelectionRequired: !tenantData.planSelectionCompleted,
+      planSelectionRequired,
       otpChallenge: null
     })
   }

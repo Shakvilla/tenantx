@@ -19,13 +19,8 @@ import HorizontalFooter from '@components/layout/horizontal/Footer'
 import Customizer from '@core/components/customizer'
 import ScrollToTop from '@core/components/scroll-to-top'
 import AnnouncementBanner from '@components/banner/AnnouncementBanner'
-import SubscriptionWarningBanner from '@components/banner/SubscriptionWarningBanner'
-import SmsCreditWarningBanner from '@components/banner/SmsCreditWarningBanner'
-import SmsSetupBanner from '@components/banner/SmsSetupBanner'
 import ImpersonationBanner from '@components/banner/ImpersonationBanner'
-import ResumeOnboardingBanner from '@components/banner/ResumeOnboardingBanner'
-import OnboardingWizard from '@views/onboarding/OnboardingWizard'
-import OnboardTenantWizard from '@views/onboarding/OnboardTenantWizard'
+import { TenantOnlyBanners, TenantOnlyOnboarding } from '@components/layout/TenantOnlyChrome'
 import { ReferenceDataProvider } from '@/contexts/ReferenceDataContext'
 import { PlatformBrandingProvider } from '@/contexts/PlatformBrandingContext'
 import BrandingThemeBridge from '@components/theme/BrandingThemeBridge'
@@ -45,10 +40,7 @@ const Layout = async (props: ChildrenType) => {
     <>
       <ImpersonationBanner />
       <AnnouncementBanner />
-      <ResumeOnboardingBanner />
-      <SubscriptionWarningBanner />
-      <SmsCreditWarningBanner />
-      <SmsSetupBanner />
+      <TenantOnlyBanners />
     </>
   )
 
@@ -57,8 +49,7 @@ const Layout = async (props: ChildrenType) => {
       <ReferenceDataProvider>
       <PlatformBrandingProvider>
       <BrandingThemeBridge />
-      <OnboardingWizard />
-      <OnboardTenantWizard />
+      <TenantOnlyOnboarding />
       <LayoutWrapper
         systemMode={systemMode}
         verticalLayout={
