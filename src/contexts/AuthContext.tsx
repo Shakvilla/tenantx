@@ -382,46 +382,61 @@ return
 
       const workspaces = loginData.workspaces ?? []
 
+      const establishAgentSession = async (profileMissing = false) => {
+        const { setStoredGlobalToken } = await import('@/lib/api/storage')
+        const subject = decodeJwtPayload(loginData.accessToken)?.sub
+
+        if (typeof subject !== 'string' || !subject) {
+          setState(prev => ({ ...prev, isLoading: false }))
+
+          return { success: false, error: 'The agent session could not be established.' }
+        }
+
+        setStoredGlobalToken(loginData.accessToken)
+        setStoredUserRole('AGENT')
+        setStoredUserType('AGENT')
+        setState({
+          user: { id: subject, email, name: email, role: 'AGENT', userType: 'AGENT' },
+          tenant: null,
+          isAuthenticated: true,
+          isLoading: false,
+          isRefreshing: false,
+          pendingWorkspaces: null,
+          needsWorkspaceSelection: false,
+          needsPasswordSetup: false,
+          needsOtp: false,
+          planSelectionRequired: false,
+          otpChallenge: null
+        })
+
+        return { success: true, agentGlobalSession: true, needsAgentProfile: profileMissing }
+      }
+
+      // A landlord relationship is data inside the agent portal, not a tenant login realm.
+      // Keep the global identity token so agent endpoints receive the GlobalUser subject.
+      if (workspaces.some(workspace => workspace.userType === 'AGENT')) {
+        return establishAgentSession()
+      }
+
       if (workspaces.length === 0) {
         // Zero workspaces: this may be an independent agent. Try the agent
         // profile — a global session with no tenant. An account whose profile
         // was never created (e.g. signed up before completion worked) still
         // gets a global session and finishes setup in the portal.
-        const { setStoredGlobalToken } = await import('@/lib/api/storage')
-
-        const establishAgentSession = (userId: string, displayName: string, profileMissing: boolean) => {
-          setStoredGlobalToken(loginData.accessToken)
-          setStoredUserRole('AGENT')
-          setStoredUserType('AGENT')
-          setState({
-            user: { id: userId, email, name: displayName, role: 'AGENT', userType: 'AGENT' },
-            tenant: null,
-            isAuthenticated: true,
-            isLoading: false,
-            isRefreshing: false,
-            pendingWorkspaces: null,
-            needsWorkspaceSelection: false,
-            needsPasswordSetup: false,
-            needsOtp: false,
-            planSelectionRequired: false,
-            otpChallenge: null
-          })
-
-          return { success: true, agentGlobalSession: true, needsAgentProfile: profileMissing }
-        }
-
         try {
           const { getAgentProfileMe } = await import('@/lib/api/agent-network')
           const profile = await getAgentProfileMe()
 
-          return establishAgentSession(profile.globalUserId, profile.publicName, false)
+          const result = await establishAgentSession()
+
+          if (result.success) {
+            setState(prev => prev.user ? { ...prev, user: { ...prev.user, id: profile.globalUserId, name: profile.publicName } } : prev)
+          }
+
+          return result
         } catch (e: any) {
           if (typeof e?.message === 'string' && e.message.includes('Agent profile not found')) {
-            const sub = decodeJwtPayload(loginData.accessToken)?.sub
-
-            if (typeof sub === 'string' && sub) {
-              return establishAgentSession(sub, email, true)
-            }
+            return establishAgentSession(true)
           }
 
           setState(prev => ({ ...prev, isLoading: false }))

@@ -20,8 +20,6 @@ import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
-import { useAuth } from '@/contexts/AuthContext'
-
 import {
   getAgentProfileMe,
   createAgentProfileMe,
@@ -39,8 +37,6 @@ import {
 } from '@/lib/api/agent-network'
 
 const AgentHomeView = ({ defaultTab = 0 }: { defaultTab?: number }) => {
-  const { selectWorkspace } = useAuth()
-
   const [tab, setTab] = useState(defaultTab)
   const [profile, setProfile] = useState<AgentProfileMe | null>(null)
   const [workspaces, setWorkspaces] = useState<AgentWorkspace[]>([])
@@ -192,10 +188,9 @@ return
     }
   }
 
-  const handleOpenWorkspace = async (tenantId: string, tenantName?: string) => {
-    const res = await selectWorkspace({ tenantId, tenantName: tenantName ?? tenantId, role: 'AGENT', userType: 'AGENT' })
-
-    setSnackbar(res.success ? 'Workspace selected' : (res.error ?? 'Could not select workspace'))
+  const handleOpenWorkspace = (tenantId: string) => {
+    localStorage.setItem('agent_workspace_id', tenantId)
+    setSnackbar('Workspace selected')
   }
 
   if (loading) {
@@ -322,7 +317,7 @@ return
                   </Typography>
                   <Chip size='small' label={w.relationshipStatus} sx={{ mt: 0.5 }} />
                 </Box>
-                <Button size='small' variant='outlined' onClick={() => handleOpenWorkspace(w.tenantId, w.tenantName)}>
+                <Button size='small' variant='outlined' onClick={() => handleOpenWorkspace(w.tenantId)}>
                   Use this workspace
                 </Button>
               </CardContent>
