@@ -45,6 +45,8 @@ const CHALLENGE = { otpRequired: true, pendingToken: 'pending', channel: 'EMAIL'
 
 const WORKSPACE_A = { tenantId: 't-1', tenantName: 'Atkaada', role: 'OWNER', userType: 'LANDLORD' }
 const WORKSPACE_B = { tenantId: 't-2', tenantName: 'Norgha', role: 'STAFF', userType: 'LANDLORD' }
+const AGENT_WORKSPACE = { tenantId: 't-1', tenantName: 'Atkaada', role: 'OCCUPANT', userType: 'AGENT' }
+const AGENT_GLOBAL_TOKEN = `header.${btoa(JSON.stringify({ sub: 'agent-1', scope: 'global', exp: 4102444800 }))}.signature`
 
 function renderLogin() {
   render(
@@ -121,5 +123,22 @@ describe('Login OTP gating', () => {
     await waitFor(() => expect(screen.getByLabelText(/verification code/i)).toBeInTheDocument())
 
     expect(push).not.toHaveBeenCalled()
+  })
+
+  it('routes a tenant-scoped agent to the agent portal', async () => {
+    ;(globalLogin as any).mockResolvedValue({
+      success: true,
+      data: { accessToken: AGENT_GLOBAL_TOKEN, firstTimeLogin: false, workspaces: [AGENT_WORKSPACE] }
+    })
+
+    renderLogin()
+    await submitPassword()
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/agent'))
+    expect(push).not.toHaveBeenCalledWith('/dashboard')
+    expect(selectTenant).not.toHaveBeenCalled()
+    expect(localStorage.getItem('auth_token')).toBe(AGENT_GLOBAL_TOKEN)
+    expect(localStorage.getItem('refresh_token')).toBeNull()
+    expect(localStorage.getItem('tenant_id')).toBeNull()
   })
 })

@@ -88,6 +88,7 @@ interface AuthContextValue extends AuthState {
     needsPasswordSetup?: boolean
     otpRequired?: boolean
     planSelectionRequired?: boolean
+    agentSession?: boolean
 
     /** Independent agent with zero workspaces — global session, route to /agent. */
     agentGlobalSession?: boolean
@@ -110,7 +111,7 @@ interface AuthContextValue extends AuthState {
     rememberDevice: boolean
     fullName: string
   }) => Promise<{ success: boolean; error?: string; startOver?: boolean }>
-  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean }>
+  selectWorkspace: (workspace: Workspace) => Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean; agentSession?: boolean }>
   logout: (reason?: string) => Promise<void>
   refreshUser: () => Promise<void>
   verifyOtp: (otp: string, rememberDevice: boolean) => Promise<{ success: boolean; error?: string; startOver?: boolean; planSelectionRequired?: boolean }>
@@ -381,46 +382,61 @@ return
 
       const workspaces = loginData.workspaces ?? []
 
+      const establishAgentSession = async (profileMissing = false) => {
+        const { setStoredGlobalToken } = await import('@/lib/api/storage')
+        const subject = decodeJwtPayload(loginData.accessToken)?.sub
+
+        if (typeof subject !== 'string' || !subject) {
+          setState(prev => ({ ...prev, isLoading: false }))
+
+          return { success: false, error: 'The agent session could not be established.' }
+        }
+
+        setStoredGlobalToken(loginData.accessToken)
+        setStoredUserRole('AGENT')
+        setStoredUserType('AGENT')
+        setState({
+          user: { id: subject, email, name: email, role: 'AGENT', userType: 'AGENT' },
+          tenant: null,
+          isAuthenticated: true,
+          isLoading: false,
+          isRefreshing: false,
+          pendingWorkspaces: null,
+          needsWorkspaceSelection: false,
+          needsPasswordSetup: false,
+          needsOtp: false,
+          planSelectionRequired: false,
+          otpChallenge: null
+        })
+
+        return { success: true, agentGlobalSession: true, needsAgentProfile: profileMissing }
+      }
+
+      // A landlord relationship is data inside the agent portal, not a tenant login realm.
+      // Keep the global identity token so agent endpoints receive the GlobalUser subject.
+      if (workspaces.some(workspace => workspace.userType === 'AGENT')) {
+        return establishAgentSession()
+      }
+
       if (workspaces.length === 0) {
         // Zero workspaces: this may be an independent agent. Try the agent
         // profile — a global session with no tenant. An account whose profile
         // was never created (e.g. signed up before completion worked) still
         // gets a global session and finishes setup in the portal.
-        const { setStoredGlobalToken } = await import('@/lib/api/storage')
-
-        const establishAgentSession = (userId: string, displayName: string, profileMissing: boolean) => {
-          setStoredGlobalToken(loginData.accessToken)
-          setStoredUserRole('AGENT')
-          setStoredUserType('AGENT')
-          setState({
-            user: { id: userId, email, name: displayName, role: 'AGENT', userType: 'AGENT' },
-            tenant: null,
-            isAuthenticated: true,
-            isLoading: false,
-            isRefreshing: false,
-            pendingWorkspaces: null,
-            needsWorkspaceSelection: false,
-            needsPasswordSetup: false,
-            needsOtp: false,
-            planSelectionRequired: false,
-            otpChallenge: null
-          })
-
-          return { success: true, agentGlobalSession: true, needsAgentProfile: profileMissing }
-        }
-
         try {
           const { getAgentProfileMe } = await import('@/lib/api/agent-network')
           const profile = await getAgentProfileMe()
 
-          return establishAgentSession(profile.globalUserId, profile.publicName, false)
+          const result = await establishAgentSession()
+
+          if (result.success) {
+            setState(prev => prev.user ? { ...prev, user: { ...prev.user, id: profile.globalUserId, name: profile.publicName } } : prev)
+          }
+
+          return result
         } catch (e: any) {
           if (typeof e?.message === 'string' && e.message.includes('Agent profile not found')) {
-            const sub = decodeJwtPayload(loginData.accessToken)?.sub
-
-            if (typeof sub === 'string' && sub) {
-              return establishAgentSession(sub, email, true)
-            }
+            return establishAgentSession(true)
           }
 
           setState(prev => ({ ...prev, isLoading: false }))
@@ -455,7 +471,7 @@ return
   // ---- Select Workspace ----
   const handleSelectWorkspace = async (
     workspace: Workspace
-  ): Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean }> => {
+  ): Promise<{ success: boolean; error?: string; otpRequired?: boolean; planSelectionRequired?: boolean; agentSession?: boolean }> => {
     setState(prev => ({ ...prev, isLoading: true }))
 
     const result = await selectTenant(workspace.tenantId)
@@ -485,7 +501,11 @@ return
 
     establishTenantSession(tenantData, workspace)
 
-    return { success: true, planSelectionRequired: !tenantData.planSelectionCompleted }
+    return {
+      success: true,
+      planSelectionRequired: workspace.userType !== 'AGENT' && !tenantData.planSelectionCompleted,
+      agentSession: workspace.userType === 'AGENT'
+    }
   }
 
   /**
@@ -493,6 +513,8 @@ return
    * /select-tenant path and the post-OTP path call this, so the two cannot drift apart.
    */
   const establishTenantSession = (tenantData: SelectTenantResponse, workspace: Workspace) => {
+    const planSelectionRequired = workspace.userType !== 'AGENT' && !tenantData.planSelectionCompleted
+
     // setStoredTenantId is NOT redundant with selectTenant's own call. The OTP path never
     // reaches that call — selectTenant returned a challenge and bailed out before it — and
     // middleware treats a user as authenticated only when BOTH auth_token and tenant_id
@@ -506,7 +528,7 @@ return
     // session is established (unchallenged /select-tenant and post-OTP /verify-otp alike), so
     // writing the cookie here keeps both login paths consistent — selectTenant (auth-client) sets
     // the same cookie for the unchallenged path; this covers the OTP path that never reaches it.
-    if (!tenantData.planSelectionCompleted) {
+    if (planSelectionRequired) {
       Cookies.set('plan_selection_required', 'true', { expires: 7, path: '/' })
     } else {
       Cookies.remove('plan_selection_required', { path: '/' })
@@ -524,7 +546,7 @@ return
       needsWorkspaceSelection: false,
       needsPasswordSetup: false,
       needsOtp: false,
-      planSelectionRequired: !tenantData.planSelectionCompleted,
+      planSelectionRequired,
       otpChallenge: null
     })
   }

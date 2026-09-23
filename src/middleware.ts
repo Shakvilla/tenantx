@@ -319,6 +319,8 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
   const isAdminAuthenticated  = !!adminToken
   const isTenantAuthenticated = !!authToken && !!tenantId
   const planSelectionRequired = request.cookies.get('plan_selection_required')?.value === 'true'
+  const tenantClaims = isTenantAuthenticated ? await jwtClaimsForRouting(authToken) : null
+  const tenantUserType = (tenantClaims?.userType as string) ?? ''
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ADMIN ROUTES  /admin/**
@@ -364,7 +366,7 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
 
     // Already logged in as tenant → go to tenant dashboard
     if (isTenantAuthenticated) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL(tenantUserType === 'AGENT' ? '/agent' : '/dashboard', request.url))
     }
 
     // Independent agent holding a global session (no tenant) → agent portal,
@@ -398,11 +400,22 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
     return NextResponse.redirect(redirectUrl)
   }
 
+  // Tenant-scoped agents and landlord/staff users have separate portals. A workspace link lets
+  // an agent work for a landlord; it never turns the agent into a landlord or grants dashboard
+  // navigation. Enforce the separation in both directions before any page renders.
+  if (tenantUserType === 'AGENT' && !isAgentPortalRoute(pathname)) {
+    return NextResponse.redirect(new URL('/agent', request.url))
+  }
+
+  if (tenantUserType !== 'AGENT' && isAgentPortalRoute(pathname)) {
+    return NextResponse.redirect(new URL('/dashboard?error=access_denied', request.url))
+  }
+
   // 2. LANDLORD-only routes — block STAFF and other non-LANDLORD userTypes.
   // AUTH-L7-05: claims are signature-verified when JWT_SECRET is configured; a token that fails
   // verification is treated as no session at all, not merely as non-LANDLORD.
   if (isLandlordOnlyRoute(pathname)) {
-    const claims = await jwtClaimsForRouting(authToken!)
+    const claims = tenantClaims
 
     if (claims === null && encodedJwtSecret) {
       const redirectUrl = new URL('/login', request.url)
@@ -425,7 +438,7 @@ async function handleRouting(request: NextRequest, nonce: string, csp: string) {
   // vacancies and /admin/** all returned above), so only the select-plan route itself needs to be
   // exempt — that self-exclusion is what prevents a redirect loop: an unplanned tenant is bounced
   // exactly once per request, and once on select-plan the route renders normally.
-  if (planSelectionRequired && isTenantAuthenticated) {
+  if (planSelectionRequired && isTenantAuthenticated && tenantUserType !== 'AGENT') {
     const isOnSelectPlan = pathname.startsWith('/onboarding/select-plan')
 
     if (!isOnSelectPlan) {

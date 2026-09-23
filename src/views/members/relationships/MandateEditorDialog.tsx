@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 
 import Box from '@mui/material/Box'
+import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import Dialog from '@mui/material/Dialog'
@@ -57,6 +58,7 @@ const MandateEditorDialog = ({ open, relationshipId, mandateId, onClose, onSaved
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [createdDraftId, setCreatedDraftId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -71,6 +73,7 @@ const MandateEditorDialog = ({ open, relationshipId, mandateId, onClose, onSaved
 
   useEffect(() => {
     if (open) {
+      setCreatedDraftId(null)
       setSelectedProperties([])
       setCapabilities([])
       setStartTime('')
@@ -96,16 +99,35 @@ return
 return
     }
 
+    const invalidRate = feeTerms.find(f => f.rate && (!Number.isFinite(Number(f.rate)) || Number(f.rate) < 0 || Number(f.rate) > 100))
+
+    if (invalidRate) {
+      setError('Fee rate must be a percentage between 0 and 100')
+
+      return
+    }
+
+    const invalidAmount = feeTerms.find(f => f.amount && (!Number.isFinite(Number(f.amount)) || Number(f.amount) < 0))
+
+    if (invalidAmount) {
+      setError('Fee amount must be zero or greater')
+
+      return
+    }
+
     setSaving(true)
     setError(null)
 
     try {
-      const id =
-        mandateId ??
-        (await createMandateDraft(relationshipId, {
+      let id = mandateId ?? createdDraftId
+
+      if (!id) {
+        id = (await createMandateDraft(relationshipId, {
           startTime: startTime || undefined,
           endTime: endTime || undefined
         })).mandateId
+        setCreatedDraftId(id)
+      }
 
       await updateMandate(id, {
         propertyIds: selectedProperties,
@@ -117,7 +139,7 @@ return
           payer: f.payer,
           basis: f.basis,
           amount: f.amount ? Number(f.amount) : undefined,
-          rate: f.rate ? Number(f.rate) : undefined,
+          rate: f.rate ? Number(f.rate) / 100 : undefined,
           currency: 'GHS',
           description: f.description || undefined,
           disclosureStatus: 'PENDING'
@@ -135,12 +157,6 @@ return
     <Dialog open={open} onClose={onClose} fullWidth maxWidth='md'>
       <DialogTitle>{mandateId ? 'Edit mandate draft' : 'New mandate draft'}</DialogTitle>
       <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>
-        {error && (
-          <Typography color='error' variant='body2' role='alert'>
-            {error}
-          </Typography>
-        )}
-
         <FormControl fullWidth>
           <InputLabel id='mandate-properties-label'>Property scope</InputLabel>
           <Select
@@ -248,12 +264,16 @@ return
             </FormControl>
             <TextField
               label='Amount (GHS)'
+              type='number'
+              inputProps={{ min: 0, step: '0.01' }}
               value={f.amount}
               onChange={e => setFeeTerms(prev => prev.map((t, j) => (j === i ? { ...t, amount: e.target.value } : t)))}
               sx={{ width: 130 }}
             />
             <TextField
               label='Rate %'
+              type='number'
+              inputProps={{ min: 0, max: 100, step: '0.01' }}
               value={f.rate}
               onChange={e => setFeeTerms(prev => prev.map((t, j) => (j === i ? { ...t, rate: e.target.value } : t)))}
               sx={{ width: 110 }}
@@ -269,6 +289,11 @@ return
           acceptance plus your explicit activation.
         </Typography>
       </DialogContent>
+      {error && (
+        <Alert severity='error' sx={{ mx: 3, mb: 1 }} role='alert'>
+          {error}
+        </Alert>
+      )}
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant='contained' onClick={handleSave} disabled={saving}>

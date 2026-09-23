@@ -66,7 +66,8 @@ export function useSubscription(): SubscriptionContextValue {
 // ---------------------------------------------------------------------------
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+  const isAgentSession = user?.userType === 'AGENT'
 
   const [subscription, setSubscription] = useState<TenantSubscriptionDto | null>(null)
   const [features, setFeatures] = useState<Record<string, boolean>>({})
@@ -74,7 +75,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false)
 
   const load = useCallback(async () => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || isAgentSession) {
+      setSubscription(null)
+      setFeatures({})
+      setFeaturePlans({})
+      setIsLoading(false)
+
+      return
+    }
     setIsLoading(true)
 
     try {
@@ -96,21 +104,21 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, isAgentSession])
 
   useEffect(() => {
-    if (isAuthenticated) load()
+    if (isAuthenticated && !isAgentSession) load()
     else {
       setSubscription(null)
       setFeatures({})
       setFeaturePlans({})
     }
-  }, [isAuthenticated, load])
+  }, [isAuthenticated, isAgentSession, load])
 
   // Re-fetch whenever the tab becomes visible and every 5 minutes.
   // Ensures admin feature-flag overrides reach live sessions without a re-login.
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || isAgentSession) return
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') load()
@@ -126,7 +134,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       document.removeEventListener('visibilitychange', handleVisibility)
       clearInterval(interval)
     }
-  }, [isAuthenticated, load])
+  }, [isAuthenticated, isAgentSession, load])
 
   const hasFeature = useCallback((key: string) => !!features[key], [features])
 

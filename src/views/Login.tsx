@@ -122,12 +122,12 @@ const LoginV2 = ({ mode }: { mode: Mode }) => {
     // a correct password on an unrecognised browser flashes the code-entry screen and then
     // immediately navigates away from it (see AuthProvider's per-route-group mounting — crossing
     // that boundary unmounts the provider and destroys the in-memory pendingToken with it).
-    if (result.success && !result.otpRequired && !needsWorkspaceSelection) {
+    if (result.success && !result.otpRequired && !result.requiresWorkspaceSelection) {
       // Small delay to let the state settle (auto-select case)
       setTimeout(() => {
         // Independent agents hold a global session with no tenant — they belong
         // in the agent portal, never the landlord dashboard.
-        if ('agentGlobalSession' in result && result.agentGlobalSession) {
+        if (('agentGlobalSession' in result && result.agentGlobalSession) || result.agentSession) {
           router.push('/agent')
           
 return
@@ -150,7 +150,7 @@ return
     const result = await selectWorkspace(workspace)
 
     if (result.success && !result.otpRequired) {
-      router.push(result.planSelectionRequired ? '/onboarding/select-plan' : redirectTo)
+      router.push(result.agentSession ? '/agent' : result.planSelectionRequired ? '/onboarding/select-plan' : redirectTo)
     } else if (!result.success) {
       setError(result.error || 'Failed to select workspace.')
     }
