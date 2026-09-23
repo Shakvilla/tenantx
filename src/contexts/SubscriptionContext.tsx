@@ -136,6 +136,16 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, isAgentSession, load])
 
+  useEffect(() => {
+    if (!isAuthenticated || isAgentSession) return
+
+    const handleLocked = () => void load()
+
+    window.addEventListener('SUBSCRIPTION_LOCKED', handleLocked)
+
+    return () => window.removeEventListener('SUBSCRIPTION_LOCKED', handleLocked)
+  }, [isAuthenticated, isAgentSession, load])
+
   const hasFeature = useCallback((key: string) => !!features[key], [features])
 
   const isAtUnitCap = Boolean(

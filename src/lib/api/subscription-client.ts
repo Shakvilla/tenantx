@@ -14,7 +14,7 @@ const BASE = `${API_BASE}/subscription`
 export interface TenantSubscriptionDto {
   plan: string           // "FREE" | "BASIC" | "PRO"
   displayName: string
-  status: string         // "ACTIVE" | "PAST_DUE" | "CANCELLED" | "GRANDFATHERED"
+  status: 'ACTIVE' | 'TRIALING' | 'LOCKED'
   unitCount: number
   unitCap: number | null
   pricePerUnit: number
