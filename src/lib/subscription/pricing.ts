@@ -31,6 +31,8 @@ export interface PricingSource {
 }
 
 export interface MonthlyCharge {
+  /** Pricing model used to produce this charge. */
+  pricingMode: string
   /** Units the landlord holds. */
   totalUnits: number
   /** Units covered by the free allowance. */
@@ -101,7 +103,11 @@ export const calculateMonthlyCharge = (
   let monthlyTotal: number
   let rate: number
 
-  if (billableUnits === 0) {
+  if (mode === 'FLAT') {
+    // One account fee regardless of quantity. This mirrors PricingEngine.flatLines.
+    monthlyTotal = entryPrice
+    rate = 0
+  } else if (billableUnits === 0) {
     // Nothing owed, but keep the nominal unit rate so the UI can still state
     // what a unit costs once the free allowance is passed.
     monthlyTotal = 0
@@ -113,12 +119,13 @@ export const calculateMonthlyCharge = (
     monthlyTotal = volumeTotal(billableUnits, tiers)
     rate = monthlyTotal / billableUnits
   } else {
-    // FLAT (and any unrecognised mode): a single price per billable unit.
-    monthlyTotal = billableUnits * entryPrice
+    // Unknown modes fall back to the entry quote without inventing per-unit arithmetic.
+    monthlyTotal = entryPrice
     rate = entryPrice
   }
 
   return {
+    pricingMode: mode,
     totalUnits: units,
     freeUnits,
     billableUnits,
@@ -135,6 +142,10 @@ export const describeMonthlyCharge = (
   charge: MonthlyCharge,
   formatMoney: (amount: number) => string
 ): string => {
+  if (charge.pricingMode === 'FLAT') {
+    return `Flat plan fee: ${formatMoney(charge.monthlyTotal)} a month, regardless of unit count.`
+  }
+
   if (charge.totalUnits === 0) return 'No units yet — nothing to pay.'
 
   if (charge.billableUnits === 0) {

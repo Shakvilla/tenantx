@@ -154,7 +154,7 @@ function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublic
               {!isFree && (
                 <>
                   <Typography variant='body2' color='text.secondary'>
-                    {formatGHS(entryPrice)} / unit / month
+                    {formatGHS(entryPrice)} / {pricingMode === 'FLAT' ? 'month' : 'unit / month'}
                     {currentPeriodEnd && ' · renews ' + formatDate(currentPeriodEnd)}
                   </Typography>
                   {/*
@@ -802,7 +802,9 @@ function PlanCard({
             <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
               <Typography variant='caption' color='text.secondary' sx={{ alignSelf: 'flex-start', mt: 1 }}>GH₵</Typography>
               <Typography variant='h4' fontWeight={800}>{price.toFixed(2)}</Typography>
-              <Typography variant='caption' color='text.secondary'>/unit/mo</Typography>
+              <Typography variant='caption' color='text.secondary'>
+                {plan.pricingMode === 'FLAT' ? '/month' : '/unit/mo'}
+              </Typography>
             </Box>
           )}
           {plan.freeUnitCap && (
@@ -812,7 +814,11 @@ function PlanCard({
             /* What this landlord, with the units he actually has, would pay here. */
             <Typography variant='body2' fontWeight={600} color='text.primary' sx={{ mt: 0.5 }}>
               You would pay {formatGHS(calculateMonthlyCharge(unitCount, { entryPrice: price, pricingMode: plan.pricingMode, tiers: plan.tiers }, freeUnitCap).monthlyTotal)} a month
-              {freeUnitCap ? ' — ' + Math.min(unitCount, freeUnitCap) + ' of your ' + unitCount + ' units are free' : ' for ' + unitCount + ' units'}
+              {plan.pricingMode === 'FLAT'
+                ? ' as a flat plan fee'
+                : freeUnitCap
+                  ? ' — ' + Math.min(unitCount, freeUnitCap) + ' of your ' + unitCount + ' units are free'
+                  : ' for ' + unitCount + ' units'}
             </Typography>
           )}
           {/*
@@ -925,8 +931,10 @@ function InvoiceTable() {
   async function handleRetry(invoiceId: string) {
     setRetrying(invoiceId)
     setRetryError(null)
+    setActionNotice(null)
     try {
       await retryMyInvoice(invoiceId)
+      setActionNotice('Payment attempt started. Approve the Mobile Money prompt if one was sent. Access is restored after payment is confirmed.')
       fetchInvoices()
       await refreshSubscription()
     } catch {
@@ -1007,7 +1015,9 @@ function InvoiceTable() {
                       {formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}
                     </Typography>
                     <Typography variant='caption' color='text.secondary'>
-                      {inv.invoiceType} · {inv.unitCount} unit{inv.unitCount !== 1 ? 's' : ''}
+                      {inv.invoiceType} · {inv.unitCount === 0 && inv.totalAmount > 0
+                        ? 'Flat fee'
+                        : `${inv.unitCount} unit${inv.unitCount !== 1 ? 's' : ''}`}
                     </Typography>
                   </div>
                   <Chip label={inv.status} size='small' color={statusChipColor(inv.status)} className='shrink-0' />
@@ -1090,7 +1100,9 @@ function InvoiceTable() {
                 <Typography variant='caption'>{formatDate(inv.periodStart)} – {formatDate(inv.periodEnd)}</Typography>
               </TableCell>
               <TableCell><Chip label={inv.invoiceType} size='small' variant='outlined' /></TableCell>
-              <TableCell align='right'>{inv.unitCount}</TableCell>
+              <TableCell align='right'>
+                {inv.unitCount === 0 && inv.totalAmount > 0 ? 'Flat fee' : inv.unitCount}
+              </TableCell>
               <TableCell align='right'>
                 <Typography variant='caption' fontWeight={600}>{formatGHS(inv.totalAmount)}</Typography>
               </TableCell>
