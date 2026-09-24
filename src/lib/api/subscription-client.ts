@@ -68,6 +68,7 @@ export interface SubscriptionInvoiceDto {
   totalAmount: number
   status: string         // "PENDING" | "PAID" | "FAILED" | "VOID"
   invoiceType: string    // "UPGRADE" | "RENEWAL"
+  paymentMethod: string  // UNSELECTED | WALLET | MOMO | CARD | MANUAL
   paidAt: string | null
   reddeTransactionRef: string | null
   createdAt: string
@@ -87,6 +88,8 @@ export interface UpgradeInitiatedDto {
   status: string
   message: string
   redirectUrl: string | null   // set for CARD payments — the Paystack checkout URL to redirect to
+  completionMode: 'PUSH' | 'USSD' | null
+  ussdCode: string | null
 }
 
 /** Platform bank details for the manual (bank-transfer) payment option. Keys match the setting suffix. */
@@ -141,6 +144,18 @@ export async function getMyInvoices(): Promise<SubscriptionInvoiceDto[]> {
 
 export async function retryMyInvoice(invoiceId: string): Promise<void> {
   await apiClient.post(`${BASE}/invoices/${invoiceId}/retry`)
+}
+
+export async function payRenewalInvoice(
+  invoiceId: string,
+  paymentMethod: 'WALLET' | 'MOMO',
+  mobileNumber?: string
+): Promise<UpgradeInitiatedDto> {
+  const res = await apiClient.post<UpgradeInitiatedDto>(`${BASE}/invoices/${invoiceId}/pay`, {
+    paymentMethod,
+    mobileNumber
+  })
+  return res.data
 }
 
 export async function verifySubscriptionPayment(invoiceId: string): Promise<{ confirmed: boolean }> {
