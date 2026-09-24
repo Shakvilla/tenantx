@@ -25,7 +25,9 @@ export const VAGUE_CREDENTIAL_MESSAGE =
   'Invalid credentials. This portal is for platform administrators only.'
 
 export function adminLoginErrorMessage(error: unknown): AdminLoginErrorDisplay {
-  const response = (error as { response?: { status?: number; data?: { code?: string } } })?.response
+  const response = (error as {
+    response?: { status?: number; data?: { code?: string; retryAfterSeconds?: number } }
+  })?.response
   const status = response?.status
   const code = response?.data?.code
 
@@ -34,11 +36,22 @@ export function adminLoginErrorMessage(error: unknown): AdminLoginErrorDisplay {
     return { message: VAGUE_CREDENTIAL_MESSAGE }
   }
 
-  if (code === 'OTP_RATE_LIMITED' || status === 429) {
+  if (code === 'OTP_RATE_LIMITED') {
     return {
       message:
         'Your password was accepted, but too many verification codes have been requested for this '
         + 'account recently. Wait about 15 minutes and sign in again — retrying now can extend the wait.'
+    }
+  }
+
+  if (code === 'RATE_LIMIT_EXCEEDED' || status === 429) {
+    const retryAfter = response?.data?.retryAfterSeconds
+    const wait = retryAfter && retryAfter > 0
+      ? `${retryAfter} seconds`
+      : 'a short while'
+
+    return {
+      message: `Too many sign-in attempts were received from this network. Wait ${wait} and try again.`
     }
   }
 

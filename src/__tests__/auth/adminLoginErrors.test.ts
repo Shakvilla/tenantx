@@ -5,6 +5,10 @@ import { adminLoginErrorMessage, VAGUE_CREDENTIAL_MESSAGE } from '@/lib/api/admi
 const err = (status?: number, code?: string) =>
   status === undefined ? new Error('Network Error') : { response: { status, data: { code } } }
 
+const rateLimitErr = (retryAfterSeconds: number) => ({
+  response: { status: 429, data: { code: 'RATE_LIMIT_EXCEEDED', retryAfterSeconds } }
+})
+
 describe('adminLoginErrorMessage', () => {
   it('stays vague for a genuine credential failure, so the form is not an email oracle', () => {
     expect(adminLoginErrorMessage(err(401, 'INVALID_CREDENTIALS')).message).toBe(VAGUE_CREDENTIAL_MESSAGE)
@@ -20,6 +24,14 @@ describe('adminLoginErrorMessage', () => {
     expect(message).not.toBe(VAGUE_CREDENTIAL_MESSAGE)
     expect(message).toMatch(/password was accepted/i)
     expect(message).toMatch(/15 minutes/i)
+  })
+
+  it('distinguishes the pre-auth network throttle from OTP throttling', () => {
+    const { message } = adminLoginErrorMessage(rateLimitErr(60))
+
+    expect(message).not.toMatch(/password was accepted/i)
+    expect(message).toMatch(/network/i)
+    expect(message).toMatch(/60 seconds/i)
   })
 
   it('does not blame the password when the browser could not be identified', () => {
