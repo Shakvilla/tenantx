@@ -133,6 +133,7 @@ function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublic
   const isFree = entryPrice === 0
   const unitProgress = unitCap ? Math.min((unitCount / unitCap) * 100, 100) : 0
   const atCap = unitCap !== null && unitCount >= unitCap
+  const isLocked = status === 'LOCKED'
 
   return (
     <>
@@ -144,9 +145,9 @@ function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublic
                 <Typography variant='h6' fontWeight={700}>Current Plan</Typography>
                 <Chip label={displayName} color={PLAN_COLOR[plan] ?? 'default'} size='small' />
                 <Chip
-                  label={status}
+                  label={isLocked ? 'PAYMENT REQUIRED' : status}
                   size='small'
-                  color={status === 'ACTIVE' ? 'success' : status === 'PAST_DUE' ? 'error' : 'default'}
+                  color={status === 'ACTIVE' ? 'success' : isLocked ? 'error' : 'default'}
                   variant='outlined'
                 />
               </Box>
@@ -208,6 +209,25 @@ function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublic
                 Change Plan
               </Button>
             </Box>
+          )}
+
+          {isLocked && (
+            <Alert
+              severity='error'
+              icon={<i className='ri-lock-line' />}
+              sx={{ mb: 2 }}
+              action={
+                <Button
+                  color='inherit'
+                  size='small'
+                  onClick={() => document.getElementById('billing-history')?.scrollIntoView({ behavior: 'smooth' })}
+                >
+                  View invoice
+                </Button>
+              }
+            >
+              This workspace is read-only until the outstanding subscription invoice is paid. You can still view and export your records.
+            </Alert>
           )}
 
           {pendingDowngradePlan && (
@@ -865,6 +885,7 @@ function PlanCard({
 function InvoiceTable() {
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const { refresh: refreshSubscription } = useSubscription()
 
   const [invoices, setInvoices]     = useState<SubscriptionInvoiceDto[]>([])
   const [loading, setLoading]       = useState(true)
@@ -907,6 +928,7 @@ function InvoiceTable() {
     try {
       await retryMyInvoice(invoiceId)
       fetchInvoices()
+      await refreshSubscription()
     } catch {
       setRetryError('Retry failed. Please try again.')
     } finally {
@@ -921,8 +943,9 @@ function InvoiceTable() {
     try {
       const { confirmed } = await verifySubscriptionPayment(invoiceId)
       if (confirmed) {
-        setActionNotice('Payment confirmed. The bill is settled.')
+        setActionNotice('Payment confirmed. The bill is settled and full workspace access has been restored.')
         fetchInvoices()
+        await refreshSubscription()
       } else {
         setRetryError('Payment not yet confirmed by the gateway. Approve the MoMo prompt first, then try again.')
       }
@@ -941,8 +964,9 @@ function InvoiceTable() {
       await payInvoiceFromWallet(invoiceId)
       // Success said out loud. A row quietly changing from PENDING to PAID is not an answer to
       // "did my money move".
-      setActionNotice('Paid from your wallet. The bill is settled and your balance is updated.')
+      setActionNotice('Paid from your wallet. The bill is settled and full workspace access has been restored.')
       fetchInvoices()
+      await refreshSubscription()
       // Refresh the cached balance so any other PENDING row re-gates against the post-debit amount.
       walletApi.getWallet()
         .then(w => setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0))
@@ -1205,7 +1229,7 @@ export default function SubscriptionPlansListTable() {
         ))}
       </Grid>
 
-      <Typography variant='h6' fontWeight={700} sx={{ mb: 2 }}>Billing History</Typography>
+      <Typography id='billing-history' variant='h6' fontWeight={700} sx={{ mb: 2, scrollMarginTop: 96 }}>Billing History</Typography>
       <Card variant='outlined'>
         <CardContent><InvoiceTable /></CardContent>
       </Card>

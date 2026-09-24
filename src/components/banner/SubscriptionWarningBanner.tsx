@@ -18,6 +18,15 @@ interface BannerConfig {
 }
 
 const STATUS_CONFIG: Record<string, BannerConfig> = {
+  LOCKED: {
+    severity: 'error',
+    icon: 'ri-lock-line',
+    message:
+      'Your workspace is read-only because a subscription invoice is unpaid. Your records are safe; settle the outstanding invoice to restore full access.',
+    cta: 'Pay outstanding invoice',
+  },
+
+  // Kept temporarily for compatibility with older API deployments during rollout.
   PAST_DUE: {
     severity: 'error',
     icon: 'ri-error-warning-line',
@@ -47,7 +56,7 @@ const STATUS_CONFIG: Record<string, BannerConfig> = {
 
 /**
  * Persistent (non-dismissible) banner shown when the tenant's subscription
- * is PAST_DUE, CANCELLED, or SUSPENDED. Reads from SubscriptionContext —
+ * is LOCKED (or reports a legacy billing status). Reads from SubscriptionContext —
  * no extra fetch needed.
  */
 export default function SubscriptionWarningBanner() {
@@ -67,7 +76,7 @@ export default function SubscriptionWarningBanner() {
         action={
           <Button
             component='a'
-            href='/subscription-plans'
+            href='/subscription-plans#billing-history'
             size='small'
             color='inherit'
             variant='outlined'
