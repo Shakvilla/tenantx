@@ -425,7 +425,6 @@ export default function AdminPlatformSettingsView() {
     'notification.whatsapp.payment_reminder': { label: 'WhatsApp Payment Reminders', desc: 'Send WhatsApp reminders for upcoming payments' },
   }
 
-  const billingKeys = ['billing.retry.max_count', 'billing.retry.interval_seconds', 'billing.grace_period_days']
 
   return (
     <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 900, mx: 'auto' }}>
@@ -976,80 +975,6 @@ export default function AdminPlatformSettingsView() {
               {idx < arr.length - 1 && <Divider />}
             </Box>
           ))}
-        </CardContent>
-      </Card>
-
-      {/* ── 5. Billing Retry Policy ──────────────────────────────────────────── */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <SectionHeader
-            icon='ri-repeat-line'
-            title='Billing Retry Policy'
-            subtitle='Configure how the platform handles failed subscription payments.'
-          />
-          <Divider sx={{ mb: 2 }} />
-
-          <ToggleRow
-            label='Enable Automatic Retries'
-            description='When disabled, failed invoices must be retried manually by an admin'
-            checked={localValues['billing.retry.enabled'] === 'true'}
-            saving={saving.has('billing.retry.enabled')}
-            onChange={v => save('billing.retry.enabled', String(v))}
-          />
-
-          <Divider sx={{ my: 2 }} />
-
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
-            <Tooltip title='Maximum times the system will automatically retry a failed payment before downgrading the tenant to the FREE plan.'>
-              <TextField
-                size='small'
-                label='Max Retry Attempts'
-                type='number'
-                inputProps={{ min: 1, max: 10 }}
-                value={localValues['billing.retry.max_count'] ?? '3'}
-                onChange={e => setLocal('billing.retry.max_count', e.target.value)}
-                helperText='Attempts before downgrade (1–10)'
-              />
-            </Tooltip>
-
-            <Tooltip title='Base interval in seconds between automatic retry attempts. Each subsequent retry multiplies by the attempt number (e.g. 3600 → 1h, 7200 → 2h, ...).'>
-              <TextField
-                size='small'
-                label='Retry Interval (seconds)'
-                type='number'
-                inputProps={{ min: 300 }}
-                value={localValues['billing.retry.interval_seconds'] ?? '3600'}
-                onChange={e => setLocal('billing.retry.interval_seconds', e.target.value)}
-                helperText='Base seconds between retries'
-              />
-            </Tooltip>
-
-            <Tooltip title='Grace period in days after all retries are exhausted, before the tenant is automatically downgraded.'>
-              <TextField
-                size='small'
-                label='Grace Period (days)'
-                type='number'
-                inputProps={{ min: 0, max: 30 }}
-                value={localValues['billing.grace_period_days'] ?? '3'}
-                onChange={e => setLocal('billing.grace_period_days', e.target.value)}
-                helperText='Days before downgrade after final retry'
-              />
-            </Tooltip>
-          </Box>
-
-          {billingKeys.some(k => dirty.has(k)) && (
-            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                variant='contained'
-                size='small'
-                onClick={() => saveDirty(billingKeys)}
-                disabled={billingKeys.some(k => saving.has(k))}
-                startIcon={billingKeys.some(k => saving.has(k)) ? <CircularProgress size={14} color='inherit' /> : undefined}
-              >
-                Save Retry Policy
-              </Button>
-            </Box>
-          )}
         </CardContent>
       </Card>
 

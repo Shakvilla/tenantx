@@ -49,7 +49,6 @@ import {
   getAdminDelinquentInvoices,
   getAdminManualPendingInvoices,
   adminConfirmManualPayment,
-  adminRetryInvoice,
   adminVoidInvoice,
   getUpcomingRenewals,
   exportRevenueCsv,
@@ -89,50 +88,6 @@ function statusChip(status: InvoiceStatus | string) {
   }
   const cfg = map[status] ?? { color: 'default', label: status }
   return <Chip size='small' label={cfg.label} color={cfg.color} variant='tonal' />
-}
-
-// ---------------------------------------------------------------------------
-// Retry confirm dialog
-// ---------------------------------------------------------------------------
-
-interface RetryDialogProps {
-  invoice: AdminInvoiceDto | null
-  onClose: () => void
-  onConfirmed: (id: string) => Promise<void>
-}
-
-function RetryDialog({ invoice, onClose, onConfirmed }: RetryDialogProps) {
-  const [loading, setLoading] = useState(false)
-  async function handle() {
-    if (!invoice) return
-    setLoading(true)
-    await onConfirmed(invoice.id)
-    setLoading(false)
-  }
-  return (
-    <Dialog open={!!invoice} onClose={onClose} maxWidth='xs' fullWidth>
-      <DialogTitle>Retry Invoice</DialogTitle>
-      <DialogContent>
-        <DialogContentText>
-          Immediately retry payment for <strong>{invoice?.tenantName}</strong> — {invoice ? formatCurrency(invoice.totalAmount) : ''}?
-          <br /><br />
-          The system will attempt wallet debit first, then Redde push-to-pay as a fallback.
-        </DialogContentText>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>Cancel</Button>
-        <Button
-          variant='contained'
-          color='warning'
-          onClick={handle}
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={14} color='inherit' /> : <i className='ri-refresh-line' />}
-        >
-          Retry Now
-        </Button>
-      </DialogActions>
-    </Dialog>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -213,8 +168,6 @@ function VoidDialog({ invoice, onClose, onVoided }: VoidDialogProps) {
 interface InvoiceTableProps {
   invoices: AdminInvoiceDto[]
   loading: boolean
-  showRetry?: boolean
-  onRetry?: (inv: AdminInvoiceDto) => void
   onVoid?: (inv: AdminInvoiceDto) => void
   emptyMessage?: string
   // Pagination (optional - AllInvoicesTab only)
@@ -228,8 +181,6 @@ interface InvoiceTableProps {
 function InvoiceTable({
   invoices,
   loading,
-  showRetry,
-  onRetry,
   onVoid,
   emptyMessage = 'No invoices found',
   page,
@@ -291,26 +242,17 @@ function InvoiceTable({
         header: 'Status',
         cell: info => statusChip(info.getValue()),
       }),
-      columnHelper.accessor('retryCount', {
-        header: 'Retries',
+      columnHelper.accessor('failureReason', {
+        header: 'Payment issue',
         cell: info => {
           const inv = info.row.original
+          if (!inv.failureReason) return <Typography variant='caption' color='text.secondary'>—</Typography>
           return (
-            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-              <Typography variant='caption'>{inv.retryCount}x</Typography>
-              {inv.failureReason && (
-                <Tooltip title={inv.failureReason} placement='top'>
-                  <Typography variant='caption' color='error.main' sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
-                    {inv.failureReason}
-                  </Typography>
-                </Tooltip>
-              )}
-              {inv.nextRetryAt && (
-                <Typography variant='caption' color='text.secondary'>
-                  Next: {formatDateTime(inv.nextRetryAt)}
-                </Typography>
-              )}
-            </Box>
+            <Tooltip title={inv.failureReason} placement='top'>
+              <Typography variant='caption' color='error.main' sx={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>
+                {inv.failureReason}
+              </Typography>
+            </Tooltip>
           )
         },
       }),
@@ -320,7 +262,7 @@ function InvoiceTable({
       }),
     ]
 
-    if (showRetry) {
+    if (onVoid) {
       cols.push(
         columnHelper.display({
           id: 'actions',
@@ -329,13 +271,6 @@ function InvoiceTable({
             const inv = info.row.original
             return (
               <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                {inv.status === 'FAILED' && onRetry && (
-                  <Tooltip title='Retry payment now'>
-                    <IconButton size='small' color='warning' onClick={() => onRetry(inv)}>
-                      <i className='ri-refresh-line' style={{ fontSize: '1rem' }} />
-                    </IconButton>
-                  </Tooltip>
-                )}
                 {(inv.status === 'PENDING' || inv.status === 'FAILED') && onVoid && (
                   <Tooltip title='Write off / void invoice'>
                     <IconButton size='small' color='error' onClick={() => onVoid(inv)}>
@@ -352,7 +287,7 @@ function InvoiceTable({
 
     return cols
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showRetry, onRetry, onVoid])
+  }, [onVoid])
 
   const table = useReactTable({
     filterFns: { fuzzy: fuzzyFilter },
@@ -423,7 +358,6 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
   const [statusFilter, setStatus] = useState('')
   const [page, setPage]           = useState(0)
   const [pageSize, setPageSize]   = useState(25)
-  const [retryTarget, setRetry]   = useState<AdminInvoiceDto | null>(null)
   const [voidTarget, setVoid]     = useState<AdminInvoiceDto | null>(null)
   const [toast, setToast]         = useState<string | null>(null)
   const [error, setError]         = useState<string | null>(null)
@@ -442,17 +376,6 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
   }, [])
 
   useEffect(() => { fetchData(statusFilter, page, pageSize) }, [fetchData, statusFilter, page]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function handleRetry(id: string) {
-    try {
-      await adminRetryInvoice(id)
-      setToast('Retry triggered successfully')
-      fetchData(statusFilter, page, pageSize)
-    } catch (e: any) {
-      setToast(e?.response?.data?.message ?? 'Retry failed')
-    }
-    setRetry(null)
-  }
 
   async function handleExport() {
     setExporting(true)
@@ -533,8 +456,6 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
       <InvoiceTable
         invoices={data?.data ?? []}
         loading={loading}
-        showRetry={canManage}
-        onRetry={setRetry}
         onVoid={canManage ? setVoid : undefined}
         page={page}
         total={data?.totalElements ?? 0}
@@ -543,7 +464,6 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
         onPageSizeChange={newSize => { setPageSize(newSize); setPage(0); fetchData(statusFilter, 0, newSize) }}
       />
 
-      <RetryDialog invoice={retryTarget} onClose={() => setRetry(null)} onConfirmed={handleRetry} />
       <VoidDialog invoice={voidTarget} onClose={() => setVoid(null)} onVoided={handleVoided} />
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={toast?.includes('fail') || toast?.includes('Fail') ? 'error' : 'success'} onClose={() => setToast(null)}>{toast}</Alert>
@@ -559,7 +479,6 @@ function AllInvoicesTab({ canManage }: { canManage: boolean }) {
 function FailedQueueTab({ canManage }: { canManage: boolean }) {
   const [invoices, setInvoices] = useState<AdminInvoiceDto[]>([])
   const [loading, setLoading]   = useState(true)
-  const [retryTarget, setRetry] = useState<AdminInvoiceDto | null>(null)
   const [voidTarget, setVoid]   = useState<AdminInvoiceDto | null>(null)
   const [toast, setToast]       = useState<string | null>(null)
   const [error, setError]       = useState<string | null>(null)
@@ -573,17 +492,6 @@ function FailedQueueTab({ canManage }: { canManage: boolean }) {
 
   useEffect(() => { load() }, [load])
 
-  async function handleRetry(id: string) {
-    try {
-      await adminRetryInvoice(id)
-      setToast('Retry triggered — check back shortly')
-      load()
-    } catch (e: any) {
-      setToast(e?.response?.data?.message ?? 'Retry failed')
-    }
-    setRetry(null)
-  }
-
   function handleVoided(updated: AdminInvoiceDto) {
     setInvoices(prev => prev.filter(i => i.id !== updated.id))
     setToast('Invoice written off')
@@ -594,7 +502,7 @@ function FailedQueueTab({ canManage }: { canManage: boolean }) {
     <>
       {invoices.length > 0 && (
         <Alert severity='warning' sx={{ mb: 2 }}>
-          {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} in the failed queue. Use retry to attempt payment or write off to waive.
+          {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} awaiting landlord action. Payment must be initiated by the landlord; administrators may write off an invoice when appropriate.
         </Alert>
       )}
       {error && <Alert severity='error' sx={{ mb: 2 }}>{error}</Alert>}
@@ -602,13 +510,10 @@ function FailedQueueTab({ canManage }: { canManage: boolean }) {
       <InvoiceTable
         invoices={invoices}
         loading={loading}
-        showRetry={canManage}
-        onRetry={setRetry}
         onVoid={canManage ? setVoid : undefined}
         emptyMessage='No failed invoices — all payments are up to date'
       />
 
-      <RetryDialog invoice={retryTarget} onClose={() => setRetry(null)} onConfirmed={handleRetry} />
       <VoidDialog invoice={voidTarget} onClose={() => setVoid(null)} onVoided={handleVoided} />
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity='info' onClose={() => setToast(null)}>{toast}</Alert>
@@ -624,7 +529,6 @@ function FailedQueueTab({ canManage }: { canManage: boolean }) {
 function DelinquentTab({ canManage }: { canManage: boolean }) {
   const [invoices, setInvoices] = useState<AdminInvoiceDto[]>([])
   const [loading, setLoading]   = useState(true)
-  const [retryTarget, setRetry] = useState<AdminInvoiceDto | null>(null)
   const [voidTarget, setVoid]   = useState<AdminInvoiceDto | null>(null)
   const [toast, setToast]       = useState<string | null>(null)
   const [error, setError]       = useState<string | null>(null)
@@ -637,17 +541,6 @@ function DelinquentTab({ canManage }: { canManage: boolean }) {
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  async function handleRetry(id: string) {
-    try {
-      await adminRetryInvoice(id)
-      setToast('Retry triggered')
-      load()
-    } catch (e: any) {
-      setToast(e?.response?.data?.message ?? 'Retry failed')
-    }
-    setRetry(null)
-  }
 
   function handleVoided(updated: AdminInvoiceDto) {
     setInvoices(prev => prev.filter(i => i.id !== updated.id))
@@ -669,7 +562,7 @@ function DelinquentTab({ canManage }: { canManage: boolean }) {
     <>
       {uniqueTenants > 0 && (
         <Alert severity='error' sx={{ mb: 2 }}>
-          <strong>{uniqueTenants} tenant{uniqueTenants !== 1 ? 's' : ''}</strong> at risk of auto-downgrade to FREE due to 2+ failed payment attempts —{' '}
+          <strong>{uniqueTenants} tenant{uniqueTenants !== 1 ? 's' : ''}</strong> with unresolved subscription invoices —{' '}
           <strong>{formatCurrency(totalAtRisk)}</strong> in projected revenue at risk.
         </Alert>
       )}
@@ -678,13 +571,10 @@ function DelinquentTab({ canManage }: { canManage: boolean }) {
       <InvoiceTable
         invoices={invoices}
         loading={loading}
-        showRetry={canManage}
-        onRetry={setRetry}
         onVoid={canManage ? setVoid : undefined}
         emptyMessage='No delinquent accounts — all tenants are in good standing'
       />
 
-      <RetryDialog invoice={retryTarget} onClose={() => setRetry(null)} onConfirmed={handleRetry} />
       <VoidDialog invoice={voidTarget} onClose={() => setVoid(null)} onVoided={handleVoided} />
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity='info' onClose={() => setToast(null)}>{toast}</Alert>

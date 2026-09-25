@@ -984,10 +984,6 @@ export async function getAdminDelinquentInvoices(): Promise<AdminInvoiceDto[]> {
   return adminGet<AdminInvoiceDto[]>('/invoices/delinquent')
 }
 
-export async function adminRetryInvoice(invoiceId: string): Promise<void> {
-  await adminClient.post(`/invoices/${invoiceId}/retry`)
-}
-
 export async function adminVoidInvoice(invoiceId: string, reason?: string): Promise<AdminInvoiceDto> {
   return adminPost<AdminInvoiceDto>(`/invoices/${invoiceId}/void`, { reason: reason ?? null })
 }
