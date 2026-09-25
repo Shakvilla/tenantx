@@ -23,6 +23,7 @@ export interface TenantSubscriptionDto {
   currentPeriodEnd: string | null     // ISO date
   pendingDowngradePlan: string | null
   cancelledAt: string | null
+  walletAutoRenewEnabled: boolean
   /** True when the tenant explicitly chose a plan at signup; false when auto-defaulted. */
   planSelectionCompleted: boolean
   /** When the current TRIALING period ends (ISO date), if on a trial. */
@@ -135,6 +136,10 @@ export async function scheduleDowngrade(targetPlan: string): Promise<void> {
 
 export async function cancelSubscription(): Promise<void> {
   await apiClient.post(`${BASE}/cancel`)
+}
+
+export async function setWalletAutoRenewal(enabled: boolean): Promise<void> {
+  await apiClient.post(`${BASE}/auto-renewal`, { enabled })
 }
 
 export async function getMyInvoices(): Promise<SubscriptionInvoiceDto[]> {

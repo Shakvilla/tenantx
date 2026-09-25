@@ -59,7 +59,6 @@ import {
   revokeTenantApiKey,
   exportTenantData,
   getTenantInvoices,
-  adminRetryInvoice,
   adminVoidInvoice,
   getTenantUsers,
   deactivateAdminUser,
@@ -846,7 +845,6 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
   const [invoicesTotal, setInvoicesTotal]       = useState(0)
   const [invoicesTotalPages, setInvoicesTotalPages] = useState(0)
   const [invoicesPageSize, setInvoicesPageSize] = useState(10)
-  const [retryingId, setRetryingId]             = useState<string | null>(null)
   const [voidConfirmInv, setVoidConfirmInv]     = useState<AdminInvoiceDto | null>(null)
   const [voidReason, setVoidReason]             = useState('')
   const [voidingId, setVoidingId]               = useState<string | null>(null)
@@ -1043,19 +1041,6 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
       setInvoicesPage(page)
     } catch { setInvoices([]) }
     finally { setInvoicesLoading(false) }
-  }
-
-  async function handleRetryInvoice(inv: AdminInvoiceDto) {
-    setRetryingId(inv.id)
-    try {
-      await adminRetryInvoice(inv.id)
-      setToast('Payment retry triggered — check back shortly for status update')
-      if (tenant) loadInvoices(tenant.tenant_id, invoicesPage)
-    } catch (e: any) {
-      setToast(e?.response?.data?.message ?? 'Retry failed')
-    } finally {
-      setRetryingId(null)
-    }
   }
 
   async function handleVoidConfirm() {
@@ -1446,19 +1431,10 @@ export default function AdminTenantDetailView({ tenantId }: { tenantId: string }
         const inv = info.row.original
         return (
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-            {inv.status === 'FAILED' && (
-              <Tooltip title='Retry payment now'>
-                <span>
-                  <IconButton size='small' color='warning' onClick={() => handleRetryInvoice(inv)} disabled={retryingId === inv.id || voidingId === inv.id}>
-                    {retryingId === inv.id ? <CircularProgress size={14} color='inherit' /> : <i className='ri-refresh-line' style={{ fontSize: '0.9rem' }} />}
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
             {(inv.status === 'FAILED' || inv.status === 'PENDING') && (
               <Tooltip title='Void / write-off'>
                 <span>
-                  <IconButton size='small' color='error' onClick={() => { setVoidConfirmInv(inv); setVoidReason('') }} disabled={retryingId === inv.id || voidingId === inv.id}>
+                  <IconButton size='small' color='error' onClick={() => { setVoidConfirmInv(inv); setVoidReason('') }} disabled={voidingId === inv.id}>
                     {voidingId === inv.id ? <CircularProgress size={14} color='inherit' /> : <i className='ri-delete-bin-line' style={{ fontSize: '0.9rem' }} />}
                   </IconButton>
                 </span>

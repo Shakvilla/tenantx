@@ -30,6 +30,8 @@ import Skeleton from '@mui/material/Skeleton'
 import InputAdornment from '@mui/material/InputAdornment'
 import ToggleButton from '@mui/material/ToggleButton'
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
+import Switch from '@mui/material/Switch'
+import FormControlLabel from '@mui/material/FormControlLabel'
 import { useMediaQuery } from '@mui/material'
 import { useTheme } from '@mui/material/styles'
 
@@ -41,6 +43,7 @@ import {
   initiateUpgrade,
   scheduleDowngrade,
   cancelSubscription,
+  setWalletAutoRenewal,
   getMyInvoices,
   payRenewalInvoice,
   verifySubscriptionPayment,
@@ -94,6 +97,20 @@ function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublic
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [savingAutoRenewal, setSavingAutoRenewal] = useState(false)
+
+  async function handleAutoRenewal(enabled: boolean) {
+    setSavingAutoRenewal(true)
+    setError(null)
+    try {
+      await setWalletAutoRenewal(enabled)
+      await refresh()
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not update automatic renewal.')
+    } finally {
+      setSavingAutoRenewal(false)
+    }
+  }
 
   async function handleCancel() {
     setCancelling(true)
@@ -234,6 +251,25 @@ function CurrentPlanCard({ plans, freeUnitCap }: { plans: SubscriptionPlanPublic
               Your plan will switch to <strong>{pendingDowngradePlan}</strong> at end of billing period
               {currentPeriodEnd && ' (' + formatDate(currentPeriodEnd) + ')'}. Full access retained until then.
             </Alert>
+          )}
+
+          {!isFree && (
+            <Box sx={{ py: 1.5, mb: 2, borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={subscription.walletAutoRenewEnabled}
+                    onChange={event => handleAutoRenewal(event.target.checked)}
+                    disabled={savingAutoRenewal}
+                  />
+                }
+                label='Automatically renew from wallet'
+              />
+              <Typography variant='caption' color='text.secondary' sx={{ display: 'block', ml: 6 }}>
+                At renewal, Yiliora will debit your wallet only when it contains the full amount.
+                Mobile Money is never initiated automatically.
+              </Typography>
+            </Box>
           )}
 
           <Box>
