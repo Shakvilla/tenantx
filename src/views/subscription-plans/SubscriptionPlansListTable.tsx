@@ -42,8 +42,7 @@ import {
   scheduleDowngrade,
   cancelSubscription,
   getMyInvoices,
-  retryMyInvoice,
-  payInvoiceFromWallet,
+  payRenewalInvoice,
   verifySubscriptionPayment,
   getManualPaymentDetails,
   type SubscriptionPlanPublicDto,
@@ -315,6 +314,8 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
   const [pending, setPending] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [invoiceId, setInvoiceId] = useState<string | null>(null)
+  const [completionMode, setCompletionMode] = useState<'PUSH' | 'USSD' | null>(null)
+  const [ussdCode, setUssdCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [manualDetails, setManualDetails] = useState<ManualPaymentDetails | null>(null)
   const [manualDetailsFailed, setManualDetailsFailed] = useState(false)
@@ -430,6 +431,8 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
         return
       }
       setInvoiceId(result.invoiceId)
+      setCompletionMode(result.completionMode)
+      setUssdCode(result.ussdCode)
       setPending(true)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -491,11 +494,20 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
               </>
             ) : (
               <>
-                <CircularProgress sx={{ mb: 2 }} />
-                <Typography variant='body1' fontWeight={600}>Payment prompt sent to your phone</Typography>
+                <i className={completionMode === 'USSD' ? 'ri-smartphone-line' : 'ri-notification-3-line'}
+                  style={{ fontSize: '2.5rem', color: 'var(--mui-palette-primary-main)' }} />
+                <Typography variant='body1' fontWeight={600} sx={{ mt: 1 }}>
+                  {completionMode === 'USSD' ? 'Complete payment with USSD' : 'Payment prompt sent to your phone'}
+                </Typography>
                 <Typography variant='body2' color='text.secondary' sx={{ mt: 1 }}>
-                  Approve the payment of <strong>{formatGHS(dueToday)}</strong> in your mobile money app.
-                  This page updates automatically once confirmed.
+                  {completionMode === 'USSD'
+                    ? ussdCode
+                      ? <>Dial <strong>{ussdCode}</strong> on your phone and approve {formatGHS(dueToday)} with your MoMo PIN.</>
+                      : <>Redde did not return a USSD instruction. Contact support before retrying.</>
+                    : <>Approve the payment of <strong>{formatGHS(dueToday)}</strong> in your mobile money app.</>}
+                </Typography>
+                <Typography variant='caption' color='text.secondary' sx={{ display: 'block', mt: 1 }}>
+                  Never enter your MoMo PIN in Yiliora.
                 </Typography>
                 {invoiceId && (
                   <Button
@@ -516,7 +528,7 @@ function UpgradeDialog({ plan, plans, open, onClose, onSuccess }: UpgradeDialogP
                           onClose()
                         } else {
                           setPending(false)
-                          setError('Payment not yet confirmed by the gateway. Please approve the MoMo prompt first, then try verifying again.')
+                          setError('Payment is not yet confirmed. Complete the Redde instruction on your phone, then try verifying again.')
                         }
                       } catch {
                         setError('Verification failed. Please try again.')
@@ -895,7 +907,6 @@ function InvoiceTable() {
 
   const [invoices, setInvoices]     = useState<SubscriptionInvoiceDto[]>([])
   const [loading, setLoading]       = useState(true)
-  const [retrying, setRetrying]     = useState<string | null>(null)
   const [retryError, setRetryError] = useState<string | null>(null)
   const [actionNotice, setActionNotice] = useState<string | null>(null)
 
@@ -910,8 +921,12 @@ function InvoiceTable() {
     }
   }, [retryError, actionNotice])
   const [verifying, setVerifying]   = useState<Record<string, boolean>>({})
-  const [payingId, setPayingId]     = useState<string | null>(null)
   const [walletBalance, setWalletBalance] = useState<number | null>(null)
+  const [paymentInvoice, setPaymentInvoice] = useState<SubscriptionInvoiceDto | null>(null)
+  const [renewalMethod, setRenewalMethod] = useState<'WALLET' | 'MOMO'>('WALLET')
+  const [renewalMobile, setRenewalMobile] = useState('')
+  const [payingRenewal, setPayingRenewal] = useState(false)
+  const [paymentInstruction, setPaymentInstruction] = useState<string | null>(null)
 
   const fetchInvoices = useCallback(() => {
     setLoading(true)
@@ -928,19 +943,41 @@ function InvoiceTable() {
     return () => { cancelled = true }
   }, [])
 
-  async function handleRetry(invoiceId: string) {
-    setRetrying(invoiceId)
+  async function handleRenewalPayment() {
+    if (!paymentInvoice) return
+    setPayingRenewal(true)
     setRetryError(null)
     setActionNotice(null)
     try {
-      await retryMyInvoice(invoiceId)
-      setActionNotice('Payment attempt started. Approve the Mobile Money prompt if one was sent. Access is restored after payment is confirmed.')
-      fetchInvoices()
-      await refreshSubscription()
-    } catch {
-      setRetryError('Retry failed. Please try again.')
+      const result = await payRenewalInvoice(
+        paymentInvoice.id,
+        renewalMethod,
+        renewalMethod === 'MOMO' ? renewalMobile.trim() : undefined
+      )
+      if (renewalMethod === 'WALLET') {
+        setPaymentInvoice(null)
+        setActionNotice('Paid from your wallet. The bill is settled and full workspace access has been restored.')
+        fetchInvoices()
+        await refreshSubscription()
+        walletApi.getWallet().then(w => setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0)).catch(() => {})
+      } else {
+        setPaymentInvoice(current => current ? {
+          ...current,
+          id: result.invoiceId,
+          status: 'PENDING',
+          paymentMethod: 'MOMO'
+        } : current)
+        setPaymentInstruction(result.completionMode === 'USSD'
+          ? result.ussdCode
+            ? `Dial ${result.ussdCode} on your phone, then approve with your MoMo PIN.`
+            : 'Redde did not return a USSD instruction. Contact support before retrying.'
+          : 'Approve the Mobile Money prompt sent to your phone.')
+        fetchInvoices()
+      }
+    } catch (err: any) {
+      setRetryError(err?.response?.data?.message ?? 'Payment could not be started. Please try again.')
     } finally {
-      setRetrying(null)
+      setPayingRenewal(false)
     }
   }
 
@@ -961,28 +998,6 @@ function InvoiceTable() {
       setRetryError(err?.response?.data?.message ?? 'Verification failed. Please try again.')
     } finally {
       setVerifying(v => ({ ...v, [invoiceId]: false }))
-    }
-  }
-
-  async function handlePayFromWallet(invoiceId: string) {
-    setPayingId(invoiceId)
-    setRetryError(null)
-    setActionNotice(null)
-    try {
-      await payInvoiceFromWallet(invoiceId)
-      // Success said out loud. A row quietly changing from PENDING to PAID is not an answer to
-      // "did my money move".
-      setActionNotice('Paid from your wallet. The bill is settled and full workspace access has been restored.')
-      fetchInvoices()
-      await refreshSubscription()
-      // Refresh the cached balance so any other PENDING row re-gates against the post-debit amount.
-      walletApi.getWallet()
-        .then(w => setWalletBalance(w.status === 'ACTIVE' ? w.balance : 0))
-        .catch(() => {})
-    } catch (err: any) {
-      setRetryError(err?.response?.data?.message ?? 'Wallet payment failed. Please try again.')
-    } finally {
-      setPayingId(null)
     }
   }
 
@@ -1036,21 +1051,7 @@ function InvoiceTable() {
 
                 {(inv.status === 'FAILED' || inv.status === 'PENDING') && (
                   <div className='flex items-center gap-2 flex-wrap'>
-                    {inv.status === 'FAILED' && (
-                      <Button
-                        size='small'
-                        variant='contained'
-                        color='error'
-                        disabled={retrying === inv.id}
-                        onClick={() => handleRetry(inv.id)}
-                        startIcon={retrying === inv.id ? <CircularProgress size={12} color='inherit' /> : <i className='ri-refresh-line' />}
-                        sx={{ flex: 1, minHeight: 44 }}
-                      >
-                        {retrying === inv.id ? 'Retrying…' : 'Pay Now'}
-                      </Button>
-                    )}
-                    {inv.status === 'PENDING' && (
-                      <>
+                    {inv.status === 'PENDING' && inv.paymentMethod === 'MOMO' && (
                         <Button
                           size='small'
                           variant='outlined'
@@ -1061,19 +1062,16 @@ function InvoiceTable() {
                         >
                           {verifying[inv.id] ? 'Checking…' : 'Verify'}
                         </Button>
-                        <Button
-                          size='small'
-                          variant='outlined'
-                          color='primary'
-                          disabled={payingId === inv.id || walletBalance === null || !canPayFromWallet(walletBalance, inv.totalAmount)}
-                          onClick={() => handlePayFromWallet(inv.id)}
-                          startIcon={payingId === inv.id ? <CircularProgress size={12} /> : <i className='ri-wallet-3-line' />}
-                          sx={{ flex: 1, minHeight: 44 }}
-                        >
-                          {payingId === inv.id ? 'Paying…' : 'Pay from wallet'}
-                        </Button>
-                      </>
                     )}
+                    <Button
+                      size='small'
+                      variant='contained'
+                      onClick={() => { setPaymentInstruction(null); setPaymentInvoice(inv) }}
+                      startIcon={<i className='ri-secure-payment-line' />}
+                      sx={{ flex: 1, minHeight: 44 }}
+                    >
+                      Pay Now
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -1112,38 +1110,19 @@ function InvoiceTable() {
               </TableCell>
               {hasAction && (
                 <TableCell align='right' sx={{ minWidth: 110 }}>
-                  {inv.status === 'FAILED' && (
-                    <Button
-                      size='small'
-                      variant='contained'
-                      color='error'
-                      disabled={retrying === inv.id}
-                      onClick={() => handleRetry(inv.id)}
-                      startIcon={retrying === inv.id ? <CircularProgress size={12} color='inherit' /> : <i className='ri-refresh-line' />}
-                    >
-                      {retrying === inv.id ? 'Retrying…' : 'Pay Now'}
-                    </Button>
-                  )}
-                  {inv.status === 'PENDING' && (
+                  {(inv.status === 'FAILED' || inv.status === 'PENDING') && (
                     <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                      <Button
-                        size='small'
-                        variant='outlined'
-                        disabled={!!verifying[inv.id]}
-                        onClick={() => handleVerify(inv.id)}
-                        startIcon={verifying[inv.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}
-                      >
-                        {verifying[inv.id] ? 'Checking…' : 'Verify'}
-                      </Button>
-                      <Button
-                        size='small'
-                        variant='outlined'
-                        color='primary'
-                        disabled={payingId === inv.id || walletBalance === null || !canPayFromWallet(walletBalance, inv.totalAmount)}
-                        onClick={() => handlePayFromWallet(inv.id)}
-                        startIcon={payingId === inv.id ? <CircularProgress size={12} /> : <i className='ri-wallet-3-line' />}
-                      >
-                        {payingId === inv.id ? 'Paying…' : 'Pay from wallet'}
+                      {inv.status === 'PENDING' && inv.paymentMethod === 'MOMO' && (
+                        <Button size='small' variant='outlined' disabled={!!verifying[inv.id]}
+                          onClick={() => handleVerify(inv.id)}
+                          startIcon={verifying[inv.id] ? <CircularProgress size={12} /> : <i className='ri-refresh-line' />}>
+                          {verifying[inv.id] ? 'Checking…' : 'Verify'}
+                        </Button>
+                      )}
+                      <Button size='small' variant='contained'
+                        onClick={() => { setPaymentInstruction(null); setPaymentInvoice(inv) }}
+                        startIcon={<i className='ri-secure-payment-line' />}>
+                        Pay Now
                       </Button>
                     </Box>
                   )}
@@ -1154,6 +1133,66 @@ function InvoiceTable() {
         </TableBody>
       </Table>
       )}
+
+      <Dialog
+        open={paymentInvoice !== null}
+        onClose={() => { if (!payingRenewal) setPaymentInvoice(null) }}
+        maxWidth='xs'
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>Pay subscription renewal</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          {paymentInvoice && (
+            <Alert severity='info'>Amount due: <strong>{formatGHS(paymentInvoice.totalAmount)}</strong></Alert>
+          )}
+          {retryError && <Alert severity='error'>{retryError}</Alert>}
+          {paymentInstruction ? (
+            <Alert severity='info'>
+              <Typography variant='body2'>{paymentInstruction}</Typography>
+              <Typography variant='caption' color='text.secondary'>Never enter your MoMo PIN in Yiliora.</Typography>
+            </Alert>
+          ) : (
+            <>
+              <ToggleButtonGroup value={renewalMethod} exclusive fullWidth size='small'
+                onChange={(_, value) => { if (value) setRenewalMethod(value) }}>
+                <ToggleButton value='WALLET' disabled={paymentInvoice == null || walletBalance == null || !canPayFromWallet(walletBalance, paymentInvoice.totalAmount)}>
+                  <i className='ri-wallet-3-line' />&nbsp; Wallet
+                </ToggleButton>
+                <ToggleButton value='MOMO'><i className='ri-phone-line' />&nbsp; Mobile Money</ToggleButton>
+              </ToggleButtonGroup>
+              {walletBalance !== null && paymentInvoice && (
+                <Typography variant='caption' color={canPayFromWallet(walletBalance, paymentInvoice.totalAmount) ? 'text.secondary' : 'error.main'}>
+                  Wallet balance: {formatGHS(walletBalance)}
+                  {!canPayFromWallet(walletBalance, paymentInvoice.totalAmount) && ' — insufficient for this renewal'}
+                </Typography>
+              )}
+              {renewalMethod === 'MOMO' && (
+                <TextField size='small' label='Mobile Money Number' placeholder='0241234567'
+                  value={renewalMobile} onChange={e => setRenewalMobile(e.target.value)}
+                  helperText='Redde will send the configured push or USSD authorization flow.' />
+              )}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPaymentInvoice(null)} disabled={payingRenewal}>Close</Button>
+          {paymentInstruction && paymentInvoice ? (
+            <Button variant='contained' onClick={() => handleVerify(paymentInvoice.id)}
+              disabled={!!verifying[paymentInvoice.id]}>
+              {verifying[paymentInvoice.id] ? 'Checking…' : "I've completed payment"}
+            </Button>
+          ) : (
+            <Button variant='contained' onClick={handleRenewalPayment}
+              disabled={payingRenewal || !paymentInvoice ||
+                (renewalMethod === 'WALLET' && (walletBalance == null || !canPayFromWallet(walletBalance, paymentInvoice.totalAmount))) ||
+                (renewalMethod === 'MOMO' && !renewalMobile.trim())}
+              startIcon={payingRenewal ? <CircularProgress size={14} /> : <i className='ri-secure-payment-line' />}>
+              {payingRenewal ? 'Starting…' : paymentInvoice ? `Pay ${formatGHS(paymentInvoice.totalAmount)}` : 'Pay'}
+            </Button>
+          )}
+        </DialogActions>
+      </Dialog>
     </>
   )
 }

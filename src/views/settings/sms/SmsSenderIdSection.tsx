@@ -150,7 +150,11 @@ export default function SmsSenderIdSection() {
 
         // MoMo — show phone prompt, wait for user to confirm payment
         setMomoStatus('waiting')
-        setMomoMessage('A payment prompt has been sent to your phone. Please approve it.')
+        setMomoMessage(result.completionMode === 'USSD'
+          ? result.ussdCode
+            ? `Dial ${result.ussdCode} on your phone, then approve the payment with your MoMo PIN.`
+            : 'Redde started the payment but did not return a USSD instruction. Contact support before retrying.'
+          : 'A payment prompt has been sent to your phone. Please approve it.')
         setMomoTransId(result.clientTransId ?? null)
         setFunding(false)
 

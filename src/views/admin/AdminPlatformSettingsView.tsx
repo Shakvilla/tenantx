@@ -657,6 +657,33 @@ export default function AdminPlatformSettingsView() {
         )
       })}
 
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <SectionHeader
+            icon='ri-smartphone-line'
+            title='Redde Payment Confirmation'
+            subtitle='Match this setting to the confirmation flow enabled on your Redde account.'
+          />
+          <Divider sx={{ mb: 2 }} />
+          <FormControl fullWidth size='small'>
+            <InputLabel>Confirmation mode</InputLabel>
+            <Select
+              label='Confirmation mode'
+              value={localValues['gateway.redde.completion_mode'] || 'PUSH'}
+              disabled={saving.has('gateway.redde.completion_mode')}
+              onChange={e => save('gateway.redde.completion_mode', e.target.value)}
+            >
+              <MenuItem value='PUSH'>Push prompt</MenuItem>
+              <MenuItem value='USSD'>USSD authorization</MenuItem>
+            </Select>
+          </FormControl>
+          <Alert severity='warning' sx={{ mt: 2 }}>
+            Enable USSD authorization only after Redde has enabled its OTP/USSD flow on the account.
+            Yiliora displays Redde's instruction but never collects a customer's MoMo PIN.
+          </Alert>
+        </CardContent>
+      </Card>
+
       {/* ── 3. Transaction Fee Rate ──────────────────────────────────────────── */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
