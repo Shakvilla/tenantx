@@ -216,11 +216,12 @@ const SERVICE_ICONS: Record<string, string> = {
   redde:    'ri-bank-card-2-line',
 }
 
-const STATUS_COLOR: Record<string, 'success' | 'error' | 'warning' | 'default'> = {
+const STATUS_COLOR: Record<string, 'success' | 'error' | 'warning' | 'info' | 'default'> = {
   UP:           'success',
   DOWN:         'error',
   DEGRADED:     'warning',
   UNCONFIGURED: 'default',
+  CONFIGURED:   'info',
 }
 
 const STATUS_ICON: Record<string, string> = {
@@ -228,6 +229,7 @@ const STATUS_ICON: Record<string, string> = {
   DOWN:         'ri-close-circle-fill',
   DEGRADED:     'ri-error-warning-fill',
   UNCONFIGURED: 'ri-question-line',
+  CONFIGURED:   'ri-checkbox-circle-fill',
 }
 
 function ServiceStatusCard({ services }: { services: ServiceStatusDto[] }) {
@@ -240,7 +242,7 @@ function ServiceStatusCard({ services }: { services: ServiceStatusDto[] }) {
             <Typography variant='h6' fontWeight={700}>Service Status</Typography>
           </Box>
         }
-        subheader='Real-time connectivity and configuration check for each platform component'
+        subheader='Configuration and operational checks for each platform component'
       />
       <CardContent>
         <Grid container spacing={2}>

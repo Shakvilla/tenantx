@@ -14,7 +14,7 @@ const BASE = `${API_BASE}/subscription`
 export interface TenantSubscriptionDto {
   plan: string           // "FREE" | "BASIC" | "PRO"
   displayName: string
-  status: string         // "ACTIVE" | "PAST_DUE" | "CANCELLED" | "GRANDFATHERED"
+  status: 'ACTIVE' | 'TRIALING' | 'LOCKED'
   unitCount: number
   unitCap: number | null
   pricePerUnit: number
@@ -23,6 +23,7 @@ export interface TenantSubscriptionDto {
   currentPeriodEnd: string | null     // ISO date
   pendingDowngradePlan: string | null
   cancelledAt: string | null
+  walletAutoRenewEnabled: boolean
   /** True when the tenant explicitly chose a plan at signup; false when auto-defaulted. */
   planSelectionCompleted: boolean
   /** When the current TRIALING period ends (ISO date), if on a trial. */
@@ -68,6 +69,7 @@ export interface SubscriptionInvoiceDto {
   totalAmount: number
   status: string         // "PENDING" | "PAID" | "FAILED" | "VOID"
   invoiceType: string    // "UPGRADE" | "RENEWAL"
+  paymentMethod: string  // UNSELECTED | WALLET | MOMO | CARD | MANUAL
   paidAt: string | null
   reddeTransactionRef: string | null
   createdAt: string
@@ -87,6 +89,8 @@ export interface UpgradeInitiatedDto {
   status: string
   message: string
   redirectUrl: string | null   // set for CARD payments — the Paystack checkout URL to redirect to
+  completionMode: 'PUSH' | 'USSD' | null
+  ussdCode: string | null
 }
 
 /** Platform bank details for the manual (bank-transfer) payment option. Keys match the setting suffix. */
@@ -134,6 +138,10 @@ export async function cancelSubscription(): Promise<void> {
   await apiClient.post(`${BASE}/cancel`)
 }
 
+export async function setWalletAutoRenewal(enabled: boolean): Promise<void> {
+  await apiClient.post(`${BASE}/auto-renewal`, { enabled })
+}
+
 export async function getMyInvoices(): Promise<SubscriptionInvoiceDto[]> {
   const res = await apiClient.get<SubscriptionInvoiceDto[]>(`${BASE}/invoices`)
   return res.data
@@ -141,6 +149,18 @@ export async function getMyInvoices(): Promise<SubscriptionInvoiceDto[]> {
 
 export async function retryMyInvoice(invoiceId: string): Promise<void> {
   await apiClient.post(`${BASE}/invoices/${invoiceId}/retry`)
+}
+
+export async function payRenewalInvoice(
+  invoiceId: string,
+  paymentMethod: 'WALLET' | 'MOMO',
+  mobileNumber?: string
+): Promise<UpgradeInitiatedDto> {
+  const res = await apiClient.post<UpgradeInitiatedDto>(`${BASE}/invoices/${invoiceId}/pay`, {
+    paymentMethod,
+    mobileNumber
+  })
+  return res.data
 }
 
 export async function verifySubscriptionPayment(invoiceId: string): Promise<{ confirmed: boolean }> {

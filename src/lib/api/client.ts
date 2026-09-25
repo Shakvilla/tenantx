@@ -193,6 +193,16 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // A locked subscription is an authenticated, read-only workspace, not an expired
+    // session. Refresh shared subscription state after the first refused write.
+    if (error.response?.status === 402) {
+      const data = error.response.data as { code?: string } | undefined
+
+      if (data?.code === 'SUBSCRIPTION_UPGRADE_REQUIRED' && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('SUBSCRIPTION_LOCKED'))
+      }
+    }
+
     return Promise.reject(error)
   }
 )
